@@ -1,0 +1,35 @@
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+MemoryCaptures/
+Recordings/
+
+# Visual Studio / IDE caches
+.vs/
+.vscode/
+.idea/
+
+# Unity-generated Visual Studio files
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.unityproj
+*.tmp
+*.log
+*.sln
+*.slnx
+
+# Crash reports
+sysinfo.txt
+
+# Asset Store helper files
+Assets/AssetStoreTools*
