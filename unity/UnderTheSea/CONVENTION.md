@@ -398,6 +398,9 @@ git status
 
 ## 11. Git 작업 흐름
 
+> 브랜치 이름, 커밋 메시지, Merge Request 등 자세한 Git 규칙은
+> 저장소 최상위의 `GIT_CONVENTION.md`를 따릅니다. 아래는 요약입니다.
+
 작업을 시작하기 전에 `develop` 브랜치를 최신 상태로 업데이트합니다.
 
 ```bash
