@@ -91,8 +91,25 @@ feature/xxx   실제 작업
 ### 형식
 
 ```text
-<타입>/<작업-내용>
+<타입>/<이니셜>-<작업-내용>
 ```
+
+### 이니셜
+
+`Assets/Game/Scenes/Develop/` 폴더 이름을 그대로 줄여서 씁니다.
+
+| 이름 | 이니셜 |
+| --- | --- |
+| 민화 (MinHwa) | `mh` |
+| 서연 (SeoYeon) | `sy` |
+| 효진 (HyoJin) | `hj` |
+| 건희 (GeonHee) | `gh` |
+| 용주 (YongJu) | `yj` |
+
+클라이언트 3명이 같은 Unity 프로젝트를 만지기 때문에,
+브랜치 목록에서 **누구 작업인지 바로 보이게** 하기 위함입니다.
+
+IoT와 서버 담당자도 같은 규칙을 씁니다. 규칙이 하나여야 헷갈리지 않습니다.
 
 ### 작성 규칙
 
@@ -104,20 +121,21 @@ feature/xxx   실제 작업
 ### 예시
 
 ```text
-✅  feature/main-world-sync
-✅  feature/title-ui
-✅  feature/fishing-minigame
-✅  fix/spawn-position
-✅  refactor/input-provider
-✅  chore/setup-netcode
-✅  hotfix/build-crash
-✅  release/v1.0
+✅  feature/mh-title-ui            민화 - Title 화면
+✅  feature/mh-scene-loader        민화 - 씬 전환
+✅  feature/sy-player-prefab       서연 - 캐릭터 프리팹
+✅  feature/hj-lobby-map           효진 - 로비 맵
+✅  feature/gh-network-service     건희 - 네트워크
+✅  fix/mh-spawn-position          민화 - 버그 수정
+✅  chore/hj-import-ocean-asset    효진 - 에셋 추가
+✅  hotfix/gh-build-crash          건희 - 급한 수정
 
-❌  feature/작업              한글
-❌  feature/MainWorldSync     대문자
-❌  feature/main_world_sync   밑줄
-❌  minhwa                    타입 없음
-❌  test                      무슨 작업인지 알 수 없음
+❌  feature/title-ui               이니셜 없음
+❌  feature/작업                    한글
+❌  feature/MH-TitleUI             대문자
+❌  feature/mh_title_ui            밑줄
+❌  minhwa                         타입 없음
+❌  test                           무슨 작업인지 알 수 없음
 ```
 
 ### 이슈 번호를 함께 쓰는 경우
@@ -125,7 +143,7 @@ feature/xxx   실제 작업
 GitLab 이슈를 사용한다면 번호를 붙여도 됩니다. 팀에서 하나로 통일합니다.
 
 ```text
-feature/12-main-world-sync
+feature/mh-12-title-ui
 ```
 
 ---
@@ -168,7 +186,7 @@ feature/12-main-world-sync
 ### 이 프로젝트 예시
 
 ```text
-[feat] MainWorld 캐릭터 이동 동기화 구현
+[feat] Lobby 캐릭터 이동 동기화 구현
 [feat] Title 화면 닉네임 입력 기능 추가
 [fix] 캐릭터가 바닥을 통과하는 문제 수정
 [refactor] 입력 처리와 이동 로직 분리
@@ -181,9 +199,9 @@ feature/12-main-world-sync
 | ❌ | ✅ |
 | --- | --- |
 | `수정` | `[fix] 캐릭터가 바닥을 통과하는 문제 수정` |
-| `ㅇㅇ` | `[feat] 방 만들기 버튼 UI 구현` |
+| `ㅇㅇ` | `[feat] Title 서버 선택 UI 구현` |
 | `작업중` | `[feat] Lobby 접속 처리 추가` |
-| `[feat] 이것저것 많이 함` | `[feat] MainWorld 캐릭터 이동 동기화 구현` |
+| `[feat] 이것저것 많이 함` | `[feat] Lobby 캐릭터 이동 동기화 구현` |
 | `Update Player.cs` | `[refactor] 입력 처리와 이동 로직 분리` |
 | `에셋 추가.` | `[chore] 해양 환경 에셋 추가` |
 
@@ -201,7 +219,7 @@ feature/12-main-world-sync
 | 항목 | 내용 |
 | --- | --- |
 | 대상 브랜치 | 반드시 `develop` (`master` 아님) |
-| 제목 | 커밋 메시지와 같은 형식. 예: `[feat] MainWorld 캐릭터 이동 동기화` |
+| 제목 | 커밋 메시지와 같은 형식. 예: `[feat] Lobby 캐릭터 이동 동기화` |
 | 리뷰어 | 최소 **1명** 지정 |
 | 승인 | 최소 1명의 승인 후 병합 |
 | 옵션 | `Delete source branch` 체크 |
@@ -272,7 +290,7 @@ git pull origin develop
 ```
 
 ```bash
-git switch -c feature/작업명
+git switch -c feature/mh-작업명
 ```
 
 **항상 최신 `develop`에서 브랜치를 만듭니다.** 오래된 상태에서 시작하면 나중에 충돌이 커집니다.
@@ -294,7 +312,7 @@ git commit -m "[feat] 작업 내용"
 ### 작업 완료
 
 ```bash
-git push -u origin feature/작업명
+git push -u origin feature/mh-작업명
 ```
 
 그다음 GitLab에서 Merge Request를 만듭니다.
@@ -387,7 +405,7 @@ git checkout --ours 파일경로     # 내 것을 선택
 
 1. `master`와 `develop`에는 **직접 push 하지 않습니다.**
 2. `master`로 가는 경로는 **`develop`에서 올린 MR**입니다.
-3. 브랜치는 `feature` `fix` `refactor` `chore` `release` `hotfix`, 이름은 **영어 소문자 + 하이픈**.
+3. 브랜치 이름은 `타입/이니셜-작업내용` 형식입니다. 예: `feature/mh-title-ui`
 4. 커밋 메시지는 `[type] subject`, **50자 이하 · 명사형 · 마침표 없이**.
 5. type은 `feat` `fix` `refactor` `style` `docs` `test` `chore` 7가지입니다.
 6. 하나의 커밋에는 **하나의 작업**만 담습니다.

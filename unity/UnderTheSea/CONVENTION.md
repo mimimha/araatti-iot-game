@@ -138,8 +138,10 @@ Main/
 └── MiniGames/
 ```
 
-* `CoreGames` : Boot, Lobby, MainWorld 등 핵심 게임 Scene
+* `CoreGames` : Boot, Title, Lobby 등 핵심 게임 Scene
 * `MiniGames` : 개별 미니게임 Scene
+
+> 확정된 Scene 목록과 각 Scene의 규격은 `GAME_STRUCTURE.md`를 따릅니다.
 
 ### Main Scene 규칙
 
@@ -176,8 +178,9 @@ Assets/Game/Prefabs/
 ├── Interactables/
 ├── UI/
 └── MiniGames/
-    ├── Fishing/
-    └── Dance/
+    ├── Warriors/
+    ├── ShipCoop/
+    └── Mine/
 ```
 
 예를 들어 `FishingTest.unity`에서 낚싯대 GameObject를 만들고 이를 Prefab으로 만들 경우:
@@ -232,13 +235,14 @@ Assets/Game/Scripts/
 
 ```text
 Scripts/
+├── Core/
 ├── Character/
-├── Interaction/
 ├── Network/
 ├── UI/
 └── MiniGames/
-    ├── Fishing/
-    └── Dance/
+    ├── Warriors/
+    ├── ShipCoop/
+    └── Mine/
 ```
 
 개인 Develop 폴더에 Script를 생성하지 않습니다.
@@ -411,27 +415,25 @@ git pull origin develop
 그 후 작업 브랜치를 생성합니다.
 
 ```bash
-git switch -c feature/<작업명>
+git switch -c <타입>/<이니셜>-<작업명>
 ```
 
 예:
 
 ```text
-feature/player-movement
-feature/fishing
-feature/main-ui
+feature/mh-title-ui
+feature/sy-player-prefab
+feature/hj-lobby-map
 
-fix/player-camera
-fix/fishing-input
-
-chore/setup-photon
+fix/mh-spawn-position
+chore/gh-setup-netcode
 ```
 
 작업 완료 후:
 
 ```bash
 git add .
-git commit -m "커밋 메시지"
+git commit -m "[feat] 작업 내용"
 git push -u origin <브랜치명>
 ```
 
