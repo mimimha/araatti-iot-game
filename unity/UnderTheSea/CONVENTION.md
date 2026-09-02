@@ -1,6 +1,6 @@
-# UnderTheSea Unity Convention
+# 아라아띠 Unity Convention
 
-본 문서는 UnderTheSea Unity 클라이언트 개발을 위한 협업 규칙을 정의합니다.
+본 문서는 아라아띠 Unity 클라이언트 개발을 위한 협업 규칙을 정의합니다.
 
 팀원과 AI 개발 도구는 아래 규칙을 기준으로 프로젝트를 수정합니다.
 
