@@ -1,4 +1,4 @@
-# UnderTheSea Git 컨벤션
+# 아라아띠 Git 컨벤션
 
 본 문서는 팀 전체의 Git 작업 규칙을 정의합니다.
 
