@@ -33,3 +33,6 @@ sysinfo.txt
 
 # Asset Store helper files
 Assets/AssetStoreTools*
+
+# 패키지별 개인 설정 (AI Assistant 체크포인트 설정 등)
+ProjectSettings/Packages/
