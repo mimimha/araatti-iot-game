@@ -1,0 +1,15 @@
+# 저장소 루트 전용 무시 목록.
+# Unity 프로젝트(unity/UnderTheSea/)는 자체 .gitignore 를 따로 가지고 있습니다.
+
+# 아트 작업용 스테이징 폴더.
+# 최종 에셋은 unity/UnderTheSea/Assets/Game/Art/ 에 들어 있고 이쪽은 그 사본입니다.
+# 두 벌을 함께 관리하면 어느 쪽이 최신인지 헷갈리므로 저장소에는 담지 않습니다.
+# 앞의 "/" 때문에 루트의 Assets/ 만 제외되고 Unity 쪽 Assets/ 는 영향받지 않습니다.
+/Assets/
+
+# art/tools 의존성
+node_modules/
+
+# OS 부산물
+.DS_Store
+Thumbs.db
