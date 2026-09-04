@@ -9,41 +9,58 @@ cd art/tools
 npm install
 ```
 
-`sharp` 하나만 씁니다. 예전에는 로컬 PC의 절대 경로를 직접 `require` 하고 있어서 다른 사람 환경에서는 실행되지 않았는데, 지금은 일반 의존성으로 바뀌었습니다.
+`sharp` 하나만 씁니다.
 
 ## 사용
 
-| 명령 | 하는 일 |
-|---|---|
-| `npm run extract:start` | 시작 화면 목업에서 로고·버튼·아이콘 추출 |
-| `npm run extract:login` | 로그인 화면 목업에서 패널·입력칸·탭 추출 |
-| `npm run extract:channel` | 채널 선택 목업에서 패널·행·배지·아이콘 추출 |
-| `npm run extract:character` | 캐릭터 커스터마이징 목업에서 슬롯·탭·화살표 추출 |
-| `npm run clean:channel` | 채널 선택 에셋의 흰 배경을 투명으로 |
-| `npm run clean:character` | 캐릭터 커스터마이징 에셋의 흰 배경을 투명으로 |
-
-`cleanup-*` 스크립트는 이미지 가장자리에서 시작해 밝은 무채색 픽셀을 flood fill 로 훑어 알파를 0 으로 만듭니다. 그림 안쪽의 밝은 부분은 가장자리와 이어져 있지 않으면 건드리지 않습니다.
-
-## ⚠ 입출력 경로 주의
-
-모든 스크립트가 저장소 루트의 `Assets/Art/<화면>/` 를 읽고 씁니다.
-
-```js
-const root = path.resolve(__dirname, '../../Assets/Art/ChannelSelect');
+```bash
+npm run extract:channel     # 채널 선택 화면 에셋 추출
+npm run clean:channel       # 흰 배경을 투명으로
+npm run fix:rivets          # 채널 줄 양 끝 금색 리벳 제거
 ```
 
-**이 폴더는 `.gitignore` 로 제외되어 있어 clone 직후에는 존재하지 않습니다.** 최종 에셋은 Unity 프로젝트 안에 들어 있습니다.
-
-| 루트 (작업용, git 제외) | Unity (실제 사용, git 포함) |
+| 명령 | 대상 화면 |
 |---|---|
-| `Assets/Art/ChannelSelect/` | `unity/UnderTheSea/Assets/Game/Art/ChannelSelect/` |
-| `Assets/Art/CharacterCustomization/` | `unity/UnderTheSea/Assets/Game/Art/CharacterCustomization/` |
-| `Assets/Art/LoginScreen/` | `unity/UnderTheSea/Assets/Game/Art/UI/Login,SignUp/` |
-| `Assets/Art/StartScreen/` | `unity/UnderTheSea/Assets/Game/Art/UI/Title/` |
+| `extract:start` | 시작 화면 — 로고·버튼·아이콘 |
+| `extract:login` | 로그인 화면 — 패널·입력칸·탭 |
+| `extract:channel` | 채널 선택 — 패널·행·배지·아이콘 |
+| `extract:character` | 캐릭터 커스터마이징 — 슬롯·탭·화살표 |
+| `clean:channel` | 채널 선택 에셋 알파 정리 |
+| `clean:character` | 캐릭터 커스터마이징 에셋 알파 정리 |
+| `fix:rivets` | `channel-row-base.png` 리벳 제거 |
 
-스크립트를 돌리려면 둘 중 하나를 하세요.
+## 입출력 경로
 
-1. Unity 쪽 에셋을 위 표에 맞춰 `Assets/Art/<화면>/` 으로 복사한 뒤 실행하고, 결과를 다시 Unity 로 옮긴다.
-2. 각 스크립트 4~5행의 `root` 경로를 Unity 폴더로 직접 고친다. 다만 이 경우 스크립트가 Unity 에셋을 덮어쓰므로, 손으로 수정한 에셋이 있다면 날아갈 수 있다.
+각 스크립트는 **Unity 프로젝트의 아트 폴더를 직접** 읽고 씁니다. 소스 목업(`*-reference.png`)도 같은 폴더에 함께 있습니다.
 
-작업용 폴더를 계속 둘 것인지, 아니면 Unity 폴더 하나만 두고 스크립트를 그쪽으로 맞출 것인지는 팀에서 정하는 게 좋겠습니다.
+| 스크립트 | 대상 폴더 (`unity/UnderTheSea/Assets/Game/Art/` 기준) |
+|---|---|
+| `*-start-screen-*` | `UI/Title/` |
+| `*-login-screen-*` | `UI/Login,SignUp/` |
+| `*-channel-select-*` | `ChannelSelect/` |
+| `*-character-customization-*` | `CharacterCustomization/` |
+
+예전에는 저장소 루트의 `Assets/Art/` 라는 별도 작업 폴더를 거쳤는데, 최종 에셋과 내용이 같은 사본이라 어느 쪽이 최신인지 헷갈렸습니다. 그 폴더는 `.gitignore` 로 빠졌고 스크립트는 Unity 폴더 하나만 봅니다.
+
+## ⚠ 생성된 에셋은 손으로 고치지 마세요
+
+스크립트가 만드는 파일을 이미지 편집기로 직접 수정하면, **다음에 누가 스크립트를 돌리는 순간 조용히 되돌아갑니다.**
+
+고칠 게 생기면 둘 중 하나로 하세요.
+
+1. 소스 목업(`*-reference.png`)을 고치고 다시 추출한다
+2. 보정 로직을 스크립트에 추가한다 — `fix-channel-row-rivets.cjs` 가 그 예입니다
+
+`fix:rivets` 는 배 아이콘과 겹치던 금색 리벳을 지웁니다. 리벳을 색으로만 찾아 지우면 둘레의 어두운 그림자 링이 남기 때문에, 리벳 위치를 탐지한 뒤 그 높이 구간의 양 끝을 판재 색으로 덮습니다. 이미 지워진 파일에 다시 실행해도 안전합니다.
+
+## 손으로 그린 에셋 (스크립트가 건드리지 않음)
+
+아래는 처음엔 스크립트가 단순 도형으로 만들었지만 지금은 손으로 다시 그린 것들입니다. 덮어쓰지 않도록 생성 대상에서 제외해 두었습니다.
+
+| 파일 | 조치 |
+|---|---|
+| `ChannelSelect/refresh.png` | `extract:channel` 생성 목록에서 제외 |
+| `ChannelSelect/button-join-base.png` | `extract:channel` 생성 목록에서 제외 |
+| `ChannelSelect/channel-panel-frame.png` | `clean:channel` 처리 대상에서 제외 |
+
+새로 손으로 그린 에셋이 생기면 해당 스크립트에서도 빼주고 이 표에 추가해 주세요.

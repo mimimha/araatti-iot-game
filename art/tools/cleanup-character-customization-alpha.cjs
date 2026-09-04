@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 
-const root = path.resolve(__dirname, '../../Assets/Art/CharacterCustomization');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/CharacterCustomization');
 
 function isNeutral(r, g, b) {
   const min = Math.min(r, g, b), max = Math.max(r, g, b);

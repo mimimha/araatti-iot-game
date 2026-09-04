@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const root = path.resolve(__dirname, '../../Assets/Art/ChannelSelect');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/ChannelSelect');
 const source = path.join(root, 'channel-select-screen-reference.png');
 
 async function cropMasked(name, crop, shape) {
@@ -40,8 +40,7 @@ async function main() {
   await sharp(Buffer.from(selected)).png().toFile(path.join(root, 'channel-row-selected-overlay.png'));
   await sharp(Buffer.from('<svg width="116" height="42" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="114" height="40" rx="12" fill="#087f61" stroke="#07513f" stroke-width="2"/><rect x="3" y="3" width="110" height="15" rx="8" fill="#35c69c" opacity=".35"/></svg>')).png().toFile(path.join(root, 'status-smooth-base.png'));
   await sharp(Buffer.from('<svg width="116" height="42" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="114" height="40" rx="12" fill="#c86700" stroke="#713300" stroke-width="2"/><rect x="3" y="3" width="110" height="15" rx="8" fill="#ffb23b" opacity=".35"/></svg>')).png().toFile(path.join(root, 'status-crowded-base.png'));
-  await sharp(Buffer.from('<svg width="64" height="64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="22" fill="#164f6d" stroke="#d5a33b" stroke-width="4"/><path d="M45 27a16 16 0 0 0-26-5M19 37a16 16 0 0 0 26 5" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><path d="M18 18v10h10M46 46V36H36" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/></svg>')).png().toFile(path.join(root, 'refresh.png'));
-  await sharp(Buffer.from('<svg width="360" height="92" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="356" height="88" rx="42" fill="#0d4b91" stroke="#e1a73e" stroke-width="5"/><rect x="10" y="10" width="340" height="72" rx="35" fill="none" stroke="#42a7ff" stroke-opacity=".75" stroke-width="3"/></svg>')).png().toFile(path.join(root, 'button-join-base.png'));
+  // refresh.png / button-join-base.png 는 손으로 다시 그린 에셋이라 여기서 생성하지 않습니다.
   await sharp(Buffer.from('<svg width="116" height="103" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="112" height="99" rx="48" fill="none" stroke="#d3a23f" stroke-width="4"/></svg>')).png().toFile(path.join(root, 'channel-row-base-fallback.png'));
 
   // Preserve exact reference for later layout calibration.

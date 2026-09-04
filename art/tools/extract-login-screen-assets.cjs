@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 
-const root = path.resolve(__dirname, '../../Assets/Art/LoginScreen');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/UI/Login,SignUp');
 const source = path.join(root, 'start-login-reference.png');
 
 async function cropMasked(name, crop, shape) {

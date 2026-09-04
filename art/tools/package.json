@@ -9,7 +9,8 @@
     "extract:channel": "node extract-channel-select-assets.cjs",
     "extract:character": "node extract-character-customization-assets.cjs",
     "clean:channel": "node cleanup-channel-select-alpha.cjs",
-    "clean:character": "node cleanup-character-customization-alpha.cjs"
+    "clean:character": "node cleanup-character-customization-alpha.cjs",
+    "fix:rivets": "node fix-channel-row-rivets.cjs"
   },
   "dependencies": {
     "sharp": "^0.33.0"

@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
-const root = path.resolve(__dirname, '../../Assets/Art/ChannelSelect');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/ChannelSelect');
 
 function neutral(r, g, b) {
   const min = Math.min(r, g, b), max = Math.max(r, g, b);
@@ -21,4 +21,4 @@ async function clean(name) {
   await sharp(data, { raw: info }).trim({ background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(tmp);
   fs.renameSync(tmp, file);
 }
-Promise.all(['channel-panel-frame.png', 'channel-row-base.png'].map(clean)).catch((e) => { console.error(e); process.exit(1); });
+Promise.all(['channel-row-base.png'].map(clean)).catch((e) => { console.error(e); process.exit(1); });

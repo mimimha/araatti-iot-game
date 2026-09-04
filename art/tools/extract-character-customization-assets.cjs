@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 
-const root = path.resolve(__dirname, '../../Assets/Art/CharacterCustomization');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/CharacterCustomization');
 const source = path.join(root, 'customization-screen-reference.png');
 const rawDir = path.join(root, '_raw');
 

@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 
-const root = path.resolve(__dirname, '../../Assets/Art/StartScreen');
+const root = path.resolve(__dirname, '../../unity/UnderTheSea/Assets/Game/Art/UI/Title');
 const source = path.join(root, 'start-screen-reference.png');
 
 async function extractWithMask(name, crop, svgShapes) {
