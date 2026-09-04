@@ -946,7 +946,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5712b23975a6ccb458bcdeaaecc5ec1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneChangeButton
-  sceneName: 
+  sceneName: Login
 --- !u!82 &721645463
 AudioSource:
   m_ObjectHideFlags: 0
