@@ -145,6 +145,10 @@ public class ChannelSelectController : MonoBehaviour
 
     private void HandleServerList(ServerInfo[] list)
     {
+        // 새로고침 전 선택을 서버 ID로 기억한다. 목록 순서가 바뀌어도
+        // 같은 채널이 남아 있으면 선택을 유지할 수 있다.
+        string previouslySelectedServerId = SelectedServerId;
+
         _channels.Clear();
         if (list != null) _channels.AddRange(list);
 
@@ -156,9 +160,12 @@ public class ChannelSelectController : MonoBehaviour
             else rows[i].Clear();
         }
 
-        // 고를 수 있는 첫 채널을 기본으로 선택한다.
-        int first = _channels.FindIndex(c => !c.IsFull);
-        Select(first);
+        // 새로고침은 목록만 갱신한다. 첫 채널을 강제로 선택하지 않는다.
+        // 이전 선택이 사라졌거나 만원이 됐다면 선택을 해제한다.
+        int restoredIndex = string.IsNullOrEmpty(previouslySelectedServerId)
+            ? -1
+            : _channels.FindIndex(c => c.Id == previouslySelectedServerId && !c.IsFull);
+        Select(restoredIndex);
 
         SetMessage(_channels.Count == 0 ? emptyText : string.Empty);
     }
