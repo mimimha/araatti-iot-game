@@ -49,12 +49,16 @@ namespace UnderTheSea.Editor
 
             EnsureFontDataIsIncluded();
 
+            // The font engine must be initialized after every domain reload.
+            // Initializing it only when the asset is created makes TryAddCharacters
+            // fail on every run after the first one.
+            FontEngine.InitializeFontEngine();
+
             TMP_FontAsset fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
             bool created = false;
 
             if (fontAsset == null)
             {
-                FontEngine.InitializeFontEngine();
                 fontAsset = TMP_FontAsset.CreateFontAsset(
                     sourceFont,
                     samplingPointSize: 90,
