@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 22d135e323ab4ab18fbe3315eec3b039
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 218181
+  packageName: "Cute Characters \u2013 Modular Animated Pack"
+  packageVersion: 2.7
+  assetPath: Assets/ithappy/Cute_Characters/Scripts/CharacterCustomization/Editor/CharacterCustomizationWindow.cs
+  uploadId: 963750

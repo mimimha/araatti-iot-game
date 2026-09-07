@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1be59f1cbeaab354f9ca4f2b66abda33
+timeCreated: 1432924460
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Blue/PortalBlueClose.prefab
+  uploadId: 689779
