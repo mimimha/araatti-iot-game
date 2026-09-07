@@ -57,6 +57,7 @@ namespace UnderTheSea.Character
                     button.onClick.AddListener(() => SelectVisibleOption(index));
                     optionButtons[i] = button;
                     optionImages[i] = button.transform.Find("Preview Image").GetComponent<Image>();
+                    ConfigureOptionPreview(optionButtons[i], optionImages[i]);
                 }
             }
             for (int i = 0; i < optionButtons.Length; i++)
@@ -66,6 +67,7 @@ namespace UnderTheSea.Character
                 if (!visible) continue;
                 optionImages[i].gameObject.SetActive(!skin);
                 optionImages[i].raycastTarget = false;
+                ConfigureOptionPreview(optionButtons[i], optionImages[i]);
                 if (!skin)
                 {
                     int sourceIndex = visiblePartIndices[i];
@@ -81,6 +83,8 @@ namespace UnderTheSea.Character
         private void RefreshScrollSelection()
         {
             bool skin = activeCategory == Category.BodyColor;
+            Color selectedFill = new Color(1f, .89f, .72f, 1f);
+            Color normalFill = new Color(1f, 246f / 255f, 224f / 255f, 1f);
             selectedOptions.TryGetValue(activeCategory, out int selected);
             bool hasSelection = selectedOptions.ContainsKey(activeCategory);
             for (int i = 0; i < optionButtons.Length; i++)
@@ -89,10 +93,11 @@ namespace UnderTheSea.Character
                 bool chosen = skin ? skinColors[i] == currentSkinColor
                     : hasSelection && i < visiblePartIndices.Count && selected == visiblePartIndices[i]
                         && IsCatalogPartEquipped(GetActiveCollection().partPrefabs[visiblePartIndices[i]]);
-                optionButtons[i].image.color = skin ? skinColors[i] : new Color(1f, .965f, .88f);
-                var rim = optionButtons[i].GetComponent<Outline>();
-                if (rim != null) rim.effectColor = chosen ? new Color(1f,.65f,.12f,1f) : new Color(.64f,.48f,.26f,.3f);
-                if (rim != null) rim.effectDistance = chosen ? new Vector2(3,-3) : new Vector2(1,-1);
+                optionButtons[i].image.color = skin ? skinColors[i] : chosen ? selectedFill : normalFill;
+                if (!skin && i < optionImages.Length && optionImages[i] != null)
+                    optionImages[i].color = chosen ? new Color(1f, .94f, .86f, 1f) : Color.white;
+                var rim = EnsureSelectionRim(optionButtons[i]);
+                rim.color = new Color(0f, 0f, 0f, 0f);
             }
         }
     }

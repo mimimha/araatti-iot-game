@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -53,6 +54,8 @@ namespace UnderTheSea.Character
         [SerializeField] private Button rotateLeftButton;
         [SerializeField] private Button rotateRightButton;
         [SerializeField] private Button completeButton;
+        [SerializeField] private TMP_InputField nicknameInput;
+        [SerializeField] private TMP_Text nicknameGuideText;
 
         [Header("Paging")]
         [SerializeField, Min(1)] private int itemsPerPage = 8;
@@ -68,6 +71,7 @@ namespace UnderTheSea.Character
 
         private void Awake()
         {
+            EnsureReusableUiLayout();
             CacheOriginalSkinAssets();
 
             for (int i = 0; i < categoryButtons.Length; i++)
@@ -85,6 +89,9 @@ namespace UnderTheSea.Character
             previousPageButton.onClick.AddListener(PreviousPage);
             nextPageButton.onClick.AddListener(NextPage);
             completeButton.onClick.AddListener(CompleteCustomization);
+            nicknameInput.onValueChanged.AddListener(_ => ShowNicknameGuide(false));
+            nicknameInput.onSelect.AddListener(_ => SetNicknamePlaceholderVisible(false));
+            nicknameInput.onDeselect.AddListener(_ => SetNicknamePlaceholderVisible(string.IsNullOrEmpty(nicknameInput.text)));
 
             if (skinColors.Length > 0)
                 ApplySkinColor(Mathf.Clamp(defaultSkinColorIndex, 0, skinColors.Length - 1));
@@ -396,10 +403,329 @@ namespace UnderTheSea.Character
 
         private void CompleteCustomization()
         {
-            if (sectionTitle != null)
-                sectionTitle.text = "캐릭터 설정 완료!";
+            string nickname = nicknameInput != null ? nicknameInput.text.Trim() : string.Empty;
+            string validationMessage = GetNicknameValidationMessage(nickname);
+            if (validationMessage != null)
+            {
+                ShowNicknameGuide(true, validationMessage);
+                if (nicknameInput != null)
+                    nicknameInput.ActivateInputField();
+                return;
+            }
 
-            Debug.Log("Character customization completed. Saving will be implemented in a later step.");
+            PlayerPrefs.SetString("PlayerNickname", nickname);
+            PlayerPrefs.Save();
+
+            if (sectionTitle != null)
+                sectionTitle.text = nickname + " 캐릭터 설정 완료!";
+
+            Debug.Log("Character customization completed for " + nickname + ".");
+        }
+
+        private static string GetNicknameValidationMessage(string nickname)
+        {
+            if (string.IsNullOrWhiteSpace(nickname))
+                return "닉네임을 입력해주세요.";
+            if (nickname.Length < 2 || nickname.Length > 10)
+                return "닉네임은 2~10자로 입력해 주세요.";
+            // Include standalone Korean consonants/vowels such as ㅇㅇ as valid Hangul.
+            if (!Regex.IsMatch(nickname, "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+$"))
+                return "공백과 특수문자는 사용할 수 없습니다.";
+            return null;
+        }
+
+        private void ShowNicknameGuide(bool warning, string message = null)
+        {
+            if (nicknameGuideText == null) return;
+            nicknameGuideText.gameObject.SetActive(true);
+            nicknameGuideText.transform.SetAsLastSibling();
+            nicknameGuideText.text = message ?? "한글·영문·숫자 2~10자 (공백·특수문자 불가)";
+            nicknameGuideText.color = warning
+                ? new Color(.78f, .12f, .08f, 1f)
+                : new Color(.28f, .20f, .13f, .82f);
+        }
+
+        private void SetNicknamePlaceholderVisible(bool visible)
+        {
+            if (nicknameInput != null && nicknameInput.placeholder != null)
+                nicknameInput.placeholder.gameObject.SetActive(visible);
+        }
+
+        private void ConfigureCategoryTabs()
+        {
+            if (categoryButtons.Length > 0 && categoryButtons[0] != null)
+            {
+                RectTransform tabsRect = categoryButtons[0].transform.parent as RectTransform;
+                if (tabsRect != null)
+                {
+                    tabsRect.anchorMin = new Vector2(tabsRect.anchorMin.x, .705f);
+                    tabsRect.anchorMax = new Vector2(tabsRect.anchorMax.x, .815f);
+                    tabsRect.offsetMin = Vector2.zero;
+                    tabsRect.offsetMax = Vector2.zero;
+                }
+            }
+
+            for (int i = 0; i < categoryButtons.Length; i++)
+            {
+                Button button = categoryButtons[i];
+                if (button == null) continue;
+                foreach (Image image in button.GetComponentsInChildren<Image>(true))
+                    if (image != button.image) image.gameObject.SetActive(false);
+                foreach (TMP_Text label in button.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    label.gameObject.SetActive(true);
+                    label.fontSize = 29f;
+                    label.fontStyle = FontStyles.Bold;
+                    label.alignment = TextAlignmentOptions.Center;
+                    RectTransform labelRect = label.rectTransform;
+                    labelRect.anchorMin = Vector2.zero;
+                    labelRect.anchorMax = Vector2.one;
+                    labelRect.offsetMin = Vector2.zero;
+                    labelRect.offsetMax = Vector2.zero;
+                }
+
+                float center = (i + .5f) / categoryButtons.Length;
+                RectTransform buttonRect = button.GetComponent<RectTransform>();
+                buttonRect.anchorMin = new Vector2(center - .0695f, .06f);
+                buttonRect.anchorMax = new Vector2(center + .0695f, .94f);
+                buttonRect.offsetMin = Vector2.zero;
+                buttonRect.offsetMax = Vector2.zero;
+
+                CopyOptionCardDepth(button);
+            }
+        }
+
+        private void CopyOptionCardDepth(Button target)
+        {
+            if (optionButtons.Length == 0 || optionButtons[0] == null) return;
+            Button source = optionButtons[0];
+
+            Shadow sourceShadow = null;
+            foreach (Shadow effect in source.GetComponents<Shadow>())
+                if (effect.GetType() == typeof(Shadow)) { sourceShadow = effect; break; }
+            Shadow targetShadow = null;
+            foreach (Shadow effect in target.GetComponents<Shadow>())
+                if (effect.GetType() == typeof(Shadow)) { targetShadow = effect; break; }
+            if (sourceShadow != null)
+            {
+                if (targetShadow == null) targetShadow = target.gameObject.AddComponent<Shadow>();
+                targetShadow.effectColor = sourceShadow.effectColor;
+                targetShadow.effectDistance = sourceShadow.effectDistance;
+                targetShadow.useGraphicAlpha = sourceShadow.useGraphicAlpha;
+            }
+
+            Outline sourceOutline = source.GetComponent<Outline>();
+            Outline targetOutline = target.GetComponent<Outline>();
+            if (sourceOutline != null && targetOutline != null)
+            {
+                targetOutline.effectColor = sourceOutline.effectColor;
+                targetOutline.effectDistance = sourceOutline.effectDistance;
+                targetOutline.useGraphicAlpha = sourceOutline.useGraphicAlpha;
+            }
+            if (target.GetComponent<CustomizationButtonFeedback>() == null)
+                target.gameObject.AddComponent<CustomizationButtonFeedback>();
+        }
+
+        private void ConfigureOptionPreviews()
+        {
+            for (int i = 0; i < optionButtons.Length && i < optionImages.Length; i++)
+                ConfigureOptionPreview(optionButtons[i], optionImages[i]);
+        }
+
+        private static void ConfigureOptionPreview(Button button, Image preview)
+        {
+            if (button == null || preview == null) return;
+            if (button.GetComponent<RectMask2D>() == null)
+                button.gameObject.AddComponent<RectMask2D>();
+            // RectMask2D only clips to a rectangle, leaving the thumbnail's square
+            // corners visible. Mask uses the card Image's rounded sprite alpha so the
+            // preview can never render outside the rounded card.
+            Mask roundedMask = button.GetComponent<Mask>();
+            if (roundedMask == null)
+                roundedMask = button.gameObject.AddComponent<Mask>();
+            roundedMask.showMaskGraphic = true;
+            RectTransform rect = preview.rectTransform;
+            // Slightly fill the rounded card while the alpha Mask keeps every preview
+            // strictly inside its curved boundary.
+            rect.anchorMin = new Vector2(-.06f, -.06f);
+            rect.anchorMax = new Vector2(1.06f, 1.06f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            preview.preserveAspect = true;
+            EnsureSelectionRim(button);
+        }
+
+        private static RoundedSelectionRing EnsureSelectionRim(Button button)
+        {
+            Transform obsolete = button.transform.Find("Selection Rim");
+            if (obsolete != null)
+                obsolete.gameObject.SetActive(false);
+
+            Transform existing = button.transform.Find("Selection Border");
+            RoundedSelectionRing ring;
+            if (existing == null)
+            {
+                GameObject rimObject = new GameObject("Selection Border", typeof(RectTransform), typeof(RoundedSelectionRing));
+                RectTransform rimRect = rimObject.GetComponent<RectTransform>();
+                rimRect.SetParent(button.transform, false);
+                rimRect.anchorMin = new Vector2(.025f, .025f);
+                rimRect.anchorMax = new Vector2(.975f, .975f);
+                rimRect.offsetMin = Vector2.zero;
+                rimRect.offsetMax = Vector2.zero;
+                ring = rimObject.GetComponent<RoundedSelectionRing>();
+            }
+            else
+            {
+                ring = existing.GetComponent<RoundedSelectionRing>();
+            }
+
+            ring.raycastTarget = false;
+            ring.transform.SetAsLastSibling();
+            return ring;
+        }
+
+        public void EnsureReusableUiLayout()
+        {
+            EnsureNicknameInput();
+            ConfigureCategoryTabs();
+            ConfigureOptionPreviews();
+            RemoveMainHeadingDepth();
+        }
+
+        private void RemoveMainHeadingDepth()
+        {
+            foreach (TMP_Text text in GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (text == null || !text.text.Contains("나만의 캐릭터를 꾸며보세요"))
+                    continue;
+
+                foreach (Shadow shadow in text.GetComponents<Shadow>())
+                    shadow.enabled = false;
+                Outline outline = text.GetComponent<Outline>();
+                if (outline != null)
+                    outline.enabled = false;
+            }
+        }
+
+        public void EnsureNicknameInput()
+        {
+            if (nicknameInput == null)
+            {
+                Transform existing = transform.Find("Nickname Input");
+                if (existing != null)
+                    nicknameInput = existing.GetComponent<TMP_InputField>();
+            }
+            TMP_Text referenceLabel = completeButton != null ? completeButton.GetComponentInChildren<TMP_Text>(true) : null;
+            if (nicknameInput == null)
+            {
+                GameObject inputObject = new GameObject("Nickname Input", typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
+                RectTransform inputRect = inputObject.GetComponent<RectTransform>();
+                inputRect.SetParent(transform, false);
+                inputRect.anchorMin = new Vector2(.43f, .12f);
+                inputRect.anchorMax = new Vector2(.68f, .19f);
+                inputRect.offsetMin = Vector2.zero;
+                inputRect.offsetMax = Vector2.zero;
+
+                Image background = inputObject.GetComponent<Image>();
+                Image completeBackground = completeButton != null ? completeButton.GetComponent<Image>() : null;
+                if (completeBackground != null)
+                {
+                    background.sprite = completeBackground.sprite;
+                    background.type = completeBackground.type;
+                }
+                background.color = new Color(1f, .95f, .78f, 1f);
+
+                GameObject viewportObject = new GameObject("Text Area", typeof(RectTransform), typeof(RectMask2D));
+                RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+                viewport.SetParent(inputRect, false);
+                viewport.anchorMin = Vector2.zero;
+                viewport.anchorMax = Vector2.one;
+                viewport.offsetMin = new Vector2(28f, 8f);
+                viewport.offsetMax = new Vector2(-28f, -8f);
+
+                TMP_Text text = CreateInputText("Text", viewport, referenceLabel, new Color(.23f, .12f, .055f, 1f));
+                TMP_Text placeholder = CreateInputText("Placeholder", viewport, referenceLabel, new Color(.35f, .25f, .16f, .55f));
+                placeholder.text = "닉네임을 입력해 주세요";
+                placeholder.fontStyle = FontStyles.Italic;
+
+                nicknameInput = inputObject.GetComponent<TMP_InputField>();
+                nicknameInput.textViewport = viewport;
+                nicknameInput.textComponent = text;
+                nicknameInput.placeholder = placeholder;
+                nicknameInput.characterLimit = 10;
+                nicknameInput.lineType = TMP_InputField.LineType.SingleLine;
+                nicknameInput.contentType = TMP_InputField.ContentType.Standard;
+                nicknameInput.text = PlayerPrefs.GetString("PlayerNickname", string.Empty);
+            }
+
+            if (nicknameInput.placeholder is TMP_Text inputPlaceholder)
+                inputPlaceholder.text = "닉네임을 입력해주세요";
+
+            RectTransform nicknameInputRect = nicknameInput.GetComponent<RectTransform>();
+            nicknameInputRect.anchorMin = new Vector2(.43f, .14f);
+            nicknameInputRect.anchorMax = new Vector2(.68f, .20f);
+            nicknameInputRect.offsetMin = Vector2.zero;
+            nicknameInputRect.offsetMax = Vector2.zero;
+            if (completeButton != null)
+            {
+                RectTransform completeRect = completeButton.GetComponent<RectTransform>();
+                completeRect.anchorMin = new Vector2(completeRect.anchorMin.x, .14f);
+                completeRect.anchorMax = new Vector2(completeRect.anchorMax.x, .20f);
+                completeRect.offsetMin = Vector2.zero;
+                completeRect.offsetMax = Vector2.zero;
+            }
+
+            if (nicknameGuideText == null)
+            {
+                Transform existingGuide = transform.Find("Nickname Guide");
+                if (existingGuide != null)
+                    nicknameGuideText = existingGuide.GetComponent<TMP_Text>();
+            }
+            if (nicknameGuideText == null)
+            {
+                GameObject guideObject = new GameObject("Nickname Guide", typeof(RectTransform), typeof(TextMeshProUGUI));
+                RectTransform guideRect = guideObject.GetComponent<RectTransform>();
+                guideRect.SetParent(transform, false);
+                nicknameGuideText = guideObject.GetComponent<TextMeshProUGUI>();
+                if (referenceLabel != null)
+                {
+                    nicknameGuideText.font = referenceLabel.font;
+                    nicknameGuideText.fontSharedMaterial = referenceLabel.fontSharedMaterial;
+                }
+                nicknameGuideText.fontSize = 19f;
+                nicknameGuideText.alignment = TextAlignmentOptions.Center;
+                nicknameGuideText.enableWordWrapping = false;
+            }
+            RectTransform nicknameGuideRect = nicknameGuideText.rectTransform;
+            nicknameGuideText.fontSize = 19f;
+            nicknameGuideRect.anchorMin = new Vector2(.41f, .105f);
+            nicknameGuideRect.anchorMax = new Vector2(.70f, .135f);
+            nicknameGuideRect.offsetMin = Vector2.zero;
+            nicknameGuideRect.offsetMax = Vector2.zero;
+            ShowNicknameGuide(false);
+        }
+
+        private static TMP_Text CreateInputText(string objectName, RectTransform parent, TMP_Text reference, Color color)
+        {
+            GameObject textObject = new GameObject(objectName, typeof(RectTransform), typeof(TextMeshProUGUI));
+            RectTransform rect = textObject.GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+            if (reference != null)
+            {
+                text.font = reference.font;
+                text.fontSharedMaterial = reference.fontSharedMaterial;
+            }
+            text.fontSize = 31f;
+            text.color = color;
+            text.alignment = TextAlignmentOptions.Center;
+            text.enableWordWrapping = false;
+            return text;
         }
 
         private void RefreshOptions()
@@ -485,7 +811,7 @@ namespace UnderTheSea.Character
 
         private void RefreshCategoryColors()
         {
-            Color selected = new Color(0.80f, 0.89f, 0.97f, 1f);
+            Color selected = new Color(1f, .89f, .72f, 1f);
             Color normal = new Color(1f, 0.97f, 0.88f, 1f);
 
             for (int i = 0; i < categoryButtons.Length; i++)
@@ -499,12 +825,21 @@ namespace UnderTheSea.Character
                 RefreshScrollSelection();
                 return;
             }
-            Color selected = new Color(1f, 0.88f, 0.58f, 1f);
-            Color normal = new Color(1f, 0.965f, 0.88f, 1f);
+            Color selected = new Color(1f, .89f, .72f, 1f);
+            // Thumbnail backgrounds are authored as RGB(255,246,224). Matching the
+            // card removes the visible square without enlarging the character art.
+            Color normal = new Color(1f, 246f / 255f, 224f / 255f, 1f);
             int firstIndex = currentPage * itemsPerPage;
 
             for (int i = 0; i < optionButtons.Length; i++)
-                optionButtons[i].image.color = firstIndex + i == selectedPartIndex ? selected : normal;
+            {
+                bool chosen = firstIndex + i == selectedPartIndex;
+                optionButtons[i].image.color = chosen ? selected : normal;
+                if (i < optionImages.Length && optionImages[i] != null)
+                    optionImages[i].color = chosen ? new Color(1f, .94f, .86f, 1f) : Color.white;
+                RoundedSelectionRing rim = EnsureSelectionRim(optionButtons[i]);
+                rim.color = new Color(0f, 0f, 0f, 0f);
+            }
         }
 
         private PartCollection GetActiveCollection()
