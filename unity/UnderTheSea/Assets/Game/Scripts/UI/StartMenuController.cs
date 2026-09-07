@@ -72,6 +72,12 @@ public class StartMenuController : MonoBehaviour
     [SerializeField, Range(0.05f, 0.5f)] private float repeatInterval = 0.15f;
 
     private const string MutePrefKey = "AraAtti.Audio.Muted";
+    private const string MasterVolumePrefKey = "AraAtti.Audio.MasterVolume";
+    private const string MusicVolumePrefKey = "AraAtti.Audio.MusicVolume";
+    private const string EffectsVolumePrefKey = "AraAtti.Audio.EffectsVolume";
+
+    public static event Action<float> MusicVolumeChanged;
+    public static event Action<float> EffectsVolumeChanged;
 
     private int _index = -1;
     private bool _settingsOpen;
@@ -79,6 +85,7 @@ public class StartMenuController : MonoBehaviour
     private int _lastMoveDirection;
     private float _nextRepeatTime;
     private bool _subscribed;
+    private SettingsPanelView _settingsView;
 
     /// <summary>현재 선택된 메뉴 번호. 아무것도 선택되지 않았으면 -1.</summary>
     public int SelectedIndex => _index;
@@ -107,14 +114,28 @@ public class StartMenuController : MonoBehaviour
             return;
         }
 
+        RestoreAudioState();
+
         if (settingsPanel != null)
         {
+            _settingsView = settingsPanel.GetComponent<SettingsPanelView>();
+            if (_settingsView == null)
+            {
+                _settingsView = settingsPanel.AddComponent<SettingsPanelView>();
+            }
+
+            _settingsView.Initialize(
+                AudioListener.volume,
+                MusicVolume,
+                EffectsVolume,
+                SetMasterVolume,
+                SetMusicVolume,
+                SetEffectsVolume,
+                settingsCloseButton);
             settingsPanel.SetActive(false);
         }
 
         _settingsOpen = false;
-
-        RestoreMuteState();
 
         // 화면이 열리면 첫 번째 항목(게임 시작)을 선택한다.
         Select(0, playSound: false);
@@ -370,9 +391,14 @@ public class StartMenuController : MonoBehaviour
 
         _indexBeforeSettings = Mathf.Max(_index, 0);
         _settingsOpen = true;
+        SetMenuButtonsVisible(false);
         settingsPanel.SetActive(true);
 
-        if (settingsCloseButton != null && EventSystem.current != null)
+        if (_settingsView != null)
+        {
+            _settingsView.FocusDefault();
+        }
+        else if (settingsCloseButton != null && EventSystem.current != null)
         {
             EventSystem.current.SetSelectedGameObject(settingsCloseButton.gameObject);
         }
@@ -386,9 +412,21 @@ public class StartMenuController : MonoBehaviour
         }
 
         _settingsOpen = false;
+        SetMenuButtonsVisible(true);
 
         // 설정을 열기 전에 보고 있던 항목으로 되돌린다.
         Select(_indexBeforeSettings, playSound: false);
+    }
+
+    private void SetMenuButtonsVisible(bool visible)
+    {
+        foreach (MenuEntry entry in menuEntries)
+        {
+            if (entry.view != null)
+            {
+                entry.view.gameObject.SetActive(visible);
+            }
+        }
     }
 
     public void QuitGame()
@@ -406,12 +444,80 @@ public class StartMenuController : MonoBehaviour
 
     public void ToggleSound()
     {
-        SetMuted(!IsMuted);
+        if (IsMuted)
+        {
+            float savedVolume = PlayerPrefs.GetFloat(MasterVolumePrefKey, 1f);
+            SetMasterVolume(Mathf.Max(savedVolume, 0.5f));
+            return;
+        }
+
+        SetMasterVolume(0f);
     }
 
-    private void SetMuted(bool muted)
+    public void SetMasterVolume(float volume)
     {
-        AudioListener.volume = muted ? 0f : 1f;
+        volume = Mathf.Clamp01(volume);
+        AudioListener.volume = volume;
+
+        if (soundIcon != null)
+        {
+            Color color = soundIcon.color;
+            color.a = volume <= 0.001f ? mutedIconAlpha : 1f;
+            soundIcon.color = color;
+        }
+
+        if (volume > 0.001f)
+        {
+            PlayerPrefs.SetFloat(MasterVolumePrefKey, volume);
+        }
+
+        PlayerPrefs.SetInt(MutePrefKey, volume <= 0.001f ? 1 : 0);
+        PlayerPrefs.Save();
+
+        if (_settingsView != null)
+        {
+            _settingsView.SetMasterVolumeWithoutNotify(volume);
+        }
+    }
+
+    public float MusicVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumePrefKey, 1f));
+
+    public float EffectsVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(EffectsVolumePrefKey, 1f));
+
+    public void SetMusicVolume(float volume)
+    {
+        volume = Mathf.Clamp01(volume);
+        PlayerPrefs.SetFloat(MusicVolumePrefKey, volume);
+        PlayerPrefs.Save();
+        _settingsView?.SetMusicVolumeWithoutNotify(volume);
+        MusicVolumeChanged?.Invoke(volume);
+    }
+
+    public void SetEffectsVolume(float volume)
+    {
+        volume = Mathf.Clamp01(volume);
+        PlayerPrefs.SetFloat(EffectsVolumePrefKey, volume);
+        PlayerPrefs.Save();
+
+        if (audioSource != null)
+        {
+            audioSource.volume = volume;
+        }
+
+        _settingsView?.SetEffectsVolumeWithoutNotify(volume);
+        EffectsVolumeChanged?.Invoke(volume);
+    }
+
+    private void RestoreAudioState()
+    {
+        bool muted = PlayerPrefs.GetInt(MutePrefKey, 0) == 1;
+        float savedVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumePrefKey, 1f));
+        AudioListener.volume = muted ? 0f : savedVolume;
+
+        if (audioSource != null)
+        {
+            audioSource.volume = EffectsVolume;
+        }
 
         if (soundIcon != null)
         {
@@ -419,15 +525,6 @@ public class StartMenuController : MonoBehaviour
             color.a = muted ? mutedIconAlpha : 1f;
             soundIcon.color = color;
         }
-
-        PlayerPrefs.SetInt(MutePrefKey, muted ? 1 : 0);
-        PlayerPrefs.Save();
-    }
-
-    private void RestoreMuteState()
-    {
-        bool muted = PlayerPrefs.GetInt(MutePrefKey, 0) == 1;
-        SetMuted(muted);
     }
 
     private void PlayClip(AudioClip clip)

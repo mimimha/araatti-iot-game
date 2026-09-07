@@ -138,7 +138,7 @@ Main/
 └── MiniGames/
 ```
 
-* `CoreGames` : Boot, Title, Lobby 등 핵심 게임 Scene
+* `CoreGames` : Boot, Title, Login, CharacterCreate, ChannelSelect, Lobby 등 핵심 게임 Scene
 * `MiniGames` : 개별 미니게임 Scene
 
 > 확정된 Scene 목록과 각 Scene의 규격은 `GAME_STRUCTURE.md`를 따릅니다.
