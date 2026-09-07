@@ -17,7 +17,12 @@
 
 | 에셋 이름 | 출처 | 라이선스 | 폴더 | 용도 | 추가한 사람 | 날짜 |
 | --- | --- | --- | --- | --- | --- | --- |
-| _(아직 없음)_ | | | | | | |
+| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 | 효진 | 2026-09-07 |
+| Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
+| ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
+
+> ⚠ 위 3종 합계 **약 535MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB) 입니다.
+> 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
 
 ### 작성 예시
 
