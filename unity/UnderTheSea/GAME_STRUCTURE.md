@@ -351,7 +351,7 @@ Player               ← 빈 오브젝트 (여기에 스크립트가 붙습니�
 ### 위치
 
 ```text
-Assets/Game/Prefabs/Character/CharacterCustomization.prefab
+Assets/Game/Prefabs/Characters/CharacterCustomization.prefab
 ```
 
 UI 는 프리팹으로 만듭니다. `Scenes/Develop/서연/` 의 테스트 씬은 이 프리팹을 올려두고

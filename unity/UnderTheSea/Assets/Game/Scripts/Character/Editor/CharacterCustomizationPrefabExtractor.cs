@@ -11,7 +11,7 @@ namespace UnderTheSea.Character.Editor
     internal static class CharacterCustomizationPrefabExtractor
     {
         private const string SourceScenePath = "Assets/Game/Scenes/Develop/SeoYeon/CharacterCustomizationTest.unity";
-        private const string PrefabFolder = "Assets/Game/Prefabs/Character";
+        private const string PrefabFolder = "Assets/Game/Prefabs/Characters";
         private const string PrefabPath = PrefabFolder + "/CharacterCustomization.prefab";
 
         static CharacterCustomizationPrefabExtractor()
