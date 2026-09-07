@@ -1,0 +1,18 @@
+{
+  "name": "undersea-art-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "목업 이미지에서 UI 에셋을 잘라내고 배경 알파를 정리하는 스크립트 모음",
+  "scripts": {
+    "extract:start": "node extract-start-screen-assets.cjs",
+    "extract:login": "node extract-login-screen-assets.cjs",
+    "extract:channel": "node extract-channel-select-assets.cjs",
+    "extract:character": "node extract-character-customization-assets.cjs",
+    "clean:channel": "node cleanup-channel-select-alpha.cjs",
+    "clean:character": "node cleanup-character-customization-alpha.cjs",
+    "fix:rivets": "node fix-channel-row-rivets.cjs"
+  },
+  "dependencies": {
+    "sharp": "^0.33.0"
+  }
+}

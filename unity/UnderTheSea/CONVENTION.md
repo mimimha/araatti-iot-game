@@ -1,6 +1,6 @@
-# UnderTheSea Unity Convention
+# 아라아띠 Unity Convention
 
-본 문서는 UnderTheSea Unity 클라이언트 개발을 위한 협업 규칙을 정의합니다.
+본 문서는 아라아띠 Unity 클라이언트 개발을 위한 협업 규칙을 정의합니다.
 
 팀원과 AI 개발 도구는 아래 규칙을 기준으로 프로젝트를 수정합니다.
 
@@ -138,8 +138,10 @@ Main/
 └── MiniGames/
 ```
 
-* `CoreGames` : Boot, Lobby, MainWorld 등 핵심 게임 Scene
+* `CoreGames` : Boot, Title, Login, CharacterCreate, ChannelSelect, Lobby 등 핵심 게임 Scene
 * `MiniGames` : 개별 미니게임 Scene
+
+> 확정된 Scene 목록과 각 Scene의 규격은 `GAME_STRUCTURE.md`를 따릅니다.
 
 ### Main Scene 규칙
 
@@ -176,8 +178,9 @@ Assets/Game/Prefabs/
 ├── Interactables/
 ├── UI/
 └── MiniGames/
-    ├── Fishing/
-    └── Dance/
+    ├── Warriors/
+    ├── ShipCoop/
+    └── Mine/
 ```
 
 예를 들어 `FishingTest.unity`에서 낚싯대 GameObject를 만들고 이를 Prefab으로 만들 경우:
@@ -232,13 +235,14 @@ Assets/Game/Scripts/
 
 ```text
 Scripts/
+├── Core/
 ├── Character/
-├── Interaction/
 ├── Network/
 ├── UI/
 └── MiniGames/
-    ├── Fishing/
-    └── Dance/
+    ├── Warriors/
+    ├── ShipCoop/
+    └── Mine/
 ```
 
 개인 Develop 폴더에 Script를 생성하지 않습니다.
@@ -280,7 +284,75 @@ Art와 Audio 역시 개인 Develop 폴더에 저장하지 않습니다.
 
 ## 7. 외부 Asset 관리
 
+### 본 프로젝트에서 바로 Import 하지 않습니다
+
+Asset Store 에셋에는 데모 씬, 예제 텍스처, 문서 등 실제로 쓰지 않는 파일이 많이 들어 있습니다.
+
+본 프로젝트에 바로 Import 하면 이런 파일까지 전부 저장소에 올라가고,
+**한 번 올라가면 나중에 지워도 Git 기록에 영원히 남습니다.**
+
+따라서 **별도의 테스트 프로젝트에서 먼저 Import 하고, 필요한 것만 옮깁니다.**
+
+### 테스트 프로젝트 만들기
+
+저장소 **바깥**에 만듭니다. `.gitignore` 로 막는 것보다 확실합니다.
+
+```text
+C:\project\
+├── S15P21C101\              ← 실제 프로젝트 (Git 관리)
+│   └── unity\UnderTheSea\
+│
+└── UnderTheSea-Sandbox\     ← 에셋 테스트용 (Git 관리 안 함)
+```
+
+각자 자기 컴퓨터에만 있으면 되고, 팀원끼리 공유하지 않습니다.
+
+만들 때 아래 두 가지를 **실제 프로젝트와 똑같이** 맞춥니다.
+
+| 항목 | 값 |
+| --- | --- |
+| Unity 버전 | `6000.5.9f1` |
+| 템플릿 | Universal 3D (URP) |
+
+버전이 다르면 옮길 때 에셋이 깨지고,
+Built-in RP 로 만들면 머티리얼이 **전부 분홍색으로** 넘어옵니다.
+
+### 옮기는 순서
+
+```text
+1. 테스트 프로젝트에서 에셋을 Import 한다
+        ↓
+2. 데모 씬을 실행해보고 실제로 쓸 것을 파악한다
+        ↓
+3. 필요 없는 것을 제외한다
+   (Demo / Example 씬, 문서, 안 쓰는 프리팹과 텍스처)
+        ↓
+4. 필요한 폴더를 우클릭 → Export Package...
+   ⚠ "Include dependencies" 체크
+        ↓
+5. .unitypackage 파일로 저장한다
+        ↓
+6. 본 프로젝트에서
+   Assets > Import Package > Custom Package
+```
+
+**Windows 탐색기에서 폴더를 복사하지 않습니다.**
+
+`Export Package` 를 사용해야 `.meta` 와 GUID 가 유지되어 참조가 깨지지 않고,
+딸린 머티리얼·셰이더·텍스처가 함께 따라옵니다.
+
+### Import 전에 팀에 공유합니다
+
+어떤 에셋인지, 용량이 얼마인지 먼저 알립니다.
+
+여러 명이 같은 에셋을 각자 Import 하면 저장소 용량이 금방 초과됩니다.
+
+Import 후에는 `ASSETS.md` 에 기록합니다.
+
+### 폴더 구조는 원본을 유지합니다
+
 Asset Store 또는 외부에서 가져온 Asset은 가능한 한 제작자가 제공한 **원본 폴더 구조를 유지합니다.**
+
 
 예:
 
@@ -398,6 +470,9 @@ git status
 
 ## 11. Git 작업 흐름
 
+> 브랜치 이름, 커밋 메시지, Merge Request 등 자세한 Git 규칙은
+> 저장소 최상위의 `GIT_CONVENTION.md`를 따릅니다. 아래는 요약입니다.
+
 작업을 시작하기 전에 `develop` 브랜치를 최신 상태로 업데이트합니다.
 
 ```bash
@@ -408,27 +483,25 @@ git pull origin develop
 그 후 작업 브랜치를 생성합니다.
 
 ```bash
-git switch -c feature/<작업명>
+git switch -c <타입>/<이니셜>-<작업명>
 ```
 
 예:
 
 ```text
-feature/player-movement
-feature/fishing
-feature/main-ui
+feature/mh-title-ui
+feature/sy-player-prefab
+feature/hj-lobby-map
 
-fix/player-camera
-fix/fishing-input
-
-chore/setup-photon
+fix/mh-spawn-position
+chore/gh-setup-netcode
 ```
 
 작업 완료 후:
 
 ```bash
 git add .
-git commit -m "커밋 메시지"
+git commit -m "[feat] 작업 내용"
 git push -u origin <브랜치명>
 ```
 

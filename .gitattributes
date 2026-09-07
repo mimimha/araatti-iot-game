@@ -1,6 +1,167 @@
-*.fbx filter=lfs diff=lfs merge=lfs -text
-*.png filter=lfs diff=lfs merge=lfs -text
-*.tga filter=lfs diff=lfs merge=lfs -text
-*.ttf filter=lfs diff=lfs merge=lfs -text
-*.otf filter=lfs diff=lfs merge=lfs -text
-*.unitypackage filter=lfs diff=lfs merge=lfs -text
+# ============================================================
+# UnderTheSea .gitattributes
+#
+# 이 파일은 두 가지를 담당합니다.
+#
+#   1) 줄바꿈(엔터) 형식 통일
+#      → 아무것도 안 고쳤는데 "수정됨"으로 뜨는 문제와
+#         씬/프리팹 병합 충돌을 막습니다.
+#
+#   2) 큰 파일을 Git LFS로 보내기
+#      → 이미지, 3D 모델, 오디오는 저장소에 직접 넣지 않고
+#         LFS 저장 공간에 보관합니다.
+#
+# 저장소 최상위에 있으므로 unity/, iot/, server/ 전부에 적용됩니다.
+#
+# 새 확장자를 추가할 때는 팀에 공유한 뒤 수정합니다.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# 기본값
+# ------------------------------------------------------------
+# 텍스트 파일을 자동으로 판별하고 저장소에는 LF로 통일해서 저장합니다.
+* text=auto
+
+
+# ------------------------------------------------------------
+# Unity 텍스트 파일 — 반드시 LF 고정
+#
+# ⚠ 아래 확장자는 절대 LFS에 넣지 마세요.
+#   LFS에 넣으면 변경 내역 비교와 병합이 불가능해집니다.
+# ------------------------------------------------------------
+*.cs                 text eol=lf diff=csharp
+*.unity              text eol=lf
+*.prefab             text eol=lf
+*.mat                text eol=lf
+*.asset              text eol=lf
+*.meta               text eol=lf
+*.anim               text eol=lf
+*.controller         text eol=lf
+*.overrideController text eol=lf
+*.mask               text eol=lf
+*.playable           text eol=lf
+*.signal             text eol=lf
+*.physicMaterial     text eol=lf
+*.physicsMaterial2D  text eol=lf
+*.preset             text eol=lf
+*.terrainlayer       text eol=lf
+*.mixer              text eol=lf
+*.guiskin            text eol=lf
+*.flare              text eol=lf
+*.lighting           text eol=lf
+*.shadervariants     text eol=lf
+*.spriteatlas        text eol=lf
+*.spriteatlasv2      text eol=lf
+
+# 셰이더
+*.shader             text eol=lf
+*.cginc              text eol=lf
+*.hlsl               text eol=lf
+*.compute            text eol=lf
+*.raytrace           text eol=lf
+
+# 설정 / 문서
+*.json               text eol=lf
+*.inputactions       text eol=lf
+*.asmdef             text eol=lf
+*.asmref             text eol=lf
+*.uxml               text eol=lf
+*.uss                text eol=lf
+*.md                 text eol=lf
+*.txt                text eol=lf
+*.xml                text eol=lf
+*.yml                text eol=lf
+*.yaml               text eol=lf
+.gitattributes       text eol=lf
+.gitignore           text eol=lf
+
+
+# ------------------------------------------------------------
+# 실행 스크립트 — 각 OS 형식 유지
+# ------------------------------------------------------------
+*.bat                text eol=crlf
+*.cmd                text eol=crlf
+*.ps1                text eol=crlf
+*.sh                 text eol=lf
+
+
+# ------------------------------------------------------------
+# Git LFS — 이미지
+# ------------------------------------------------------------
+*.png    filter=lfs diff=lfs merge=lfs -text
+*.jpg    filter=lfs diff=lfs merge=lfs -text
+*.jpeg   filter=lfs diff=lfs merge=lfs -text
+*.gif    filter=lfs diff=lfs merge=lfs -text
+*.bmp    filter=lfs diff=lfs merge=lfs -text
+*.tga    filter=lfs diff=lfs merge=lfs -text
+*.tif    filter=lfs diff=lfs merge=lfs -text
+*.tiff   filter=lfs diff=lfs merge=lfs -text
+*.psd    filter=lfs diff=lfs merge=lfs -text
+*.exr    filter=lfs diff=lfs merge=lfs -text
+*.hdr    filter=lfs diff=lfs merge=lfs -text
+*.dds    filter=lfs diff=lfs merge=lfs -text
+*.iff    filter=lfs diff=lfs merge=lfs -text
+*.pict   filter=lfs diff=lfs merge=lfs -text
+
+
+# ------------------------------------------------------------
+# Git LFS — 3D 모델
+# ------------------------------------------------------------
+*.fbx    filter=lfs diff=lfs merge=lfs -text
+*.obj    filter=lfs diff=lfs merge=lfs -text
+*.blend  filter=lfs diff=lfs merge=lfs -text
+*.dae    filter=lfs diff=lfs merge=lfs -text
+*.3ds    filter=lfs diff=lfs merge=lfs -text
+*.max    filter=lfs diff=lfs merge=lfs -text
+*.ma     filter=lfs diff=lfs merge=lfs -text
+*.mb     filter=lfs diff=lfs merge=lfs -text
+*.c4d    filter=lfs diff=lfs merge=lfs -text
+
+
+# ------------------------------------------------------------
+# Git LFS — 오디오
+# ------------------------------------------------------------
+*.wav    filter=lfs diff=lfs merge=lfs -text
+*.mp3    filter=lfs diff=lfs merge=lfs -text
+*.ogg    filter=lfs diff=lfs merge=lfs -text
+*.aif    filter=lfs diff=lfs merge=lfs -text
+*.aiff   filter=lfs diff=lfs merge=lfs -text
+*.flac   filter=lfs diff=lfs merge=lfs -text
+
+
+# ------------------------------------------------------------
+# Git LFS — 영상
+# ------------------------------------------------------------
+*.mp4    filter=lfs diff=lfs merge=lfs -text
+*.mov    filter=lfs diff=lfs merge=lfs -text
+*.avi    filter=lfs diff=lfs merge=lfs -text
+*.webm   filter=lfs diff=lfs merge=lfs -text
+*.mpg    filter=lfs diff=lfs merge=lfs -text
+*.mpeg   filter=lfs diff=lfs merge=lfs -text
+
+
+# ------------------------------------------------------------
+# Git LFS — 폰트
+# ------------------------------------------------------------
+*.ttf    filter=lfs diff=lfs merge=lfs -text
+*.otf    filter=lfs diff=lfs merge=lfs -text
+*.ttc    filter=lfs diff=lfs merge=lfs -text
+
+
+# ------------------------------------------------------------
+# Git LFS — 라이브러리 / 패키지 / 압축
+# ------------------------------------------------------------
+*.dll           filter=lfs diff=lfs merge=lfs -text
+*.so            filter=lfs diff=lfs merge=lfs -text
+*.dylib         filter=lfs diff=lfs merge=lfs -text
+*.a             filter=lfs diff=lfs merge=lfs -text
+*.lib           filter=lfs diff=lfs merge=lfs -text
+*.bundle        filter=lfs diff=lfs merge=lfs -text
+*.aar           filter=lfs diff=lfs merge=lfs -text
+*.jar           filter=lfs diff=lfs merge=lfs -text
+*.unitypackage  filter=lfs diff=lfs merge=lfs -text
+*.zip           filter=lfs diff=lfs merge=lfs -text
+*.7z            filter=lfs diff=lfs merge=lfs -text
+*.rar           filter=lfs diff=lfs merge=lfs -text
+*.pdf           filter=lfs diff=lfs merge=lfs -text
