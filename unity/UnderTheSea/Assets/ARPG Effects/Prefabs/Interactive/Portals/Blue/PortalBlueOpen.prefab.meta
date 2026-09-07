@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ade1f0bfc938f694ab4f3bc05fc5c55b
+timeCreated: 1432919293
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Blue/PortalBlueOpen.prefab
+  uploadId: 689779

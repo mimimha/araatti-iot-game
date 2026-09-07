@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 10f140d776af7b64491601c099764123
+timeCreated: 1432999649
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Purple/PortalPurpleClose.prefab
+  uploadId: 689779

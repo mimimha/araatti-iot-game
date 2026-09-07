@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: ccb2f47ff735f614aa4094376621aabb
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 234253
+  packageName: POLYGON - Tropical Jungle - Nature Biomes - 3D Environment Art by
+    Synty
+  packageVersion: 1.10.6
+  assetPath: Assets/Synty/PolygonGeneric/Shaders/InterfaceOverrides/Editor/polygonShaderTransparent_UI.cs
+  uploadId: 983704
