@@ -483,6 +483,7 @@ Hierarchy
 Assets/Game/Scripts/
 ├── Core/             씬 전환, 게임 상태 관리        (민화)
 ├── Network/          접속, 매칭, 동기화             (서버)
+├── IoT/              IoT 컨트롤러 경계              (공용 — 아래 참고)
 ├── Character/        캐릭터 커스터마이징            (서연)
 │                     캐릭터 이동, 애니메이션 연결   (민화)
 ├── UI/               화면 버튼 처리                 (민화)
@@ -495,7 +496,70 @@ Assets/Game/Scripts/
 본인 담당 폴더 밖의 스크립트는 수정하지 않습니다.
 수정이 필요하면 담당자에게 요청합니다.
 
-`Network/` 안의 `INetworkService`만 예외적으로 **양쪽이 함께 정합니다.** (4장 참고)
+**단, 아래 두 곳은 예외입니다. 여러 명이 함께 정합니다.**
+
+| 폴더 | 파일 | 함께 정하는 사람 |
+| --- | --- | --- |
+| `Network/` | `INetworkService` | 클라이언트 ↔ 서버 (4장) |
+| `IoT/` | `IPlayerController` | 미니게임 담당 3명 ↔ IoT 담당 (아래) |
+
+### `IoT/` 는 세 명이 함께 쓰는 폴더입니다
+
+**미니게임 세 개가 같은 IoT 컨트롤러 하나를 씁니다.**
+같은 센서(IMU · 압력센서 · 버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
+플레이어가 손에 쥐는 장치는 하나입니다.
+
+그래서 컨트롤러 인터페이스는 특정 미니게임의 것이 아니라 **공용 경계**입니다.
+
+```text
+Assets/Game/Scripts/IoT/
+├── IPlayerController.cs         ← 공용 경계. 함께 정한다
+├── KeyboardPlayerController.cs  ← 장치 없이 키보드로 테스트하는 가짜 구현
+└── IotPlayerController.cs       ← 진짜 장치. IoT 담당자가 만든다
+```
+
+```csharp
+// 컨트롤러 1대 = 플레이어 1명
+public interface IPlayerController
+{
+    // 입력 (장치 → 게임)
+    float Tilt      { get; }   // IMU 기울기  -1 ~ +1
+    float Rotation  { get; }   // IMU 회전    -1 ~ +1
+    bool  Button    { get; }   // 물리 버튼 (누르고 있는지)
+    bool  Grip      { get; }   // 압력센서 HOLD 판정
+    bool  ConsumeButtonPress();// 버튼이 새로 눌렸는지 1회
+    bool  ConsumeSwing();      // IMU 제스처(휘두르기) 1회
+
+    // 출력 (게임 → 장치)
+    void Vibrate(float strength, float seconds);   // 진동 모터
+    void SetLed(Color color);                      // LED
+}
+```
+
+**규칙**
+
+1. **자기 미니게임 폴더 안에 컨트롤러 인터페이스를 따로 만들지 않습니다.**
+   세 벌이 생기면 IoT 담당자가 같은 것을 세 번 구현해야 합니다.
+2. **이 파일을 고쳐야 하면 혼자 고치지 않고 먼저 팀에 알립니다.**
+   세 미니게임이 전부 이 파일을 참조하므로, 한 명이 바꾸면 나머지 둘의 코드가 깨집니다.
+3. 조정한 내용은 **반드시 이 문서에 반영합니다.**
+
+### 장치를 기다리지 않습니다
+
+`FakeNetworkService`와 같은 방식입니다. (4장 참고)
+
+```text
+KeyboardPlayerController   ← 키보드로 전부 테스트할 수 있다
+        ↓
+        ↓ 나중에 갈아끼움
+        ↓
+IotPlayerController        ← IoT 담당자가 만든 진짜 장치
+```
+
+게임 로직은 둘 중 무엇이 꽂혀 있는지 몰라도 됩니다. **그래서 고칠 필요가 없습니다.**
+
+> 센서를 게임 행동에 어떻게 연결하는지(조타 = IMU 회전, 수리 = 망치질 동작 등)는
+> 미니게임마다 다릅니다. 배 협동 게임의 매핑은 `SHIPCOOP.md` 7장을 참고하세요.
 
 ---
 
