@@ -104,7 +104,9 @@ namespace UnderTheSea.Character
             if (skinColors.Length > 0)
                 ApplySkinColor(Mathf.Clamp(defaultSkinColorIndex, 0, skinColors.Length - 1));
 
-            ApplyCuteDefaultCharacter();
+            // 저장된 외형이 있으면 그것으로 시작한다. (CharacterCustomizationPersistence.cs)
+            if (!TryApplySavedAppearance())
+                ApplyCuteDefaultCharacter();
 
             OpenCategory(Category.Face);
         }
@@ -423,6 +425,9 @@ namespace UnderTheSea.Character
 
             PlayerPrefs.SetString("PlayerNickname", nickname);
             PlayerPrefs.Save();
+
+            // 이름과 함께 외형도 저장한다. (CharacterCustomizationPersistence.cs)
+            SaveAppearanceSnapshot(nickname);
 
             if (sectionTitle != null)
                 sectionTitle.text = nickname + " 캐릭터 설정 완료!";
