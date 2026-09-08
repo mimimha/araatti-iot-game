@@ -1,0 +1,20 @@
+{
+  "name": "FishingMiniGame.PlayModeTests",
+  "rootNamespace": "FishingMiniGame.Tests",
+  "references": [
+    "FishingMiniGame.Core",
+    "FishingMiniGame.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
