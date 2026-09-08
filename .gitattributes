@@ -54,6 +54,19 @@
 *.spriteatlas        text eol=lf
 *.spriteatlasv2      text eol=lf
 
+# ------------------------------------------------------------
+# ⚠ 예외 — TerrainData 는 바이너리입니다
+#
+# 터레인 데이터는 m_SerializationMode 가 ForceText(2) 여도
+# 바이너리로 저장됩니다. 위의 *.asset text 규칙이 걸리면
+# git 이 줄바꿈을 정규화하며 바이너리를 훼손하고,
+# Unity 가 "Unknown error occurred while loading" 을 냅니다.
+# (실제로 6,148,220 → 6,148,212 바이트로 8바이트가 소실됨)
+#
+# 터레인 에셋은 반드시 Terrain_*.asset 으로 이름을 짓습니다.
+# ------------------------------------------------------------
+Terrain_*.asset      -text filter=lfs diff=lfs merge=lfs
+
 # 셰이더
 *.shader             text eol=lf
 *.cginc              text eol=lf
