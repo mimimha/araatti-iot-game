@@ -21,7 +21,7 @@ EditorBuildSettings:
     path: Assets/Game/Scenes/Main/CoreGames/ChannelSelect.unity
     guid: 09d400b0d61215640b9f8ef21e0906e6
   - enabled: 1
-    path: Assets/Game/Scenes/Develop/HyoJin/Jungle_Lobby.unity
+    path: Assets/Game/Scenes/Main/CoreGames/Lobby.unity
     guid: f20bef10c2af5334db9573803c332a0b
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

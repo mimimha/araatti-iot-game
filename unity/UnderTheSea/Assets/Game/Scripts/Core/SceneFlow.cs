@@ -32,13 +32,8 @@ public static class SceneFlow
     public const string CharacterCreate = "CharacterCreate";
     public const string ChannelSelect = "ChannelSelect";
 
-    /// <summary>
-    /// 플레이어들이 모이는 허브 공간.
-    ///
-    /// ⚠ 지금은 효진의 개발 씬(Jungle_Lobby)을 그대로 쓴다.
-    ///    Main/CoreGames/Lobby.unity 가 만들어지면 이 줄만 "Lobby" 로 바꾸면 된다.
-    /// </summary>
-    public const string Lobby = "Jungle_Lobby";
+    /// <summary>플레이어들이 모이는 허브 공간.</summary>
+    public const string Lobby = "Lobby";
 
     /// <summary>
     /// 캐릭터 이름을 담아두는 PlayerPrefs 키.
