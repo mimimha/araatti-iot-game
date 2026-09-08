@@ -188,7 +188,7 @@ public class ShipCoopDebugHud : MonoBehaviour
 
             if (box.IsInReach(position))
             {
-                return "포탄 상자 앞 — 양쪽 Shift + Space 로 집기";
+                return "포탄 상자 앞 — Shift 누른 채 Space 로 집기";
             }
         }
 
@@ -201,7 +201,7 @@ public class ShipCoopDebugHud : MonoBehaviour
         _sb.AppendLine("방향키      이동");
         _sb.AppendLine("Space       자리에 붙기 · 포탄 집기 / 싣기");
         _sb.AppendLine("A  D        조타 꺾기 · 돛 당기기(D) / 풀기(A)");
-        _sb.AppendLine("양쪽 Shift  포탄을 든 채로 유지 (놓으면 떨어뜨림)");
+        _sb.AppendLine("Shift       포탄을 든 채로 유지 (놓으면 떨어뜨림)");
         _sb.AppendLine("X           대포 발사");
         _sb.AppendLine("F           망치질 (수리)");
         _sb.AppendLine("Q  E        포신 조준");
