@@ -1,8 +1,9 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Boot 씬에 하나만 놓아두면, 잠깐 기다렸다가 다음 씬으로 자동으로 넘어간다.
+///
+/// 어디로 넘어갈지는 SceneFlow 가 정한다.
 ///
 /// 사용법
 ///   1. Boot 씬에 빈 오브젝트를 만든다. (이름: BootLoader)
@@ -11,9 +12,6 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class BootLoader : MonoBehaviour
 {
-    [Header("다음에 열 씬 이름")]
-    [SerializeField] private string nextScene = "Title";
-
     [Header("몇 초 뒤에 넘어갈지")]
     [SerializeField] private float delaySeconds = 1f;
 
@@ -29,13 +27,7 @@ public class BootLoader : MonoBehaviour
 
     private void GoToNextScene()
     {
-        if (string.IsNullOrEmpty(nextScene))
-        {
-            Debug.LogError("[BootLoader] 다음 씬 이름이 비어 있습니다.", this);
-            return;
-        }
-
-        Debug.Log($"Boot: 초기화 완료 → {nextScene}");
-        SceneManager.LoadScene(nextScene);
+        Debug.Log("Boot: 초기화 완료");
+        SceneFlow.FromBoot();
     }
 }

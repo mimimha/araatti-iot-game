@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -18,13 +17,6 @@ using UnityEngine.UI;
 /// </summary>
 public class LoginScreenController : MonoBehaviour
 {
-    [Header("씬 이동")]
-    [Tooltip("로그인 / 회원가입 후 이동할 씬")]
-    [SerializeField] private string nextSceneName = "CharacterCreate";
-
-    [Tooltip("뒤로가기로 이동할 씬")]
-    [SerializeField] private string backSceneName = "Title";
-
     [Header("탭")]
     [SerializeField] private Button loginTabButton;
     [SerializeField] private Button registerTabButton;
@@ -172,32 +164,13 @@ public class LoginScreenController : MonoBehaviour
 
         Debug.Log($"[LoginScreen] {mode} — 입력한 이메일: \"{email}\" (아직 검증하지 않습니다)");
 
-        LoadScene(nextSceneName, "다음 화면");
+        // 이 PC 에 캐릭터가 이미 있으면 SceneFlow 가 생성 화면을 건너뛴다.
+        SceneFlow.FromLogin();
     }
 
     public void GoBack()
     {
-        LoadScene(backSceneName, "뒤로가기");
-    }
-
-    private void LoadScene(string sceneName, string what)
-    {
-        if (string.IsNullOrEmpty(sceneName))
-        {
-            Debug.LogWarning($"[LoginScreen] {what} 씬 이름이 비어 있습니다. Inspector 를 확인해 주세요.", this);
-            return;
-        }
-
-        if (!Application.CanStreamedLevelBeLoaded(sceneName))
-        {
-            Debug.LogError(
-                $"[LoginScreen] \"{sceneName}\" 씬을 찾을 수 없습니다. " +
-                "File > Build Profiles 의 Scene List 에 등록되어 있는지 확인해 주세요.", this);
-            return;
-        }
-
-        Debug.Log($"[LoginScreen] 씬 이동: {sceneName}");
-        SceneManager.LoadScene(sceneName);
+        SceneFlow.BackToTitle();
     }
 
     private void WarnIfMissing(Object reference, string fieldName)
