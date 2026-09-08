@@ -87,6 +87,13 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
     private void Update()
     {
+        // 플레이 중에 스크립트를 고치면 도메인 리로드로 두 손이 날아가는데
+        // Awake 는 다시 불리지 않는다. 그때 콘솔이 예외로 도배되는 것을 막는다.
+        if (_left == null || _right == null)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         // 키보드로는 두 손을 따로 기울일 수 없다. A / D 를 양손이 함께 쓴다.
