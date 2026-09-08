@@ -106,6 +106,10 @@ public static class ShipCoopSceneLabels
                 string straight = helm.IsHeadingStraight() ? "정면" : "꺾임";
                 return $"{head}\n{helm.Heading:F0}°  {straight}\nSteer {helm.Steer:+0.00;-0.00; 0.00}";
 
+            case SailTask sail:
+                string slack = sail.IsSlack ? "⚠ 돛이 풀렸다" : $"돛 {sail.SailPower01:P0}";
+                return $"{head}\n{slack}\nPull {sail.Pull:+0.00;-0.00; 0.00}";
+
             case CannonTask cannon:
                 string ammo = cannon.Ammo <= 0 ? "⚠ 포탄 없음" : $"포탄 {cannon.Ammo}/{cannon.MaxAmmo}";
                 return $"{head}\n{ammo}\n포신 {cannon.TurretYaw:F0}°";
