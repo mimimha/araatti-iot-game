@@ -145,7 +145,7 @@ public class ShipCoopDebugHud : MonoBehaviour
             bool carrying = carry != null && carry.IsCarrying;
 
             string state = carrying
-                ? "⚫ 포탄 운반 중 (양손 묶임)"
+                ? CarryHint(carry)
                 : worker.Current != null
                     ? $"→ {worker.Current.DisplayName}"
                     : worker.Nearby != null
@@ -156,6 +156,35 @@ public class ShipCoopDebugHud : MonoBehaviour
         }
 
         _sb.AppendLine();
+    }
+
+    /// <summary>
+    /// 포탄을 든 사람에게 지금 무엇을 해야 하는지 알려준다.
+    ///
+    /// 게임이 사거리 안이라고 보는지를 화면에 그대로 띄운다.
+    /// "대포 앞 — Space 로 싣기" 가 뜨는데도 안 실린다면 사거리 문제가 아니라
+    /// 키 입력이 게임까지 오지 않는 것이다.
+    /// </summary>
+    private static string CarryHint(CarryTask carry)
+    {
+        if (carry.FindLoadableCannon() != null)
+        {
+            return "⚫ 운반 중 · 대포 앞 — Space 로 싣기 ★";
+        }
+
+        (CannonTask cannon, float distance) = carry.NearestCannon();
+
+        if (cannon == null)
+        {
+            return "⚫ 운반 중 — 대포가 씬에 없다";
+        }
+
+        if (!cannon.HasRoomForAmmo)
+        {
+            return $"⚫ 운반 중 — 대포가 꽉 찼다 ({cannon.Ammo}/{cannon.MaxAmmo})";
+        }
+
+        return $"⚫ 운반 중 — 대포까지 {distance:F1}m  (안으로 {carry.LoadRange:F1}m 들어가야 함)";
     }
 
     /// <summary>붙을 수 있는 것이 없을 때, 가장 가까운 것과 거리를 알려준다.</summary>

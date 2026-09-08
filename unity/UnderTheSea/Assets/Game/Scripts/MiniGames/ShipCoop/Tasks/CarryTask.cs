@@ -89,13 +89,15 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        if (!ShipCoopInput.ConsumeInteract(input))
+        // 실을 대포를 먼저 찾는다. 버튼을 먼저 소비하면 범위 밖에서 누른 것이
+        // 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
+        CannonTask cannon = FindLoadableCannon();
+        if (cannon == null)
         {
             return;
         }
 
-        CannonTask cannon = FindLoadableCannon();
-        if (cannon == null)
+        if (!ShipCoopInput.ConsumeInteract(input))
         {
             return;
         }
@@ -168,8 +170,39 @@ public class CarryTask : MonoBehaviour
         return best;
     }
 
-    /// <summary>포탄을 더 실을 수 있는, 가까운 대포</summary>
-    private CannonTask FindLoadableCannon()
+    /// <summary>싣을 수 있는 거리 (m)</summary>
+    public float LoadRange => loadRange;
+
+    /// <summary>
+    /// 가장 가까운 대포와 그 거리. 대포가 없으면 (null, -1).
+    /// 사거리와 무관하게 찾는다. HUD 가 "대포까지 몇 m" 를 띄우는 데 쓴다.
+    /// </summary>
+    public (CannonTask cannon, float distance) NearestCannon()
+    {
+        CannonTask best = null;
+        float bestDistance = float.MaxValue;
+        Vector3 position = transform.position;
+
+        for (int i = 0; i < TaskBase.All.Count; i++)
+        {
+            if (TaskBase.All[i] is not CannonTask cannon)
+            {
+                continue;
+            }
+
+            float d = Vector3.Distance(cannon.transform.position, position);
+            if (d < bestDistance)
+            {
+                bestDistance = d;
+                best = cannon;
+            }
+        }
+
+        return best == null ? (null, -1f) : (best, bestDistance);
+    }
+
+    /// <summary>포탄을 더 실을 수 있는, 가까운 대포. 없으면 null.</summary>
+    public CannonTask FindLoadableCannon()
     {
         CannonTask best = null;
         float bestSqr = loadRange * loadRange;
