@@ -81,7 +81,8 @@ public class ShipCoopDebugHud : MonoBehaviour
             return;
         }
 
-        _sb.AppendLine($"[{_game.State}]   {_game.Elapsed:F0}s / {_game.TimeLimit:F0}s");
+        string phase = _game.CurrentPhase != null ? _game.CurrentPhase.name : "출항 전";
+        _sb.AppendLine($"[{_game.State}]  {phase}   {_game.Elapsed:F0}s / {_game.TimeLimit:F0}s");
 
         if (_health != null)
         {

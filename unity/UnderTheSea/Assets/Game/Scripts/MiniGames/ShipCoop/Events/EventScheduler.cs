@@ -37,6 +37,11 @@ public class EventScheduler : MonoBehaviour
         [Tooltip("이 구간에서 동시에 살아있을 수 있는 사건 수.\n" +
                  "이 게임의 재미는 작업이 겹칠 때 나오므로 2 이상을 권한다. (10장)")]
         [Min(1)] public int maxConcurrent = 2;
+
+        [Tooltip("이 구간에 들어서는 순간 한꺼번에 터뜨릴 사건 수. 0 이면 간격대로만 뿌린다.\n\n" +
+                 "FINAL STORM 은 '한꺼번에 온다' 가 규격이므로(3장) 여기를 채운다.\n" +
+                 "간격을 좁히는 것만으로는 하나씩 오는 느낌이 남는다.")]
+        [Min(0)] public int openingBurst = 0;
     }
 
     [Header("연결")]
@@ -63,6 +68,7 @@ public class EventScheduler : MonoBehaviour
 
     private float _elapsed;
     private float _nextEventTime;
+    private int _lastPhaseIndex = -99;
     private System.Random _random;
 
     private void Awake()
@@ -107,6 +113,13 @@ public class EventScheduler : MonoBehaviour
         _elapsed += Time.deltaTime;
         CurrentPlan = PlanFor(game.CurrentPhaseIndex);
 
+        // 구간이 바뀌었다. 개막 폭발이 있으면 지금 한꺼번에 터뜨린다.
+        if (game.CurrentPhaseIndex != _lastPhaseIndex)
+        {
+            _lastPhaseIndex = game.CurrentPhaseIndex;
+            OpeningBurst(CurrentPlan);
+        }
+
         if (CurrentPlan == null || _elapsed < _nextEventTime)
         {
             return;
@@ -127,6 +140,39 @@ public class EventScheduler : MonoBehaviour
         }
 
         ScheduleNext(CurrentPlan);
+    }
+
+    /// <summary>
+    /// 구간에 들어서는 순간 여러 사건을 한꺼번에 시작한다.
+    ///
+    /// FINAL STORM 의 "한꺼번에 온다" 가 이것이다. (3장)
+    /// 간격만 좁히면 빠르게 하나씩 오는 느낌이 남고, 자리를 나눌 여유가 생긴다.
+    /// 동시에 터져야 "지금까지 쓴 모든 작업을 동시에" 가 성립한다.
+    /// </summary>
+    private void OpeningBurst(PhasePlan plan)
+    {
+        if (plan == null || plan.openingBurst <= 0)
+        {
+            return;
+        }
+
+        int fired = 0;
+
+        for (int i = 0; i < plan.openingBurst; i++)
+        {
+            VoyageEvent picked = PickFrom(plan);
+            if (picked == null)
+            {
+                break;
+            }
+
+            picked.Begin();
+            fired++;
+        }
+
+        Debug.Log($"[스케줄러] {plan.label} 진입 — 사건 {fired}개가 한꺼번에 시작됐다", this);
+
+        ScheduleNext(plan);
     }
 
     private void ScheduleNext(PhasePlan plan)

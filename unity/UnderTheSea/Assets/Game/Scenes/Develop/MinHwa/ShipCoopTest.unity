@@ -2055,6 +2055,7 @@ MonoBehaviour:
     minInterval: 14
     maxInterval: 22
     maxConcurrent: 1
+    openingBurst: 0
   - phaseIndex: 2
     label: "\uD398\uC774\uC988 2"
     pool:
@@ -2065,6 +2066,7 @@ MonoBehaviour:
     minInterval: 12
     maxInterval: 18
     maxConcurrent: 2
+    openingBurst: 0
   - phaseIndex: 3
     label: "\uD398\uC774\uC988 3"
     pool:
@@ -2076,6 +2078,7 @@ MonoBehaviour:
     minInterval: 9
     maxInterval: 14
     maxConcurrent: 2
+    openingBurst: 0
   - phaseIndex: 4
     label: FINAL STORM
     pool:
@@ -2087,6 +2090,7 @@ MonoBehaviour:
     minInterval: 6
     maxInterval: 10
     maxConcurrent: 3
+    openingBurst: 3
   graceSeconds: 10
   randomSeed: 0
 --- !u!4 &1792953313
