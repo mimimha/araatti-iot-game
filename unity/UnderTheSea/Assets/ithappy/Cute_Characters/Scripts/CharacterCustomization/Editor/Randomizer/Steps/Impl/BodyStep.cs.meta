@@ -1,0 +1,10 @@
+fileFormatVersion: 2
+guid: 42bef50fa72d4d079bc76cfc83263e3d
+timeCreated: 1736599151
+AssetOrigin:
+  serializedVersion: 1
+  productId: 218181
+  packageName: "Cute Characters \u2013 Modular Animated Pack"
+  packageVersion: 2.7
+  assetPath: Assets/ithappy/Cute_Characters/Scripts/CharacterCustomization/Editor/Randomizer/Steps/Impl/BodyStep.cs
+  uploadId: 963750

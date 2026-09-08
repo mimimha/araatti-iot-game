@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 0bab0d4c17234c8d898af3b1d40ac1b3
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 218181
+  packageName: "Cute Characters \u2013 Modular Animated Pack"
+  packageVersion: 2.7
+  assetPath: Assets/ithappy/Cute_Characters/Scripts/CharacterCustomization/Editor/Randomizer/Steps/IRandomizerStep.cs
+  uploadId: 963750

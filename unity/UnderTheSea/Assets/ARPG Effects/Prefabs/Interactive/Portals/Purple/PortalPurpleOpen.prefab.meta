@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ce483cb9a671e384191a95c0c32adcc1
+timeCreated: 1432999652
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Purple/PortalPurpleOpen.prefab
+  uploadId: 689779

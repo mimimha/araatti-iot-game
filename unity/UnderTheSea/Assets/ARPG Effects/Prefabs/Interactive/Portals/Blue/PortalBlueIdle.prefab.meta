@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a25b3d9a8119bf047b7609dba7f57302
+timeCreated: 1432231956
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Blue/PortalBlueIdle.prefab
+  uploadId: 689779
