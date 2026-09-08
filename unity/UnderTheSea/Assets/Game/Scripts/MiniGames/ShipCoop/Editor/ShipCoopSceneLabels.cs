@@ -22,6 +22,7 @@ public static class ShipCoopSceneLabels
     private static readonly Color EmptyColor = new Color(0.80f, 0.82f, 0.88f);
     private static readonly Color LeakingColor = new Color(1.00f, 0.45f, 0.40f);
     private static readonly Color WorkerColor = new Color(0.55f, 0.80f, 1.00f);
+    private static readonly Color CarryColor = new Color(1.00f, 0.85f, 0.40f);
 
     private static GUIStyle _style;
 
@@ -72,6 +73,8 @@ public static class ShipCoopSceneLabels
             DrawTask(task);
         }
 
+        DrawAmmoBoxes();
+
         var workers = Object.FindObjectsByType<TaskWorker>(FindObjectsInactive.Include);
         foreach (TaskWorker worker in workers)
         {
@@ -103,6 +106,10 @@ public static class ShipCoopSceneLabels
                 string straight = helm.IsHeadingStraight() ? "정면" : "꺾임";
                 return $"{head}\n{helm.Heading:F0}°  {straight}\nSteer {helm.Steer:+0.00;-0.00; 0.00}";
 
+            case CannonTask cannon:
+                string ammo = cannon.Ammo <= 0 ? "⚠ 포탄 없음" : $"포탄 {cannon.Ammo}/{cannon.MaxAmmo}";
+                return $"{head}\n{ammo}\n포신 {cannon.TurretYaw:F0}°";
+
             case RepairTask repair:
                 if (repair.IsRepaired)
                 {
@@ -131,14 +138,35 @@ public static class ShipCoopSceneLabels
 
     private static void DrawWorker(TaskWorker worker)
     {
-        string state = worker.Current != null
-            ? $"→ {worker.Current.DisplayName}"
-            : worker.Nearby != null
-                ? $"({worker.Nearby.DisplayName} 근처)"
-                : "빈손";
+        var carry = worker.GetComponent<CarryTask>();
+        bool carrying = carry != null && carry.IsCarrying;
 
-        _style.normal.textColor = WorkerColor;
+        string state = carrying
+            ? "⚫ 포탄 운반 중 (양손 묶임)"
+            : worker.Current != null
+                ? $"→ {worker.Current.DisplayName}"
+                : worker.Nearby != null
+                    ? $"({worker.Nearby.DisplayName} 근처)"
+                    : "빈손";
+
+        _style.normal.textColor = carrying ? CarryColor : WorkerColor;
         Handles.Label(worker.transform.position + Vector3.up * 1.1f, $"{worker.name}\n{state}", _style);
+    }
+
+    /// <summary>포탄 상자도 표시한다. 자리가 아니라 TaskBase 목록에 없다.</summary>
+    private static void DrawAmmoBoxes()
+    {
+        foreach (AmmoBox box in Object.FindObjectsByType<AmmoBox>(FindObjectsInactive.Include))
+        {
+            Color color = box.HasStock ? CarryColor : EmptyColor;
+
+            Handles.color = new Color(color.r, color.g, color.b, 0.55f);
+            Handles.DrawWireDisc(box.transform.position, Vector3.up, box.ReachRange);
+
+            _style.normal.textColor = color;
+            Handles.Label(box.transform.position + Vector3.up * 1.1f,
+                box.HasStock ? "⚫ 포탄 상자" : "⚫ 포탄 상자 (빔)", _style);
+        }
     }
 
     private static void EnsureStyle()
