@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -40,13 +39,6 @@ public class StartMenuController : MonoBehaviour
 
     [Header("메뉴 (위에서 아래 순서대로 등록)")]
     [SerializeField] private List<MenuEntry> menuEntries = new List<MenuEntry>();
-
-    [Header("게임 시작")]
-    [Tooltip("기존 SceneChangeButton 을 재사용한다. 비워 두면 아래 게임 씬 이름을 사용한다.")]
-    [SerializeField] private SceneChangeButton sceneChangeButton;
-
-    [Tooltip("이동할 게임 씬 이름. SceneChangeButton 을 쓰지 않을 때만 사용한다.")]
-    [SerializeField] private string gameSceneName = "";
 
     [Header("설정")]
     [SerializeField] private GameObject settingsPanel;
@@ -363,22 +355,8 @@ public class StartMenuController : MonoBehaviour
 
     public void StartGame()
     {
-        // 기존 씬 전환 구조를 그대로 재사용한다.
-        if (sceneChangeButton != null)
-        {
-            sceneChangeButton.OnClick();
-            return;
-        }
-
-        if (string.IsNullOrEmpty(gameSceneName))
-        {
-            Debug.LogWarning(
-                "[StartMenuController] 이동할 게임 씬이 지정되지 않았습니다. " +
-                "Inspector 의 Scene Change Button 또는 Game Scene Name 중 하나를 채워 주세요.", this);
-            return;
-        }
-
-        SceneManager.LoadScene(gameSceneName);
+        // 어디로 갈지는 SceneFlow 가 정한다.
+        SceneFlow.FromTitle();
     }
 
     public void OpenSettings()
@@ -681,9 +659,12 @@ public class StartMenuController : MonoBehaviour
             }
         }
 
-        if (sceneChangeButton == null && string.IsNullOrEmpty(gameSceneName))
+        // 이동할 씬은 SceneFlow 가 정한다. 여기서는 그 씬이 등록되어 있는지만 확인한다.
+        if (!Application.CanStreamedLevelBeLoaded(SceneFlow.Login))
         {
-            Debug.LogWarning("[검사] 게임 시작이 이동할 씬이 지정되지 않았습니다.", this);
+            Debug.LogWarning(
+                $"[검사] \"{SceneFlow.Login}\" 씬이 Build Profiles 의 Scene List 에 없습니다. " +
+                "[시작] 을 눌러도 넘어가지 않습니다.", this);
             problems++;
         }
 

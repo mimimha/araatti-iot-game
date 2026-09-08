@@ -30,6 +30,14 @@ namespace UnderTheSea.Character
             [NonSerialized] public GameObject activePart;
         }
 
+        /// <summary>
+        /// [생성 완료] 를 눌러 이름 검증을 통과하고 저장까지 끝났을 때 알린다. 인자는 저장된 이름.
+        ///
+        /// 검증에 걸려서 되돌아간 경우에는 호출되지 않는다.
+        /// 다음 화면으로 넘기는 것은 이 알림을 듣는 쪽(CharacterCreateFlow)이 한다.
+        /// </summary>
+        public event Action<string> Completed;
+
         [Header("Character")]
         [SerializeField] private Transform characterPreview;
         [SerializeField] private PartCollection face;
@@ -420,6 +428,10 @@ namespace UnderTheSea.Character
                 sectionTitle.text = nickname + " 캐릭터 설정 완료!";
 
             Debug.Log("Character customization completed for " + nickname + ".");
+
+            // 저장까지 끝났다고 알린다. 씬 전환은 이 알림을 듣는 쪽에서 한다.
+            // (GAME_STRUCTURE.md 3장 — 씬 전환 코드는 이 파일에 넣지 않는다)
+            Completed?.Invoke(nickname);
         }
 
         private static string GetNicknameValidationMessage(string nickname)
