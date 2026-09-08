@@ -29,6 +29,13 @@ public class CarryTask : MonoBehaviour
     [Tooltip("대포에 이만큼 가까워야 포탄을 넘길 수 있다.")]
     [SerializeField, Min(0.5f)] private float loadRange = 2f;
 
+    [Header("싣는 방법")]
+    [Tooltip("켜면 포탄을 들고 대포에 닿는 순간 저절로 실린다.\n\n" +
+             "끄면 Space 를 눌러야 실린다. 다만 그러면 Shift 를 쥐고 방향키로 걸어가면서 " +
+             "Space 를 또 눌러야 해서 손가락 3개가 필요하고, 그 순간 키보드가 " +
+             "키 하나를 놓쳐 포탄을 떨어뜨리기 쉽다.")]
+    [SerializeField] private bool autoLoadOnReach = true;
+
     [Header("들고 있는 표시 (선택)")]
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
     [SerializeField] private GameObject heldVisual;
@@ -97,7 +104,9 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        if (!ShipCoopInput.ConsumeInteract(input))
+        // 닿으면 저절로 실린다. 쥐고 걸어오는 것 자체가 이미 이 작업의 값이므로
+        // 넘기는 순간에 버튼을 하나 더 요구할 이유가 없다.
+        if (!autoLoadOnReach && !ShipCoopInput.ConsumeInteract(input))
         {
             return;
         }
