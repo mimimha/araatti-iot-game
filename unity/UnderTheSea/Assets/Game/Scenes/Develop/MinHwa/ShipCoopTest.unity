@@ -152,6 +152,7 @@ Transform:
   - {fileID: 1448395560}
   - {fileID: 2047580875}
   - {fileID: 269243581}
+  - {fileID: 724600845}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &269243580
@@ -535,6 +536,68 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &724600844
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 128154950}
+    m_Modifications:
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 1.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -2.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2492268898721592629, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+      propertyPath: m_Name
+      value: HullDamagePoint_01
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+--- !u!4 &724600845 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1441239396906661519, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
+  m_PrefabInstance: {fileID: 724600844}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &918609044
 PrefabInstance:
   m_ObjectHideFlags: 0
