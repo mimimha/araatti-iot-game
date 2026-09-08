@@ -147,4 +147,23 @@ public class TaskWorker : MonoBehaviour
         left.Leave(this);
         CurrentChanged?.Invoke(null);
     }
+
+    /// <summary>
+    /// 자리 쪽에서 이 사람을 놓아줄 때 부른다. TaskBase.Leave 전용.
+    ///
+    /// 수리가 끝나 파손 지점이 꺼지는 것처럼 자리가 먼저 사라질 수 있다.
+    /// 그때 사람이 죽은 자리를 붙들고 있으면 걸어나가기 전까지 다른 자리에 붙지 못한다.
+    ///
+    /// LeaveCurrent 는 Current 를 먼저 비우고 Leave 를 부르므로 서로 되부르지 않는다.
+    /// </summary>
+    internal void ClearCurrent(TaskBase task)
+    {
+        if (!ReferenceEquals(Current, task))
+        {
+            return;
+        }
+
+        Current = null;
+        CurrentChanged?.Invoke(null);
+    }
 }
