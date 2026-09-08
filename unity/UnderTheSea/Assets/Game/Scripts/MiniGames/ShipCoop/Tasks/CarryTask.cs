@@ -29,12 +29,35 @@ public class CarryTask : MonoBehaviour
     [Tooltip("대포에 이만큼 가까워야 포탄을 넘길 수 있다.")]
     [SerializeField, Min(0.5f)] private float loadRange = 2f;
 
+    /// <summary>포탄을 대포에 넘기는 시점</summary>
+    public enum LoadTrigger
+    {
+        /// <summary>
+        /// 대포 앞에서 쥐던 손을 놓으면 넣는다. (기본)
+        ///
+        /// 내려놓는다는 감각과 맞고, 어차피 놓을 손가락이라 버튼이 늘지 않는다.
+        /// 언제 넣을지를 플레이어가 정한다.
+        /// </summary>
+        OnRelease,
+
+        /// <summary>
+        /// 대포에 닿는 순간 저절로 넣는다.
+        ///
+        /// ⚠ 다른 곳으로 가려고 대포 옆을 지나가기만 해도 들어간다.
+        /// </summary>
+        OnReach,
+
+        /// <summary>
+        /// 대포 앞에서 Space 를 눌러야 넣는다.
+        ///
+        /// ⚠ Shift 를 쥐고 방향키로 걸어가면서 Space 까지 눌러야 해서 손가락 3개가
+        /// 필요하고, 그 순간 키보드가 키 하나를 놓쳐 포탄을 떨어뜨리기 쉽다.
+        /// </summary>
+        OnButton,
+    }
+
     [Header("싣는 방법")]
-    [Tooltip("켜면 포탄을 들고 대포에 닿는 순간 저절로 실린다.\n\n" +
-             "끄면 Space 를 눌러야 실린다. 다만 그러면 Shift 를 쥐고 방향키로 걸어가면서 " +
-             "Space 를 또 눌러야 해서 손가락 3개가 필요하고, 그 순간 키보드가 " +
-             "키 하나를 놓쳐 포탄을 떨어뜨리기 쉽다.")]
-    [SerializeField] private bool autoLoadOnReach = true;
+    [SerializeField] private LoadTrigger loadTrigger = LoadTrigger.OnRelease;
 
     [Header("들고 있는 표시 (선택)")]
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
@@ -89,32 +112,49 @@ public class CarryTask : MonoBehaviour
 
     private void UpdateCarrying(IPlayerController input)
     {
-        // 한 손이라도 놓으면 떨어뜨린다.
+        CannonTask cannon = FindLoadableCannon();
+
+        // 손을 놓았다. 대포 앞이면 넣고, 아니면 떨어뜨린다.
         if (!ShipCoopInput.HoldBoth(input))
         {
+            if (loadTrigger == LoadTrigger.OnRelease && cannon != null && TryLoad(cannon, input))
+            {
+                return;
+            }
+
             DropInternal(notify: true);
             return;
         }
 
-        // 실을 대포를 먼저 찾는다. 버튼을 먼저 소비하면 범위 밖에서 누른 것이
-        // 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
-        CannonTask cannon = FindLoadableCannon();
         if (cannon == null)
         {
             return;
         }
 
-        // 닿으면 저절로 실린다. 쥐고 걸어오는 것 자체가 이미 이 작업의 값이므로
-        // 넘기는 순간에 버튼을 하나 더 요구할 이유가 없다.
-        if (!autoLoadOnReach && !ShipCoopInput.ConsumeInteract(input))
+        switch (loadTrigger)
         {
-            return;
-        }
+            case LoadTrigger.OnReach:
+                TryLoad(cannon, input);
+                break;
 
+            case LoadTrigger.OnButton:
+                // 대포를 먼저 찾은 뒤에 버튼을 소비한다. 순서를 바꾸면 사거리 밖에서
+                // 누른 것이 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
+                if (ShipCoopInput.ConsumeInteract(input))
+                {
+                    TryLoad(cannon, input);
+                }
+                break;
+        }
+    }
+
+    /// <summary>대포에 포탄을 넘긴다. 성공하면 true.</summary>
+    private bool TryLoad(CannonTask cannon, IPlayerController input)
+    {
         int loaded = cannon.LoadAmmo(carryAmount);
         if (loaded <= 0)
         {
-            return;
+            return false;
         }
 
         IsCarrying = false;
@@ -124,6 +164,7 @@ public class CarryTask : MonoBehaviour
         input.VibrateBoth(0.4f, 0.1f);
         Debug.Log($"[{name}] 포탄 {loaded}발 실었다 → {cannon.name} ({cannon.Ammo}/{cannon.MaxAmmo})", this);
         Loaded?.Invoke(loaded);
+        return true;
     }
 
     private void UpdateEmptyHanded(IPlayerController input)

@@ -169,7 +169,7 @@ public class ShipCoopDebugHud : MonoBehaviour
     {
         if (carry.FindLoadableCannon() != null)
         {
-            return "⚫ 운반 중 · 대포에 닿았다 — 곧 실린다 ★";
+            return "⚫ 운반 중 · 대포 앞 — Shift 를 놓으면 들어간다 ★";
         }
 
         (CannonTask cannon, float distance) = carry.NearestCannon();
@@ -229,9 +229,10 @@ public class ShipCoopDebugHud : MonoBehaviour
         _sb.AppendLine("── 조작 ──");
         _sb.AppendLine("방향키      이동");
         _sb.AppendLine("Space       자리에 붙기 · 포탄 집기");
-        _sb.AppendLine("            (싣기는 대포에 닿으면 저절로 된다)");
         _sb.AppendLine("A  D        조타 꺾기 · 돛 당기기(D) / 풀기(A)");
-        _sb.AppendLine("Shift       포탄을 든 채로 유지 (놓으면 떨어뜨림)");
+        _sb.AppendLine("Shift       포탄을 든 채로 유지");
+        _sb.AppendLine("            대포 앞에서 놓으면 → 싣기");
+        _sb.AppendLine("            그 밖에서 놓으면 → 떨어뜨림");
         _sb.AppendLine("X           대포 발사");
         _sb.AppendLine("F           망치질 (수리)");
         _sb.AppendLine("Q  E        포신 조준");
