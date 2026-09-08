@@ -59,6 +59,7 @@ public class ShipCoopDebugHud : MonoBehaviour
 
         _sb.Clear();
         AppendGame();
+        AppendEvents();
         AppendTasks();
         AppendPlayers();
 
@@ -96,6 +97,56 @@ public class ShipCoopDebugHud : MonoBehaviour
         }
 
         _sb.AppendLine();
+    }
+
+    /// <summary>
+    /// 지금 벌어지고 있는 사건들.
+    ///
+    /// 문서 9장이 "왼쪽 사건 알림이 이 게임에서 가장 중요한 UI" 라고 한 부분이다.
+    /// 지금 무슨 일인지 한눈에 보여야 누가 무엇을 할지 판단할 수 있다.
+    /// </summary>
+    private void AppendEvents()
+    {
+        _sb.AppendLine("── 사건 ──");
+
+        if (VoyageEvent.Active.Count == 0)
+        {
+            _sb.AppendLine("(조용하다)");
+            _sb.AppendLine();
+            return;
+        }
+
+        for (int i = 0; i < VoyageEvent.Active.Count; i++)
+        {
+            VoyageEvent e = VoyageEvent.Active[i];
+
+            string timer = e.Duration > 0f
+                ? $"  {Mathf.Max(0f, e.Duration - e.Elapsed):F0}초"
+                : string.Empty;
+
+            _sb.AppendLine($"{e.WarningText}{timer}");
+
+            string hint = HintFor(e);
+            if (!string.IsNullOrEmpty(hint))
+            {
+                _sb.AppendLine($"   → {hint}");
+            }
+        }
+
+        _sb.AppendLine();
+    }
+
+    private static string HintFor(VoyageEvent e)
+    {
+        switch (e)
+        {
+            case Reef reef: return reef.DodgeHint();
+            case BigWave wave: return wave.StraightHint();
+            case Squall squall: return squall.SailHint();
+            case EnemyShip enemy: return enemy.CannonHint();
+            case HullDamage hull: return hull.RepairHint();
+            default: return null;
+        }
     }
 
     private void AppendTasks()
