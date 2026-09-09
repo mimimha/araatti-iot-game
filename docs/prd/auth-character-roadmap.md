@@ -235,8 +235,9 @@ Body      Body_01 ... Body_16
 | 메서드 | 경로 | 인증 | 용도 |
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | — | 헬스 체크 (PRD 03) |
-| `POST` | `/api/auth/register` | — | 회원가입 (PRD 04) |
+| `POST` | `/api/auth/signup` | — | 회원가입 (PRD 04) |
 | `POST` | `/api/auth/login` | — | 로그인 (PRD 04) |
+| `GET` | `/api/auth/me` | Bearer | 토큰 확인용 내 정보 (PRD 04) |
 | `GET` | `/api/characters` | Bearer | **내 캐릭터 목록** (PRD 05) |
 | `POST` | `/api/characters` | Bearer | 캐릭터 생성 (PRD 05) |
 | `GET` | `/api/characters/{id}` | Bearer | 캐릭터 하나 (PRD 05) |
@@ -245,16 +246,25 @@ Body      Body_01 ... Body_16
 ### 3-2. 인증
 
 ```jsonc
-// POST /api/auth/register  ·  POST /api/auth/login
+// 요청 본문은 둘 다 같다
+// POST /api/auth/signup  ·  POST /api/auth/login
 { "email": "a@b.com", "password": "secret123" }
 
-// 200 / 201
+// POST /api/auth/signup → 201
+// ★ 가입은 토큰을 주지 않는다. 계정만 만든다.
+{ "id": 1, "email": "a@b.com", "createdAt": "2026-09-09T02:19:45.881406Z" }
+
+// POST /api/auth/login → 200
 {
   "accessToken": "eyJhbGciOi...",
   "expiresIn": 7200,
-  "user": { "id": 1, "email": "a@b.com" }
+  "user": { "id": 1, "email": "a@b.com", "createdAt": "2026-09-09T02:19:45.881406Z" }
 }
 ```
+
+> **가입 응답에 토큰을 넣지 않는 이유** — "계정을 만드는 일" 과 "인증하는 일" 을 갈라 두면
+> 토큰 발급 경로가 로그인 한 곳뿐이라 흐름이 단순해진다.
+> 대신 Unity 는 **회원가입 성공 직후 로그인을 한 번 더 호출**해야 한다. (PRD 06 에서 반영할 것)
 
 - JWT 클레임: `sub` = `users.id`, `email`, `exp`. 서명 `HS256`.
 - **응답에 캐릭터 정보를 넣지 않는다.** 0/1/N 분기를 `GET /api/characters` **한 곳에서만** 판단하기 위함이다.
@@ -602,7 +612,7 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 
 **완료 조건**
 
-- [ ] `POST /api/auth/register` `201`, `POST /api/auth/login` `200`, 응답은 3-2 형식.
+- [ ] `POST /api/auth/signup` `201`, `POST /api/auth/login` `200`, 응답은 3-2 형식.
 - [ ] 비밀번호가 **BCrypt 해시**로 저장된다. 응답 · 로그에 평문이나 해시가 노출되지 않는다.
 - [ ] JWT 가 `sub`/`email`/`exp` 를 담고 `HS256` 으로 서명된다. 만료 2시간.
 - [ ] 오류 코드가 3-5 표대로 나온다: `VALIDATION_FAILED`, `EMAIL_ALREADY_USED`, `INVALID_CREDENTIALS`.

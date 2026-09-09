@@ -95,8 +95,21 @@ cp AraAtti.Api/appsettings.Development.json.example AraAtti.Api/appsettings.Deve
 Copy-Item AraAtti.Api/appsettings.Development.json.example AraAtti.Api/appsettings.Development.json
 ```
 
-복사한 파일의 `password=` 를 **`.env` 의 `MYSQL_PASSWORD` 와 같은 값**으로 맞춥니다.
-이 파일은 `.gitignore` 대상이라 커밋되지 않습니다.
+복사한 파일에서 **두 곳**을 고칩니다. 이 파일은 `.gitignore` 대상이라 커밋되지 않습니다.
+
+| 항목 | 넣을 값 |
+| --- | --- |
+| `ConnectionStrings.Default` 의 `password=` | `.env` 의 `MYSQL_PASSWORD` 와 **같은 값** |
+| `Jwt.Key` | **본인만의 임의 문자열. 32자 이상.** 예시 값을 그대로 쓰지 마세요 |
+
+`Jwt.Key` 는 로그인 토큰에 서명하는 열쇠입니다. 이 값을 아는 사람은 아무 계정의 토큰이나
+위조할 수 있으므로 **커밋되는 파일에 넣지 않습니다.** 32자보다 짧으면 서버가 켜질 때 멈춥니다.
+
+만드는 법 (PowerShell):
+
+```powershell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+```
 
 ### 방법 B — 환경 변수
 
@@ -109,9 +122,12 @@ export ConnectionStrings__Default="server=localhost;port=3306;database=araatti;u
 ```powershell
 # PowerShell
 $env:ConnectionStrings__Default = "server=localhost;port=3306;database=araatti;user=araatti;password=본인비밀번호"
+$env:Jwt__Key = "본인만의-32자-이상-임의-문자열"
 ```
 
-> 접속 문자열이 없으면 서버가 켜질 때 이 문서를 가리키는 오류 메시지와 함께 멈춥니다.
+`__`(밑줄 두 개)가 설정의 `:` 를 대신합니다. `Jwt__Key` → `Jwt:Key`.
+
+> 접속 문자열이나 JWT 키가 없으면 서버가 켜질 때 이 문서를 가리키는 오류 메시지와 함께 멈춥니다.
 
 ---
 
@@ -214,7 +230,80 @@ curl -o /dev/null -w "HTTP %{http_code}\n" http://localhost:5080/api/health
 
 ---
 
-## 6. 자주 쓰는 명령
+## 6. 회원가입 · 로그인 확인
+
+### 엔드포인트
+
+| 메서드 | 경로 | 인증 | 성공 |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/signup` | — | `201` + 사용자 정보 (**토큰 없음**) |
+| `POST` | `/api/auth/login` | — | `200` + `accessToken` |
+| `GET` | `/api/auth/me` | Bearer | `200` + 사용자 정보 |
+
+회원가입은 계정만 만들고 토큰을 주지 않습니다. **가입 직후 로그인을 한 번 더 호출**해야 토큰을 받습니다.
+
+### Swagger 로 확인
+
+1. `http://localhost:5080/swagger` 를 엽니다.
+2. `POST /api/auth/signup` → **Try it out** → 본문을 넣고 실행 → `201` 확인.
+3. `POST /api/auth/login` → 같은 본문으로 실행 → 응답의 `accessToken` 값을 복사.
+4. 오른쪽 위 **Authorize** 버튼 → 복사한 토큰을 붙여 넣습니다. (`Bearer ` 는 빼고 토큰만)
+5. `GET /api/auth/me` 실행 → `200` 과 내 정보가 나오면 JWT 설정이 정상입니다.
+
+### PowerShell 로 확인
+
+```powershell
+$base = "http://localhost:5080"
+$body = @{ email = "test@araatti.test"; password = "secret123" } | ConvertTo-Json
+
+# 1) 회원가입 — 201, 비밀번호 없는 사용자 정보
+Invoke-RestMethod -Method Post "$base/api/auth/signup" -ContentType "application/json" -Body $body
+
+# 2) 로그인 — accessToken 수령
+$login = Invoke-RestMethod -Method Post "$base/api/auth/login" -ContentType "application/json" -Body $body
+$login.accessToken
+
+# 3) 토큰으로 보호된 엔드포인트 호출 — 200
+Invoke-RestMethod "$base/api/auth/me" -Headers @{ Authorization = "Bearer $($login.accessToken)" }
+
+# 4) 토큰 없이 호출 — 401 이 나야 정상
+Invoke-RestMethod "$base/api/auth/me"
+```
+
+> `Invoke-RestMethod` 는 401 · 409 같은 실패 응답에서 예외를 던집니다.
+> 실패 본문까지 보려면 `try { ... } catch { $_.ErrorDetails.Message }` 로 감싸세요.
+
+### 실패 응답
+
+모든 실패는 같은 모양입니다. `code` 로 분기하고 `message` 를 화면에 그대로 띄웁니다.
+
+```json
+{ "code": "EMAIL_ALREADY_USED", "message": "이미 가입된 이메일입니다." }
+```
+
+| 상태 | `code` | 언제 |
+| --- | --- | --- |
+| 400 | `VALIDATION_FAILED` | 이메일 형식 오류, 비밀번호 8자 미만, 빈 값 |
+| 401 | `INVALID_CREDENTIALS` | 로그인 실패. **없는 이메일과 틀린 비밀번호가 똑같은 응답** |
+| 401 | `TOKEN_INVALID` | 토큰이 없거나 만료·위조됨 |
+| 409 | `EMAIL_ALREADY_USED` | 이미 가입된 이메일 |
+
+없는 이메일과 틀린 비밀번호를 구분해서 답하면 **어떤 이메일이 가입되어 있는지 알아낼 수 있습니다.**
+그래서 두 경우의 응답을 완전히 같게 만들었습니다.
+
+### 비밀번호가 평문으로 저장되지 않는지 확인
+
+```bash
+docker compose exec mysql mysql -u araatti -p -D araatti -e "SELECT id, email, password_hash FROM users;"
+```
+
+`password_hash` 가 `$2a$12$` 로 시작하는 60자 문자열이면 정상입니다. (BCrypt, 비용 12)
+평문은 어디에도 저장되지 않으며, 해시는 되돌릴 수 없습니다.
+같은 비밀번호로 두 번 가입해도 salt 가 달라 해시 결과가 서로 다릅니다.
+
+---
+
+## 7. 자주 쓰는 명령
 
 | 하고 싶은 것 | 명령 |
 | --- | --- |
@@ -247,13 +336,15 @@ dotnet ef migrations remove --project AraAtti.Api
 
 ---
 
-## 7. 막혔을 때
+## 8. 막혔을 때
 
 | 증상 | 원인과 해결 |
 | --- | --- |
 | `failed to connect to the docker API` | Docker 엔진이 꺼져 있습니다. Docker Desktop 을 실행하세요. |
 | `set MYSQL_PASSWORD in server/.env` | `.env` 가 없습니다. 1번을 다시 하세요. |
 | `DB 접속 문자열이 없습니다` | 2번을 하지 않았습니다. |
+| `JWT 서명 키(Jwt:Key)가 없거나 너무 짧습니다` | 2번에서 `Jwt.Key` 를 안 넣었거나 32자 미만입니다. |
+| 로그인은 되는데 `/api/auth/me` 가 401 | `Jwt.Key` 를 바꾼 뒤 예전 토큰을 쓰고 있습니다. 다시 로그인하세요. |
 | health 가 `disconnected` | `docker compose ps` 로 `healthy` 인지 확인하고, `.env` 의 `MYSQL_PASSWORD` 와 `appsettings.Development.json` 의 `password=` 가 같은지 확인하세요. |
 | `Access denied for user 'araatti'` | 위 두 비밀번호가 다릅니다. `.env` 를 바꿨다면 `docker compose down -v` 로 DB 를 초기화해야 반영됩니다. (비밀번호는 처음 생성될 때만 적용됩니다) |
 | 포트 3306 이 이미 사용 중 | `.env` 의 `MYSQL_PORT` 를 3307 로 바꾸고 `docker compose up -d`, 접속 문자열의 `port=` 도 같이 바꾸세요. |
@@ -261,7 +352,7 @@ dotnet ef migrations remove --project AraAtti.Api
 
 ---
 
-## 8. 폴더 구조
+## 9. 폴더 구조
 
 ```text
 server/
@@ -272,6 +363,12 @@ server/
     ├── Program.cs                    서버 설정 + /api/health
     ├── appsettings.json              공통 설정 (비밀 정보 없음)
     ├── appsettings.Development.json.example  → 복사해서 쓴다 (복사본은 커밋 안 됨)
+    ├── Auth/                         인증 재료
+    │   ├── JwtOptions.cs             Jwt 설정 (Key 는 여기 없음)
+    │   ├── JwtTokenGenerator.cs      토큰 발급
+    │   └── PasswordHasher.cs         BCrypt 해싱 · 대조
+    ├── Contracts/AuthContracts.cs    요청 · 응답 모양 (비밀번호 절대 미포함)
+    ├── Endpoints/AuthEndpoints.cs    signup · login · me
     ├── Entities/                     테이블에 대응하는 클래스 3개
     │   ├── User.cs
     │   ├── Character.cs
@@ -284,7 +381,7 @@ server/
 
 ---
 
-## 9. 테이블 구조
+## 10. 테이블 구조
 
 ```text
 users                        characters                    character_parts
@@ -321,18 +418,18 @@ Unity 쪽 저장 형식과 필드 이름이 같습니다.
 
 ---
 
-## 10. 아직 없는 것
+## 11. 아직 없는 것
 
 이 단계는 **개발 기반만** 만듭니다. 아래는 다음 단계에서 붙입니다.
 
 | 없는 것 | 언제 |
 | --- | --- |
-| 회원가입 · 로그인 (`/api/auth/*`) | 다음 단계 (로드맵 PRD 04) |
-| JWT 발급과 검증 | 다음 단계 (로드맵 PRD 04) |
-| 비밀번호 해싱 (BCrypt) | 다음 단계 (로드맵 PRD 04) |
-| 캐릭터 조회 · 생성 (`/api/characters`) | 그다음 (로드맵 PRD 05) |
-| 계정당 1개 제한 검사 | 그다음 (로드맵 PRD 05) |
-| Unity 연동 | 로드맵 PRD 06 · 07 |
+| 캐릭터 조회 · 생성 (`/api/characters`) | 다음 단계 (로드맵 PRD 05) |
+| 계정당 캐릭터 1개 제한 검사 | 다음 단계 (로드맵 PRD 05) |
+| Unity 연동 (로그인 화면 → 실제 API) | 로드맵 PRD 02 · 06 · 07 |
+| Refresh Token (토큰 자동 갱신) | **범위 밖.** 2시간 만료 뒤에는 다시 로그인 |
+| 이메일 인증, 비밀번호 재설정 | **범위 밖** |
+| 비밀번호 변경 · 회원 탈퇴 | **범위 밖** |
 
-지금 열려 있는 엔드포인트는 `/api/health` 와 `/health` **둘뿐**입니다.
-`users.password_hash` 컬럼은 있지만 아직 아무것도 채우지 않습니다.
+`characters` 와 `character_parts` 테이블은 만들어져 있지만 **읽고 쓰는 API 가 아직 없습니다.**
+Unity 는 여전히 캐릭터를 `PlayerPrefs` 로 그 PC 에만 저장합니다.

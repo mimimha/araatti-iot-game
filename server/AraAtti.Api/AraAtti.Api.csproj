@@ -17,6 +17,12 @@
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
 
+    <!-- 비밀번호 해싱. 평문을 저장하지 않기 위해 반드시 필요하다. -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.1" />
+
+    <!-- JWT 발급과 검증 -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
+
     <!-- 마이그레이션 도구 전용. 실행 파일에는 포함되지 않습니다. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.19">
       <PrivateAssets>all</PrivateAssets>
