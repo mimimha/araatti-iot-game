@@ -31,6 +31,12 @@ public abstract class VoyageEvent : MonoBehaviour
     [Tooltip("배가 이만큼 깎인다.")]
     [SerializeField, Min(0f)] private float damageOnFail = 15f;
 
+    [Tooltip("돛 힘이 이만큼 풀린다. (0 ~ 1)\n\n" +
+             "암초에 긁히거나 파도에 옆을 맞으면 배가 느려진다. 그것이 이 값이다.\n" +
+             "HP 와 달리 이건 시간으로 갚는다. 누군가 돛으로 가서 다시 당겨야 하고, " +
+             "그 사람이 가 있는 동안 그 사람의 원래 자리가 빈다.")]
+    [SerializeField, Range(0f, 1f)] private float sailLossOnFail = 0.4f;
+
     [Tooltip("실패하면 여기 넣은 사건들이 함께 시작된다. (5장 — 사건은 연쇄합니다)\n" +
              "예: 암초에 부딪힘 → 선체 파손")]
     [SerializeField] private List<VoyageEvent> chainOnFail = new List<VoyageEvent>();
@@ -41,6 +47,9 @@ public abstract class VoyageEvent : MonoBehaviour
 
     [Tooltip("비워두면 씬에서 자동으로 찾는다.")]
     [SerializeField] private ShipCoopGame game;
+
+    [Tooltip("비워두면 씬에서 자동으로 찾는다. 실패했을 때 돛을 푸는 데 쓴다.")]
+    [SerializeField] private ShipVoyage voyage;
 
     /// <summary>지금 살아있는 사건들. HUD 가 이걸 그대로 왼쪽에 뿌린다.</summary>
     public static IReadOnlyList<VoyageEvent> Active => ActiveEvents;
@@ -68,6 +77,7 @@ public abstract class VoyageEvent : MonoBehaviour
 
     protected ShipHealth Health => health;
     protected ShipCoopGame Game => game;
+    protected ShipVoyage Voyage => voyage;
 
     protected virtual void Awake()
     {
@@ -79,6 +89,11 @@ public abstract class VoyageEvent : MonoBehaviour
         if (game == null)
         {
             game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
+        }
+
+        if (voyage == null)
+        {
+            voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
         }
     }
 
@@ -171,6 +186,20 @@ public abstract class VoyageEvent : MonoBehaviour
         if (damageOnFail > 0f && health != null)
         {
             health.TakeDamage(damageOnFail, warningText);
+        }
+
+        // 배가 느려진다. 돛을 다시 올리려면 누군가 그리로 가야 하고,
+        // 그동안 그 사람의 원래 자리가 빈다. 사건이 사람을 움직이게 만드는 쪽이
+        // 돛을 계속 눌러야 하게 만드는 것보다 낫다. (4장)
+        if (sailLossOnFail > 0f && voyage != null)
+        {
+            float before = voyage.SailPower01;
+            voyage.SailPower01 = Mathf.Clamp01(before - sailLossOnFail);
+
+            if (!Mathf.Approximately(before, voyage.SailPower01))
+            {
+                Debug.Log($"[사건] {warningText} — 돛이 풀렸다. {before:P0} → {voyage.SailPower01:P0}", this);
+            }
         }
 
         OnFail();
