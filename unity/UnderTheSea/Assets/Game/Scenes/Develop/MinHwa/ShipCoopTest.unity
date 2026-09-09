@@ -276,9 +276,57 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 455428211529336833, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 943171143691894763, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 1994226101007589348, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3421181185301086221, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3588513592188422401, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 4155864645765361310, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_Name
       value: ShipCoopHud
+      objectReference: {fileID: 0}
+    - target: {fileID: 5752351229904887567, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847804534188496078, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6280375609690948854, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6549345767110942757, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6666949663866101720, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6673691922211876015, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 8443091316058092788, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
       objectReference: {fileID: 0}
     - target: {fileID: 9097684737347884202, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_Pivot.x
@@ -654,7 +702,7 @@ Transform:
   m_GameObject: {fileID: 338714892}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.8, y: 0.7, z: -2.5}
+  m_LocalPosition: {x: 2, y: 0.7, z: 2.54}
   m_LocalScale: {x: 0.8, y: 1.2, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -909,7 +957,7 @@ Transform:
   m_GameObject: {fileID: 849144014}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3, y: 0.25, z: -3}
+  m_LocalPosition: {x: -5, y: 0.25, z: -3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1003,9 +1051,37 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3859314319492557859, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4292462527
+      objectReference: {fileID: 0}
+    - target: {fileID: 3859314319492557859, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 5376773310856817550, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
     - target: {fileID: 6132041488831781067, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
       propertyPath: m_Name
       value: ShipCoopResult
+      objectReference: {fileID: 0}
+    - target: {fileID: 6450210353617519609, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6992603752991704334, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 8954230002899669426, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4292462527
+      objectReference: {fileID: 0}
+    - target: {fileID: 8954230002899669426, guid: 75c8632d8e1d9f14ebd7c7f9c568f810, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
