@@ -864,11 +864,13 @@ MonoBehaviour:
   warningText: "\u26A0 \uC801\uC120 \uC811\uADFC!"
   duration: 20
   damageOnFail: 20
+  sailLossOnFail: 0.4
   chainOnFail:
   - {fileID: 924620907}
   - {fileID: 1861713332}
   health: {fileID: 0}
   game: {fileID: 0}
+  voyage: {fileID: 0}
   hitsToDestroy: 2
 --- !u!1 &688707127
 GameObject:
@@ -895,7 +897,7 @@ Transform:
   m_GameObject: {fileID: 688707127}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2, y: 0.25, z: -3}
+  m_LocalPosition: {x: 2, y: 0.4, z: -3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -926,7 +928,7 @@ Transform:
   m_GameObject: {fileID: 823452537}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5, y: 0.25, z: 3}
+  m_LocalPosition: {x: 5, y: 0.4, z: 3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -957,7 +959,7 @@ Transform:
   m_GameObject: {fileID: 849144014}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5, y: 0.25, z: -3}
+  m_LocalPosition: {x: -5, y: 0.4, z: -3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1120,9 +1122,11 @@ MonoBehaviour:
   warningText: "\u26A0 \uC120\uCCB4 \uD30C\uC190 \xB7 \uCE68\uC218!"
   duration: 0
   damageOnFail: 0
+  sailLossOnFail: 0.4
   chainOnFail: []
   health: {fileID: 0}
   game: {fileID: 0}
+  voyage: {fileID: 0}
   damagePointPrefab: {fileID: 8456721191699396890, guid: e9b377c5d8209ce49998a713545689a4, type: 3}
   spawnPoints:
   - {fileID: 849144015}
@@ -1319,9 +1323,11 @@ MonoBehaviour:
   warningText: "\u26A0 \uAC70\uB300\uD55C \uD30C\uB3C4!"
   duration: 7
   damageOnFail: 20
+  sailLossOnFail: 0.4
   chainOnFail: []
   health: {fileID: 0}
   game: {fileID: 0}
+  voyage: {fileID: 0}
   straightTolerance: 12
   allowedOffTime: 1.5
 --- !u!1 &1078726309
@@ -2182,10 +2188,12 @@ MonoBehaviour:
   warningText: "\u26A0 \uC554\uCD08 \uC811\uADFC!"
   duration: 8
   damageOnFail: 25
+  sailLossOnFail: 0.4
   chainOnFail:
   - {fileID: 924620907}
   health: {fileID: 0}
   game: {fileID: 0}
+  voyage: {fileID: 0}
   dodgeAngle: 30
   randomSide: 1
   fixedSide: 1
@@ -2328,10 +2336,12 @@ MonoBehaviour:
   warningText: "\u26A0 \uB3CC\uD48D!"
   duration: 12
   damageOnFail: 0
+  sailLossOnFail: 0.4
   chainOnFail:
   - {fileID: 562408157}
   health: {fileID: 0}
   game: {fileID: 0}
+  voyage: {fileID: 0}
   extraSlackPerSecond: 0.3
   minSailPower: 0.3
   allowedWeakTime: 3
@@ -2360,7 +2370,7 @@ Transform:
   m_GameObject: {fileID: 1872577300}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3, y: 0.25, z: 3}
+  m_LocalPosition: {x: -3, y: 0.4, z: 3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
