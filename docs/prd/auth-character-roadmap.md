@@ -199,10 +199,17 @@ UNIQUE KEY uk_characters_user_slot    (user_id, slot_index)
 UNIQUE KEY uk_parts_character_slot (character_id, slot)
 ```
 
-`slot` 값은 Unity 의 `CharacterCustomizationController.WearSlot` **enum 이름 문자열**을 그대로 쓴다.
-현재 enum 에는 `Face, Hair, Top, Bottom, Shoes, Glasses, Body, Ears, Gloves, Socks, Hat, FaceAccessory, Outfit` 이 있고
-생성 UI 의 카테고리는 그 중 6개만 노출한다.
-→ **`slot` 을 문자열 컬럼으로 두면 나머지 슬롯이 UI 에 열릴 때 서버 변경이 0 이다.**
+`slot` 값은 Unity 캐릭터 생성 화면의 **카테고리 이름**을 그대로 쓴다. PRD 01 구현 기준으로 6개다.
+
+```text
+Face  Hair  Shoes  Top  Bottom  Accessory
+```
+
+(`CharacterCustomizationPersistence.PersistedCategories` 와 같다.
+초안에는 `WearSlot` enum 이름이라고 적혀 있었으나, 실제 구현은 카테고리 이름을 쓴다.)
+
+컬럼이 문자열이라 **카테고리가 늘어나도 DB 는 그대로다.** 서버에서는
+`CharacterEndpoints.AllowedSlots` 배열에 한 줄만 추가하면 된다.
 
 `prefab_name` 예시 (실제 에셋에서 확인)
 
@@ -240,7 +247,7 @@ Body      Body_01 ... Body_16
 | `GET` | `/api/auth/me` | Bearer | 토큰 확인용 내 정보 (PRD 04) |
 | `GET` | `/api/characters` | Bearer | **내 캐릭터 목록** (PRD 05) |
 | `POST` | `/api/characters` | Bearer | 캐릭터 생성 (PRD 05) |
-| `GET` | `/api/characters/{id}` | Bearer | 캐릭터 하나 (PRD 05) |
+| `GET` | `/api/characters/{id}` | Bearer | **범위 밖.** 목록으로 충분해 만들지 않았다 |
 | `DELETE` | `/api/characters/{id}` | Bearer | **범위 밖.** 다중 캐릭터 때 |
 
 ### 3-2. 인증
@@ -279,9 +286,11 @@ Body      Body_01 ... Body_16
   "characters": [
     {
       "id": 10,
-      "name": "선원김",
+      "nickname": "선원김",
       "skinColor": "#F2C9A0",
       "slotIndex": 0,
+      "createdAt": "2026-09-09T02:34:59.9918268Z",
+      "updatedAt": "2026-09-09T02:34:59.9918268Z",
       "parts": [
         { "slot": "Face",   "prefabName": "Male_Emotion_Usual_01" },
         { "slot": "Top",    "prefabName": "Costume_14_01" },
@@ -294,13 +303,20 @@ Body      Body_01 ... Body_16
 ```
 
 ```jsonc
-// POST /api/characters  → 201 (본문은 위 character 객체 하나)
+// POST /api/characters  → 201 (응답 본문은 위 character 객체 하나)
 {
-  "name": "선원김",
+  "nickname": "선원김",
   "skinColor": "#F2C9A0",
   "parts": [ { "slot": "Face", "prefabName": "Male_Emotion_Usual_01" } ]
 }
 ```
+
+> **`nickname` 인 이유** — DB 컬럼과 엔티티는 `name` 이지만, HTTP 응답/요청은 Unity 의
+> 저장 형식(`CharacterAppearanceSnapshot.nickname`)에 맞춘다. 그래야 Unity 가 이름을
+> 바꿔 담는 변환 코드 없이 스냅샷을 그대로 주고받는다.
+>
+> **`userId` 를 본문으로 받지 않는다.** 주인은 언제나 JWT 의 `sub` 다.
+> 본문으로 받으면 남의 계정에 캐릭터를 만들 수 있다.
 
 ### 3-4. 서버 검증 규칙 (Unity 검증과 일치시킬 것)
 
@@ -308,10 +324,11 @@ Body      Body_01 ... Body_16
 | --- | --- | --- |
 | `email` | 형식 유효, 190자 이하, 중복 불가 | `users.email` UNIQUE |
 | `password` | 8자 이상 | 서버 단독 결정. Unity 안내 문구도 같이 맞춘다 |
-| `name` | 2~10자, `^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+$`, 중복 불가 | **`GetNicknameValidationMessage` 와 동일 정규식** |
+| `nickname` | 2~10자, `^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+$`, 전역 중복 불가 | **`GetNicknameValidationMessage` 와 동일 정규식** |
 | `skinColor` | `^#[0-9A-Fa-f]{6}$` | |
-| `parts[].slot` | `WearSlot` enum 에 있는 이름 | |
-| `parts` | `slot` 중복 없음, 0~13개 | `uk_parts_character_slot` |
+| `parts[].slot` | `Face` `Hair` `Shoes` `Top` `Bottom` `Accessory` 중 하나 (대소문자 무시) | 2-3 절 |
+| `parts` | `slot` 중복 없음. 빈 배열 허용 | `uk_parts_character_slot` |
+| `parts[].prefabName` | 빈 값 불가, 64자 이하. **실제 프리팹인지는 검사하지 않는다** | 서버는 Unity 에셋 목록을 모른다 |
 
 ### 3-5. 오류 형식
 
@@ -325,7 +342,7 @@ Body      Body_01 ... Body_16
 | 401 | `INVALID_CREDENTIALS` | 이메일 / 비밀번호 불일치 |
 | 401 | `TOKEN_INVALID` | 토큰 없음 · 만료 |
 | 409 | `EMAIL_ALREADY_USED` | 이메일 중복 |
-| 409 | `CHARACTER_NAME_TAKEN` | 캐릭터 이름 중복 |
+| 409 | `NICKNAME_ALREADY_USED` | 캐릭터 닉네임 중복 |
 | 409 | `CHARACTER_LIMIT_REACHED` | 계정당 1개 초과 |
 
 Unity 는 `code` 로 분기하고 화면에는 `message` 를 그대로 띄운다.
@@ -653,10 +670,10 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 - [ ] `POST /api/characters` 가 캐릭터 + 파츠를 **한 트랜잭션**으로 저장하고 `201` 을 돌려준다.
 - [ ] 두 번째 생성 시도 → `409 CHARACTER_LIMIT_REACHED`.
 - [ ] 제한이 **상수 하나**(`MaxCharactersPerUser = 1`)로 표현되어 있고, 스키마 제약이 아니다.
-- [ ] 이름 중복 → `409 CHARACTER_NAME_TAKEN`. 정규식 · 길이 위반 → `400`.
+- [ ] 닉네임 중복 → `409 NICKNAME_ALREADY_USED`. 정규식 · 길이 위반 → `400`.
 - [ ] `slot` 중복이나 미지의 `slot` → `400`.
 - [ ] **다른 계정의 캐릭터가 절대 조회되지 않는다.** 필터가 항상 JWT 의 `sub` 기준이다.
-- [ ] `GET /api/characters/{id}` 가 남의 캐릭터에 대해 `404` (또는 `403`) 를 준다.
+- [ ] 목록 조회에 언제나 `user_id` 조건이 붙어 남의 캐릭터가 섞이지 않는다.
 - [ ] `parts` 는 저장 순서와 무관하게 **슬롯 기준으로 안정 정렬**되어 반환된다.
 
 **테스트 방법**
@@ -666,7 +683,7 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 3. 다시 `GET` → 배열 길이 1, `parts` 6개, `prefabName` 가 프리팹 이름 그대로.
 4. `POST` 재시도 → `409 CHARACTER_LIMIT_REACHED`.
 5. 계정 B 생성 → `GET` → **빈 배열** (A 의 캐릭터가 보이지 않음). B 로 A 의 캐릭터 `id` 직접 조회 → `404`.
-6. 계정 B 가 A 와 **같은 이름**으로 생성 → `409 CHARACTER_NAME_TAKEN`.
+6. 계정 B 가 A 와 **같은 닉네임**으로 생성 → `409 NICKNAME_ALREADY_USED`.
 7. `slot` 을 `"Face"` 두 번 → `400`.
 8. `MaxCharactersPerUser` 를 임시로 `3` 으로 바꿔 2개 생성 성공 확인 → **다시 1로 되돌리고 커밋.**
    (스키마 변경 없이 다중 캐릭터가 가능함을 증명하는 단계다)
@@ -684,7 +701,7 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 - `unity/` 전체.
 - PRD 04 의 **인증 응답 형식과 JWT 클레임.**
 - 마이그레이션 이력. (수정 대신 추가)
-- `DELETE /api/characters/{id}` 구현. **이 단계 범위 밖이다.**
+- `GET` / `DELETE /api/characters/{id}` 구현. **이 단계 범위 밖이다.**
 
 ---
 

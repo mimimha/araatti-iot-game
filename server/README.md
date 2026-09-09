@@ -270,8 +270,18 @@ Invoke-RestMethod "$base/api/auth/me" -Headers @{ Authorization = "Bearer $($log
 Invoke-RestMethod "$base/api/auth/me"
 ```
 
-> `Invoke-RestMethod` 는 401 · 409 같은 실패 응답에서 예외를 던집니다.
-> 실패 본문까지 보려면 `try { ... } catch { $_.ErrorDetails.Message }` 로 감싸세요.
+> `Invoke-RestMethod` 는 401 · 409 같은 실패 응답에서 **예외를 던집니다.**
+> 실패 응답의 본문을 보려면 아래처럼 감싸세요.
+> Windows PowerShell 5.1 에서는 `$_.ErrorDetails.Message` 가 비어 있어 응답 스트림을 직접 읽어야 합니다.
+>
+> ```powershell
+> try {
+>     Invoke-RestMethod ...
+> } catch {
+>     $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+>     "HTTP $([int]$_.Exception.Response.StatusCode) $($reader.ReadToEnd())"
+> }
+> ```
 
 ### 실패 응답
 
@@ -287,6 +297,8 @@ Invoke-RestMethod "$base/api/auth/me"
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패. **없는 이메일과 틀린 비밀번호가 똑같은 응답** |
 | 401 | `TOKEN_INVALID` | 토큰이 없거나 만료·위조됨 |
 | 409 | `EMAIL_ALREADY_USED` | 이미 가입된 이메일 |
+| 409 | `CHARACTER_LIMIT_REACHED` | 이미 캐릭터가 있음 (계정당 1개) |
+| 409 | `NICKNAME_ALREADY_USED` | 다른 사람이 쓰는 닉네임 |
 
 없는 이메일과 틀린 비밀번호를 구분해서 답하면 **어떤 이메일이 가입되어 있는지 알아낼 수 있습니다.**
 그래서 두 경우의 응답을 완전히 같게 만들었습니다.
@@ -303,7 +315,129 @@ docker compose exec mysql mysql -u araatti -p -D araatti -e "SELECT id, email, p
 
 ---
 
-## 7. 자주 쓰는 명령
+## 7. 캐릭터 조회 · 생성 확인
+
+### 엔드포인트
+
+| 메서드 | 경로 | 인증 | 성공 |
+| --- | --- | --- | --- |
+| `GET` | `/api/characters` | Bearer | `200` + 배열 (없으면 **빈 배열**) |
+| `POST` | `/api/characters` | Bearer | `201` + 만들어진 캐릭터 |
+
+캐릭터가 없어도 `404` 가 아니라 `{"characters":[]}` 입니다.
+Unity 는 이 배열의 **길이**로 다음 화면을 정합니다. 0개면 `CharacterCreate`, 1개면 `ChannelSelect`.
+
+계정당 **1개**만 만들 수 있습니다. 이 제한은 DB 가 아니라
+`CharacterEndpoints.MaxCharactersPerUser` 상수로 겁니다.
+나중에 다중 캐릭터를 열 때 **마이그레이션 없이** 이 값만 바꾸면 됩니다.
+
+### 요청 · 응답
+
+```jsonc
+// POST /api/characters   ⚠ userId 를 보내지 않습니다. 주인은 토큰에서 읽습니다.
+{
+  "nickname": "선원김",
+  "skinColor": "#F2C9A0",
+  "parts": [
+    { "slot": "Face",      "prefabName": "Male_Emotion_Usual_01" },
+    { "slot": "Hair",      "prefabName": "Hairstyle_Female_01" },
+    { "slot": "Top",       "prefabName": "Costume_14_01" }
+  ]
+}
+
+// → 201
+{
+  "id": 1,
+  "nickname": "선원김",
+  "skinColor": "#F2C9A0",
+  "slotIndex": 0,
+  "parts": [ /* slot 이름 순으로 정렬되어 나옵니다 */ ],
+  "createdAt": "2026-09-09T02:34:59.9918268Z",
+  "updatedAt": "2026-09-09T02:34:59.9918268Z"
+}
+```
+
+필드 이름(`nickname` · `skinColor` · `slot` · `prefabName`)은 Unity 의 저장 형식과 **같습니다.**
+(`Assets/Game/Scripts/Character/CharacterAppearanceSnapshot.cs`)
+그래서 Unity 는 이름을 바꿔 담는 코드 없이 스냅샷을 그대로 주고받을 수 있습니다.
+
+### 쓸 수 있는 slot
+
+```text
+Face   Hair   Shoes   Top   Bottom   Accessory
+```
+
+Unity 캐릭터 생성 화면의 카테고리 이름입니다. 대소문자는 가리지 않고 저장할 때 위 형태로 맞춥니다.
+카테고리가 늘어나면 `CharacterEndpoints.AllowedSlots` 에 한 줄 추가하면 됩니다. **DB 는 그대로입니다.**
+
+> **`prefabName` 이 실제로 있는 프리팹인지는 서버가 검사하지 않습니다.**
+> 서버는 Unity 에셋 목록을 모르고, 알게 만들면 에셋이 바뀔 때마다 서버를 같이 고쳐야 합니다.
+> 빈 값과 길이(64자)만 봅니다. 없는 이름이 저장되면 Unity 가 그 슬롯만 건너뛰고 경고를 남깁니다.
+
+### PowerShell 로 확인
+
+```powershell
+$base = "http://localhost:5080"
+$account = @{ email = "player1@araatti.test"; password = "secret123" } | ConvertTo-Json
+
+Invoke-RestMethod -Method Post "$base/api/auth/signup" -ContentType "application/json" -Body $account
+$login = Invoke-RestMethod -Method Post "$base/api/auth/login" -ContentType "application/json" -Body $account
+$auth = @{ Authorization = "Bearer $($login.accessToken)" }
+
+# 1) 아직 캐릭터가 없다 — characters 가 빈 배열
+Invoke-RestMethod "$base/api/characters" -Headers $auth
+
+# 2) 캐릭터 생성 — 201
+$character = @{
+    nickname  = "선원김"
+    skinColor = "#F2C9A0"
+    parts     = @(
+        @{ slot = "Face";      prefabName = "Male_Emotion_Usual_01" }
+        @{ slot = "Hair";      prefabName = "Hairstyle_Female_01" }
+        @{ slot = "Top";       prefabName = "Costume_14_01" }
+        @{ slot = "Bottom";    prefabName = "Costume_14_03" }
+        @{ slot = "Shoes";     prefabName = "Shoe_Slippers_01" }
+        @{ slot = "Accessory"; prefabName = "Costume_14_02" }
+    )
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post "$base/api/characters" -ContentType "application/json; charset=utf-8" -Headers $auth -Body $character
+
+# 3) 다시 조회 — 저장한 외형이 그대로 나온다
+(Invoke-RestMethod "$base/api/characters" -Headers $auth).characters
+
+# 4) 두 번째 생성 — 409 CHARACTER_LIMIT_REACHED
+Invoke-RestMethod -Method Post "$base/api/characters" -ContentType "application/json; charset=utf-8" -Headers $auth -Body $character
+```
+
+> 한글 닉네임을 보낼 때는 `-ContentType "application/json; charset=utf-8"` 을 꼭 붙이세요.
+> 빼면 인코딩이 깨져 `400` 이 납니다.
+>
+> `Invoke-RestMethod` 는 409 · 400 에서 **예외를 던집니다.** 위 4번은 예외가 나야 정상입니다.
+> 실패 응답의 본문을 보려면 아래처럼 감싸세요.
+> Windows PowerShell 5.1 에서는 `$_.ErrorDetails.Message` 가 비어 있어 응답 스트림을 직접 읽어야 합니다.
+>
+> ```powershell
+> try {
+>     Invoke-RestMethod ...
+> } catch {
+>     $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+>     "HTTP $([int]$_.Exception.Response.StatusCode) $($reader.ReadToEnd())"
+> }
+> ```
+
+### Swagger 로 확인
+
+6장에서 받은 토큰으로 **Authorize** 한 뒤 `GET /api/characters` → `POST /api/characters` 순으로 실행합니다.
+
+### 저장된 내용 확인
+
+```bash
+docker compose exec mysql mysql -u araatti -p -D araatti -e "SELECT id, user_id, name, skin_color FROM characters; SELECT character_id, slot, prefab_name FROM character_parts;"
+```
+
+---
+
+## 8. 자주 쓰는 명령
 
 | 하고 싶은 것 | 명령 |
 | --- | --- |
@@ -336,7 +470,7 @@ dotnet ef migrations remove --project AraAtti.Api
 
 ---
 
-## 8. 막혔을 때
+## 9. 막혔을 때
 
 | 증상 | 원인과 해결 |
 | --- | --- |
@@ -352,7 +486,7 @@ dotnet ef migrations remove --project AraAtti.Api
 
 ---
 
-## 9. 폴더 구조
+## 10. 폴더 구조
 
 ```text
 server/
@@ -366,9 +500,14 @@ server/
     ├── Auth/                         인증 재료
     │   ├── JwtOptions.cs             Jwt 설정 (Key 는 여기 없음)
     │   ├── JwtTokenGenerator.cs      토큰 발급
-    │   └── PasswordHasher.cs         BCrypt 해싱 · 대조
-    ├── Contracts/AuthContracts.cs    요청 · 응답 모양 (비밀번호 절대 미포함)
-    ├── Endpoints/AuthEndpoints.cs    signup · login · me
+    │   ├── PasswordHasher.cs         BCrypt 해싱 · 대조
+    │   └── ClaimsPrincipalExtensions.cs  토큰에서 사용자 ID 읽기
+    ├── Contracts/
+    │   ├── AuthContracts.cs          요청 · 응답 모양 (비밀번호 절대 미포함)
+    │   └── CharacterContracts.cs     Unity 저장 형식과 필드 이름이 같다
+    ├── Endpoints/
+    │   ├── AuthEndpoints.cs          signup · login · me
+    │   └── CharacterEndpoints.cs     캐릭터 목록 · 생성
     ├── Entities/                     테이블에 대응하는 클래스 3개
     │   ├── User.cs
     │   ├── Character.cs
@@ -381,7 +520,7 @@ server/
 
 ---
 
-## 10. 테이블 구조
+## 11. 테이블 구조
 
 ```text
 users                        characters                    character_parts
@@ -418,18 +557,19 @@ Unity 쪽 저장 형식과 필드 이름이 같습니다.
 
 ---
 
-## 11. 아직 없는 것
+## 12. 아직 없는 것
 
 이 단계는 **개발 기반만** 만듭니다. 아래는 다음 단계에서 붙입니다.
 
 | 없는 것 | 언제 |
 | --- | --- |
-| 캐릭터 조회 · 생성 (`/api/characters`) | 다음 단계 (로드맵 PRD 05) |
-| 계정당 캐릭터 1개 제한 검사 | 다음 단계 (로드맵 PRD 05) |
-| Unity 연동 (로그인 화면 → 실제 API) | 로드맵 PRD 02 · 06 · 07 |
+| **Unity 연동 (로그인 화면 · 캐릭터 생성 → 실제 API)** | 로드맵 PRD 02 · 06 · 07 |
+| 캐릭터 수정 · 삭제 (`PUT` / `DELETE /api/characters/{id}`) | **범위 밖** |
+| 캐릭터 하나 조회 (`GET /api/characters/{id}`) | **범위 밖.** 목록으로 충분합니다 |
+| 다중 캐릭터 생성 | 상수 하나로 열 수 있지만 아직 닫아 둡니다 |
 | Refresh Token (토큰 자동 갱신) | **범위 밖.** 2시간 만료 뒤에는 다시 로그인 |
 | 이메일 인증, 비밀번호 재설정 | **범위 밖** |
 | 비밀번호 변경 · 회원 탈퇴 | **범위 밖** |
 
-`characters` 와 `character_parts` 테이블은 만들어져 있지만 **읽고 쓰는 API 가 아직 없습니다.**
-Unity 는 여전히 캐릭터를 `PlayerPrefs` 로 그 PC 에만 저장합니다.
+서버 쪽 API 는 이것으로 Unity 연동에 필요한 만큼 갖춰졌습니다.
+**아직 Unity 는 이 API 를 부르지 않습니다.** 여전히 `PlayerPrefs` 로 그 PC 에만 저장합니다.

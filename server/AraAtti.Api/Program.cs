@@ -163,6 +163,12 @@ app.MapGet("/health", CheckHealthAsync);
 
 app.MapAuthEndpoints();
 
+// ------------------------------------------------------------
+// 캐릭터 조회 · 생성 (로그인 필요)
+// ------------------------------------------------------------
+
+app.MapCharacterEndpoints();
+
 app.Run();
 
 static async Task<IResult> CheckHealthAsync(AraAttiDbContext database, CancellationToken cancellationToken)
