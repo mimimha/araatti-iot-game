@@ -778,7 +778,14 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 
 - [ ] `CharacterCreate` 의 `[생성 완료]` 가 `POST /api/characters` 를 호출하고, **성공했을 때만** 씬을 넘긴다.
 - [ ] 서버 실패(이름 중복 등) 시 화면에 남아 사유를 보여준다. 로컬에만 저장하고 넘어가지 않는다.
-- [ ] 로그인 후 캐릭터 1개면 `CharacterSession` 에 서버의 이름 · 파츠 · 스킨색이 채워진다.
+- [ ] 로그인 후 캐릭터 1개면 `ICharacterService.CurrentCharacter` 에 서버의 이름 · 파츠 · 스킨색이 채워지고,
+      같은 값으로 로컬 캐시(`PlayerNickname` · `CharacterAppearanceSnapshotV1`)가 갱신된다.
+      갱신 지점은 `Account/CharacterSessionCache.cs` 한 곳이다.
+- [ ] 캐릭터가 **0개면 로컬 캐시를 비운다.** 다른 계정으로 로그인했을 때
+      이전 계정의 외형 · 이름이 `CharacterCreate` 에 남아 보이지 않는다.
+- [ ] 통신 실패 · 파싱 실패에는 **로컬 캐시를 덮어쓰거나 지우지 않는다.**
+- [ ] 캐릭터가 2개 이상이면 **자동으로 고르지 않고** 경고만 남긴다. (`CurrentCharacter` 는 null)
+      `SetCurrentCharacter()` 가 선택 화면의 연결 지점이다.
 - [ ] `ChannelSelect` 의 `Connect(nickname, serverId)` 에 **서버가 준 이름**이 실린다. (파일은 무변경)
 - [ ] **다른 PC 에서 같은 계정으로 로그인하면 같은 캐릭터가 나온다.** (요구사항의 최종 목적)
 - [ ] `PlayerPrefs` 는 오프라인 캐시로만 쓰이고, 서버 응답이 오면 **서버 값이 이긴다.**

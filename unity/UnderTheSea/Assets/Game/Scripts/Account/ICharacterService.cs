@@ -52,6 +52,25 @@ namespace UnderTheSea.Account
         /// <summary>목록을 한 번이라도 받아왔는지.</summary>
         bool HasFetched { get; }
 
+        /// <summary>
+        /// 지금 조작 중인 캐릭터. 고르지 않았으면 null.
+        ///
+        /// 계정당 1개인 지금은 목록을 받을 때 **1개일 때만** 자동으로 정해진다.
+        /// 0개면 null 이고, 2개 이상이면 **자동으로 고르지 않고** null 로 둔다.
+        /// (임의로 첫 번째를 고르면 사용자가 되돌릴 수 없다 — CharacterSessionCache 참고)
+        ///
+        /// ★ CharacterSelect 화면이 생기면 그 화면이 SetCurrentCharacter 로 채운다.
+        /// </summary>
+        CharacterDto CurrentCharacter { get; }
+
+        /// <summary>
+        /// 활성 캐릭터를 직접 정한다. 로컬 캐시도 그 캐릭터의 값으로 맞춰진다.
+        ///
+        /// 지금은 부르는 곳이 없다. **다중 캐릭터 선택 화면의 연결 지점**이다.
+        /// 넘기는 값은 서버가 돌려준 CharacterDto 여야 한다.
+        /// </summary>
+        void SetCurrentCharacter(CharacterDto character);
+
         // ------------------------------------------------------------
         // 서비스 → 화면 (알림)
         // ------------------------------------------------------------

@@ -75,8 +75,8 @@ namespace UnderTheSea.Character
                 // ⚠ 여기서 막으면 커마 UI 를 단독으로 확인할 수 없게 된다.
                 Debug.LogWarning(
                     "[CharacterCustomization] 로그인한 계정이 없어 이 PC 에만 저장합니다. " +
-                    "서버(지금은 Fake)에 저장하려면 Boot 씬부터 실행해 로그인해 주세요.", this);
-                CompleteLocally();
+                    "서버에 저장하려면 Boot 씬부터 실행해 로그인해 주세요.", this);
+                CompleteWithLocalSaveOnly();
                 return;
             }
 
@@ -136,32 +136,52 @@ namespace UnderTheSea.Character
                 return;
             }
 
+            // 서버가 돌려준 값이 원본이다. 서버가 닉네임 공백을 다듬거나 피부색 표기를
+            // 바꿨을 수 있으므로, 화면이 만든 pendingSnapshot 이 아니라 이쪽을 쓴다.
+            //
+            // ⚠ 로컬 캐시는 여기서 저장하지 않는다. 캐릭터 서비스가 이미 서버 응답으로
+            //    갱신했다. (CharacterSessionCache.CacheAsCurrent)
+            //    여기서 또 저장하면 화면이 만든 값으로 덮어써 버린다.
+            string savedNickname = created != null && !string.IsNullOrWhiteSpace(created.nickname)
+                ? created.nickname
+                : pendingSnapshot.nickname;
+
             Debug.Log(
-                $"[CharacterCustomization] 캐릭터를 만들었습니다. id={(created != null ? created.id : 0)}", this);
-            CompleteLocally();
+                $"[CharacterCustomization] 캐릭터를 만들었습니다. " +
+                $"id={(created != null ? created.id : 0)}, 이름 \"{savedNickname}\"", this);
+
+            FinishCreation(savedNickname);
         }
 
         /// <summary>
-        /// 이 PC 에 저장하고 "끝났다" 고 알린다.
+        /// 이 PC 에만 저장하고 끝낸다. **로그인한 계정이 없을 때만** 부른다.
         ///
-        /// 서비스가 성공했거나, 서비스가 아예 없을 때만 부른다.
-        /// 씬 전환은 이 알림을 듣는 쪽(CharacterCreateFlow)이 한다.
-        /// (GAME_STRUCTURE.md 3장 — 씬 전환 코드는 이 파일에 넣지 않는다)
+        /// CharacterCreate 씬을 단독 실행해 커마 UI 만 확인하는 경우다. (PRD 01 경로)
+        /// 정상 흐름에서는 서버가 저장하고, 로컬 캐시는 캐릭터 서비스가 갱신한다.
         /// </summary>
-        private void CompleteLocally()
+        private void CompleteWithLocalSaveOnly()
         {
-            string nickname = pendingSnapshot.nickname;
-
             // ⚠ 키 이름을 바꾸지 않는다. SceneFlow.HasCharacter 가 이 값을 본다.
-            PlayerPrefs.SetString("PlayerNickname", nickname);
+            PlayerPrefs.SetString(SceneFlow.NicknameKey, pendingSnapshot.nickname);
             PlayerPrefs.Save();
 
             CharacterAppearanceStore.Save(pendingSnapshot);
 
             Debug.Log(
-                $"[CharacterCustomization] 외형을 저장했습니다. " +
+                $"[CharacterCustomization] 이 PC 에만 외형을 저장했습니다. " +
                 $"파츠 {pendingSnapshot.parts.Length}개, 피부색 {pendingSnapshot.bodyColorHex}", this);
 
+            FinishCreation(pendingSnapshot.nickname);
+        }
+
+        /// <summary>
+        /// 화면을 마무리하고 "끝났다" 고 알린다. **저장은 하지 않는다.**
+        ///
+        /// 씬 전환은 이 알림을 듣는 쪽(CharacterCreateFlow)이 한다.
+        /// (GAME_STRUCTURE.md 3장 — 씬 전환 코드는 이 파일에 넣지 않는다)
+        /// </summary>
+        private void FinishCreation(string nickname)
+        {
             if (sectionTitle != null)
             {
                 sectionTitle.text = nickname + " 캐릭터 설정 완료!";
@@ -270,6 +290,13 @@ namespace UnderTheSea.Character
         /// 저장 근거를 한 곳으로 모아두면 Tools > 아라아띠 > 캐릭터 이름 지우기 를 눌렀을 때
         /// 이름과 외형이 함께 초기화된다. 이름은 없는데 외형만 남아 되살아나는 일이 없다.
         /// 서버 연동 단계에서는 이 판단만 API 결과로 갈아끼운다.
+        /// </summary>
+        /// <summary>
+        /// 저장된 외형으로 캐릭터를 세운다. 세우지 못했으면 false.
+        ///
+        /// 읽는 값은 **서버 응답의 로컬 캐시**다. (CharacterSessionCache 가 채운다)
+        /// 로그인 직후 서버 값으로 갱신되므로, 다른 PC 에서 로그인해도 같은 외형이 나온다.
+        /// 로그인 없이 이 씬만 단독 실행한 경우에는 예전에 로컬로 저장한 값이 쓰인다.
         /// </summary>
         private bool TryApplySavedAppearance()
         {

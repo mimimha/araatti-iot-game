@@ -1,3 +1,4 @@
+using System;
 using UnderTheSea.Character;
 
 namespace UnderTheSea.Account
@@ -18,7 +19,7 @@ namespace UnderTheSea.Account
     /// </summary>
     public static class CharacterAppearanceMapping
     {
-        /// <summary>지금 화면에서 만든 외형을 캐릭터 생성 요청으로 바꾼다.</summary>
+        /// <summary>지금 화면에서 만든 외형을 캐릭터 생성 요청으로 바꾼다. (Unity → 서버)</summary>
         public static CharacterCreateRequest ToCreateRequest(CharacterAppearanceSnapshot snapshot)
         {
             if (snapshot == null)
@@ -30,6 +31,27 @@ namespace UnderTheSea.Account
                 snapshot.nickname,
                 snapshot.bodyColorHex,
                 snapshot.parts);
+        }
+
+        /// <summary>
+        /// 서버가 돌려준 캐릭터를 로컬 외형 저장 형식으로 바꾼다. (서버 → Unity)
+        ///
+        /// 이 방향이 있어야 **다른 PC 에서 로그인해도 같은 외형**이 나온다.
+        /// 로컬에 저장된 것이 없어도 서버 값으로 다시 만들 수 있기 때문이다.
+        /// </summary>
+        public static CharacterAppearanceSnapshot ToSnapshot(CharacterDto character)
+        {
+            if (character == null)
+            {
+                return null;
+            }
+
+            return new CharacterAppearanceSnapshot
+            {
+                nickname = character.nickname,
+                bodyColorHex = character.skinColor,
+                parts = character.parts ?? Array.Empty<CharacterPartSnapshot>()
+            };
         }
     }
 }

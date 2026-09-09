@@ -387,7 +387,20 @@ UI 는 프리팹으로 만듭니다. `Scenes/Develop/서연/` 의 테스트 씬�
 
 ### 이름을 넘기는 방법 — PlayerPrefs
 
-캐릭터 이름과 외형은 **로컬(`PlayerPrefs`)에 저장**합니다. 서버에 저장하지 않습니다.
+> **⚠ 2026-09-09 갱신: 원본은 서버입니다.**
+>
+> 캐릭터가 있는지 · 이름이 무엇인지 · 외형이 어떤지는 모두 **서버(MySQL)가 정합니다.**
+> 로그인 후 어느 화면으로 갈지도 `GET /api/characters` 결과로 판단합니다.
+>
+> 아래 `PlayerPrefs` 두 키는 이제 **그 응답의 캐시**입니다. 두 가지 목적으로만 남겨 둡니다.
+>   1. 기존 UI 호환 — `SceneFlow.Nickname` 과 `ChannelSelectController` 가 이 키를 읽습니다.
+>   2. 로그인 없이 `CharacterCreate` 씬만 단독 실행할 때의 외형 복원
+>
+> **서버 응답이 오면 언제나 서버 값이 이깁니다.** 캐시를 근거로 분기하지 않습니다.
+> 갱신하는 곳은 `Assets/Game/Scripts/Account/CharacterSessionCache.cs` 한 곳입니다.
+> 자세한 내용은 `docs/prd/auth-character-roadmap.md` PRD 07 을 봅니다.
+
+캐릭터 이름과 외형은 `PlayerPrefs` 에도 함께 남습니다. (위 캐시 목적)
 
 | 키 | 타입 | 내용 |
 | --- | --- | --- |

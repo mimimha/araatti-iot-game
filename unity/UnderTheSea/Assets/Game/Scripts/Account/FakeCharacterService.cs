@@ -95,8 +95,14 @@ namespace UnderTheSea.Account
             _characters.AddRange(LoadTable().OwnedBy(userId));
             HasFetched = true;
 
+            CharacterDto[] fetched = _characters.ToArray();
+
+            // 활성 캐릭터를 정하고 로컬 캐시를 서버(여기서는 가짜 저장소) 값에 맞춘다.
+            // 화면에 알리기 **전에** 해야 한다. 알림을 받은 화면이 곧바로 씬을 넘기기 때문이다.
+            CurrentCharacter = CharacterSessionCache.SelectFromList(fetched);
+
             // 캐릭터가 0개인 것은 실패가 아니다. 성공 + 빈 배열로 알린다.
-            OnMyCharactersResult?.Invoke(true, _characters.ToArray(), string.Empty);
+            OnMyCharactersResult?.Invoke(true, fetched, string.Empty);
         }
 
         // ------------------------------------------------------------
@@ -163,6 +169,9 @@ namespace UnderTheSea.Account
             _characters.AddRange(table.OwnedBy(userId));
             HasFetched = true;
 
+            // 화면이 만든 요청값이 아니라 **저장된 결과**를 기준으로 캐시를 갱신한다.
+            CurrentCharacter = CharacterSessionCache.CacheAsCurrent(created);
+
             OnCreateResult?.Invoke(true, created, string.Empty);
         }
 
@@ -181,7 +190,17 @@ namespace UnderTheSea.Account
         {
             _characters.Clear();
             HasFetched = false;
+            CurrentCharacter = null;
         }
+        /// <summary>지금 조작 중인 캐릭터. 목록이 1개일 때만 자동으로 정해진다.</summary>
+        public CharacterDto CurrentCharacter { get; private set; }
+
+        /// <summary>다중 캐릭터 선택 화면이 쓸 연결 지점. 로컬 캐시도 함께 맞춘다.</summary>
+        public void SetCurrentCharacter(CharacterDto character)
+        {
+            CurrentCharacter = CharacterSessionCache.CacheAsCurrent(character);
+        }
+
 
         // ------------------------------------------------------------
         // 검증 — 서버의 규칙과 같게 맞춘다
