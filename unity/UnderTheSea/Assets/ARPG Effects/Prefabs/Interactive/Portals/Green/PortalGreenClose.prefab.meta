@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 77a5e6287119b8043aae927a857e4864
+timeCreated: 1432999559
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Green/PortalGreenClose.prefab
+  uploadId: 689779

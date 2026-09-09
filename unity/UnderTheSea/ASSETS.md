@@ -20,8 +20,11 @@
 | POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 | 효진 | 2026-09-07 |
 | Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
 | ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
+| Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 | 효진 | 2026-09-08 |
+| Quaternius Pirate Kit | https://quaternius.com/packs/piratekit.html | 무료 (CC0-1.0) | `Assets/QuaterniusPirateKit/` | 낚시 캐릭터·부두·소품 | 용주 | 2026-09-08 |
+| Quaternius Animated Fish | https://quaternius.com/packs/animatedfish.html | 무료 (CC0-1.0) | `Assets/QuaterniusAnimatedFish/` | 낚시 물고기 모델·애니메이션 | 용주 | 2026-09-08 |
 
-> ⚠ 위 3종 합계 **약 535MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB) 입니다.
+> ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
 
 ### 작성 예시
