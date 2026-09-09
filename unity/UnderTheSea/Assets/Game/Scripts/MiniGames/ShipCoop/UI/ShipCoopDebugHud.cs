@@ -280,7 +280,8 @@ public class ShipCoopDebugHud : MonoBehaviour
     {
         _sb.AppendLine("── 조작 ──");
         _sb.AppendLine("방향키      이동");
-        _sb.AppendLine("Space       자리에 붙기 · 포탄 집기");
+        _sb.AppendLine("Space       자리에 붙기");
+        _sb.AppendLine("Shift+Space 포탄 집기");
         _sb.AppendLine("A  D        조타 꺾기 · 돛 당기기(D) / 풀기(A)");
         _sb.AppendLine("Shift       포탄을 든 채로 유지");
         _sb.AppendLine("            대포 앞에서 놓으면 → 싣기");

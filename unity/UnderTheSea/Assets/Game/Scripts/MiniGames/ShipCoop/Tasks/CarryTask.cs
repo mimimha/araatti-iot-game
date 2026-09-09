@@ -12,12 +12,17 @@ using UnityEngine;
 /// 어려워서 의미가 있는 게 아니라, 자리를 비우게 만들어서 의미가 있습니다.
 ///
 /// 입력
-///   집기 / 싣기 → ShipCoopInput.ConsumeInteract. 키보드는 Space.
-///   유지        → ShipCoopInput.HoldBoth. 키보드는 양쪽 Shift.
+///   집기        → 쥔 채로 ShipCoopInput.ConsumeInteract. 키보드는 Shift + Space.
+///   유지        → ShipCoopInput.HoldBoth. 키보드는 Shift.
 ///                 한 손이라도 놓으면 떨어뜨립니다.
+///   싣기        → 대포 앞에서 쥐던 손을 놓습니다. (loadTrigger 로 바꿀 수 있습니다)
 ///
-/// ⚠ 포탄 상자를 작업 자리 옆에 두지 마세요.
-///    빈손일 때는 붙기 버튼을 자리와 상자가 함께 노리므로 어느 쪽이 먹을지 알 수 없습니다.
+/// **쥐지 않은 채 누른 버튼은 가져가지 않습니다.** 쥐지 않으면 집어도 그 프레임에
+/// 도로 떨어뜨리는데, 그 사이에 붙기 버튼은 이미 사라집니다. 그래서 상자와 겹친
+/// 자리에는 붙을 수 없었습니다. 파손 지점은 아무 데나 생기므로 상자 옆에 생깁니다.
+///
+/// ⚠ 그래도 포탄 상자를 작업 자리 옆에 두지 마세요.
+///    쥐고 있을 때는 붙기 버튼을 자리와 상자가 함께 노립니다.
 /// </summary>
 [RequireComponent(typeof(TaskWorker))]
 public class CarryTask : MonoBehaviour
@@ -175,6 +180,21 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
+        // 쥐지 않았으면 버튼을 가져가지 않는다.
+        //
+        // 들자마자 UpdateCarrying 이 "손을 놓았다" 로 보고 떨어뜨리기 때문에,
+        // 쥐지 않은 채 집는 것은 어차피 한 프레임도 유지되지 않는다.
+        // 그런데 그 한 프레임 사이에 붙기 버튼은 이미 사라진다.
+        //
+        // 그래서 상자와 자리가 겹쳐 있으면 그 자리에 붙을 수 없었다.
+        // 파손 지점은 아무 데나 생기므로 상자 옆에 생길 수 있다.
+        // (DamageSpawn_01 은 상자에서 1.5m, 둘 다 반경 2m 다)
+        // 수리하려고 Space 를 눌러도 포탄만 집었다 떨어뜨리기를 되풀이했다.
+        if (!ShipCoopInput.HoldBoth(input))
+        {
+            return;
+        }
+
         AmmoBox box = FindReachableBox();
         if (box == null || !ShipCoopInput.ConsumeInteract(input))
         {
@@ -195,8 +215,8 @@ public class CarryTask : MonoBehaviour
         PickedUp?.Invoke();
     }
 
-    /// <summary>손이 닿는 포탄 상자 중 가장 가까운 것</summary>
-    private AmmoBox FindReachableBox()
+    /// <summary>손이 닿는 포탄 상자 중 가장 가까운 것. 없으면 null. HUD 안내가 이걸 본다.</summary>
+    public AmmoBox FindReachableBox()
     {
         AmmoBox best = null;
         float bestSqr = float.MaxValue;
