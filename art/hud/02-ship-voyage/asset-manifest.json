@@ -1,0 +1,107 @@
+[
+  {
+    "file": "heading-label.png",
+    "width": 320,
+    "height": 96,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "hp-fill-green.png",
+    "width": 1000,
+    "height": 72,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "hp-frame.png",
+    "width": 1024,
+    "height": 96,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "hp-mask.png",
+    "width": 1000,
+    "height": 72,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "hp-track.png",
+    "width": 1024,
+    "height": 96,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-harbour.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-island.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-ship.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-speed.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "speed-label.png",
+    "width": 320,
+    "height": 96,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "timer-label.png",
+    "width": 320,
+    "height": 96,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "voyage-delay-fill.png",
+    "width": 32,
+    "height": 32,
+    "cornerAlpha": 255,
+    "centerAlpha": 255
+  },
+  {
+    "file": "voyage-frame.png",
+    "width": 1024,
+    "height": 64,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "voyage-reference-marker.png",
+    "width": 32,
+    "height": 112,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "voyage-track.png",
+    "width": 1024,
+    "height": 64,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  }
+]

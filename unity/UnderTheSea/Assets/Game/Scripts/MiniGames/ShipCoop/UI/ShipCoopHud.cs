@@ -34,6 +34,9 @@ public class ShipCoopHud : MonoBehaviour
 
         [Tooltip("남은 시간을 보여주는 게이지. Image Type 을 Filled 로 둔다.")]
         public Image timer;
+
+        [Tooltip("무슨 사건인지 보여주는 그림. 사건 종류에 따라 바뀐다.")]
+        public Image icon;
     }
 
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
@@ -61,6 +64,10 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("지금 있어야 할 위치. 이 선보다 배가 뒤에 있으면 늦고 있다.")]
     [SerializeField] private RectTransform expectedMarker;
 
+    [Tooltip("배와 기준선 사이를 메우는 붉은 칸. 늦은 만큼 벌어진다.\n" +
+             "앞서 있으면 벌어질 것이 없으므로 꺼진다.")]
+    [SerializeField] private RectTransform delayFill;
+
     [Tooltip("늦고 있을 때만 켜진다.")]
     [SerializeField] private GameObject behindWarning;
 
@@ -68,12 +75,34 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
     [SerializeField] private EventRow[] eventRows;
 
+    [Header("사건 그림")]
+    [Tooltip("선체 파손")]
+    [SerializeField] private Sprite eventIconHull;
+
+    [Tooltip("돌풍 — 돛이 풀린다")]
+    [SerializeField] private Sprite eventIconSail;
+
+    [Tooltip("적선 — 대포로 제거한다")]
+    [SerializeField] private Sprite eventIconCannon;
+
+    [Tooltip("암초와 파도 — 조타로 넘긴다")]
+    [SerializeField] private Sprite eventIconHelm;
+
     [Header("상호작용 안내 (아래)")]
     [SerializeField] private GameObject interactPanel;
     [SerializeField] private TextMeshProUGUI interactLabel;
 
     [Tooltip("작업 진행도. Image Type 을 Filled 로 둔다.")]
     [SerializeField] private Image interactGauge;
+
+    [Tooltip("무슨 작업인지 보여주는 그림. 자리에 따라 바뀐다.")]
+    [SerializeField] private Image interactIcon;
+
+    [Header("작업 그림")]
+    [SerializeField] private Sprite taskIconHelm;
+    [SerializeField] private Sprite taskIconSails;
+    [SerializeField] private Sprite taskIconCannon;
+    [SerializeField] private Sprite taskIconRepair;
 
     [Header("색")]
     [SerializeField] private Color hpHealthy = new Color(0.45f, 0.85f, 0.55f);
@@ -164,6 +193,7 @@ public class ShipCoopHud : MonoBehaviour
 
         PlaceOnBar(shipMarker, progress);
         PlaceOnBar(expectedMarker, expected);
+        SpanOnBar(delayFill, progress, expected);
 
         if (behindWarning != null)
         {
@@ -184,6 +214,36 @@ public class ShipCoopHud : MonoBehaviour
         marker.anchorMin = new Vector2(t, marker.anchorMin.y);
         marker.anchorMax = new Vector2(t, marker.anchorMax.y);
         marker.anchoredPosition = new Vector2(0f, marker.anchoredPosition.y);
+    }
+
+    /// <summary>
+    /// 바 위의 배 위치부터 기준선까지를 채운다. 앞서 있으면 채울 것이 없으므로 끈다.
+    ///
+    /// 늦은 정도를 길이로 보여주는 것이 요점이다. 배가 기준선에서 얼마나 떨어졌는지를
+    /// 숫자 없이 폭 하나로 읽게 한다.
+    /// </summary>
+    private static void SpanOnBar(RectTransform fill, float from, float to)
+    {
+        if (fill == null)
+        {
+            return;
+        }
+
+        from = Mathf.Clamp01(from);
+        to = Mathf.Clamp01(to);
+
+        bool behind = to > from;
+        fill.gameObject.SetActive(behind);
+
+        if (!behind)
+        {
+            return;
+        }
+
+        fill.anchorMin = new Vector2(from, fill.anchorMin.y);
+        fill.anchorMax = new Vector2(to, fill.anchorMax.y);
+        fill.sizeDelta = new Vector2(0f, fill.sizeDelta.y);
+        fill.anchoredPosition = new Vector2(0f, fill.anchoredPosition.y);
     }
 
     private void UpdateEvents()
@@ -216,6 +276,13 @@ public class ShipCoopHud : MonoBehaviour
             if (row.label != null)
             {
                 row.label.text = e.WarningText;
+            }
+
+            if (row.icon != null)
+            {
+                Sprite icon = IconOf(e);
+                row.icon.sprite = icon;
+                row.icon.enabled = icon != null;
             }
 
             if (row.timer != null)
@@ -252,34 +319,49 @@ public class ShipCoopHud : MonoBehaviour
         var carry = LocalWorker.GetComponent<CarryTask>();
         if (carry != null && carry.IsCarrying)
         {
-            // 이모지는 한글 폰트에 글리프가 없어 □ 로 나온다. 아이콘은 에셋이 온 뒤
-            // TMP Sprite Asset 으로 붙인다. 그때까지는 글자로만 쓴다.
-            Show($"포탄 운반 중  ·  {(carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로")}", -1f);
+            // 운반 중에 볼 곳은 대포다. 그래서 대포 그림을 띄운다.
+            Show($"포탄 운반 중  ·  {(carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로")}",
+                 -1f, taskIconCannon);
             return;
         }
 
         if (current != null)
         {
-            Show(current.DisplayName, GaugeOf(current));
+            Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current));
             return;
         }
 
         if (nearby != null)
         {
-            Show($"{nearby.DisplayName}  —  Space", -1f);
+            Show($"{nearby.DisplayName}  —  Space", -1f, IconOf(nearby));
+            return;
+        }
+
+        // 포탄 상자는 자리(TaskBase)가 아니라서 Nearby 에 잡히지 않는다.
+        // 그래서 상자 앞에 서면 아무 안내도 안 떴다. 무거운 포탄은 쥐어야 들리므로
+        // 자리에 붙는 것과 키가 다르다. 그 차이를 여기서 알려준다.
+        if (carry != null && carry.FindReachableBox() != null)
+        {
+            Show("포탄 집기  —  Shift + Space", -1f, taskIconCannon);
             return;
         }
 
         interactPanel.SetActive(false);
     }
 
-    private void Show(string text, float gauge01)
+    private void Show(string text, float gauge01, Sprite icon)
     {
         interactPanel.SetActive(true);
 
         if (interactLabel != null)
         {
             interactLabel.text = text;
+        }
+
+        if (interactIcon != null)
+        {
+            interactIcon.sprite = icon;
+            interactIcon.enabled = icon != null;
         }
 
         if (interactGauge == null)
@@ -307,6 +389,71 @@ public class ShipCoopHud : MonoBehaviour
             case CannonTask cannon: return cannon.MaxAmmo <= 0 ? 0f : (float)cannon.Ammo / cannon.MaxAmmo;
             case DummyTask dummy: return dummy.Progress01;
             default: return -1f;
+        }
+    }
+
+    /// <summary>
+    /// 사건에 붙는 그림. 무엇을 해야 넘길 수 있는지로 고른다.
+    ///
+    /// 암초와 파도는 둘 다 조타로 넘긴다. 그래서 같은 그림을 쓴다.
+    /// 글자를 읽기 전에 "누가 가야 하는가" 가 먼저 보이는 것이 목적이다.
+    /// </summary>
+    private Sprite IconOf(VoyageEvent e)
+    {
+        switch (e)
+        {
+            case HullDamage _: return eventIconHull;
+            case Squall _: return eventIconSail;
+            case EnemyShip _: return eventIconCannon;
+            case Reef _: return eventIconHelm;
+            case BigWave _: return eventIconHelm;
+            default: return null;
+        }
+    }
+
+    /// <summary>
+    /// 자리에 붙은 다음에 무엇을 눌러야 하는지.
+    ///
+    /// 붙기 전에는 "— Space" 가 뜨는데, 붙고 나면 자리 이름만 남아서
+    /// **거기서 뭘 해야 하는지 화면에 아무 데도 없었습니다.**
+    /// 특히 대포는 붙어야만 X 가 먹기 때문에, 안 붙고 X 를 누르면
+    /// 아무 일도 안 일어나고 이유도 안 보입니다.
+    ///
+    /// 대포는 포탄 수까지 함께 띄웁니다. 없으면 쏘는 게 아니라 날라야 합니다.
+    /// </summary>
+    private static string HintOf(TaskBase task)
+    {
+        switch (task)
+        {
+            case CannonTask cannon:
+                return cannon.Ammo > 0
+                    ? $"X 로 발사  ·  포탄 {cannon.Ammo}/{cannon.MaxAmmo}"
+                    : "포탄이 없다 — 상자에서 날라라";
+            case RepairTask _: return "F 를 연타";
+            case HelmTask _: return "A · D 로 꺾기";
+            case SailTask _: return "D 로 당기기";
+            default: return null;
+        }
+    }
+
+    /// <summary>자리 이름 아래에 작은 글씨로 안내를 붙인다.</summary>
+    private static string WithHint(string displayName, string hint)
+    {
+        return string.IsNullOrEmpty(hint)
+            ? displayName
+            : $"{displayName}\n<size=60%>{hint}</size>";
+    }
+
+    /// <summary>지금 붙어 있는(또는 붙을 수 있는) 자리의 그림. 없으면 null.</summary>
+    private Sprite IconOf(TaskBase task)
+    {
+        switch (task)
+        {
+            case HelmTask _: return taskIconHelm;
+            case SailTask _: return taskIconSails;
+            case CannonTask _: return taskIconCannon;
+            case RepairTask _: return taskIconRepair;
+            default: return null;
         }
     }
 }
