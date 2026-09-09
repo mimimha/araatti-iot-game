@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnderTheSea.Account;
 
 /// <summary>
 /// 채널(서버) 선택 화면.
@@ -225,9 +226,21 @@ public class ChannelSelectController : MonoBehaviour
         SceneFlow.FromChannelSelect();
     }
 
+    /// <summary>
+    /// [뒤로가기]. 로그아웃하고 로그인 화면으로 돌아간다.
+    ///
+    /// 지우는 것은 **로그인 세션과 메모리 캐시뿐**이다.
+    /// 가입한 계정과 이미 만든 캐릭터는 그대로 남는다.
+    /// 그래서 같은 계정으로 다시 로그인하면 캐릭터가 이미 있으므로
+    /// CharacterCreate 를 건너뛰고 이 화면으로 바로 돌아온다.
+    ///
+    /// 무엇을 지울지는 AccountServiceLocator 가 정한다. 이 화면은 알지 않는다.
+    /// 서비스가 없어도(씬 단독 실행) 안전하게 화면만 넘어간다.
+    /// </summary>
     public void GoBack()
     {
-        SceneFlow.BackToCharacterCreate();
+        AccountServiceLocator.LogOut();
+        SceneFlow.BackToLogin();
     }
 
     private void SetMessage(string text)

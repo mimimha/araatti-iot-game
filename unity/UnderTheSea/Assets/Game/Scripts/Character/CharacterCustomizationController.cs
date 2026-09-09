@@ -423,20 +423,9 @@ namespace UnderTheSea.Character
                 return;
             }
 
-            PlayerPrefs.SetString("PlayerNickname", nickname);
-            PlayerPrefs.Save();
-
-            // 이름과 함께 외형도 저장한다. (CharacterCustomizationPersistence.cs)
-            SaveAppearanceSnapshot(nickname);
-
-            if (sectionTitle != null)
-                sectionTitle.text = nickname + " 캐릭터 설정 완료!";
-
-            Debug.Log("Character customization completed for " + nickname + ".");
-
-            // 저장까지 끝났다고 알린다. 씬 전환은 이 알림을 듣는 쪽에서 한다.
-            // (GAME_STRUCTURE.md 3장 — 씬 전환 코드는 이 파일에 넣지 않는다)
-            Completed?.Invoke(nickname);
+            // 캐릭터를 서비스에 만든다. **성공했을 때만** 저장하고 Completed 를 알린다.
+            // 저장 · 알림 · 실패 표시는 모두 CharacterCustomizationPersistence.cs 에 있다.
+            SubmitCharacter(nickname);
         }
 
         private static string GetNicknameValidationMessage(string nickname)

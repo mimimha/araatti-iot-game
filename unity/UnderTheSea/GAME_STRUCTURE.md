@@ -262,6 +262,33 @@ public interface INetworkService
 세부 사항은 두 담당자가 상의해서 조정할 수 있습니다.
 **다만 조정한 내용은 반드시 이 문서에 반영합니다.**
 
+### 계정 · 캐릭터는 별도 경계입니다
+
+로그인과 캐릭터 저장은 `INetworkService` 에 **넣지 않습니다.** 따로 둡니다.
+
+```text
+Assets/Game/Scripts/Account/
+├── IAuthService.cs        회원가입 · 로그인 · 현재 로그인 상태
+├── ICharacterService.cs   내 캐릭터 목록 · 캐릭터 생성
+└── AccountServiceLocator  둘을 담아두는 곳 (NetworkServiceLocator 와 같은 방식)
+```
+
+나눈 이유
+
+1. `INetworkService` 는 Photon Fusion 기반 **실시간 세션**이고,
+   계정 · 캐릭터는 **단발성 요청/응답**입니다. 성격이 다릅니다.
+   그래서 `Network/` 아래가 아니라 **별도 폴더**에 둡니다.
+2. 가짜 ↔ 진짜를 **각각 따로** 갈아끼울 수 있어야 합니다.
+   (서버 인증은 붙었는데 채널은 아직 가짜인 중간 상태가 실제로 생깁니다)
+
+`INetworkService` 와 마찬가지로 **혼자 고치지 않고 함께 정합니다.**
+
+가짜에서 진짜로 바꾸는 지점은 `AccountServiceBootstrap` 파일 한 곳입니다.
+씬을 고치지 않습니다.
+
+캐릭터는 **언제나 목록(배열)으로** 주고받습니다. 지금은 계정당 1개지만,
+나중에 다중 캐릭터를 붙일 때 경계를 고치지 않기 위해서입니다.
+
 ### 씬 전환은 클라이언트가 합니다
 
 서버는 **"지금 이동할 시점이다"**라고 알려주기만 하고,
@@ -482,6 +509,7 @@ Hierarchy
 ```text
 Assets/Game/Scripts/
 ├── Core/             씬 전환, 게임 상태 관리        (민화)
+├── Account/          계정 인증, 캐릭터 저장 경계    (서버 — 4장)
 ├── Network/          접속, 매칭, 동기화             (서버)
 ├── IoT/              IoT 컨트롤러 경계              (공용 — 아래 참고)
 ├── Character/        캐릭터 커스터마이징            (서연)
@@ -501,6 +529,7 @@ Assets/Game/Scripts/
 | 폴더 | 파일 | 함께 정하는 사람 |
 | --- | --- | --- |
 | `Network/` | `INetworkService` | 클라이언트 ↔ 서버 (4장) |
+| `Account/` | `IAuthService` · `ICharacterService` | 클라이언트 ↔ 서버 (4장) |
 | `IoT/` | `IPlayerController` | 미니게임 담당 3명 ↔ IoT 담당 (아래) |
 
 ### `IoT/` 는 세 명이 함께 쓰는 폴더입니다

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.Account;
 
 namespace UnderTheSea.Character
 {
@@ -11,12 +12,12 @@ namespace UnderTheSea.Character
     /// 아래 두 곳에서만 불려 온다.
     ///
     ///     Awake()                  →  TryApplySavedAppearance()   저장된 외형으로 시작
-    ///     CompleteCustomization()  →  SaveAppearanceSnapshot()    저장
+    ///     CompleteCustomization()  →  SubmitCharacter()           서비스에 만들고 저장
     ///
     /// 파츠를 실제로 입히는 일은 하지 않는다. 기존 ApplyPart / ApplySkinColor 를 그대로 부른다.
     /// 뼈 매핑과 피부 재질 처리를 두 벌로 만들지 않기 위함이다.
     ///
-    /// 문서: docs/prd/auth-character-roadmap.md (PRD 01)
+    /// 문서: docs/prd/auth-character-roadmap.md (PRD 01 저장 · 복원 / PRD 02 서비스 연동)
     /// </summary>
     public sealed partial class CharacterCustomizationController
     {
@@ -41,22 +42,156 @@ namespace UnderTheSea.Character
         private Dictionary<Category, Dictionary<string, GameObject>> prefabsByName;
 
         // ------------------------------------------------------------
-        // 저장
+        // 생성 완료 — 서비스에 만들고, 성공했을 때만 저장한다
         // ------------------------------------------------------------
 
+        /// <summary>결과를 기다리는 동안 들고 있는 외형. 성공하면 이대로 저장한다.</summary>
+        private CharacterAppearanceSnapshot pendingSnapshot;
+
+        /// <summary>지금 생성 요청을 보내고 결과를 기다리는 중인지. 중복 클릭을 막는다.</summary>
+        private bool isSubmitting;
+
         /// <summary>
-        /// 지금 화면에 보이는 캐릭터를 이 PC 에 저장한다.
+        /// [생성 완료] 를 눌러 이름 검증을 통과한 뒤에 불린다.
         ///
-        /// [생성 완료] 를 눌러 이름 검증을 통과한 뒤에만 불린다.
+        /// 서비스에 캐릭터를 만들고 **성공했을 때만** 로컬 저장과 Completed 알림을 한다.
+        /// 실패하면 씬을 넘기지 않고 이유를 보여준 뒤 다시 누를 수 있게 한다.
         /// </summary>
-        private void SaveAppearanceSnapshot(string nickname)
+        private void SubmitCharacter(string nickname)
         {
-            CharacterAppearanceSnapshot snapshot = BuildAppearanceSnapshot(nickname);
-            CharacterAppearanceStore.Save(snapshot);
+            if (isSubmitting)
+            {
+                return;
+            }
+
+            // 지금 화면의 상태를 이 시점에 한 번만 읽는다.
+            // 보낸 내용과 저장한 내용이 어긋나지 않게 하기 위함이다.
+            pendingSnapshot = BuildAppearanceSnapshot(nickname);
+
+            if (!CanCreateThroughService())
+            {
+                // 로그인한 계정이 없다. 이 씬만 단독 실행한 경우다.
+                // 예전(PRD 01)처럼 이 PC 에만 저장하고 넘어간다.
+                // ⚠ 여기서 막으면 커마 UI 를 단독으로 확인할 수 없게 된다.
+                Debug.LogWarning(
+                    "[CharacterCustomization] 로그인한 계정이 없어 이 PC 에만 저장합니다. " +
+                    "서버(지금은 Fake)에 저장하려면 Boot 씬부터 실행해 로그인해 주세요.", this);
+                CompleteLocally();
+                return;
+            }
+
+            isSubmitting = true;
+            SetCompleteButtonInteractable(false);
+            ShowNicknameGuide(false, "캐릭터를 만드는 중...");
+
+            AccountServiceLocator.Characters.OnCreateResult += HandleCreateResult;
+            AccountServiceLocator.Characters.CreateCharacter(
+                CharacterAppearanceMapping.ToCreateRequest(pendingSnapshot));
+        }
+
+        /// <summary>
+        /// 서비스에 캐릭터를 만들 수 있는 상태인지.
+        ///
+        /// ⚠ 서비스 객체가 있는 것만으로는 부족하다.
+        ///    AccountServiceBootstrap 이 **어떤 씬을 실행하든** 시작 전에 Fake 서비스를
+        ///    만들어 두기 때문에, 이 씬만 단독 실행해도 IsReady 는 true 다.
+        ///    그래서 **로그인한 계정이 있는지**까지 봐야 한다.
+        ///    이것을 보지 않으면 단독 실행에서 "로그인이 필요합니다" 로 생성이 막혀
+        ///    커마 UI 를 확인할 수 없게 된다.
+        /// </summary>
+        private static bool CanCreateThroughService()
+        {
+            if (!AccountServiceLocator.IsReady)
+            {
+                return false;
+            }
+
+            IAuthService auth = AccountServiceLocator.Auth;
+            return auth != null && auth.IsAuthenticated && auth.CurrentUser != null;
+        }
+
+        private void HandleCreateResult(bool success, CharacterDto created, string failureReason)
+        {
+            // 먼저 구독을 뗀다. 결과가 두 번 들어와도 두 번 처리되지 않는다.
+            if (AccountServiceLocator.Characters != null)
+            {
+                AccountServiceLocator.Characters.OnCreateResult -= HandleCreateResult;
+            }
+
+            isSubmitting = false;
+
+            if (!success)
+            {
+                SetCompleteButtonInteractable(true);
+                ShowNicknameGuide(true, string.IsNullOrWhiteSpace(failureReason)
+                    ? "캐릭터를 만들지 못했습니다. 다시 시도해 주세요."
+                    : failureReason);
+
+                if (nicknameInput != null)
+                {
+                    nicknameInput.ActivateInputField();
+                }
+
+                Debug.LogWarning($"[CharacterCustomization] 캐릭터 생성 실패: {failureReason}", this);
+                return;
+            }
+
+            Debug.Log(
+                $"[CharacterCustomization] 캐릭터를 만들었습니다. id={(created != null ? created.id : 0)}", this);
+            CompleteLocally();
+        }
+
+        /// <summary>
+        /// 이 PC 에 저장하고 "끝났다" 고 알린다.
+        ///
+        /// 서비스가 성공했거나, 서비스가 아예 없을 때만 부른다.
+        /// 씬 전환은 이 알림을 듣는 쪽(CharacterCreateFlow)이 한다.
+        /// (GAME_STRUCTURE.md 3장 — 씬 전환 코드는 이 파일에 넣지 않는다)
+        /// </summary>
+        private void CompleteLocally()
+        {
+            string nickname = pendingSnapshot.nickname;
+
+            // ⚠ 키 이름을 바꾸지 않는다. SceneFlow.HasCharacter 가 이 값을 본다.
+            PlayerPrefs.SetString("PlayerNickname", nickname);
+            PlayerPrefs.Save();
+
+            CharacterAppearanceStore.Save(pendingSnapshot);
 
             Debug.Log(
                 $"[CharacterCustomization] 외형을 저장했습니다. " +
-                $"파츠 {snapshot.parts.Length}개, 피부색 {snapshot.bodyColorHex}", this);
+                $"파츠 {pendingSnapshot.parts.Length}개, 피부색 {pendingSnapshot.bodyColorHex}", this);
+
+            if (sectionTitle != null)
+            {
+                sectionTitle.text = nickname + " 캐릭터 설정 완료!";
+            }
+
+            Completed?.Invoke(nickname);
+        }
+
+        /// <summary>결과를 기다리는 중에 화면이 사라지면 구독을 남기지 않는다.</summary>
+        private void OnDisable()
+        {
+            if (!isSubmitting)
+            {
+                return;
+            }
+
+            if (AccountServiceLocator.Characters != null)
+            {
+                AccountServiceLocator.Characters.OnCreateResult -= HandleCreateResult;
+            }
+
+            isSubmitting = false;
+        }
+
+        private void SetCompleteButtonInteractable(bool value)
+        {
+            if (completeButton != null)
+            {
+                completeButton.interactable = value;
+            }
         }
 
         /// <summary>지금 착용 중인 것들을 모아 스냅샷을 만든다.</summary>

@@ -354,16 +354,23 @@ Unity 는 `code` 로 분기하고 화면에는 `message` 를 그대로 띄운다
 
 ### 4-1. 새로 만드는 경계
 
-`Assets/Game/Scripts/Network/Account/` (신설). `Network/` 는 서버 담당 폴더이므로 소유권 충돌이 없다.
+`Assets/Game/Scripts/Account/` (신설).
+
+`Network/` 아래에 두지 않는다. 저쪽은 Photon Fusion 실시간 세션 폴더이고,
+계정 · 캐릭터는 단발성 요청/응답이라 성격이 다르다. 폴더로도 갈라 둔다.
 
 ```text
-Assets/Game/Scripts/Network/Account/
+Assets/Game/Scripts/Account/
 ├── IAuthService.cs             ← 새 합의 경계 (GAME_STRUCTURE 4장에 추가)
 ├── ICharacterService.cs        ← 새 합의 경계
 ├── AccountDtos.cs              ← JsonUtility 용 [Serializable] DTO (배열 필드만)
 ├── AccountServiceLocator.cs    ← NetworkServiceLocator 와 동일한 정적 홀더
-├── FakeAccountService.cs       ← 두 인터페이스 동시 구현. MonoBehaviour (PRD 02)
-└── HttpAccountService.cs       ← UnityWebRequest 구현. MonoBehaviour (PRD 06)
+├── AccountServiceBootstrap.cs  ← 가짜 ↔ 진짜를 바꾸는 유일한 지점
+├── FakeAuthService.cs          ← MonoBehaviour (PRD 02)
+├── FakeCharacterService.cs     ← MonoBehaviour (PRD 02)
+├── CharacterAppearanceMapping.cs ← 로컬 bodyColorHex ↔ 서비스 skinColor
+├── HttpAuthService.cs          ← UnityWebRequest 구현 (PRD 06)
+└── HttpCharacterService.cs     ← UnityWebRequest 구현 (PRD 06)
 ```
 
 인터페이스 모양은 **기존 `INetworkService` 스타일(요청 메서드 + 결과 `event`)을 따른다.**
@@ -372,34 +379,43 @@ Assets/Game/Scripts/Network/Account/
 ```csharp
 public interface IAuthService
 {
-    void Login(string email, string password);
-    void Register(string email, string password);
-    void Logout();
+    void SignUp(string email, string password);   // 서버 경로 /api/auth/signup 과 이름을 맞춘다
+    void LogIn(string email, string password);
+    void LogOut();
 
-    bool   IsAuthenticated { get; }
-    string AccessToken     { get; }
+    bool    IsAuthenticated { get; }
+    UserDto CurrentUser     { get; }   // 로그인 전이면 null
+    string  AccessToken     { get; }
 
-    event Action<bool, string> OnLoginResult;      // 성공 여부, 실패 이유(사용자 표시용)
-    event Action<bool, string> OnRegisterResult;
+    event Action<bool, string> OnSignUpResult;    // 성공 여부, 실패 이유(사용자 표시용)
+    event Action<bool, string> OnLogInResult;
 }
 
 public interface ICharacterService
 {
     void RequestMyCharacters();
-    void CreateCharacter(CharacterDto character);
+    void CreateCharacter(CharacterCreateRequest request);
 
-    event Action<CharacterDto[], string> OnMyCharactersResult;   // 목록(실패 시 null), 실패 이유
+    IReadOnlyList<CharacterDto> Characters { get; }   // 마지막으로 받아온 목록
+    bool HasFetched { get; }
+
+    // 0개는 실패가 아니다. 성공 + 빈 배열로 온다.
+    event Action<bool, CharacterDto[], string> OnMyCharactersResult;
     event Action<bool, CharacterDto, string> OnCreateResult;
 }
 ```
 
-교체 방법은 기존과 완전히 동일하다 — **`Boot` 씬의 컴포넌트만 바꾼다.**
+교체 지점은 **`AccountServiceBootstrap` 파일 한 곳**이다. 씬을 고치지 않는다.
 
-```text
-Boot 씬
-├── NetworkService      : FakeNetworkService      (기존, 손대지 않음)
-└── AccountService      : FakeAccountService  →  HttpAccountService   ← PRD 06 에서 이것만 교체
+```csharp
+// AccountServiceBootstrap.CreateIfMissing()
+host.AddComponent<FakeAuthService>();       //  →  HttpAuthService       ← PRD 06 에서 이 두 줄만
+host.AddComponent<FakeCharacterService>();  //  →  HttpCharacterService
 ```
+
+`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` 로 첫 씬보다 먼저 만든다.
+씬 파일을 건드리지 않아도 되고, `Boot` 을 거치지 않고 `Login` 씬만 단독 실행해도 서비스가 준비된다.
+(기존 `FakeNetworkService` 는 `Boot` 씬의 컴포넌트 그대로다. 손대지 않았다)
 
 ### 4-2. 씬 전환의 변화 — 분기 근거만 교체
 
@@ -545,13 +561,17 @@ Unity 쪽은 Fake 로 흐름을 완성하고, 서버 쪽은 Swagger 로 단독 �
 
 **완료 조건**
 
-- [ ] 위 6개 파일이 `Network/Account/` 에 있고, DTO 는 `JsonUtility` 로 직렬화 가능한 배열 필드만 쓴다.
-- [ ] `FakeAccountService` 가 `Boot` 씬에서 `AccountServiceLocator` 에 자기를 등록한다 (`FakeNetworkService` 와 동일 패턴).
+- [ ] 위 파일들이 `Account/` 에 있고, DTO 는 `JsonUtility` 로 직렬화 가능한 배열 필드만 쓴다.
+- [ ] `FakeAuthService` · `FakeCharacterService` 가 `AccountServiceLocator` 에 자기를 등록한다
+      (`FakeNetworkService` 와 동일 패턴). 만드는 것은 `AccountServiceBootstrap` 이며 **씬을 고치지 않는다.**
 - [ ] `LoginScreenController.Submit()` 이 탭 상태에 따라 `Login`/`Register` 를 호출하고, **성공 콜백에서만** 씬을 넘긴다.
 - [ ] 요청 중 `submitButton` 이 잠기고, 실패 시 사유가 화면에 표시된다.
 - [ ] `SceneFlow.FromLogin(int characterCount)` 오버로드가 0 → `CharacterCreate`, 1 → `ChannelSelect` 로 보낸다.
       2개 이상은 경고 로그 + `ChannelSelect` (`CharacterSelect` 씬은 **만들지 않는다**).
 - [ ] `AccountServiceLocator.IsReady == false` 여도 `Login` 씬 단독 실행이 되고, 기존 `FromLogin()` 경로로 통과한다.
+- [ ] Fake 는 `Fake.Account.*` 키만 쓴다. PRD 01 의 `PlayerNickname` · `CharacterAppearanceSnapshotV1` 을 건드리지 않는다.
+- [ ] `CharacterCreate` 의 [생성 완료] 가 `ICharacterService.CreateCharacter` 를 부르고,
+      **성공했을 때만** 로컬 저장 + `ChannelSelect` 이동을 한다. 실패하면 씬을 넘기지 않고 다시 시도할 수 있다.
 - [ ] `GAME_STRUCTURE.md` 4장(새 경계 추가) · 9장(폴더) · 11장(제외 항목 정정)이 갱신되었다.
 
 **테스트 방법**
