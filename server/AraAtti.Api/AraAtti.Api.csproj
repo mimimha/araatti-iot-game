@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!--
+      net8.0 을 쓰는 이유
+        MySQL 프로바이더(Pomelo)의 최신 안정판이 EF Core 9 기반이고,
+        EF Core 9 는 net8.0 을 대상으로 만들어져 있습니다.
+        검증된 조합으로 맞췄습니다. net8.0 은 LTS 입니다.
+    -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AraAtti.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+
+    <!-- 마이그레이션 도구 전용. 실행 파일에는 포함되지 않습니다. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.19">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

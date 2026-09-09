@@ -193,7 +193,7 @@ UNIQUE KEY uk_characters_user_slot    (user_id, slot_index)
 | `id` | `BIGINT UNSIGNED` | PK, AUTO_INCREMENT | |
 | `character_id` | `BIGINT UNSIGNED` | NOT NULL, FK → `characters(id)` ON DELETE CASCADE | |
 | `slot` | `VARCHAR(24)` | NOT NULL | `"Face"`, `"Hair"`, `"Top"`, `"Bottom"`, `"Shoes"`, `"Accessory"` |
-| `part_key` | `VARCHAR(64)` | NOT NULL | **프리팹 이름 문자열** (`"Costume_14_01"`) |
+| `prefab_name` | `VARCHAR(64)` | NOT NULL | **프리팹 이름 문자열** (`"Costume_14_01"`) |
 
 ```sql
 UNIQUE KEY uk_parts_character_slot (character_id, slot)
@@ -204,7 +204,7 @@ UNIQUE KEY uk_parts_character_slot (character_id, slot)
 생성 UI 의 카테고리는 그 중 6개만 노출한다.
 → **`slot` 을 문자열 컬럼으로 두면 나머지 슬롯이 UI 에 열릴 때 서버 변경이 0 이다.**
 
-`part_key` 예시 (실제 에셋에서 확인)
+`prefab_name` 예시 (실제 에셋에서 확인)
 
 ```text
 Face      Female_Emotion_Usual_01 / Male_Emotion_Usual_01
@@ -215,7 +215,7 @@ Body      Body_01 ... Body_16
 ```
 
 > **파츠를 `characters` 의 JSON 컬럼으로 하지 않는 이유**
-> ① 슬롯별 조회 / 집계가 가능해진다 (어떤 옷이 인기인가). ② `part_key` 오타를 UNIQUE · FK 로 잡을 수 있다.
+> ① 슬롯별 조회 / 집계가 가능해진다 (어떤 옷이 인기인가). ② `prefab_name` 오타를 UNIQUE · FK 로 잡을 수 있다.
 > ③ JSON 컬럼은 `JsonUtility` 와 스키마 계약이 이중으로 생겨 검증 지점이 흐려진다.
 > 단점(조인 1회)은 이 규모에서 무의미하다.
 
@@ -273,9 +273,9 @@ Body      Body_01 ... Body_16
       "skinColor": "#F2C9A0",
       "slotIndex": 0,
       "parts": [
-        { "slot": "Face",   "partKey": "Male_Emotion_Usual_01" },
-        { "slot": "Top",    "partKey": "Costume_14_01" },
-        { "slot": "Bottom", "partKey": "Costume_14_03" }
+        { "slot": "Face",   "prefabName": "Male_Emotion_Usual_01" },
+        { "slot": "Top",    "prefabName": "Costume_14_01" },
+        { "slot": "Bottom", "prefabName": "Costume_14_03" }
       ]
     }
   ]
@@ -288,7 +288,7 @@ Body      Body_01 ... Body_16
 {
   "name": "선원김",
   "skinColor": "#F2C9A0",
-  "parts": [ { "slot": "Face", "partKey": "Male_Emotion_Usual_01" } ]
+  "parts": [ { "slot": "Face", "prefabName": "Male_Emotion_Usual_01" } ]
 }
 ```
 
@@ -418,13 +418,13 @@ CharacterSession (신설, static)          SceneFlow (기존 API 유지)
 ### 4-4. 외형 스냅샷 — 인덱스에서 이름으로
 
 ```csharp
-[Serializable] public struct CharacterPartEntry { public string slot; public string partKey; }
+[Serializable] public struct CharacterPartSnapshot { public string slot; public string prefabName; }
 
 [Serializable]
 public class CharacterAppearance
 {
     public string skinColorHex;              // "#F2C9A0"
-    public CharacterPartEntry[] parts;       // Dictionary 아님 — JsonUtility 제약
+    public CharacterPartSnapshot[] parts;       // Dictionary 아님 — JsonUtility 제약
 }
 ```
 
@@ -476,18 +476,18 @@ Unity 쪽은 Fake 로 흐름을 완성하고, 서버 쪽은 Swagger 로 단독 �
 
 **완료 조건**
 
-- [ ] `CharacterAppearance` / `CharacterPartEntry` DTO 가 있고 `JsonUtility` 로 왕복 직렬화된다.
+- [ ] `CharacterAppearance` / `CharacterPartSnapshot` DTO 가 있고 `JsonUtility` 로 왕복 직렬화된다.
 - [ ] `[생성 완료]` 시 닉네임과 **함께** 외형 JSON 이 저장된다. (`PlayerNickname` 키 동작은 그대로)
 - [ ] `CharacterCreate` 씬 재진입 시 **저장된 외형이 복원**된다. 저장값이 없을 때만 기존 기본 조합이 뜬다.
 - [ ] 저장된 JSON 안에 **정수 인덱스가 하나도 없다.** 슬롯 · 파츠 · 스킨색 모두 문자열.
-- [ ] 존재하지 않는 `partKey` 가 들어와도 그 슬롯만 건너뛰고 경고 로그를 남긴 뒤 화면이 정상 동작한다.
+- [ ] 존재하지 않는 `prefabName` 가 들어와도 그 슬롯만 건너뛰고 경고 로그를 남긴 뒤 화면이 정상 동작한다.
 
 **테스트 방법**
 
 1. `CharacterCreate` 씬 Play → 얼굴 / 머리 / 상의 / 하의 / 신발 / 액세서리와 피부색을 기본값과 다르게 고르고 이름 입력 → `[생성 완료]`.
 2. Play 중지 후 다시 Play → **고른 조합 그대로** 나오는지 눈으로 확인.
 3. `Tools > 아라아띠` 의 이름 지우기(또는 외형 키 삭제) 실행 후 Play → 기본 조합 복귀 확인.
-4. 저장된 JSON 을 손으로 편집해 `partKey` 를 `"NoSuchPart_99"` 로 바꾸고 Play → Console 경고 1건, 나머지 슬롯 정상.
+4. 저장된 JSON 을 손으로 편집해 `prefabName` 를 `"NoSuchPart_99"` 로 바꾸고 Play → Console 경고 1건, 나머지 슬롯 정상.
 5. Console 에 **새로운 Error 가 0건**임을 확인. (MR 체크리스트 항목)
 
 **예상 커밋 메시지**
@@ -653,7 +653,7 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 
 1. 계정 A 로 로그인 → `GET /api/characters` → `{"characters":[]}`.
 2. `POST` 로 6슬롯 캐릭터 생성 → `201`. `character_parts` 행 6개 SQL 확인.
-3. 다시 `GET` → 배열 길이 1, `parts` 6개, `partKey` 가 프리팹 이름 그대로.
+3. 다시 `GET` → 배열 길이 1, `parts` 6개, `prefabName` 가 프리팹 이름 그대로.
 4. `POST` 재시도 → `409 CHARACTER_LIMIT_REACHED`.
 5. 계정 B 생성 → `GET` → **빈 배열** (A 의 캐릭터가 보이지 않음). B 로 A 의 캐릭터 `id` 직접 조회 → `404`.
 6. 계정 B 가 A 와 **같은 이름**으로 생성 → `409 CHARACTER_NAME_TAKEN`.
@@ -799,8 +799,8 @@ EF Core 마이그레이션으로 생성한다. **Unity 변경 0.**
 ```text
 Assets/Game/Scripts/Character/
 ├── CharacterAppearance.cs                  신규
-│     [Serializable] CharacterPartEntry { string slot; string partKey; }
-│     [Serializable] CharacterAppearance  { string skinColorHex; CharacterPartEntry[] parts; }
+│     [Serializable] CharacterPartSnapshot { string slot; string prefabName; }
+│     [Serializable] CharacterAppearance  { string skinColorHex; CharacterPartSnapshot[] parts; }
 │     + ToJson() / FromJson()  — JsonUtility
 │
 ├── CharacterAppearanceStore.cs             신규
@@ -831,7 +831,7 @@ Assets/Game/Scripts/Character/
 ### 8-4. 스냅샷 생성 규칙 (구현 시 반드시 이대로)
 
 1. **1차 출처는 `equippedParts`** (`Dictionary<WearSlot, CatalogPart>`).
-   `WearSlot` enum 이름 → `slot`, `CatalogPart.prefab.name` → `partKey`.
+   `WearSlot` enum 이름 → `slot`, `CatalogPart.prefab.name` → `prefabName`.
 2. `equippedParts` 에 없는 카테고리는 **`selectedOptions[category]` → `partPrefabs[index].name`** 으로 보완한다.
    (카탈로그를 타지 않고 `targetRenderer` 경로로 적용되는 파츠가 있다)
 3. 스킨색은 `currentSkinColor` → `"#" + ColorUtility.ToHtmlStringRGB(...)`.

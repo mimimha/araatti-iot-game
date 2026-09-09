@@ -1,0 +1,19 @@
+# server/ 전용 무시 목록.
+# 저장소 루트와 unity/UnderTheSea/ 는 각자 .gitignore 를 따로 가지고 있습니다.
+
+# .NET 빌드 산출물
+bin/
+obj/
+
+# 개인 설정 · 비밀 정보 — 절대 커밋하지 않습니다.
+# 대신 커밋되는 예시 파일을 복사해서 씁니다.
+#   .env                                  ← .env.example
+#   AraAtti.Api/appsettings.Development.json  ← appsettings.Development.json.example
+.env
+appsettings.Development.json
+appsettings.Local.json
+*.user
+
+# IDE
+.vs/
+.idea/
