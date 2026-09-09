@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 12b4881e50528bb41b2a8973a5ad4ddc
+timeCreated: 1432236186
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 38222
+  packageName: Action RPG FX
+  packageVersion: 2.02
+  assetPath: Assets/ARPG Effects/Prefabs/Interactive/Portals/Green/PortalGreenIdle.prefab
+  uploadId: 689779
