@@ -73,7 +73,7 @@ namespace FishingMiniGame.Runtime
         private void Awake()
         {
             if (controller == null) controller = GetComponent<FishingGameController>();
-            if (visualSet == null) visualSet = Resources.Load<FishingVisualSet>("MiniGames/Fishing/FishingVisualSet");
+            if (visualSet == null) visualSet = Resources.Load<FishingVisualSet>("Fishing/FishingVisualSet");
             _v2Feedback = new FishingV2PresentationFeedback(v2PresentationTuning);
             BuildCoastalWorld();
         }

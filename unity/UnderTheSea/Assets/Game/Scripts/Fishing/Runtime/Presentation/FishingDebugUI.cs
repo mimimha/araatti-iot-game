@@ -615,7 +615,7 @@ namespace FishingMiniGame.Runtime
             GameObject backdropObject = new GameObject("SeaBackdrop", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
             backdropObject.transform.SetParent(_startPanel.transform, false);
             _startBackdrop = backdropObject.GetComponent<RawImage>();
-            _startBackdrop.texture = Resources.Load<Texture2D>("MiniGames/Fishing/SeaFishingTitleBackground");
+            _startBackdrop.texture = Resources.Load<Texture2D>("Fishing/SeaFishingTitleBackground");
             _startBackdrop.color = Color.white;
             _startBackdrop.raycastTarget = false;
             Stretch(_startBackdrop.rectTransform, 0f);

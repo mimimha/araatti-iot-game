@@ -11,10 +11,10 @@ namespace FishingMiniGame.Editor
     {
         private const string ExternalRoot = "Assets/QuaterniusPirateKit";
         private const string AnimatedFishRoot = "Assets/QuaterniusAnimatedFish";
-        private const string PrefabRoot = "Assets/Game/Prefabs/MiniGames/Fishing";
+        private const string PrefabRoot = "Assets/Game/Prefabs/Fishing";
         private const string MaterialRoot = "Assets/Game/Art/Materials/Fishing";
         private const string AnimationRoot = "Assets/Game/Art/Animations/Fishing";
-        private const string ResourceRoot = "Assets/Game/Resources/MiniGames/Fishing";
+        private const string ResourceRoot = "Assets/Game/Resources/Fishing";
         private const string AtlasPath = ExternalRoot + "/Atlas_Pirate.png";
         private const string CharacterPath = ExternalRoot + "/Characters_Anne.fbx";
         private const string MackerelPath = AnimatedFishRoot + "/Fish2.fbx";
