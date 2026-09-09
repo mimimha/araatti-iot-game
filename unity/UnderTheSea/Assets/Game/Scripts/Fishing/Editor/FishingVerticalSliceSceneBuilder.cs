@@ -13,7 +13,7 @@ namespace FishingMiniGame.Editor
         public const string LegacyScenePath = "Assets/Game/Scenes/Develop/Yongju/FishingScenes/FishingVerticalSlice.unity";
         public const string StandaloneScenePath = "Assets/Game/Scenes/Develop/Yongju/FishingScenes/FishingStandalone.unity";
         public const string MiniGameScenePath = "Assets/Game/Scenes/Develop/Yongju/FishingScenes/FishingMiniGame.unity";
-        public const string ConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Fishing/FishingCheckpointBConfig.asset";
+        public const string ConfigPath = "Assets/Game/ScriptableObjects/Fishing/FishingCheckpointBConfig.asset";
 
         [MenuItem("Tools/Fishing Mini Game/Build Checkpoint B Scenes")]
         public static void BuildCheckpointB()
