@@ -43,6 +43,21 @@ public class HelmTask : TaskBase
     /// <summary>지금 들어오는 조타 입력. -1(좌) ~ +1(우). 아무도 없으면 0.</summary>
     public float Steer { get; private set; }
 
+    /// <summary>
+    /// 바깥에서 뱃머리를 미는 힘 (도/초). 양수면 우현으로 밀린다. 0 이면 없다.
+    ///
+    /// **파도가 이 값을 켭니다.** 파도가 치는 동안 뱃머리가 계속 한쪽으로 밀리고,
+    /// 사람이 조타에 붙어 반대로 꺾어야 정면이 유지됩니다.
+    ///
+    /// 이게 없으면 파도는 아무 일도 아닙니다. 자리가 비면 조타륜이 저절로 정면으로
+    /// 돌아오기 때문에(<see cref="recenterSpeed"/>), **아무도 안 가도 파도가 넘어갑니다.**
+    /// 돌풍이 돛을 계속 푸는 것과 같은 구조로, 파도는 조타에 사람을 묶습니다. (4장)
+    /// </summary>
+    public float ExternalPushPerSecond { get; set; }
+
+    /// <summary>지금 바깥에서 밀리고 있는지</summary>
+    public bool IsPushed => !Mathf.Approximately(ExternalPushPerSecond, 0f);
+
     /// <summary>누군가 조타를 잡고 있는지</summary>
     public bool IsManned => !IsEmpty;
 
@@ -75,6 +90,10 @@ public class HelmTask : TaskBase
 
         Steer = Mathf.Clamp(steer, -1f, 1f);
         Turn(Steer * turnSpeed * deltaTime);
+
+        // 밀리는 힘은 사람이 붙어 있어도 계속 작용한다. 그래야 붙잡는 것이 일이 된다.
+        // 조타 속도(35)가 미는 속도(20)보다 커서, 붙어 있으면 이기고 놓으면 진다.
+        ApplyExternalPush(deltaTime);
     }
 
     /// <summary>아무도 없는 동안. 방치되거나, 설정해두면 정면으로 돌아온다.</summary>
@@ -82,13 +101,27 @@ public class HelmTask : TaskBase
     {
         Steer = 0f;
 
-        if (recenterSpeed <= 0f)
+        ApplyExternalPush(deltaTime);
+
+        // 밀리는 동안에는 저절로 돌아오지 않는다. 자동 복귀가 살아 있으면
+        // 미는 힘과 상쇄되어 아무도 안 가도 정면이 유지된다. 그러면 사건이 사라진다.
+        if (IsPushed || recenterSpeed <= 0f)
         {
             return;
         }
 
         float step = recenterSpeed * deltaTime;
         Turn(Mathf.Clamp(-Heading, -step, step));
+    }
+
+    private void ApplyExternalPush(float deltaTime)
+    {
+        if (!IsPushed)
+        {
+            return;
+        }
+
+        Turn(ExternalPushPerSecond * deltaTime);
     }
 
     private void Turn(float degrees)
