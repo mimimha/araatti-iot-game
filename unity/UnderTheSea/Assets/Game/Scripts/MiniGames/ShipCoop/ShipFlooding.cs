@@ -60,6 +60,20 @@ public class ShipFlooding : MonoBehaviour
     /// <summary>지금 초당 깎이는 HP. HUD 가 이 숫자를 그대로 띄운다.</summary>
     public float DamagePerSecond => damagePerSecondWhenFull * Level01;
 
+    /// <summary>
+    /// 아직 막지 못한 파손 지점의 수. **0 이 아니면 퍼내도 헛수고다.**
+    ///
+    /// 구멍 하나가 초당 2.5% 를 붓는데 양동이 왕복이 4초입니다. 그동안 10% 가 다시 찹니다.
+    /// 그래서 구멍을 열어둔 채로 퍼내면 물이 0 으로 안 내려가고 제자리를 돕니다.
+    ///
+    /// 침수 게이지만 보고 있으면 양동이로 손이 가는 것이 당연합니다.
+    /// **그래서 이 숫자를 HUD 가 읽어가 "수리가 먼저다" 를 말해줍니다.** (9장)
+    /// </summary>
+    public int LeakingPoints { get; private set; }
+
+    /// <summary>지금 퍼내는 것이 의미가 있는지. 구멍이 열려 있으면 거짓이다.</summary>
+    public bool BailingHelps => HasWater && LeakingPoints == 0;
+
     private void Awake()
     {
         if (voyage == null)
@@ -81,11 +95,11 @@ public class ShipFlooding : MonoBehaviour
     /// <summary>ShipCoopGame 이 항해 중일 때만 불러준다.</summary>
     public void Tick(float deltaTime)
     {
-        int leaking = CountLeakingPoints();
+        LeakingPoints = CountLeakingPoints();
 
-        if (leaking > 0)
+        if (LeakingPoints > 0)
         {
-            Level01 = Mathf.Clamp01(Level01 + risePerPointPerSecond * leaking * deltaTime);
+            Level01 = Mathf.Clamp01(Level01 + risePerPointPerSecond * LeakingPoints * deltaTime);
         }
 
         if (voyage != null)
@@ -181,6 +195,12 @@ public class ShipFlooding : MonoBehaviour
         if (!HasWater)
         {
             return "물 없음";
+        }
+
+        if (LeakingPoints > 0)
+        {
+            return $"물이 {Level01:P0} 찼다 — 초당 -{DamagePerSecond:F1} HP. " +
+                   $"구멍 {LeakingPoints}개가 새는 중 — 퍼내도 다시 찬다";
         }
 
         return $"물이 {Level01:P0} 찼다 — 초당 -{DamagePerSecond:F1} HP. 양동이로 퍼내라";

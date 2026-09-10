@@ -65,11 +65,17 @@ public class BigWave : VoyageEvent
              "0 으로 두면 한 순간도 벗어날 수 없어 너무 가혹하다.")]
     [SerializeField, Min(0f)] private float allowedOffTime = 1.5f;
 
-    [Header("실패했을 때")]
+    [Header("갑판에 넘어오는 물")]
     [Tooltip("옆으로 맞으면 갑판에 물이 이만큼 쏟아진다. (0 ~ 1)\n\n" +
              "배 HP 대신 이걸 씁니다. HP 는 깎이고 끝이지만 물은 퍼내야 할 일로 남습니다.\n" +
              "그래서 사건 하나가 다른 자리를 비우는 연쇄가 만들어집니다. (5장)")]
     [SerializeField, Range(0f, 1f)] private float floodOnFail = 0.35f;
+
+    [Tooltip("정면으로 잘 받아냈어도 이만큼은 넘어온다. (0 ~ 1)\n\n" +
+             "**파도가 지나가면 무조건 물이 찹니다.** 정면으로 받는 것은 피하는 것이 아니라\n" +
+             "덜 맞는 것입니다. 넘겨도 뒷정리가 남아야 배수가 상시 작업이 됩니다. (4장)\n\n" +
+             "0 으로 두면 예전처럼 실패할 때만 물이 찹니다.")]
+    [SerializeField, Range(0f, 1f)] private float floodOnSucceed = 0.15f;
 
     /// <summary>정면을 벗어나 있던 시간 (초)</summary>
     public float OffTime { get; private set; }
@@ -232,15 +238,28 @@ public class BigWave : VoyageEvent
         Succeed();
     }
 
+    /// <summary>정면으로 받아냈다. 그래도 물은 넘어온다.</summary>
     protected override void OnSucceed()
     {
         Game?.ReportObstacleAvoided();
+        Flood(floodOnSucceed);
     }
 
     /// <summary>옆으로 맞았다. 배를 깎는 대신 갑판에 물이 쏟아진다.</summary>
     protected override void OnFail()
     {
-        if (floodOnFail <= 0f)
+        Flood(floodOnFail);
+    }
+
+    /// <summary>
+    /// 갑판에 물을 붓는다.
+    ///
+    /// 성공과 실패가 같은 자리를 쓰는 이유는 **차이가 양뿐**이기 때문입니다.
+    /// 정면으로 받는 것은 피하는 것이 아니라 덜 맞는 것입니다.
+    /// </summary>
+    private void Flood(float amount)
+    {
+        if (amount <= 0f)
         {
             return;
         }
@@ -251,7 +270,7 @@ public class BigWave : VoyageEvent
             return;
         }
 
-        _flooding.Add(floodOnFail);
+        _flooding.Add(amount);
     }
 
     /// <summary>HUD 문구. 사건 알림 아래에 작은 글씨로 붙는다.</summary>

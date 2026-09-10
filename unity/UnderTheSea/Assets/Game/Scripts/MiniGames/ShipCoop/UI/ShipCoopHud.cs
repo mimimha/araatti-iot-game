@@ -209,7 +209,16 @@ public class ShipCoopHud : MonoBehaviour
             // 속도가 아니라 **초당 깎이는 HP** 를 띄운다.
             // 속도가 주는 것은 아무도 못 느낀다. 진행도 바를 계속 봐야 알 수 있는데
             // 물이 찼을 때는 그럴 여유가 없다.
-            floodLabel.text = $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP";
+            //
+            // 구멍이 열려 있으면 **퍼내지 말라고 말해준다.**
+            // 구멍 하나가 초당 2.5% 를 붓고 양동이 왕복이 4초라, 막기 전에 퍼내면
+            // 물이 0 으로 안 내려가고 제자리를 돈다. 게이지만 보면 양동이로 손이 가는데
+            // 그게 바로 함정이다.
+            floodLabel.text = WithHint(
+                $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP",
+                flooding.LeakingPoints > 0
+                    ? $"구멍 {flooding.LeakingPoints}개가 새는 중 — 수리가 먼저다"
+                    : "양동이로 퍼내라");
         }
     }
 
@@ -433,7 +442,7 @@ public class ShipCoopHud : MonoBehaviour
             AmmoBox box = carry.FindReachableBox();
             if (box != null)
             {
-                Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", "Shift + Space"),
+                Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", BoxHintOf(box)),
                      -1f, IconOfCargo(box.Kind));
                 return;
             }
@@ -514,6 +523,22 @@ public class ShipCoopHud : MonoBehaviour
     ///
     /// 대포는 포탄 수까지 함께 띄웁니다. 없으면 쏘는 게 아니라 날라야 합니다.
     /// </summary>
+    /// <summary>
+    /// 상자 앞에 섰을 때의 안내.
+    ///
+    /// 양동이는 **구멍이 열려 있으면 집지 말라고** 말해줍니다.
+    /// 손이 실제로 가는 자리가 여기라서, 게이지에만 적어두면 늦습니다.
+    /// </summary>
+    private string BoxHintOf(AmmoBox box)
+    {
+        if (box.Kind == Cargo.Water && flooding != null && flooding.LeakingPoints > 0)
+        {
+            return "구멍부터 막아라 — 퍼내도 다시 찬다";
+        }
+
+        return "Shift + Space";
+    }
+
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
     private static string CarryHintOf(CarryTask carry)
     {
