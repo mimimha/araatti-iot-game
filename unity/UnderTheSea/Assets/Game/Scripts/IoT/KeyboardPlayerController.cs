@@ -87,18 +87,36 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
     private void Update()
     {
+        // 플레이 중에 스크립트를 고치면 도메인 리로드로 두 손이 날아가는데
+        // Awake 는 다시 불리지 않는다. 그때 콘솔이 예외로 도배되는 것을 막는다.
+        if (_left == null || _right == null)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         // 키보드로는 두 손을 따로 기울일 수 없다. A / D 를 양손이 함께 쓴다.
         float target = 0f;
+
+        // 쥐기도 양손이 함께 쓴다. 어느 쪽 Shift 든 하나만 눌러도 양손이 쥔 것으로 본다.
+        //
+        // 양쪽 Shift 를 다 요구하면 포탄을 들고 걸어갈 때 Shift 2개 + 방향키가 되고,
+        // 대부분의 키보드가 그 조합에서 키 하나를 놓쳐(고스팅) 포탄이 떨어진다.
+        // 7장의 대등성 표도 키보드 쪽을 "Shift 누르고 있으면 유지" 로 적고 있다.
+        // 실제 기기에서는 왼손과 오른손 압력센서가 따로 들어온다.
+        bool gripHeld = false;
+
         if (keyboard != null)
         {
             if (keyboard.aKey.isPressed) { target -= 1f; }
             if (keyboard.dKey.isPressed) { target += 1f; }
+
+            gripHeld = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
         }
 
-        _left.Tick(keyboard, target, Time.deltaTime);
-        _right.Tick(keyboard, target, Time.deltaTime);
+        _left.Tick(keyboard, target, gripHeld, Time.deltaTime);
+        _right.Tick(keyboard, target, gripHeld, Time.deltaTime);
     }
 
     public void VibrateBoth(float strength, float seconds)
@@ -165,7 +183,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         public bool Button1 => _button1Held;
         public bool Button2 => _button2Held;
 
-        public void Tick(Keyboard keyboard, float axisTarget, float deltaTime)
+        public void Tick(Keyboard keyboard, float axisTarget, bool gripHeld, float deltaTime)
         {
             // 키보드가 없는 환경(빌드 서버 등)에서도 예외 없이 동작해야 한다.
             if (keyboard == null)
@@ -192,7 +210,9 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             // 대각선이 더 빨라지지 않도록 길이를 1 로 자른다.
             _stick = stick.sqrMagnitude > 1f ? stick.normalized : stick;
 
-            _gripHeld = IsPressed(keyboard, _grip);
+            // 쥐기는 양손이 함께 쓴다. 기울이기(A / D)와 같은 이유다.
+            // 자기 손의 키를 눌러도 되고, 반대쪽 키를 눌러도 된다.
+            _gripHeld = gripHeld || IsPressed(keyboard, _grip);
             _button1Held = IsPressed(keyboard, _button1);
             _button2Held = IsPressed(keyboard, _button2);
 

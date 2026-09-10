@@ -122,6 +122,10 @@ public abstract class TaskBase : MonoBehaviour
             return;
         }
 
+        // 사람 쪽 참조도 끊는다. 자리가 먼저 꺼지거나 사라졌을 때
+        // 사람이 죽은 자리를 붙들고 있으면 다른 자리에 붙지 못한다.
+        worker.ClearCurrent(this);
+
         OnWorkerLeft(worker);
         OccupancyChanged?.Invoke(this);
     }

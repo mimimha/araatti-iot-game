@@ -1,0 +1,72 @@
+[
+  {
+    "file": "alert-accent-red.png",
+    "width": 24,
+    "height": 184,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "alert-background.png",
+    "width": 960,
+    "height": 240,
+    "cornerAlpha": 0,
+    "centerAlpha": 224
+  },
+  {
+    "file": "alert-countdown-fill.png",
+    "width": 680,
+    "height": 16,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "alert-countdown-track.png",
+    "width": 680,
+    "height": 16,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "alert-frame.png",
+    "width": 960,
+    "height": 240,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "alert-icon-slot.png",
+    "width": 192,
+    "height": 192,
+    "cornerAlpha": 0,
+    "centerAlpha": 150
+  },
+  {
+    "file": "alert-new-highlight.png",
+    "width": 960,
+    "height": 240,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "icon-cannon-jam.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-hull-breach.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-sail-torn.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  }
+]
