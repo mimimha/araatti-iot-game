@@ -41,8 +41,34 @@ public class ShipVoyage : MonoBehaviour
     /// </summary>
     public float SailPower01 { get; set; }
 
-    /// <summary>지금 속도 (m/s)</summary>
-    public float Speed => Mathf.Lerp(maxSpeed * minSpeedRatio, maxSpeed, Mathf.Clamp01(SailPower01));
+    /// <summary>
+    /// 조타가 정하는 값. 0 ~ 1. **목적지 쪽을 향한 정도**다.
+    ///
+    /// VoyageSea 가 매 프레임 cos(조타각) 을 넣어준다.
+    /// 뱃머리가 목적지 섬을 향하고 있으면 1, 옆을 보고 있으면 줄어든다.
+    ///
+    /// "항로에서 벗어나면 느려진다" 는 규칙을 따로 가르치지 않는다.
+    /// **수평선에 섬이 보이고, 거기를 향하면 빨라진다.** 그게 전부다. (5장)
+    /// </summary>
+    public float CourseFactor { get; set; } = 1f;
+
+    /// <summary>최저 속도 (m/s). 아무도 아무것도 안 해도 이만큼은 간다.</summary>
+    public float MinSpeed => maxSpeed * minSpeedRatio;
+
+    /// <summary>
+    /// 지금 속도 (m/s)
+    ///
+    /// 조타는 **최저 속도 위쪽에만** 곱한다. 그래야 배가 멈춰 서서
+    /// 화면이 정지 화면이 되는 일이 없다. (2장 — 최저 속도를 두는 이유)
+    /// </summary>
+    public float Speed
+    {
+        get
+        {
+            float sailed = Mathf.Lerp(MinSpeed, maxSpeed, Mathf.Clamp01(SailPower01));
+            return MinSpeed + (sailed - MinSpeed) * Mathf.Clamp01(CourseFactor);
+        }
+    }
 
     /// <summary>지금까지 나아간 거리 (m)</summary>
     public float Distance { get; private set; }
@@ -72,5 +98,6 @@ public class ShipVoyage : MonoBehaviour
     {
         Distance = 0f;
         SailPower01 = 0f;
+        CourseFactor = 1f;
     }
 }
