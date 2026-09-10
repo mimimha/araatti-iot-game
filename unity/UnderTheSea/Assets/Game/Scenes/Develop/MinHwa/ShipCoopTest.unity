@@ -302,6 +302,7 @@ MonoBehaviour:
   kind: 3
   reachRange: 2
   stock: -1
+  showOnlyWhenFlooded: 1
 --- !u!23 &129368865
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -382,6 +383,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 362993734190634274, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 455428211529336833, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -427,6 +432,10 @@ PrefabInstance:
       value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 6673691922211876015, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 7705128177227956592, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -551,6 +560,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WaterDumpPoint
   reachRange: 2
+  showOnlyWhenFlooded: 1
   flooding: {fileID: 0}
 --- !u!23 &208956772
 MeshRenderer:
@@ -1136,9 +1146,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   voyage: {fileID: 0}
+  health: {fileID: 0}
+  damagePerSecondWhenFull: 6
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
-  maxSlowdown: 0.5
+  maxSlowdown: 0
 --- !u!4 &623664410
 Transform:
   m_ObjectHideFlags: 0
@@ -1674,8 +1686,14 @@ MonoBehaviour:
   wavePrefab: {fileID: 0}
   waveMaterial: {fileID: 2100000, guid: 0dd08b39c8b3b3243af69e9113ed84a9, type: 2}
   waveWidth: 120
+  straightColor: {r: 0.7, g: 0.85, b: 1, a: 1}
+  crookedColor: {r: 0.9, g: 0.25, b: 0.2, a: 1}
+  pushPerSecond: 20
+  randomSide: 1
+  fixedSide: 1
   straightTolerance: 20
   allowedOffTime: 3.5
+  floodOnFail: 0.35
 --- !u!1 &1078726309
 GameObject:
   m_ObjectHideFlags: 0
@@ -2079,7 +2097,7 @@ MonoBehaviour:
   interactRange: 2
   turnSpeed: 35
   maxHeading: 60
-  recenterSpeed: 10
+  recenterSpeed: 0
   shipToRotate: {fileID: 0}
 --- !u!1 &1461677449
 GameObject:
@@ -2120,7 +2138,7 @@ MonoBehaviour:
   - name: "\uCD9C\uD56D"
     startProgress01: 0
   - name: "\uD398\uC774\uC988 1"
-    startProgress01: 0.1
+    startProgress01: 0.05
   - name: "\uD398\uC774\uC988 2"
     startProgress01: 0.35
   - name: "\uD398\uC774\uC988 3"
@@ -2261,6 +2279,7 @@ MonoBehaviour:
   kind: 1
   reachRange: 2
   stock: -1
+  showOnlyWhenFlooded: 1
 --- !u!23 &1515584462
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2625,6 +2644,15 @@ MonoBehaviour:
     maxInterval: 11
     maxConcurrent: 3
     openingBurst: 3
+  - phaseIndex: 0
+    label: "\uCD9C\uD56D"
+    pool:
+    - {fileID: 1760830201}
+    - {fileID: 924620907}
+    minInterval: 10
+    maxInterval: 15
+    maxConcurrent: 1
+    openingBurst: 0
   graceSeconds: 10
   randomSeed: 0
 --- !u!4 &1792953313
@@ -2676,6 +2704,7 @@ MonoBehaviour:
   kind: 2
   reachRange: 2
   stock: -1
+  showOnlyWhenFlooded: 1
 --- !u!23 &1855686421
 MeshRenderer:
   m_ObjectHideFlags: 0
