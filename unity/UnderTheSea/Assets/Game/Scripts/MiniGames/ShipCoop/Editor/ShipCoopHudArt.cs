@@ -210,6 +210,7 @@ public static class ShipCoopHudArt
         public readonly List<TextMeshProUGUI> RowLabels = new List<TextMeshProUGUI>();
         public readonly List<Image> RowTimers = new List<Image>();
         public readonly List<Image> RowIcons = new List<Image>();
+        public readonly List<Image> RowAccents = new List<Image>();
 
         public GameObject InteractPanel;
         public TextMeshProUGUI InteractLabel;
@@ -345,7 +346,7 @@ public static class ShipCoopHudArt
 
             RectTransform accent = Rect("Accent", row);
             FromTopLeft(accent, 24f, 28f, 24f, 184f);
-            Img(accent, S("alert-accent-red"), White);
+            Image accentImage = Img(accent, S("alert-accent-red"), White);
 
             RectTransform slot = Rect("IconSlot", row);
             FromTopLeft(slot, 60f, 24f, 192f, 192f);
@@ -376,6 +377,7 @@ public static class ShipCoopHudArt
             w.RowLabels.Add(label);
             w.RowTimers.Add(timer);
             w.RowIcons.Add(iconImage);
+            w.RowAccents.Add(accentImage);
         }
     }
 
@@ -463,6 +465,7 @@ public static class ShipCoopHudArt
             row.FindPropertyRelative("label").objectReferenceValue = w.RowLabels[i];
             row.FindPropertyRelative("timer").objectReferenceValue = w.RowTimers[i];
             row.FindPropertyRelative("icon").objectReferenceValue = w.RowIcons[i];
+            row.FindPropertyRelative("accent").objectReferenceValue = w.RowAccents[i];
         }
 
         // 사건은 "무엇을 해야 넘기는가" 로 그림을 고른다.

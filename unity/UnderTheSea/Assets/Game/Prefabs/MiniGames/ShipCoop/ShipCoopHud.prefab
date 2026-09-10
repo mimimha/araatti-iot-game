@@ -2578,18 +2578,22 @@ MonoBehaviour:
     label: {fileID: 943171143691894763}
     timer: {fileID: 8400846731321288041}
     icon: {fileID: 1722873314920596068}
+    accent: {fileID: 192610627712782795}
   - root: {fileID: 12156261307446021}
     label: {fileID: 455428211529336833}
     timer: {fileID: 7831121570450405899}
     icon: {fileID: 6458595718685473214}
+    accent: {fileID: 5322067672293252257}
   - root: {fileID: 1962175260462603934}
     label: {fileID: 6673691922211876015}
     timer: {fileID: 3179132284723650906}
     icon: {fileID: 8576204557192406045}
+    accent: {fileID: 1476105165648660365}
   - root: {fileID: 8674137324381104620}
     label: {fileID: 5752351229904887567}
     timer: {fileID: 7466850693160401981}
     icon: {fileID: 1994452236872301649}
+    accent: {fileID: 6718449984918569961}
   eventIconHull: {fileID: 21300000, guid: ec9a18a46a9f25c439bade0c0bb44d03, type: 3}
   eventIconSail: {fileID: 21300000, guid: c4e2bf615d708a94e95cf904d091d6dc, type: 3}
   eventIconCannon: {fileID: 21300000, guid: 2aae12985bc38a44482f3963bc7111d7, type: 3}
@@ -2602,6 +2606,8 @@ MonoBehaviour:
   taskIconSails: {fileID: 21300000, guid: 5ce7dfe69d72fc04a912a12716743ee3, type: 3}
   taskIconCannon: {fileID: 21300000, guid: 2aae12985bc38a44482f3963bc7111d7, type: 3}
   taskIconRepair: {fileID: 21300000, guid: d34c0604cb6438548a696a00f73b3037, type: 3}
+  eventWarning: {r: 1, g: 1, b: 1, a: 0.45}
+  eventRunning: {r: 1, g: 0.45, b: 0.35, a: 1}
   hpHealthy: {r: 0.45, g: 0.85, b: 0.55, a: 1}
   hpHurt: {r: 0.95, g: 0.75, b: 0.35, a: 1}
   hpCritical: {r: 0.95, g: 0.4, b: 0.35, a: 1}

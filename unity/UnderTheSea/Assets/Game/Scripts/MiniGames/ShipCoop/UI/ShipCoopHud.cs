@@ -37,6 +37,9 @@ public class ShipCoopHud : MonoBehaviour
 
         [Tooltip("무슨 사건인지 보여주는 그림. 사건 종류에 따라 바뀐다.")]
         public Image icon;
+
+        [Tooltip("왼쪽 경고선. 예고인지 이미 터졌는지를 색으로 보여준다.")]
+        public Image accent;
     }
 
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
@@ -103,6 +106,13 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Sprite taskIconSails;
     [SerializeField] private Sprite taskIconCannon;
     [SerializeField] private Sprite taskIconRepair;
+
+    [Header("사건 단계 색")]
+    [Tooltip("예고 중. 아직 아무것도 안 깎였다는 것을 흐리게 보여준다.")]
+    [SerializeField] private Color eventWarning = new Color(1f, 1f, 1f, 0.45f);
+
+    [Tooltip("이미 터졌다. 제한 시간을 세는 중.")]
+    [SerializeField] private Color eventRunning = new Color(1f, 0.45f, 0.35f, 1f);
 
     [Header("색")]
     [SerializeField] private Color hpHealthy = new Color(0.45f, 0.85f, 0.55f);
@@ -285,15 +295,28 @@ public class ShipCoopHud : MonoBehaviour
                 row.icon.enabled = icon != null;
             }
 
+            // 예고인지 이미 터진 것인지 색으로 가른다. (9장)
+            //
+            // 그림이 이미 붉고 주황이라 곱해지는 색으로는 더 밝게 만들 수 없다.
+            // 그래서 예고는 흐리게, 발생은 진하고 붉게 간다.
+            Color stage = e.IsWarning ? eventWarning : eventRunning;
+
+            if (row.accent != null)
+            {
+                row.accent.color = stage;
+            }
+
             if (row.timer != null)
             {
-                // 제한이 없는 사건(선체 파손)은 게이지를 숨긴다. 줄어들지 않으니 오해를 준다.
-                bool timed = e.Duration > 0f;
+                // 셀 것이 없으면 게이지를 숨긴다. 줄어들지 않는 게이지는 오해를 준다.
+                // 예고 중이면 발생까지, 터진 뒤면 실패까지 센다.
+                bool timed = e.HasCountdown;
                 row.timer.gameObject.SetActive(timed);
 
                 if (timed)
                 {
                     row.timer.fillAmount = e.Remaining01;
+                    row.timer.color = stage;
                 }
             }
         }
