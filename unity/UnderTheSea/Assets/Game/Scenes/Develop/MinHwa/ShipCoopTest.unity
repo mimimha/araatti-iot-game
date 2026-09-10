@@ -736,6 +736,7 @@ GameObject:
   - component: {fileID: 513921457}
   - component: {fileID: 513921456}
   - component: {fileID: 513921455}
+  - component: {fileID: 513921458}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -817,6 +818,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &513921458
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 513921454}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 97d9e6cc4894cf44396c110a84e08711, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopCamera
+  target: {fileID: 1250022910}
+  hud: {fileID: 0}
+  distance: 13
+  height: 7
+  lookHeight: 1.5
+  lookAhead: 6
+  rotateSpeed: 90
+  maxYaw: 100
+  recenterSpeed: 0
 --- !u!1 &562408155
 GameObject:
   m_ObjectHideFlags: 0
@@ -862,6 +884,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyShip
   warningText: "\u26A0 \uC801\uC120 \uC811\uADFC!"
+  warnSeconds: 3
   duration: 20
   damageOnFail: 20
   sailLossOnFail: 0.4
@@ -933,6 +956,58 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1485332601}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &839486775
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 839486777}
+  - component: {fileID: 839486776}
+  m_Layer: 0
+  m_Name: VoyageSea
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &839486776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 839486775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 038289990e1095640a308e1ed43fb5fa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VoyageSea
+  voyage: {fileID: 0}
+  helm: {fileID: 0}
+  origin: {fileID: 0}
+  horizonDistance: 60
+  passDistance: 12
+  lateralPerDegree: 0.08
+  scrollWithSpeed: []
+  scrollLoopLength: 20
+--- !u!4 &839486777
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 839486775}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &849144014
 GameObject:
@@ -1120,6 +1195,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HullDamage
   warningText: "\u26A0 \uC120\uCCB4 \uD30C\uC190 \xB7 \uCE68\uC218!"
+  warnSeconds: 3
   duration: 0
   damageOnFail: 0
   sailLossOnFail: 0.4
@@ -1321,6 +1397,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BigWave
   warningText: "\u26A0 \uAC70\uB300\uD55C \uD30C\uB3C4!"
+  warnSeconds: 3
   duration: 7
   damageOnFail: 20
   sailLossOnFail: 0.4
@@ -2186,6 +2263,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Reef
   warningText: "\u26A0 \uC554\uCD08 \uC811\uADFC!"
+  warnSeconds: 3
   duration: 8
   damageOnFail: 25
   sailLossOnFail: 0.4
@@ -2194,6 +2272,9 @@ MonoBehaviour:
   health: {fileID: 0}
   game: {fileID: 0}
   voyage: {fileID: 0}
+  rockPrefab: {fileID: 0}
+  laneOffset: 1
+  safeGap: 2.5
   dodgeAngle: 30
   randomSide: 1
   fixedSide: 1
@@ -2334,6 +2415,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Squall
   warningText: "\u26A0 \uB3CC\uD48D!"
+  warnSeconds: 3
   duration: 12
   damageOnFail: 0
   sailLossOnFail: 0.4
@@ -2681,7 +2763,7 @@ MonoBehaviour:
   interactRange: 2
   voyage: {fileID: 0}
   pullSpeed: 0.5
-  slackSpeed: 0.35
+  slackSpeed: 0.03
   idleSlackWhileManned: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
@@ -2698,3 +2780,4 @@ SceneRoots:
   - {fileID: 1680580161}
   - {fileID: 1792953313}
   - {fileID: 202652518}
+  - {fileID: 839486777}
