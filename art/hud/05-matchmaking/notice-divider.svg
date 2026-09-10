@@ -1,0 +1,17 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='512' height='32' viewBox='0 0 512 32'>
+<path d='M 8 16 L 22 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 36 16 L 50 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 64 16 L 78 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 92 16 L 106 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 120 16 L 134 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 148 16 L 162 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 176 16 L 190 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 308 16 L 322 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 336 16 L 350 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 364 16 L 378 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 392 16 L 406 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 420 16 L 434 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 448 16 L 462 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<path d='M 476 16 L 490 16' fill='none' stroke='#AA915D' stroke-width='2' stroke-linecap='round'/>
+<polygon points='256,2 261,11 274,16 261,21 256,30 251,21 238,16 251,11' fill='#E2BB6C' stroke='none' stroke-width='0' stroke-linejoin='round'/>
+</svg>

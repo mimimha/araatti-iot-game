@@ -29,6 +29,16 @@ public class TaskWorker : MonoBehaviour
     /// <summary>지금 붙어 있는 자리. 없으면 null.</summary>
     public TaskBase Current { get; private set; }
 
+    /// <summary>
+    /// 양손이 묶여 있어 자리에 붙을 수 없는 상태. 운반(CarryTask)이 켠다.
+    ///
+    /// 포탄을 양손으로 들면 그동안 다른 일을 못 합니다. 그 제약이 운반을
+    /// 이 게임의 접착제로 만듭니다. (SHIPCOOP.md 4장 · 7장)
+    ///
+    /// 켜져 있는 동안 붙기 버튼을 소비하지 않으므로 운반 쪽이 그 버튼을 받습니다.
+    /// </summary>
+    public bool HandsBusy { get; set; }
+
     /// <summary>지금 붙을 수 있는 가장 가까운 자리. 없으면 null. 상호작용 아이콘이 이걸 본다.</summary>
     public TaskBase Nearby { get; private set; }
 
@@ -65,6 +75,20 @@ public class TaskWorker : MonoBehaviour
     {
         if (Input == null)
         {
+            return;
+        }
+
+        if (HandsBusy)
+        {
+            // 양손이 묶였다. 자리를 놓고, 붙기 버튼은 운반 쪽이 가져가게 비켜준다.
+            LeaveCurrent();
+
+            if (Nearby != null)
+            {
+                Nearby = null;
+                NearbyChanged?.Invoke(null);
+            }
+
             return;
         }
 
@@ -145,6 +169,25 @@ public class TaskWorker : MonoBehaviour
         TaskBase left = Current;
         Current = null;
         left.Leave(this);
+        CurrentChanged?.Invoke(null);
+    }
+
+    /// <summary>
+    /// 자리 쪽에서 이 사람을 놓아줄 때 부른다. TaskBase.Leave 전용.
+    ///
+    /// 수리가 끝나 파손 지점이 꺼지는 것처럼 자리가 먼저 사라질 수 있다.
+    /// 그때 사람이 죽은 자리를 붙들고 있으면 걸어나가기 전까지 다른 자리에 붙지 못한다.
+    ///
+    /// LeaveCurrent 는 Current 를 먼저 비우고 Leave 를 부르므로 서로 되부르지 않는다.
+    /// </summary>
+    internal void ClearCurrent(TaskBase task)
+    {
+        if (!ReferenceEquals(Current, task))
+        {
+            return;
+        }
+
+        Current = null;
         CurrentChanged?.Invoke(null);
     }
 }
