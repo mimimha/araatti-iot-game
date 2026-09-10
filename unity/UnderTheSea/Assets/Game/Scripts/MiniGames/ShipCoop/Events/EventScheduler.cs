@@ -63,6 +63,15 @@ public class EventScheduler : MonoBehaviour
     /// <summary>지금 구간의 계획. 없으면 null.</summary>
     public PhasePlan CurrentPlan { get; private set; }
 
+    /// <summary>
+    /// 참이면 새 사건을 뿌리지 않는다. **개발용입니다.**
+    ///
+    /// 사건 하나를 들여다보는 동안 다른 사건이 끼어들면 무엇 때문에 그렇게 된 것인지
+    /// 알 수가 없습니다. 이미 뜬 사건은 그대로 굴러갑니다.
+    /// (ShipCoopDevMode 가 켜고 끕니다)
+    /// </summary>
+    public bool Paused { get; set; }
+
     /// <summary>다음 사건까지 남은 시간 (초)</summary>
     public float NextEventIn => Mathf.Max(0f, _nextEventTime - _elapsed);
 
@@ -117,10 +126,17 @@ public class EventScheduler : MonoBehaviour
         if (game.CurrentPhaseIndex != _lastPhaseIndex)
         {
             _lastPhaseIndex = game.CurrentPhaseIndex;
-            OpeningBurst(CurrentPlan);
+
+            // 멈춰 있으면 개막 폭발도 건너뛴다. 개발 중에 진행도를 건너뛰면
+            // 구간이 순식간에 바뀌는데, 그때마다 3개가 터지면 볼 수가 없다.
+            if (!Paused)
+            {
+                OpeningBurst(CurrentPlan);
+            }
         }
 
-        if (CurrentPlan == null || _elapsed < _nextEventTime)
+        // 멈춰 있으면 새로 뿌리지 않는다. 이미 뜬 사건은 그대로 굴러간다.
+        if (Paused || CurrentPlan == null || _elapsed < _nextEventTime)
         {
             return;
         }

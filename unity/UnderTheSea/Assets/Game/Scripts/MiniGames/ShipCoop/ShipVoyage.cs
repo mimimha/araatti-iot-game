@@ -121,6 +121,17 @@ public class ShipVoyage : MonoBehaviour
         Distance = Mathf.Clamp(Distance + Speed * deltaTime, 0f, totalDistance);
     }
 
+    /// <summary>
+    /// 진행도를 바로 옮긴다. **개발용입니다.** (ShipCoopDevMode 가 부릅니다)
+    ///
+    /// 페이즈가 진행도로 갈리기 때문에, 뒷 구간을 보려면 여기까지 배를 몰고 와야 합니다.
+    /// 최저 속도로는 목적지까지 800초가 걸립니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
+    /// </summary>
+    public void SetProgress01(float progress01)
+    {
+        Distance = Mathf.Clamp01(progress01) * totalDistance;
+    }
+
     /// <summary>처음부터 다시 시작한다.</summary>
     public void ResetVoyage()
     {
