@@ -87,6 +87,9 @@ public class EnemyShip : VoyageEvent
     }
 
     /// <summary>HUD 문구. 지금 무엇이 모자란지 알려준다.</summary>
+    public override string LiveHint() => CannonHint();
+
+    /// <summary>HUD 문구</summary>
     public string CannonHint()
     {
         if (_cannon == null)

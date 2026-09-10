@@ -21,6 +21,9 @@ public class Reef : VoyageEvent
     [Tooltip("띄울 바위. 비워두면 회색 큐브를 만들어 쓴다. (프로토타입용)")]
     [SerializeField] private GameObject rockPrefab;
 
+    [Tooltip("큐브로 만들 때 입힐 색. 비워두면 회색이라 바다에서 안 보인다.")]
+    [SerializeField] private Material rockMaterial;
+
     [Tooltip("바위가 뱃길 중심에서 좌우로 얼마나 치우쳐 있는지 (m).\n" +
              "0 이면 정면이라 어느 쪽으로 피할지 알 수 없다. 조금 치우쳐야 읽힌다.")]
     [SerializeField, Min(0f)] private float laneOffset = 1f;
@@ -82,6 +85,7 @@ public class Reef : VoyageEvent
             // 프로토타입. 에셋이 오면 rockPrefab 을 채우면 된다.
             _rock = GameObject.CreatePrimitive(PrimitiveType.Cube);
             _rock.transform.localScale = new Vector3(2f, 1.6f, 2f);
+            VoyageSea.Paint(_rock, rockMaterial);
         }
 
         _rock.name = $"Reef_{Time.frameCount}";
@@ -151,6 +155,28 @@ public class Reef : VoyageEvent
         // 띄운 것은 프리팹을 복제했든 큐브를 만들었든 전부 이 사건이 만든 것이다.
         Destroy(_rock);
         _rock = null;
+    }
+
+    /// <summary>
+    /// 사건 알림 아래에 붙는 안내. **어느 쪽 바위이고 어느 키를 누르는지**만 말한다.
+    ///
+    /// 판정 숫자는 디버그(F1)로 보냅니다. 손이 바쁜 중에 읽을 수 있는 길이여야 합니다. (9장)
+    /// </summary>
+    public override string LiveHint()
+    {
+        string side = RockSide < 0f ? "좌현" : "우현";
+        string key = RockSide > 0f ? "A" : "D";
+
+        if (VoyageSea.Current == null)
+        {
+            return $"{side} 암초 — {key} 로 꺾어라";
+        }
+
+        float gap = VoyageSea.Current.LateralGap(LaneX);
+
+        return gap >= safeGap
+            ? $"{side} 암초 — 비켰다  ({gap:F1}m)"
+            : $"{side} 암초 — {key} 로 꺾어라  ({gap:F1}/{safeGap:F1}m)";
     }
 
     /// <summary>

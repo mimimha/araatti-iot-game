@@ -45,6 +45,15 @@ public class Squall : VoyageEvent
         _voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
     }
 
+    /// <summary>
+    /// 돌풍이 터졌다. **여기서 해류를 뒤집는다.**
+    ///
+    /// 평소에는 아무도 돛을 안 잡아도 해류가 최저 속도만큼 밀어줍니다.
+    /// 돌풍 중에는 그 해류가 반대로 붑니다. 돛을 잡고 있으면 느리게라도 앞으로 가지만
+    /// **손을 놓는 순간 뒤로 밀립니다.**
+    ///
+    /// 예고 중에는 뒤집지 않습니다. 아직 안 터졌기 때문입니다.
+    /// </summary>
     protected override void OnBegin()
     {
         WeakTime = 0f;
@@ -53,6 +62,25 @@ public class Squall : VoyageEvent
         if (_voyage == null)
         {
             Debug.LogWarning($"[{name}] ShipVoyage 를 찾지 못했습니다. 돌풍이 돛을 흔들지 않습니다.", this);
+            return;
+        }
+
+        _voyage.CurrentReversed = true;
+        Debug.Log($"[{name}] 해류가 뒤집혔다. 돛을 놓으면 뒤로 밀린다.", this);
+    }
+
+    /// <summary>
+    /// 돌풍이 끝났다. 넘겼든 못 넘겼든 해류는 되돌린다.
+    ///
+    /// Stop() 이 반드시 지나가는 자리라서 여기 둔다.
+    /// OnSucceed / OnFail 에 나눠 두면 취소되거나 예고 중에 끊겼을 때
+    /// **해류가 뒤집힌 채로 남는다.**
+    /// </summary>
+    protected override void OnHide()
+    {
+        if (_voyage != null)
+        {
+            _voyage.CurrentReversed = false;
         }
     }
 
@@ -90,12 +118,27 @@ public class Squall : VoyageEvent
         Succeed();
     }
 
-    /// <summary>HUD 문구</summary>
-    public string SailHint()
+    /// <summary>
+    /// 사건 알림 아래에 붙는 안내.
+    ///
+    /// 예고 중에는 아직 돛이 안 풀리므로 "가라" 고만 합니다.
+    /// 터진 뒤에는 해류가 뒤집혀 있어서, 놓으면 앞으로 못 가는 정도가 아니라
+    /// **뒤로 밀립니다.** 그 말을 해줘야 왜 급한지 압니다.
+    /// </summary>
+    public override string LiveHint()
     {
         float power = _voyage != null ? _voyage.SailPower01 : 0f;
+
+        if (IsWarning)
+        {
+            return "돛으로 가라 — 곧 뒤로 밀린다";
+        }
+
         return IsHolding
-            ? $"돛 버티는 중  ({power:P0})"
-            : $"돛을 당겨라!  (지금 {power:P0}, 기준 {minSailPower:P0} / 버틴 시간 {WeakTime:F1}/{allowedWeakTime:F1}초)";
+            ? $"D 로 계속 당겨라  (돛 {power:P0})"
+            : $"돛이 풀렸다! 뒤로 밀린다  ({power:P0} / 기준 {minSailPower:P0}, {WeakTime:F1}/{allowedWeakTime:F1}초)";
     }
+
+    /// <summary>예전 이름. 디버그 오버레이가 쓰던 것이다.</summary>
+    public string SailHint() => LiveHint();
 }

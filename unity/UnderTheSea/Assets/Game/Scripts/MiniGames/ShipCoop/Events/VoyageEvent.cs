@@ -79,6 +79,21 @@ public abstract class VoyageEvent : MonoBehaviour
     /// <summary>HUD 알림 문구</summary>
     public string WarningText => warningText;
 
+    /// <summary>
+    /// 사건 알림 아래에 붙는 **지금 무엇을 해야 하는지**. 없으면 null.
+    ///
+    /// <see cref="WarningText"/> 는 "⚠ 거대한 파도!" 처럼 무슨 일이 났는지만 말합니다.
+    /// 그것만 띄우면 **뭘 해야 하는지는 화면 어디에도 없습니다.**
+    /// 실제로 파도가 그랬습니다 — 피하지 말라는 말을 아무도 못 들었습니다.
+    ///
+    /// 자리 안내(HintOf)와 같은 방식으로 작은 글씨 두 번째 줄이 됩니다. (9장)
+    /// 매 프레임 불리므로 문자열을 아껴 만듭니다.
+    /// </summary>
+    public virtual string LiveHint()
+    {
+        return null;
+    }
+
     /// <summary>사건이 지금 어느 단계인지. (5장 — 예고 → 발생 → 실패)</summary>
     public enum Stage
     {

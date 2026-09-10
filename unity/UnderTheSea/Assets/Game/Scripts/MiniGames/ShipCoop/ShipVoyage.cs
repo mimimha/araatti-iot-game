@@ -52,21 +52,47 @@ public class ShipVoyage : MonoBehaviour
     /// </summary>
     public float CourseFactor { get; set; } = 1f;
 
+    /// <summary>
+    /// 침수가 정하는 값. 0 ~ 1. **물이 안 찼으면 1**이다.
+    ///
+    /// ShipFlooding 이 매 프레임 넣어준다. 물이 찬 배는 무거워서 느려진다.
+    /// 침수는 HP 를 깎지 않고 **시간으로 갚게** 한다. (4장)
+    /// </summary>
+    public float FloodFactor { get; set; } = 1f;
+
+    /// <summary>
+    /// 해류가 뒤집혔는지. **돌풍이 부는 동안 참**이다. (Squall 이 켜고 끈다)
+    ///
+    /// 평소에는 아무도 돛을 안 잡아도 해류가 최저 속도만큼 밀어줍니다.
+    /// 돌풍 중에는 그 해류가 반대로 붑니다. 돛을 잡고 있으면 느리게라도 앞으로 가지만,
+    /// **손을 놓는 순간 뒤로 밀립니다.**
+    ///
+    /// 진행도를 숫자로 깎지 않는 이유는 그것이 화면에 안 보이기 때문입니다.
+    /// 뒤로 밀리면 섬이 멀어지고 항로선이 거꾸로 흐릅니다. 그건 보입니다.
+    /// </summary>
+    public bool CurrentReversed { get; set; }
+
     /// <summary>최저 속도 (m/s). 아무도 아무것도 안 해도 이만큼은 간다.</summary>
     public float MinSpeed => maxSpeed * minSpeedRatio;
 
     /// <summary>
     /// 지금 속도 (m/s)
     ///
-    /// 조타는 **최저 속도 위쪽에만** 곱한다. 그래야 배가 멈춰 서서
-    /// 화면이 정지 화면이 되는 일이 없다. (2장 — 최저 속도를 두는 이유)
+    /// 조타와 침수는 **최저 속도 위쪽에만** 곱한다. 그래야 아무리 틀어지고
+    /// 아무리 물이 차도 배가 멈춰 서서 화면이 정지 화면이 되는 일이 없다.
+    /// (2장 — 최저 속도를 두는 이유)
     /// </summary>
     public float Speed
     {
         get
         {
             float sailed = Mathf.Lerp(MinSpeed, maxSpeed, Mathf.Clamp01(SailPower01));
-            return MinSpeed + (sailed - MinSpeed) * Mathf.Clamp01(CourseFactor);
+            float kept = Mathf.Clamp01(CourseFactor) * Mathf.Clamp01(FloodFactor);
+
+            // 해류. 돌풍 중에는 반대로 분다.
+            float drift = CurrentReversed ? -MinSpeed : MinSpeed;
+
+            return drift + (sailed - MinSpeed) * kept;
         }
     }
 
@@ -90,7 +116,9 @@ public class ShipVoyage : MonoBehaviour
             return;
         }
 
-        Distance = Mathf.Min(totalDistance, Distance + Speed * deltaTime);
+        // 뒤로도 간다. 다만 출항한 자리보다 뒤로는 못 간다.
+        // 음수가 되면 진행도 계산이 이상해지고 페이즈도 어긋난다.
+        Distance = Mathf.Clamp(Distance + Speed * deltaTime, 0f, totalDistance);
     }
 
     /// <summary>처음부터 다시 시작한다.</summary>
@@ -99,5 +127,7 @@ public class ShipVoyage : MonoBehaviour
         Distance = 0f;
         SailPower01 = 0f;
         CourseFactor = 1f;
+        FloodFactor = 1f;
+        CurrentReversed = false;
     }
 }

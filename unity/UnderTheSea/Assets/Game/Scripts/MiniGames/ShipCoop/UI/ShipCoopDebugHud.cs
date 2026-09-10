@@ -137,17 +137,18 @@ public class ShipCoopDebugHud : MonoBehaviour
         _sb.AppendLine();
     }
 
+    /// <summary>
+    /// 사건 안내. 정식 HUD 와 같은 문구(LiveHint)를 쓴다.
+    ///
+    /// 예전에는 여기에만 문구가 있었습니다. 그래서 F1 을 켜지 않으면
+    /// 파도를 어떻게 넘기는지 알 방법이 없었습니다. 지금은 정식 HUD 가 같은 것을 띄웁니다.
+    ///
+    /// 암초만 예외로 판정 숫자까지 보여줍니다. 화면의 바위와 판정이 어긋나 보일 때
+    /// 눈과 숫자를 맞춰볼 데가 필요합니다.
+    /// </summary>
     private static string HintFor(VoyageEvent e)
     {
-        switch (e)
-        {
-            case Reef reef: return reef.DodgeHint();
-            case BigWave wave: return wave.StraightHint();
-            case Squall squall: return squall.SailHint();
-            case EnemyShip enemy: return enemy.CannonHint();
-            case HullDamage hull: return hull.RepairHint();
-            default: return null;
-        }
+        return e is Reef reef ? reef.DodgeHint() : e.LiveHint();
     }
 
     private void AppendTasks()

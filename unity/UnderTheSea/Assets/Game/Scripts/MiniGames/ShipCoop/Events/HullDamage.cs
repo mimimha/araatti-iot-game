@@ -95,6 +95,9 @@ public class HullDamage : VoyageEvent
     }
 
     /// <summary>HUD 문구</summary>
+    public override string LiveHint() => RepairHint();
+
+    /// <summary>HUD 문구</summary>
     public string RepairHint()
     {
         if (SpawnedPoint == null || SpawnedPoint.IsRepaired)
