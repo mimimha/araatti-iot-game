@@ -55,6 +55,9 @@ public class ShipCoopGame : MonoBehaviour
     [SerializeField] private ShipHealth health;
     [SerializeField] private ShipVoyage voyage;
 
+    [Tooltip("비워두면 씬에서 자동으로 찾는다. 없으면 침수가 굴러가지 않는다.")]
+    [SerializeField] private ShipFlooding flooding;
+
     [Header("제한시간 (초)")]
     [SerializeField] private float timeLimit = 300f;
 
@@ -148,6 +151,12 @@ public class ShipCoopGame : MonoBehaviour
         _elapsed += deltaTime;
         voyage.Tick(deltaTime);
 
+        // 침수도 항해 중일 때만 찬다. 끝난 뒤에 물이 계속 차면 안 된다.
+        if (flooding != null)
+        {
+            flooding.Tick(deltaTime);
+        }
+
         UpdatePhase();
         CheckEnd();
     }
@@ -173,6 +182,17 @@ public class ShipCoopGame : MonoBehaviour
         _obstaclesAvoided = 0;
 
         voyage.ResetVoyage();
+
+        if (flooding == null)
+        {
+            flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+        }
+
+        if (flooding != null)
+        {
+            flooding.ResetFlooding();
+        }
+
         State = ShipCoopState.Sailing;
 
         Debug.Log($"[ShipCoopGame] 출항. 제한시간 {timeLimit:0}초", this);

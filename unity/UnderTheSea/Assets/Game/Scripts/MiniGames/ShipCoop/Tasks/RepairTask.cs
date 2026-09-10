@@ -19,6 +19,12 @@ using UnityEngine;
 /// </summary>
 public class RepairTask : TaskBase
 {
+    [Header("자재")]
+    [Tooltip("켜면 누군가 자재(판자)를 날라 와야 망치질을 시작할 수 있다.\n\n" +
+             "수리가 '붙어서 F 연타' 한 단계였던 것이 '집기 → 운반 → 망치질' 세 단계가 된다.\n" +
+             "혼자서도 되지만 둘이면 훨씬 빠르다. 운반이 게임의 동사가 되는 자리다. (4장)")]
+    [SerializeField] private bool needsPlank = true;
+
     [Header("수리")]
     [Tooltip("이만큼 내리치면 수리가 끝난다")]
     [SerializeField, Min(1)] private int hitsToRepair = 5;
@@ -65,10 +71,39 @@ public class RepairTask : TaskBase
         }
     }
 
+    /// <summary>자재가 도착했는지. 자재가 필요 없는 지점이면 항상 참.</summary>
+    public bool HasPlank { get; private set; }
+
+    /// <summary>지금 망치질이 먹는지. 자재를 기다리는 동안에는 안 먹는다.</summary>
+    public bool CanHammer => !needsPlank || HasPlank;
+
+    /// <summary>자재를 날라 왔다. 운반하는 쪽이 부른다. 받았으면 true.</summary>
+    public bool DeliverPlank()
+    {
+        if (IsRepaired || HasPlank)
+        {
+            return false;
+        }
+
+        HasPlank = true;
+        Debug.Log($"[{name}] 자재가 도착했다. 이제 망치질이 먹는다.", this);
+        return true;
+    }
+
+    /// <summary>자재를 기다리고 있는지. 운반하는 쪽이 어디로 갈지 이걸 보고 정한다.</summary>
+    public bool WantsPlank => needsPlank && !HasPlank && !IsRepaired;
+
     /// <summary>누군가 붙어 있는 동안. 내리친 횟수를 센다.</summary>
     protected override void Work(float deltaTime)
     {
         if (IsRepaired)
+        {
+            return;
+        }
+
+        // 자재가 없으면 두드려도 소용이 없다. 누가 날라 와야 한다.
+        // 입력은 소비하지 않는다. 여기서 삼키면 자재가 온 뒤에 한 번 놓친다.
+        if (!CanHammer)
         {
             return;
         }

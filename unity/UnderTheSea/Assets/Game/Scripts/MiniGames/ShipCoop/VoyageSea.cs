@@ -43,6 +43,9 @@ public class VoyageSea : MonoBehaviour
     [Tooltip("수평선에 띄울 목적지. 비워두면 회색 큐브를 만들어 쓴다. (프로토타입용)")]
     [SerializeField] private GameObject islandPrefab;
 
+    [Tooltip("큐브로 만들 때 입힐 색. 비워두면 회색이라 바다에서 안 보인다.")]
+    [SerializeField] private Material islandMaterial;
+
     [Tooltip("출항할 때 섬까지의 거리 (m). 진행도가 오르면 이만큼에서 가까워진다.")]
     [SerializeField, Min(10f)] private float islandFarDistance = 400f;
 
@@ -57,6 +60,9 @@ public class VoyageSea : MonoBehaviour
     [Tooltip("선의 굵기 (m)")]
     [SerializeField, Min(0.05f)] private float courseLineWidth = 0.35f;
 
+    [Tooltip("항로선 색. 비워두면 회색이라 바다에서 안 보인다.")]
+    [SerializeField] private Material courseLineMaterial;
+
     [Header("바다 흐름 (선택)")]
     [Tooltip("속도에 맞춰 뒤로 흐를 것들. 파도 · 물결 같은 배경.\n" +
              "여기 넣은 것만 ShipVoyage.Speed 로 움직인다.")]
@@ -67,6 +73,21 @@ public class VoyageSea : MonoBehaviour
 
     /// <summary>씬에 하나만 둔다. 사건들이 이걸 찾아 쓴다.</summary>
     public static VoyageSea Current { get; private set; }
+
+    /// <summary>프로토타입 큐브에 색을 입힌다. 머티리얼이 없으면 회색 그대로 둔다.</summary>
+    public static void Paint(GameObject go, Material material)
+    {
+        if (go == null || material == null)
+        {
+            return;
+        }
+
+        Renderer renderer = go.GetComponentInChildren<Renderer>();
+        if (renderer != null)
+        {
+            renderer.sharedMaterial = material;
+        }
+    }
 
     /// <summary>장애물이 흘러오는 기준점</summary>
     public Vector3 Origin => origin != null ? origin.position : transform.position;
@@ -163,6 +184,7 @@ public class VoyageSea : MonoBehaviour
                 Destroy(collider);
             }
 
+            Paint(line, courseLineMaterial);
             _courseLines[i] = line.transform;
         }
     }
@@ -184,6 +206,7 @@ public class VoyageSea : MonoBehaviour
         {
             GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             cube.transform.localScale = new Vector3(60f, 25f, 60f);
+            Paint(cube, islandMaterial);
             _island = cube.transform;
         }
 

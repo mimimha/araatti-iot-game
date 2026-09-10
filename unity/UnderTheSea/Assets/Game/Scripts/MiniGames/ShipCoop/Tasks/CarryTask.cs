@@ -68,8 +68,11 @@ public class CarryTask : MonoBehaviour
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
     [SerializeField] private GameObject heldVisual;
 
-    /// <summary>지금 포탄을 들고 있는지</summary>
-    public bool IsCarrying { get; private set; }
+    /// <summary>지금 무엇을 들고 있는지. 빈손이면 None.</summary>
+    public Cargo Carrying { get; private set; }
+
+    /// <summary>지금 무언가를 들고 있는지</summary>
+    public bool IsCarrying => Carrying != Cargo.None;
 
     /// <summary>포탄을 집었다</summary>
     public event Action PickedUp;
@@ -117,6 +120,21 @@ public class CarryTask : MonoBehaviour
 
     private void UpdateCarrying(IPlayerController input)
     {
+        // 포탄이 아닌 것은 넘기는 방식이 하나뿐이다. 놓으면 넘어간다.
+        // 대포처럼 사거리·정원·발사 타이밍이 얽힌 것이 아니라서 규칙을 늘릴 이유가 없다.
+        if (Carrying != Cargo.Ammo)
+        {
+            if (!ShipCoopInput.HoldBoth(input))
+            {
+                if (!TryHandOver(input))
+                {
+                    DropInternal(notify: true);
+                }
+            }
+
+            return;
+        }
+
         CannonTask cannon = FindLoadableCannon();
 
         // 손을 놓았다. 대포 앞이면 넣고, 아니면 떨어뜨린다.
@@ -162,7 +180,7 @@ public class CarryTask : MonoBehaviour
             return false;
         }
 
-        IsCarrying = false;
+        Carrying = Cargo.None;
         _worker.HandsBusy = false;
         ShowHeld(false);
 
@@ -206,12 +224,12 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        IsCarrying = true;
+        Carrying = box.Kind;
         _worker.HandsBusy = true;
         ShowHeld(true);
 
         input.VibrateBoth(0.3f, 0.1f);
-        Debug.Log($"[{name}] 포탄을 집었다. 양손이 묶였다.", this);
+        Debug.Log($"[{name}] {NameOf(Carrying)} 을(를) 집었다. 양손이 묶였다.", this);
         PickedUp?.Invoke();
     }
 
@@ -296,16 +314,126 @@ public class CarryTask : MonoBehaviour
         return best;
     }
 
+    /// <summary>
+    /// 자재와 물을 넘긴다. 넘겼으면 true, 넘길 곳이 없으면 false 라 떨어뜨린다.
+    ///
+    /// 포탄은 여기 오지 않습니다. 대포는 사거리 · 정원 · 넣는 시점이 얽혀 있어
+    /// TryLoad 가 따로 있습니다.
+    /// </summary>
+    private bool TryHandOver(IPlayerController input)
+    {
+        switch (Carrying)
+        {
+            case Cargo.Plank:
+                RepairTask point = FindPointWantingPlank();
+                if (point == null || !point.DeliverPlank())
+                {
+                    return false;
+                }
+
+                Finish(input, $"자재를 넘겼다 → {point.name}");
+                return true;
+
+            case Cargo.Water:
+                WaterDumpPoint rail = FindReachableDump();
+                if (rail == null || !rail.Dump())
+                {
+                    return false;
+                }
+
+                Finish(input, "물을 뱃전에 버렸다");
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>들고 있던 것을 넘기고 손을 푼다.</summary>
+    private void Finish(IPlayerController input, string what)
+    {
+        Carrying = Cargo.None;
+        _worker.HandsBusy = false;
+        ShowHeld(false);
+
+        input.VibrateBoth(0.4f, 0.1f);
+        Debug.Log($"[{name}] {what}", this);
+    }
+
+    /// <summary>자재를 기다리는 파손 지점 중 손이 닿는 가장 가까운 것</summary>
+    public RepairTask FindPointWantingPlank()
+    {
+        RepairTask best = null;
+        float bestSqr = loadRange * loadRange;
+        Vector3 position = transform.position;
+
+        for (int i = 0; i < TaskBase.All.Count; i++)
+        {
+            if (TaskBase.All[i] is not RepairTask repair || !repair.WantsPlank)
+            {
+                continue;
+            }
+
+            float sqr = (repair.transform.position - position).sqrMagnitude;
+            if (sqr <= bestSqr)
+            {
+                bestSqr = sqr;
+                best = repair;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>물을 버릴 수 있는 뱃전 중 가장 가까운 것</summary>
+    public WaterDumpPoint FindReachableDump()
+    {
+        WaterDumpPoint best = null;
+        float bestSqr = float.MaxValue;
+        Vector3 position = transform.position;
+
+        foreach (WaterDumpPoint rail in FindObjectsByType<WaterDumpPoint>(FindObjectsSortMode.None))
+        {
+            if (!rail.IsInReach(position))
+            {
+                continue;
+            }
+
+            float sqr = (rail.transform.position - position).sqrMagnitude;
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = rail;
+            }
+        }
+
+        return best;
+    }
+
     private void DropInternal(bool notify)
     {
-        IsCarrying = false;
+        Cargo dropped = Carrying;
+
+        Carrying = Cargo.None;
         _worker.HandsBusy = false;
         ShowHeld(false);
 
         if (notify)
         {
-            Debug.Log($"[{name}] 손을 놓아 포탄을 떨어뜨렸다.", this);
+            Debug.Log($"[{name}] 손을 놓아 {NameOf(dropped)} 을(를) 떨어뜨렸다.", this);
             Dropped?.Invoke();
+        }
+    }
+
+    /// <summary>화면과 로그에 쓰는 이름</summary>
+    public static string NameOf(Cargo cargo)
+    {
+        switch (cargo)
+        {
+            case Cargo.Ammo: return "포탄";
+            case Cargo.Plank: return "수리 자재";
+            case Cargo.Water: return "물";
+            default: return "빈손";
         }
     }
 
