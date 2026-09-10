@@ -46,6 +46,7 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private ShipCoopGame game;
     [SerializeField] private ShipHealth health;
     [SerializeField] private ShipVoyage voyage;
+    [SerializeField] private ShipFlooding flooding;
 
     [Header("배 HP")]
     [SerializeField] private Image hpFill;
@@ -73,6 +74,23 @@ public class ShipCoopHud : MonoBehaviour
 
     [Tooltip("늦고 있을 때만 켜진다.")]
     [SerializeField] private GameObject behindWarning;
+
+    [Header("침수")]
+    [Tooltip("물이 찼을 때만 켜진다. 물이 0 이면 아무것도 안 보여야 한다.\n" +
+             "빈 게이지가 늘 떠 있으면 '물이 처음부터 있다' 로 읽힌다.")]
+    [SerializeField] private GameObject floodRoot;
+
+    [Tooltip("찬 물의 양. Image Type 을 Filled 로 둔다.")]
+    [SerializeField] private Image floodFill;
+
+    [Tooltip("찬 정도와 그것 때문에 초당 깎이는 HP.")]
+    [SerializeField] private TextMeshProUGUI floodLabel;
+
+    [Tooltip("조금 찼을 때의 색")]
+    [SerializeField] private Color floodShallow = new Color(0.35f, 0.62f, 0.90f, 0.95f);
+
+    [Tooltip("가득 찼을 때의 색. 깎이는 속도를 색으로도 읽게 한다.")]
+    [SerializeField] private Color floodDeep = new Color(0.90f, 0.30f, 0.30f, 0.95f);
 
     [Header("사건 알림 (왼쪽)")]
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
@@ -134,6 +152,7 @@ public class ShipCoopHud : MonoBehaviour
         if (game == null) game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
         if (health == null) health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         if (voyage == null) voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
+        if (flooding == null) flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
     }
 
     private void Update()
@@ -147,8 +166,51 @@ public class ShipCoopHud : MonoBehaviour
         UpdateHealth();
         UpdateTime();
         UpdateProgress();
+        UpdateFlooding();
         UpdateEvents();
         UpdateInteract();
+    }
+
+    /// <summary>
+    /// 침수. **물이 있을 때만 뜬다.**
+    ///
+    /// 침수는 HP 를 깎지 않고 속도를 깎습니다. 그래서 화면에 안 띄우면
+    /// **배가 왜 느려졌는지 알 방법이 아무 데도 없습니다.** 늦고 있다는 것만 보이고
+    /// 이유가 안 보이면 돛만 쳐다보게 됩니다. (4장)
+    ///
+    /// 물이 0 일 때 빈 게이지를 띄우지 않는 것도 같은 이유입니다.
+    /// 늘 떠 있으면 "물은 원래 있는 것" 이 되고, 퍼내야 한다는 신호가 죽습니다.
+    /// </summary>
+    private void UpdateFlooding()
+    {
+        if (floodRoot == null)
+        {
+            return;
+        }
+
+        bool has = flooding != null && flooding.HasWater;
+        floodRoot.SetActive(has);
+
+        if (!has)
+        {
+            return;
+        }
+
+        if (floodFill != null)
+        {
+            floodFill.fillAmount = flooding.Level01;
+
+            // 많이 찰수록 붉어진다. 깎이는 속도를 색으로도 읽게 한다.
+            floodFill.color = Color.Lerp(floodShallow, floodDeep, flooding.Level01);
+        }
+
+        if (floodLabel != null)
+        {
+            // 속도가 아니라 **초당 깎이는 HP** 를 띄운다.
+            // 속도가 주는 것은 아무도 못 느낀다. 진행도 바를 계속 봐야 알 수 있는데
+            // 물이 찼을 때는 그럴 여유가 없다.
+            floodLabel.text = $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP";
+        }
     }
 
     private void UpdateHealth()
@@ -285,7 +347,9 @@ public class ShipCoopHud : MonoBehaviour
 
             if (row.label != null)
             {
-                row.label.text = e.WarningText;
+                // 무슨 일인지(WarningText) 아래에 무엇을 해야 하는지(LiveHint)를 붙인다.
+                // 경고만 띄우면 뭘 해야 하는지가 화면 어디에도 없다. 파도가 그랬다.
+                row.label.text = WithHint(e.WarningText, e.LiveHint());
             }
 
             if (row.icon != null)
@@ -342,8 +406,7 @@ public class ShipCoopHud : MonoBehaviour
         var carry = LocalWorker.GetComponent<CarryTask>();
         if (carry != null && carry.IsCarrying)
         {
-            // 운반 중에 볼 곳은 대포다. 그래서 대포 그림을 띄운다.
-            Show($"포탄 운반 중  ·  {(carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로")}",
+            Show(WithHint($"{CarryTask.NameOf(carry.Carrying)} 운반 중", CarryHintOf(carry)),
                  -1f, taskIconCannon);
             return;
         }
@@ -363,10 +426,17 @@ public class ShipCoopHud : MonoBehaviour
         // 포탄 상자는 자리(TaskBase)가 아니라서 Nearby 에 잡히지 않는다.
         // 그래서 상자 앞에 서면 아무 안내도 안 떴다. 무거운 포탄은 쥐어야 들리므로
         // 자리에 붙는 것과 키가 다르다. 그 차이를 여기서 알려준다.
-        if (carry != null && carry.FindReachableBox() != null)
+        // 상자마다 나오는 것이 다르다. 무엇이 나오는지 말해주지 않으면
+        // 갑판에 색깔 큐브만 놓여 있고 무슨 상자인지 알 수가 없다.
+        if (carry != null)
         {
-            Show("포탄 집기  —  Shift + Space", -1f, taskIconCannon);
-            return;
+            AmmoBox box = carry.FindReachableBox();
+            if (box != null)
+            {
+                Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", "Shift + Space"),
+                     -1f, IconOfCargo(box.Kind));
+                return;
+            }
         }
 
         interactPanel.SetActive(false);
@@ -444,6 +514,31 @@ public class ShipCoopHud : MonoBehaviour
     ///
     /// 대포는 포탄 수까지 함께 띄웁니다. 없으면 쏘는 게 아니라 날라야 합니다.
     /// </summary>
+    /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
+    private static string CarryHintOf(CarryTask carry)
+    {
+        switch (carry.Carrying)
+        {
+            case Cargo.Ammo:
+                return carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로";
+
+            case Cargo.Plank:
+                return carry.FindPointWantingPlank() != null ? "Shift 를 놓아 건네기" : "빨간 파손 지점으로";
+
+            case Cargo.Water:
+                return carry.FindReachableDump() != null ? "Shift 를 놓아 버리기" : "파란 뱃전으로";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>들고 있는 것에 맞는 그림. 자재와 물은 아직 전용 그림이 없다.</summary>
+    private Sprite IconOfCargo(Cargo cargo)
+    {
+        return cargo == Cargo.Ammo ? taskIconCannon : taskIconRepair;
+    }
+
     private static string HintOf(TaskBase task)
     {
         switch (task)
@@ -452,7 +547,10 @@ public class ShipCoopHud : MonoBehaviour
                 return cannon.Ammo > 0
                     ? $"X 로 발사  ·  포탄 {cannon.Ammo}/{cannon.MaxAmmo}"
                     : "포탄이 없다 — 상자에서 날라라";
-            case RepairTask _: return "F 를 연타";
+
+            // 자재가 없으면 두드려도 안 먹는다. 그 말을 안 하면 고장 난 줄 안다.
+            case RepairTask repair:
+                return repair.CanHammer ? "F 를 연타" : "자재가 필요하다 — 갈색 상자에서";
             case HelmTask _: return "A · D 로 꺾기";
             case SailTask _: return "D 로 당기기";
             default: return null;
