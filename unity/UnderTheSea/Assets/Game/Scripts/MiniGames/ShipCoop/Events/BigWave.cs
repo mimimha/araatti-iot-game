@@ -8,9 +8,24 @@ using UnityEngine;
 /// 그 사이에 조타를 비우면 둘 다 놓칩니다.
 ///
 /// 버티는 시간 동안 정면을 벗어난 시간이 허용치를 넘으면 옆으로 맞아 배가 깎입니다.
+///
+/// **바다 위에 실제로 떠 있는 파도입니다.** 예고 동안 수평선에 나타나 다가옵니다.
+/// 암초와 달리 좌우로 치우쳐 있지 않고 뱃길을 가로질러 오므로 피할 수가 없습니다.
+///
+/// 판정은 바다가 있든 없든 같습니다. **"정면을 지켰나" 는 각도로 재든 좌우 위치로 재든
+/// 같은 값**이기 때문입니다. (조타각 × 계수 = 좌우 위치) 그래서 암초와 달리
+/// 판정을 바꾸지 않았고, 보여주는 것만 더했습니다.
 /// </summary>
 public class BigWave : VoyageEvent
 {
+    [Header("바다 위 파도")]
+    [Tooltip("띄울 파도. 비워두면 회색 판을 만들어 쓴다. (프로토타입용)")]
+    [SerializeField] private GameObject wavePrefab;
+
+    [Tooltip("파도의 폭 (m). 배가 옆으로 갈 수 있는 폭(약 5m)보다 넉넉해야\n" +
+             "'피할 수 없다, 정면으로 받아야 한다' 가 읽힌다.")]
+    [SerializeField, Min(2f)] private float waveWidth = 16f;
+
     [Header("정면 판정")]
     [Tooltip("뱃머리가 이 각도 안에 있으면 정면으로 받는 것으로 본다.")]
     [SerializeField, Min(1f)] private float straightTolerance = 12f;
@@ -30,6 +45,64 @@ public class BigWave : VoyageEvent
         allowedOffTime <= 0f ? (IsStraight ? 0f : 1f) : Mathf.Clamp01(OffTime / allowedOffTime);
 
     private HelmTask _helm;
+    private GameObject _wave;
+
+    /// <summary>
+    /// 예고 시작. **여기서 파도를 띄운다.**
+    ///
+    /// 암초와 달리 좌우로 치우쳐 놓지 않습니다. 파도는 뱃길을 가로질러 오므로
+    /// 피할 수 없고, **정면으로 받는 것 말고는 방법이 없다**는 것이 보여야 합니다. (5장)
+    /// 배가 틀어져 있으면 파도가 한쪽으로 밀려 보입니다. 그것이 "안 맞았다" 는 신호입니다.
+    /// </summary>
+    protected override void OnWarn()
+    {
+        if (VoyageSea.Current == null)
+        {
+            return;
+        }
+
+        if (wavePrefab != null)
+        {
+            _wave = Instantiate(wavePrefab);
+        }
+        else
+        {
+            // 프로토타입. 에셋이 오면 wavePrefab 을 채우면 된다.
+            _wave = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            _wave.transform.localScale = new Vector3(waveWidth, 1.5f, 2f);
+
+            // 부딪히면 안 된다. 판정은 조타각으로 한다.
+            Collider collider = _wave.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Destroy(collider);
+            }
+        }
+
+        _wave.name = $"BigWave_{Time.frameCount}";
+        VoyageSea.Current.Place(_wave.transform, 0f, Approach01);
+    }
+
+    /// <summary>예고 때부터 계속 다가온다. 판정은 안 한다.</summary>
+    protected override void OnShow(float deltaTime)
+    {
+        if (_wave != null && VoyageSea.Current != null)
+        {
+            VoyageSea.Current.Place(_wave.transform, 0f, Approach01);
+        }
+    }
+
+    /// <summary>끝났으면 파도를 치운다. 성공·실패·취소 모두 여기를 지난다.</summary>
+    protected override void OnHide()
+    {
+        if (_wave == null)
+        {
+            return;
+        }
+
+        Destroy(_wave);
+        _wave = null;
+    }
 
     protected override void OnBegin()
     {
