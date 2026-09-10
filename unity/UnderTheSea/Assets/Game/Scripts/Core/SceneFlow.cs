@@ -59,6 +59,36 @@ public static class SceneFlow
     /// </summary>
     public static void FromLogin() => Load(HasCharacter ? ChannelSelect : CharacterCreate);
 
+    /// <summary>
+    /// Login 에서 로그인에 성공하고 **서버에서 캐릭터 개수를 받아왔을 때.**
+    ///
+    /// 위의 인자 없는 FromLogin() 과 달리 이 PC 의 PlayerPrefs 를 보지 않는다.
+    /// 다른 컴퓨터에서 로그인해도 같은 결과가 나오게 하려면 이쪽을 쓴다.
+    ///
+    ///     0개  → CharacterCreate   아직 캐릭터가 없다
+    ///     1개  → ChannelSelect     바로 접속하러 간다
+    ///     2개+ → ChannelSelect     CharacterSelect 화면이 생기면 그쪽으로 바꾼다
+    /// </summary>
+    public static void FromLogin(int characterCount)
+    {
+        if (characterCount <= 0)
+        {
+            Load(CharacterCreate);
+            return;
+        }
+
+        if (characterCount > 1)
+        {
+            // 지금은 계정당 1개만 만들 수 있으므로 정상 흐름에서는 오지 않는다.
+            // 다중 캐릭터를 열었는데 CharacterSelect 씬이 아직 없을 때를 위한 대비다.
+            Debug.LogWarning(
+                $"[SceneFlow] 캐릭터가 {characterCount}개입니다. " +
+                "CharacterSelect 화면이 아직 없어 ChannelSelect 로 보냅니다.");
+        }
+
+        Load(ChannelSelect);
+    }
+
     /// <summary>CharacterCreate 에서 [생성 완료] 가 처리된 뒤.</summary>
     public static void FromCharacterCreate() => Load(ChannelSelect);
 
@@ -72,7 +102,21 @@ public static class SceneFlow
     /// <summary>Login 에서 [뒤로가기].</summary>
     public static void BackToTitle() => Load(Title);
 
-    /// <summary>ChannelSelect 에서 [뒤로가기]. 캐릭터를 다시 만들러 간다.</summary>
+    /// <summary>
+    /// ChannelSelect 에서 [뒤로가기]. 로그인 화면으로 돌아간다.
+    ///
+    /// ⚠ 로그아웃은 여기서 하지 않는다. 이 파일은 씬 전환만 담당한다.
+    ///    (GAME_STRUCTURE.md 3장) 세션을 지우는 것은 부르는 쪽의 일이다.
+    /// </summary>
+    public static void BackToLogin() => Load(Login);
+
+    /// <summary>
+    /// CharacterCreate 로 되돌아간다.
+    ///
+    /// ⚠ 계정 흐름이 생긴 뒤로 ChannelSelect 의 [뒤로가기] 는 BackToLogin() 을 쓴다.
+    ///    지금 부르는 곳은 없지만, 캐릭터를 다시 만들러 보내야 하는 화면이
+    ///    생길 때를 위해 남겨 둔다.
+    /// </summary>
     public static void BackToCharacterCreate() => Load(CharacterCreate);
 
     // ------------------------------------------------------------

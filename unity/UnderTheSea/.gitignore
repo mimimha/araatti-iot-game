@@ -36,3 +36,10 @@ Assets/AssetStoreTools*
 
 # 패키지별 개인 설정 (AI Assistant 체크포인트 설정 등)
 ProjectSettings/Packages/
+
+# Project Auditor 의 개인 설정.
+# 팀 규칙(Rules)이 비어 있고 진단 임계값도 전부 Unity 기본값이라 공유할 내용이 없습니다.
+# 에디터를 열거나 빌드 타깃을 바꿀 때마다 PlatformGroup 항목이 자동으로 늘고 줄어
+# 매번 변경 파일로 잡히므로 추적하지 않습니다.
+# 팀 공통 규칙이나 비기본 임계값을 정하게 되면 이 줄을 지우고 다시 커밋하세요.
+ProjectSettings/ProjectAuditorSettings.asset

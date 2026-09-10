@@ -262,6 +262,33 @@ public interface INetworkService
 세부 사항은 두 담당자가 상의해서 조정할 수 있습니다.
 **다만 조정한 내용은 반드시 이 문서에 반영합니다.**
 
+### 계정 · 캐릭터는 별도 경계입니다
+
+로그인과 캐릭터 저장은 `INetworkService` 에 **넣지 않습니다.** 따로 둡니다.
+
+```text
+Assets/Game/Scripts/Account/
+├── IAuthService.cs        회원가입 · 로그인 · 현재 로그인 상태
+├── ICharacterService.cs   내 캐릭터 목록 · 캐릭터 생성
+└── AccountServiceLocator  둘을 담아두는 곳 (NetworkServiceLocator 와 같은 방식)
+```
+
+나눈 이유
+
+1. `INetworkService` 는 Photon Fusion 기반 **실시간 세션**이고,
+   계정 · 캐릭터는 **단발성 요청/응답**입니다. 성격이 다릅니다.
+   그래서 `Network/` 아래가 아니라 **별도 폴더**에 둡니다.
+2. 가짜 ↔ 진짜를 **각각 따로** 갈아끼울 수 있어야 합니다.
+   (서버 인증은 붙었는데 채널은 아직 가짜인 중간 상태가 실제로 생깁니다)
+
+`INetworkService` 와 마찬가지로 **혼자 고치지 않고 함께 정합니다.**
+
+가짜에서 진짜로 바꾸는 지점은 `AccountServiceBootstrap` 파일 한 곳입니다.
+씬을 고치지 않습니다.
+
+캐릭터는 **언제나 목록(배열)으로** 주고받습니다. 지금은 계정당 1개지만,
+나중에 다중 캐릭터를 붙일 때 경계를 고치지 않기 위해서입니다.
+
 ### 씬 전환은 클라이언트가 합니다
 
 서버는 **"지금 이동할 시점이다"**라고 알려주기만 하고,
@@ -360,7 +387,20 @@ UI 는 프리팹으로 만듭니다. `Scenes/Develop/서연/` 의 테스트 씬�
 
 ### 이름을 넘기는 방법 — PlayerPrefs
 
-캐릭터 이름과 외형은 **로컬(`PlayerPrefs`)에 저장**합니다. 서버에 저장하지 않습니다.
+> **⚠ 2026-09-09 갱신: 원본은 서버입니다.**
+>
+> 캐릭터가 있는지 · 이름이 무엇인지 · 외형이 어떤지는 모두 **서버(MySQL)가 정합니다.**
+> 로그인 후 어느 화면으로 갈지도 `GET /api/characters` 결과로 판단합니다.
+>
+> 아래 `PlayerPrefs` 두 키는 이제 **그 응답의 캐시**입니다. 두 가지 목적으로만 남겨 둡니다.
+>   1. 기존 UI 호환 — `SceneFlow.Nickname` 과 `ChannelSelectController` 가 이 키를 읽습니다.
+>   2. 로그인 없이 `CharacterCreate` 씬만 단독 실행할 때의 외형 복원
+>
+> **서버 응답이 오면 언제나 서버 값이 이깁니다.** 캐시를 근거로 분기하지 않습니다.
+> 갱신하는 곳은 `Assets/Game/Scripts/Account/CharacterSessionCache.cs` 한 곳입니다.
+> 자세한 내용은 `docs/prd/auth-character-roadmap.md` PRD 07 을 봅니다.
+
+캐릭터 이름과 외형은 `PlayerPrefs` 에도 함께 남습니다. (위 캐시 목적)
 
 | 키 | 타입 | 내용 |
 | --- | --- | --- |
@@ -482,6 +522,7 @@ Hierarchy
 ```text
 Assets/Game/Scripts/
 ├── Core/             씬 전환, 게임 상태 관리        (민화)
+├── Account/          계정 인증, 캐릭터 저장 경계    (서버 — 4장)
 ├── Network/          접속, 매칭, 동기화             (서버)
 ├── IoT/              IoT 컨트롤러 경계              (공용 — 아래 참고)
 ├── Character/        캐릭터 커스터마이징            (서연)
@@ -501,6 +542,7 @@ Assets/Game/Scripts/
 | 폴더 | 파일 | 함께 정하는 사람 |
 | --- | --- | --- |
 | `Network/` | `INetworkService` | 클라이언트 ↔ 서버 (4장) |
+| `Account/` | `IAuthService` · `ICharacterService` | 클라이언트 ↔ 서버 (4장) |
 | `IoT/` | `IPlayerController` | 미니게임 담당 3명 ↔ IoT 담당 (아래) |
 
 ### `IoT/` 는 세 명이 함께 쓰는 폴더입니다
@@ -609,10 +651,16 @@ git status
 | 50~100명 실제 부하 감당 | **개발 목표는 10~20명.** 그 이상은 여유가 있으면 검토 |
 | Docker / Kubernetes | 핵심 기능 완성 후 여유가 있으면 검토 |
 | Prometheus / Grafana 모니터링 | 핵심 기능 완성 후 여유가 있으면 검토 |
-| 로그인 / 회원가입 | **화면만 있고 인증은 없습니다.** `Login` 씬은 이메일·비밀번호를 받지만 검증하거나 저장하지 않고 통과시킵니다. 계정 개념이 없습니다 |
+| 로그인 / 회원가입 | ~~제외~~ → **도입합니다.** `server/` 의 ASP.NET Core API 가 계정을 저장하고 JWT 로 인증합니다. `Login` 씬 연동은 아직 남아 있습니다 (`docs/prd/auth-character-roadmap.md` PRD 06) |
 | 사용자 닉네임 | **없습니다.** 이름은 `CharacterCreate` 에서 정하는 **캐릭터 이름 하나**뿐입니다 (6장) |
-| 캐릭터를 서버에 저장 | **없습니다.** 이름과 외형은 `PlayerPrefs` 로 그 PC 에만 저장합니다. 다른 컴퓨터에서는 다시 만들어야 합니다 |
+| 캐릭터를 서버에 저장 | ~~제외~~ → **도입합니다.** DB 스키마(`users` · `characters` · `character_parts`)는 준비됐고, 지금은 `PlayerPrefs` 로 그 PC 에만 저장합니다. 서버 저장 API 와 Unity 연동이 남아 있습니다 (같은 문서 PRD 05 · 07) |
 | 플레이어가 방을 만들고 고르는 기능 | **없음.** 서버(채널)를 고르면 그 서버의 로비로 들어감 |
+
+> **위 표의 로그인 / 회원가입 · 캐릭터 서버 저장 두 줄은 방향이 바뀌었습니다.**
+> 계정과 캐릭터를 실제로 저장하기로 팀에서 정했고, 단계별 계획은
+> `docs/prd/auth-character-roadmap.md` 에 있습니다.
+> 2026-09-09 기준 서버 쪽 회원가입 · 로그인 API 와 JWT 까지 완료됐습니다.
+> **Unity 쪽은 아직 붙지 않았습니다.** `Login` 씬은 여전히 검증 없이 통과시킵니다.
 
 ### 범위에 포함되는 것
 
