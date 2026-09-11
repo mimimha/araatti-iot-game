@@ -60,6 +60,20 @@ public class MineGridView : MonoBehaviour
     private MaterialPropertyBlock _props;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
+    private Vector2Int _targetOffset;
+
+    /// <summary>
+    /// 도안을 겹쳐 보일 때 이만큼 밀어서 본다.
+    ///
+    /// 판정이 위치를 맞춰 채점하므로(MINE.md 7장), 결과 화면도 같은 기준으로
+    /// 칠해야 색과 점수가 맞는다. 안 맞추면 100점인데 화면이 빨갛다.
+    /// </summary>
+    public void SetTargetOffset(Vector2Int offset)
+    {
+        _targetOffset = offset;
+        RefreshAll();
+    }
+
     private void Awake()
     {
         _grid = GetComponent<MineGrid>();
@@ -139,8 +153,7 @@ public class MineGridView : MonoBehaviour
         if (!showTarget || _grid.TargetCells == null)
             return dug ? dugColor : intactColor;
 
-        bool isTarget = _grid.IsTarget(x, y);
-
+        bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
         if (isTarget) return dug ? correctColor : targetColor;
         return dug ? wrongColor : intactColor;
     }

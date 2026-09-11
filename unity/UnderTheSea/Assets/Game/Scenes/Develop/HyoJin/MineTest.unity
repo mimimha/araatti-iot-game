@@ -477,6 +477,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1849565740}
   - component: {fileID: 1849565739}
+  - component: {fileID: 1849565741}
   m_Layer: 0
   m_Name: MineGame
   m_TagString: Untagged
@@ -498,6 +499,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MineGame
   grid: {fileID: 1014668933}
   view: {fileID: 1014668932}
+  vision: {fileID: 0}
   diggers:
   - {fileID: 1398097736}
   playerCount: 4
@@ -505,6 +507,9 @@ MonoBehaviour:
   turnSeconds: 30
   turnGapSeconds: 0
   successThreshold: 60
+  judge: 0
+  shapeTolerance: 2
+  maxAlign: 4
   restoresPerPlayer: 1
   hintSeconds: 3
   autoStart: 1
@@ -523,6 +528,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1849565741
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1849565738}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7405dfb615285c43893106ba90cab91, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MineVision
+  lanternRange: 6
+  lanternIntensity: 8
+  lanternHeight: 2
+  lanternColor: {r: 1, g: 0.85, b: 0.6, a: 1}
+  darkAmbient: {r: 0.03, g: 0.03, b: 0.04, a: 1}
+  darkSunIntensity: 0.03
+  sun: {fileID: 0}
 --- !u!1 &2137228880
 GameObject:
   m_ObjectHideFlags: 0

@@ -12,7 +12,10 @@ using UnityEngine.InputSystem;
 ///    IMGUI(OnGUI) 로 그리므로 출시용이 아니다.
 ///
 /// 다만 **읽는 값은 임시가 아니다.** 이 표시는 <see cref="MineGame"/> 의 공개 속성만
-/// 본다. 나중에 진짜 HUD 를 만들 때 MineGame 은 한 줄도 안 고치고 이 파일만 갈아끼운다.
+/// 보므로, 진짜 HUD 를 만들 때 MineGame 은 한 줄도 안 고치고 이 파일만 갈아끼운다.
+///
+/// 예외가 하나 있다. 랜턴 반경(<see cref="MineVision"/>)은 **밸런싱용 숫자**라
+/// 여기서만 읽는다. 반경이 정해지면 이 줄은 진짜 HUD 로 넘어가지 않는다.
 ///
 /// 사용법
 ///   테스트 씬에 빈 오브젝트를 하나 만들고 붙인다. 나머지는 자동으로 찾는다.
@@ -29,6 +32,8 @@ public class MineDebugHud : MonoBehaviour
 
     private MineGame _game;
 
+    /// <summary>랜턴 반경만 읽는다. 밸런싱용이라 진짜 HUD 에는 안 들어간다.</summary>
+    private MineVision _vision;
     private GUIStyle _style;
     private bool _visible = true;
     private readonly StringBuilder _sb = new StringBuilder(512);
@@ -36,6 +41,7 @@ public class MineDebugHud : MonoBehaviour
     private void Awake()
     {
         _game = FindAnyObjectByType<MineGame>(FindObjectsInactive.Include);
+        _vision = FindAnyObjectByType<MineVision>(FindObjectsInactive.Include);
     }
 
     private void Update()
@@ -95,6 +101,11 @@ public class MineDebugHud : MonoBehaviour
         _sb.AppendLine($"복구      {_game.RestoresLeft} / {_game.TotalRestores}개  (팀 공용)");
         _sb.AppendLine($"힌트      {(_game.HintAvailable ? "쓸 수 있음" : "사용함 / 대기 중")}" +
                        $"{(_game.HintShowing ? "   ← 보는 중" : string.Empty)}");
+
+        if (_vision != null)
+        {
+            _sb.AppendLine($"랜턴      {_vision.LanternRange:0.#}m  ({(_vision.Lit ? "밝음" : "어두움")})");
+        }
 
         if (_game.State == MineState.Finished)
         {

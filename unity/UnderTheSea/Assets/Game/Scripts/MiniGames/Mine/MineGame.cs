@@ -20,13 +20,25 @@ public enum MineState
     Finished,
 }
 
+/// <summary>판정 방식. (MINE.md 7장)</summary>
+public enum MineJudge
+{
+    /// <summary>모양이 얼마나 닮았는가. 위치를 맞춘 뒤 거리로 잰다. **기본값.**</summary>
+    Shape,
+
+    /// <summary>정확히 같은 칸을 팠는가. 비교용으로 남겨둔 옛 방식.</summary>
+    Cells,
+}
+
 /// <summary>
-/// 판의 진행을 맡는다. **초를 세고, 턴을 넘기고, 복구와 힌트를 관리하고, 끝나면 채점한다.**
+/// 판의 진행을 맡는다. **초를 세고, 턴을 넘기고, 복구와 힌트를 관리하고,
+/// 밝기를 정하고, 끝나면 채점한다.**
 ///
 ///     공개 7초 → [턴 30초 → 빈 시간] × 인원 → 채점 → 로비 보고
 ///
 /// 땅(<see cref="MineGrid"/>)과 화면(<see cref="MineGridView"/>)과
-/// 채점(<see cref="IMineSimilarity"/>)은 이미 있는 것을 **쓰기만 한다.** 고치지 않는다.
+/// 어둠(<see cref="MineVision"/>)과 채점(<see cref="IMineSimilarity"/>)은
+/// 이미 있는 것을 **쓰기만 한다.** 고치지 않는다.
 ///
 /// 모양은 <c>ShipCoopGame</c> 을 따랐다. 코루틴이 아니라 상태 + Update 인 이유는
 /// **밖에서 상태를 읽을 수 있어야** HUD 가 붙고 네트워크 동기화가 되기 때문이다.
@@ -35,7 +47,7 @@ public enum MineState
 /// 복구는 팀 공용이라 판마다 하나, 힌트는 1인 1회라 사람마다 하나이기 때문이다.
 /// (MINE.md 2·4장)
 ///
-/// 이 단계에서 하지 않는 것 — 시야 제한(5단계), 탑뷰 연출(6단계),
+/// 이 단계에서 하지 않는 것 — 탑뷰 연출(6단계),
 /// 진짜 HUD(11장 8단계), 네트워크 턴 소유권(10단계).
 /// </summary>
 public class MineGame : MonoBehaviour
@@ -46,6 +58,9 @@ public class MineGame : MonoBehaviour
 
     [Tooltip("비워두면 격자에서 찾는다. 공개와 숨김에 쓴다.")]
     [SerializeField] private MineGridView view;
+
+    [Tooltip("비워두면 씬에서 찾는다. 어둠과 랜턴을 맡는다. (MINE.md 6장)")]
+    [SerializeField] private MineVision vision;
 
     [Tooltip("파는 사람들. 개발 중에는 하나만 넣어도 되고, 그러면 혼자 여러 턴을 돈다.")]
     [SerializeField] private MineDigger[] diggers;
@@ -66,6 +81,18 @@ public class MineGame : MonoBehaviour
 
     [Tooltip("이 값 이상이면 성공. (MINE.md 7장)")]
     [SerializeField, Range(0f, 100f)] private float successThreshold = 60f;
+
+    [Header("판정 (MINE.md 7장)")]
+    [Tooltip("모양 — 위치를 맞춘 뒤 얼마나 닮았는지 잰다. 기본값.\n" +
+             "칸  — 정확히 같은 칸을 팠는지 잰다. 비교용.")]
+    [SerializeField] private MineJudge judge = MineJudge.Shape;
+
+    [Tooltip("몇 칸까지 어긋남을 봐줄 것인가. 0칸이면 만점, 이 값 이상 떨어지면 0점.")]
+    [SerializeField, Min(0.5f)] private float shapeTolerance = 2f;
+
+    [Tooltip("위치를 맞출 때 최대 몇 칸까지 밀 수 있는가.\n" +
+             "크게 잡을수록 '어디에 그렸는가' 를 안 보게 된다.")]
+    [SerializeField, Min(0)] private int maxAlign = 4;
 
     [Header("복구와 힌트 (MINE.md 2·4장)")]
     [Tooltip("사람 한 명당 복구 블록 몇 개. 1 이면 4명에 4개.\n" +
@@ -138,9 +165,12 @@ public class MineGame : MonoBehaviour
     {
         if (grid == null) grid = FindAnyObjectByType<MineGrid>();
         if (view == null && grid != null) view = grid.GetComponent<MineGridView>();
+        if (vision == null) vision = FindAnyObjectByType<MineVision>();
 
-        // 판정 방식은 나중에 갈아끼운다. (MINE.md 7장)
-        _similarity = new MineIoUSimilarity();
+        // 판정 방식은 인스펙터에서 고른다. (MINE.md 7장)
+        _similarity = judge == MineJudge.Shape
+            ? new MineShapeSimilarity(shapeTolerance, maxAlign)
+            : (IMineSimilarity)new MineIoUSimilarity();
 
         if (grid == null)
             Debug.LogError($"{nameof(MineGame)}: MineGrid 를 찾지 못했습니다.", this);
@@ -277,7 +307,10 @@ public class MineGame : MonoBehaviour
         digger.MarkHintUsed();
 
         _hintTimer = hintSeconds;
-        if (view != null) view.SetShowTarget(true);
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetShowTarget(true); }
+
+        // 어두우면 색을 바꿔봐야 안 보인다. 힌트 동안에는 판을 밝힌다. (MINE.md 6장)
+        if (vision != null) vision.SetLit(true);
 
         Debug.Log($"[MINE] 힌트 — {hintSeconds:0}초 동안 보여줍니다. " +
                   $"그동안에도 턴 시간은 흐릅니다.", this);
@@ -292,8 +325,11 @@ public class MineGame : MonoBehaviour
 
         _hintTimer = 0f;
 
-        // 턴 중일 때만 다시 감춘다. 다른 단계는 각자 알아서 표시를 정한다.
-        if (State == MineState.Turn && view != null) view.SetShowTarget(false);
+        // 턴 중일 때만 되돌린다. 다른 단계는 각자 알아서 표시를 정한다.
+        if (State != MineState.Turn) return;
+
+        if (view != null) view.SetShowTarget(false);
+        if (vision != null) vision.SetLit(false);   // 다시 어두워지고 랜턴이 켜진다
     }
 
     // ------------------------------------------------------------
@@ -307,7 +343,9 @@ public class MineGame : MonoBehaviour
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);          // 보는 시간이지 파는 시간이 아니다
-        if (view != null) view.SetShowTarget(true);
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetShowTarget(true); }
+        // 그림을 봐야 하는 시간이므로 밝게. 랜턴은 필요 없다.
+        if (vision != null) { vision.SetLit(true); vision.Follow(null); }
 
         Debug.Log($"[MINE] 목표 공개 {revealSeconds:0}초 — " +
                   $"{(string.IsNullOrEmpty(TargetName) ? "(도안 없음)" : TargetName)} · " +
@@ -329,6 +367,14 @@ public class MineGame : MonoBehaviour
         int index = (turnNumber - 1) % Mathf.Max(1, diggers.Length);
         SetOnlyDiggerActive(index);
 
+        // 어둠 + 지금 턴인 사람을 따라가는 랜턴. (MINE.md 6장)
+        // Follow 는 SetOnlyDiggerActive 뒤에 불러야 CurrentDigger 가 정해져 있다.
+        if (vision != null)
+        {
+            vision.SetLit(false);
+            vision.Follow(CurrentDigger != null ? CurrentDigger.transform : null);
+        }
+
         Debug.Log($"[MINE] {turnNumber}/{TotalTurns} 턴 시작 — {turnSeconds:0}초 · " +
                   $"복구 {RestoresLeft}개 · 힌트 {(HintAvailable ? "가능" : "사용함")}", this);
 
@@ -349,6 +395,9 @@ public class MineGame : MonoBehaviour
         _hintTimer = 0f;
 
         SetOnlyDiggerActive(-1);
+
+        // 어두운 채로 둔다. 이 틈에 전체를 보여주면 시야 제한이 무의미해진다.
+        if (vision != null) { vision.SetLit(false); vision.Follow(null); }
     }
 
     private void EnterFinished()
@@ -364,6 +413,9 @@ public class MineGame : MonoBehaviour
         // MineGridView 가 이미 4색으로 칠하므로 켜기만 하면 된다.
         if (view != null) view.SetShowTarget(true);
 
+        // 판이 끝났으니 전체를 밝힌다. 여기가 이 게임의 하이라이트다. (MINE.md 3장 7번)
+        if (vision != null) { vision.SetLit(true); vision.Follow(null); }
+
         if (grid.TargetCells == null)
         {
             Debug.LogWarning($"{nameof(MineGame)}: 도안이 없어 채점하지 못했습니다. " +
@@ -371,7 +423,7 @@ public class MineGame : MonoBehaviour
             return;
         }
 
-        Result = _similarity.Evaluate(grid.Cells, grid.TargetCells);
+        Result = _similarity.Evaluate(grid.Cells, grid.TargetCells, grid.Size);
         Success = Result.Percent >= successThreshold;
 
         int score = Mathf.Clamp(Mathf.RoundToInt(Result.Percent), 0, 100);
@@ -381,6 +433,8 @@ public class MineGame : MonoBehaviour
                   $"복구 {TotalRestores - RestoresLeft}개 씀", this);
 
         Finished?.Invoke(Success, score);
+        // 판정이 위치를 맞춰 채점했으니 화면도 같은 기준으로 칠한다. (MINE.md 7장)
+        if (view != null) view.SetTargetOffset(Result.Alignment);
         Report(Success, score);
     }
 
