@@ -15,8 +15,12 @@ namespace FishingMiniGame.Runtime
         public FishingSnapshot Current => controller != null ? controller.Snapshot : null;
         public FishingRoundSnapshot Round => controller != null ? controller.RoundSnapshot : null;
         public FishingSessionSnapshot Session => controller != null ? controller.SessionSnapshot : null;
+        public FishingV3Snapshot V3Current => controller != null ? controller.V3Snapshot : null;
         public FishingSessionResult LastSessionResult => controller != null ? controller.LastSessionResult : null;
         public FishingGameMode Mode => controller != null ? controller.Mode : FishingGameMode.LegacyRound;
+        public FishingGameplayRuntimeMode GameplayRuntimeMode => controller != null
+            ? controller.GameplayRuntimeMode
+            : FishingGameplayRuntimeMode.LegacyV2;
         public event Action<FishingRoundResult> Completed;
         public event Action<FishingSessionResult> SessionCompleted;
         public event Action<FishingRuntimeError> Failed;
@@ -40,6 +44,18 @@ namespace FishingMiniGame.Runtime
         public void ConfigureFlowMode(FishingGameMode mode, FishProfile sessionFish = null)
         {
             controller.ConfigureFlowMode(mode, sessionFish);
+        }
+
+        public void ConfigureV3Runtime(
+            FishingV3Tuning modelTuning = null,
+            FishingV3ReelInputTuning reelInputTuning = null)
+        {
+            controller.ConfigureV3Runtime(modelTuning, reelInputTuning);
+        }
+
+        public void SetV3FishState(FishingV3FishState fishState)
+        {
+            controller.SetV3FishState(fishState);
         }
 
         public void Initialize(FishingLaunchContext context)
@@ -84,6 +100,13 @@ namespace FishingMiniGame.Runtime
 
         public void Shutdown()
         {
+            if (controller != null &&
+                controller.GameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                controller.ShutdownRuntime();
+                return;
+            }
+
             if (controller != null && controller.Mode == FishingGameMode.SingleFishSession &&
                 controller.SessionSnapshot != null &&
                 (controller.SessionSnapshot.State == FishingSessionState.Playing ||
