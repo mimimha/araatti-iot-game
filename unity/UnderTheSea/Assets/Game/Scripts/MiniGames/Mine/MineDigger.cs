@@ -4,7 +4,10 @@ using UnityEngine;
 /// 플레이어가 휘두르면 **발밑 칸**을 판다.
 ///
 /// MINE.md 4장 — 한 번 휘두르면 한 칸. 강도도 콤보도 없다.
-/// MINE.md 조준 방식 — 발밑(A안). 걸어다니는 것이 곧 조준이다.
+/// MINE.md 6장 — 조준은 발밑. 걸어다니는 것이 곧 조준이다.
+///
+/// 하는 일은 이것 하나다. 언제 팔 수 있는지는 <see cref="MineGame"/> 이 정하고,
+/// 채점도 그쪽에서 한다.
 ///
 /// 입력은 공용 IoT 경계(<see cref="IPlayerController"/>)만 쓴다.
 /// 키보드로 테스트할 때는 <c>KeyboardPlayerController</c> 를 붙인다.
@@ -26,27 +29,16 @@ public class MineDigger : MonoBehaviour
     [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 같은 오브젝트에서 찾는다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
-    [Header("임시 확인용 — 2단계 한정")]
-    [Tooltip("켜면 왼손 버튼1(키보드 C)로 지금까지 판 것을 채점해 로그로 남긴다.\n" +
-             "복구 블록을 만드는 4단계에서 이 키를 돌려주고 이 기능은 지운다.")]
-    [SerializeField] private bool scoreOnButton1 = true;
-
-    [Header("측정 (MINE.md 12장 — 격자 크기 확정용)")]
-    [Tooltip("켜면 스윙 횟수를 세어 구간마다 로그로 남긴다. 30초에 몇 번 휘두를 수 있는지 잰다.")]
-    [SerializeField] private bool measureSwingRate = true;
-
-    [Tooltip("측정 구간(초). MINE.md 의 턴 시간과 맞춘다.")]
-    [SerializeField, Min(1f)] private float measureWindow = 30f;
-
     private IPlayerController _controller;
-    private IMineSimilarity _similarity;
 
-    private int _swingsInWindow;
-    private int _digsInWindow;
-    private float _windowElapsed;
-    private bool _measuring;
+    /// <summary>
+    /// 지금 팔 수 있는가. <see cref="MineGame"/> 이 턴에 맞춰 켜고 끈다.
+    ///
+    /// MineGame 없이 혼자 테스트할 수 있도록 **기본값은 true** 다.
+    /// </summary>
+    public bool DiggingAllowed { get; set; } = true;
 
-    /// <summary>이번 판에서 이 플레이어가 휘두른 총 횟수.</summary>
+    /// <summary>이번 판에서 이 플레이어가 휘두른 횟수. (자기 턴에 휘두른 것만)</summary>
     public int TotalSwings { get; private set; }
 
     /// <summary>이번 판에서 이 플레이어가 실제로 판 칸 수. (헛스윙 제외)</summary>
@@ -60,9 +52,6 @@ public class MineDigger : MonoBehaviour
                       ?? GetComponent<IPlayerController>()
                       ?? GetComponentInParent<IPlayerController>();
 
-        // 판정 방식은 나중에 갈아끼운다. (MINE.md 7장)
-        _similarity = new MineIoUSimilarity();
-
         if (grid == null)
             Debug.LogError($"{nameof(MineDigger)}: MineGrid 를 찾지 못했습니다.", this);
 
@@ -71,13 +60,18 @@ public class MineDigger : MonoBehaviour
                            $"KeyboardPlayerController 를 붙이거나 참조를 지정하세요.", this);
     }
 
+    /// <summary>판을 새로 시작할 때 MineGame 이 불러준다.</summary>
+    public void ResetStats()
+    {
+        TotalSwings = 0;
+        TotalDigs = 0;
+    }
+
     private void Update()
     {
         if (_controller == null || grid == null) return;
 
-        TickMeasure();
         HandleSwing();
-        HandleScoreRequest();
     }
 
     private void HandleSwing()
@@ -87,68 +81,20 @@ public class MineDigger : MonoBehaviour
         //
         // ⚠ `||` 가 아니라 `|` 다. `||` 는 앞이 true 면 뒤를 부르지 않는데,
         //   ConsumeSwing 은 부를 때 상태를 지우므로 안 부르면 다음 프레임에 한 번 더 파인다.
+        //
+        // ⚠ **내 턴이 아니어도 이 줄은 반드시 지나가야 한다.** 안 읽으면 그 스윙이
+        //   지워지지 않고 남아 있다가, 내 턴이 시작되는 순간 묵은 입력이 한 칸을 판다.
+        //   그래서 읽기는 하되 아래에서 버린다.
         bool swung = _controller.Left.ConsumeSwing() | _controller.Right.ConsumeSwing();
+
+        if (!DiggingAllowed) return;    // 읽고 버린다
         if (!swung) return;
 
         TotalSwings++;
-        _swingsInWindow++;
-        StartMeasureIfNeeded();
 
-        if (!grid.WorldToCell(transform.position, out int x, out int y)) return;   // 격자 밖에서 휘두름
+        if (!grid.WorldToCell(transform.position, out int x, out int y)) return;   // 격자 밖
         if (!grid.Dig(x, y)) return;                                               // 이미 파인 칸
 
         TotalDigs++;
-        _digsInWindow++;
-    }
-
-    /// <summary>
-    /// 임시 채점. 2단계에서 "점수가 나온다"를 확인하기 위한 것이다.
-    /// 3단계에서 MineGame 이 턴을 관리하게 되면 채점은 그쪽으로 옮기고 이 메서드는 지운다.
-    /// </summary>
-    private void HandleScoreRequest()
-    {
-        if (!scoreOnButton1) return;
-
-        // 버튼1(C)은 **왼손**에 매핑돼 있다. 오른손 버튼1 은 Space 인데
-        // 그건 MovePlayerInput 의 점프와 겹치므로 왼손만 읽는다.
-        if (!_controller.Left.ConsumeButton1Press()) return;
-
-        if (grid.TargetCells == null)
-        {
-            Debug.LogWarning($"{nameof(MineDigger)}: 목표 도안이 없어 채점할 수 없습니다. " +
-                             $"MineGrid 의 Target 을 지정하세요.", this);
-            return;
-        }
-
-        MineSimilarityResult r = _similarity.Evaluate(grid.Cells, grid.TargetCells);
-        string label = grid.Target != null ? grid.Target.displayName : "(이름 없음)";
-
-        Debug.Log($"[MINE-SCORE] {label} — {r}", this);
-    }
-
-    private void StartMeasureIfNeeded()
-    {
-        if (!measureSwingRate || _measuring) return;
-
-        _measuring = true;
-        _windowElapsed = 0f;
-    }
-
-    private void TickMeasure()
-    {
-        if (!_measuring) return;
-
-        _windowElapsed += Time.deltaTime;
-        if (_windowElapsed < measureWindow) return;
-
-        Debug.Log($"[MINE-MEASURE] {measureWindow:0}초 동안 스윙 {_swingsInWindow}회 · " +
-                  $"실제로 판 칸 {_digsInWindow}개 " +
-                  $"(초당 {_swingsInWindow / measureWindow:0.0}회) — " +
-                  $"격자 {grid.Size}×{grid.Size} = {grid.CellCount}칸", this);
-
-        _measuring = false;
-        _swingsInWindow = 0;
-        _digsInWindow = 0;
-        _windowElapsed = 0f;
     }
 }
