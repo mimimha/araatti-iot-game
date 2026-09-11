@@ -24,14 +24,46 @@ using UnityEngine;
 ///    그래서 옆이나 뒤에서 보면 배가 꺾이는 대신 바위가 미끄러지는 것이 보입니다.
 ///    앞쪽 부채꼴 안에서는 티가 나지 않으므로 그 범위로 묶어 둡니다.
 /// </summary>
+/// <summary>카메라가 무엇을 가운데에 둘지. (SHIPCOOP.md 9장)</summary>
+public enum CameraMode
+{
+    /// <summary>
+    /// 🪜 층 고정. 사람이 있는 갑판 한 층을 비춘다.
+    ///
+    /// 같은 층에 있는 사람끼리 **똑같은 화면**을 봅니다. 그래야 "야 저기!" 가 통합니다.
+    /// 자리가 늘 같은 곳에 보여서 어디에 뭐가 있는지도 외워집니다.
+    /// 돛대와 밧줄에 가리는 각도를 층마다 한 번만 잡아두면 됩니다.
+    /// </summary>
+    PerDeck,
+
+    /// <summary>
+    /// 🏃 사람 따라가기. 내 캐릭터를 따라다닌다.
+    ///
+    /// 내가 늘 화면 가운데 있어서 위치는 헷갈리지 않습니다. 대신 4명이 각자
+    /// 다른 화면을 보게 되고, 돛대에 가리는 순간이 계속 생깁니다.
+    /// </summary>
+    FollowPlayer,
+}
+
 [RequireComponent(typeof(Camera))]
 public class ShipCoopCamera : MonoBehaviour
 {
+    [Header("무엇을 가운데에 둘지")]
+    [Tooltip("층 고정 — 사람이 있는 갑판 한 층을 비춘다. 같은 층 사람끼리 같은 화면을 본다.\n" +
+             "사람 따라가기 — 내 캐릭터를 따라다닌다. 흔한 3D 게임 방식.\n\n" +
+             "어느 쪽이 나은지는 4명이서 해봐야 압니다. 그래서 골라 쓸 수 있게 두었습니다.")]
+    [SerializeField] private CameraMode mode = CameraMode.PerDeck;
+
+    [Tooltip("층이 바뀔 때 옮겨가는 시간 (초).\n\n" +
+             "0 이면 순간이동이라 어디로 갔는지 모릅니다.\n" +
+             "1초쯤 되면 답답합니다. 0.2~0.3 이 적당합니다.")]
+    [SerializeField, Range(0f, 1f)] private float moveTime = 0.25f;
+
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
-    [Tooltip("가운데에 둘 대상. 보통 배(갑판)다.")]
+    [Tooltip("층을 못 찾았을 때 가운데에 둘 대상. 보통 배다.")]
     [SerializeField] private Transform target;
 
-    [Tooltip("이 화면의 주인을 알려준다. 입력을 여기서 가져온다.")]
+    [Tooltip("이 화면의 주인을 알려준다. 입력과 지금 있는 층을 여기서 가져온다.")]
     [SerializeField] private ShipCoopHud hud;
 
     [Header("구도")]
@@ -61,6 +93,18 @@ public class ShipCoopCamera : MonoBehaviour
     /// <summary>지금 돌아간 각도. 0 이 정면.</summary>
     public float Yaw { get; private set; }
 
+    /// <summary>
+    /// 이 화면 주인이 지금 있는 갑판. 없으면 null.
+    ///
+    /// 카메라만 쓰는 것이 아닙니다. **HUD 가 "뒷갑판 침수!" 를 띄울 때도 이걸 봅니다.** (9장)
+    /// </summary>
+    public ShipDeck CurrentDeck { get; private set; }
+
+    /// <summary>지금 가운데에 두고 있는 자리. 층이 바뀌면 여기로 미끄러져 간다.</summary>
+    private Vector3 _pivot;
+    private Vector3 _pivotSpeed;
+    private bool _pivotReady;
+
     private void Awake()
     {
         if (hud == null)
@@ -83,28 +127,75 @@ public class ShipCoopCamera : MonoBehaviour
             }
         }
 
-        if (target == null)
+        // 층(ShipDeck)이 있으면 그쪽을 먼저 쓰므로 target 이 없어도 된다.
+        // 둘 다 없을 때만 문제다.
+        if (target == null && ShipDeck.All.Count == 0)
         {
-            Debug.LogWarning($"[{name}] 가운데에 둘 대상을 찾지 못했습니다. 카메라가 움직이지 않습니다.", this);
+            Debug.LogWarning(
+                $"[{name}] 갑판(ShipDeck)도 가운데에 둘 대상도 찾지 못했습니다. " +
+                "Tools / ShipCoop / 갑판 3층으로 배치 를 한 번 돌리세요.", this);
         }
     }
 
     private void LateUpdate()
     {
-        if (target == null)
+        UpdateYaw();
+        UpdatePivot();
+
+        Quaternion spin = Quaternion.Euler(0f, Yaw, 0f);
+
+        transform.position = _pivot + spin * new Vector3(0f, height, -distance);
+
+        Vector3 lookAt = _pivot + Vector3.up * lookHeight + spin * (Vector3.forward * lookAhead);
+        transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+    }
+
+    /// <summary>
+    /// 가운데에 둘 자리를 정한다.
+    ///
+    /// **층 고정** 이면 사람이 있는 갑판의 한가운데, **따라가기** 면 사람 자리다.
+    /// 둘의 차이는 이 함수 하나뿐이고, 구도(거리 · 높이 · 회전)는 똑같이 쓴다.
+    /// </summary>
+    private void UpdatePivot()
+    {
+        TaskWorker worker = hud != null ? hud.LocalWorker : null;
+
+        CurrentDeck = worker != null ? ShipDeck.At(worker.transform.position) : null;
+
+        Vector3 want = FindPivot(worker);
+
+        if (!_pivotReady)
         {
+            // 첫 프레임에 멀리서 날아오지 않게 바로 자리를 잡는다.
+            _pivot = want;
+            _pivotSpeed = Vector3.zero;
+            _pivotReady = true;
             return;
         }
 
-        UpdateYaw();
+        if (moveTime <= 0f)
+        {
+            _pivot = want;
+            return;
+        }
 
-        Quaternion spin = Quaternion.Euler(0f, Yaw, 0f);
-        Vector3 pivot = target.position;
+        _pivot = Vector3.SmoothDamp(_pivot, want, ref _pivotSpeed, moveTime);
+    }
 
-        transform.position = pivot + spin * new Vector3(0f, height, -distance);
+    private Vector3 FindPivot(TaskWorker worker)
+    {
+        if (mode == CameraMode.FollowPlayer && worker != null)
+        {
+            return worker.transform.position;
+        }
 
-        Vector3 lookAt = pivot + Vector3.up * lookHeight + spin * (Vector3.forward * lookAhead);
-        transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+        if (CurrentDeck != null)
+        {
+            return CurrentDeck.Center;
+        }
+
+        // 층이 없는 씬(예전 평면 갑판)에서도 돌아가야 한다.
+        return target != null ? target.position : _pivot;
     }
 
     private void UpdateYaw()
