@@ -319,7 +319,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bf4e7e7faf5503648ac5250e2f610363, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FusionLauncher
-  roomName: AraAtti-Test
+  mode: 0
+  sessionName: AraAtti-Test
+  serverPort: 27015
 --- !u!114 &889847900
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -332,8 +334,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f5f9b44326e2c6499f7eb194197e2cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSpawner
-  playerPrefab:
-    RawGuidValue: 3d5195ac1bf71d34095b8a2de54a1f57
+  playerPrefab: {fileID: 2085756431360503534, guid: 3d5195ac1bf71d34095b8a2de54a1f57, type: 3}
+  spawnPoints: []
+  fallbackSpacing: 3
 --- !u!1 &961739749
 GameObject:
   m_ObjectHideFlags: 0

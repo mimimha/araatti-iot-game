@@ -417,6 +417,79 @@ Dedicated Server 가 **`Lobby` 씬을 로드해 유지**하고, 접속한 클라
 7. 서버 종료 → A 도 끊기는지, 에러 로그로 원인이 보이는지
 8. **지형 확인**: 캐릭터가 물 위/지형 아래로 빠지지 않는지 (스폰 포인트 y 값 검증)
 
+### 실행 방법 — 서버 1개 + 클라이언트 2개
+
+**1) 빌드.** 두 빌드는 서브타깃이 다르므로 각각 따로 만든다.
+`-standaloneBuildSubtarget` 을 반드시 붙인다. 서브타깃을 실행 도중에 바꾸면
+스크립팅 정의가 달라져 도메인 리로드가 `-executeMethod` 를 끊는다.
+
+```powershell
+$unity = "C:\Program Files\Unity\Hub\Editor\6000.5.9f1\Editor\Unity.exe"
+$proj  = "C:\geonhee\UnderTheSea\unity\UnderTheSea"
+
+& $unity -batchmode -quit -nographics -projectPath $proj -standaloneBuildSubtarget Server `
+  -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildServerFromCommandLine
+& $unity -batchmode -quit -nographics -projectPath $proj -standaloneBuildSubtarget Player `
+  -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildClientFromCommandLine
+```
+
+에디터에서는 메뉴로도 된다.
+`Tools > 아라아띠 > Fusion 서버 빌드 (Dedicated Server)` / `Fusion 클라이언트 테스트 빌드`
+
+> ⚠ 사전 조건: Unity Hub 에서 **Windows Dedicated Server Build Support** 모듈이 깔려 있어야 한다.
+> 없으면 Unity 가 **경고 없이** 일반 플레이어로 대체 빌드하고 `UNITY_SERVER` 분기가 죽는다.
+
+> ⚠ 빌드 대상 씬은 `FusionTestBuilds.cs` 의 `TestScenePath` 상수 하나가 정한다.
+> `Assets/Settings/Build Profiles/*.asset` 의 Scene List 는 이 스크립트가 읽지 않는다.
+> 그 프로필들은 사람이 Build Profiles 창에서 직접 빌드할 때만 쓰인다.
+> (`Windows Server Test.asset` 은 이름과 달리 Dedicated Server 프로필이 아니다.
+> `m_Subtarget: 2` 가 붙어 있지만 `m_PlatformId` 가 일반 Windows Player 와 같다)
+
+**2) 실행.** 서버를 먼저 띄우고 클라이언트를 붙인다.
+
+```powershell
+$b = "C:\geonhee\UnderTheSea\unity\UnderTheSea\Builds"
+
+# 서버 1개 — -mode 를 주지 않는다. UNITY_SERVER 로 자동으로 Server 가 된다.
+& "$b\Server\AraAtti-Server.exe" -batchmode -nographics -session lobby-ch1 -port 27015 -logFile server.log
+
+# 클라이언트 2개 — 같은 -session 으로 붙는다.
+& "$b\Client\AraAtti-Client.exe" -mode client -session lobby-ch1 -screen-width 900 -screen-height 520 -screen-fullscreen 0 -logFile c1.log
+& "$b\Client\AraAtti-Client.exe" -mode client -session lobby-ch1 -screen-width 900 -screen-height 520 -screen-fullscreen 0 -logFile c2.log
+```
+
+인자는 `FusionLaunchArguments` 가 읽는다.
+
+| 인자 | 뜻 | 기본값 |
+| --- | --- | --- |
+| `-session <이름>` | 붙을 방 이름. 채널 하나가 세션 하나 | FusionLauncher 의 Inspector 값 |
+| `-port <번호>` | 서버가 열 포트 | 27015 |
+| `-mode server\|client\|autohostorclient` | 기동 모드 강제. 빌드 종류를 이긴다 | 빌드 종류로 자동 판정 |
+| `-devjoin` | 개발용 직접 접속 (Development Build 전용) | 꺼짐 |
+| `-logmoves` | 위치를 0.5초마다 로그로 남긴다. 동기화 확인용 | 꺼짐 |
+
+### 개발용 직접 Lobby 실행 경로
+
+로그인 · REST · DB 를 건너뛰고 멀티플레이만 빠르게 보고 싶을 때 쓴다.
+**로컬 씬만 여는 방식이 아니다.** 이 경로도 Fusion `Client` 로 Dedicated Server 에 붙고
+캐릭터는 서버가 스폰한다. 일반 사용자 경로와 네트워크 구조가 같고 앞단 UI 만 건너뛴다.
+
+**에디터에서**
+1. 서버 exe 를 먼저 띄운다 (위 실행 명령)
+2. 메뉴 `Tools > 아라아띠 > 개발용 Lobby 접속 (Fusion Client)` 를 켠다 (체크 표시가 생긴다)
+3. `Lobby.unity` 를 열고 Play
+
+**Development Build 에서**
+```powershell
+& "$b\Client\AraAtti-Client.exe" -devjoin -session lobby-ch1
+```
+
+끄는 법은 같은 메뉴를 다시 누르는 것이다. 설정은 `EditorPrefs` 에 남아 저장소에 들어가지 않는다.
+
+> Release 빌드에는 이 우회 경로가 **아예 컴파일되지 않는다.**
+> `FusionDevEntry.WantsClientJoin` 이 `UNITY_EDITOR` · `DEVELOPMENT_BUILD` 밖에서는 항상 `false` 다.
+> 임시 신원이나 기본 외형을 PlayerPrefs · REST · MySQL 에 쓰지도 읽지도 않는다.
+
 ### 권장 커밋 단위
 
 ```text

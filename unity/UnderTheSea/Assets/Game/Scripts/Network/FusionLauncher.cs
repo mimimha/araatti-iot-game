@@ -117,6 +117,14 @@ public class FusionLauncher : MonoBehaviour
             (isDedicatedServer ? $", 포트 {resolvedPort}" : string.Empty) +
             $" / 실행 인자: {FusionLaunchArguments.Describe()}");
 
+        // 사람이 보는 쪽에서는 여기서부터 화면을 가린다.
+        // 접속이 끝나도 내 캐릭터가 스폰되고 카메라가 자리를 잡기 전까지는 보여 줄 화면이 아니다.
+        // 가림막을 실제로 어떻게 그릴지는 UI 쪽이 정한다. (TransitionStatus 주석 참고)
+        if (!isDedicatedServer)
+        {
+            TransitionStatus.SetLoading("Lobby에 접속 중...");
+        }
+
         // ⚠ 전용 서버는 입력을 만들지 않는다. 서버에는 조작하는 사람이 없다.
         //    ProvideInput 을 켜두면 서버가 자기 입력을 보내려 해서 불필요한 일이 생긴다.
         runner.ProvideInput = !isDedicatedServer;
@@ -182,6 +190,14 @@ public class FusionLauncher : MonoBehaviour
         if (!result.Ok)
         {
             Debug.LogError($"[Fusion] 접속 실패: {result.ShutdownReason} — {result.ErrorMessage}");
+
+            // 화면이 검은 채로 멈추지 않게 사유를 알린다. (서버가 안 떠 있을 때가 대표적이다)
+            if (!isDedicatedServer)
+            {
+                TransitionStatus.SetFailed(
+                    $"Lobby 접속에 실패했습니다.\n{result.ShutdownReason}");
+            }
+
             return;
         }
 
@@ -230,6 +246,14 @@ public class FusionLauncher : MonoBehaviour
 #if UNITY_SERVER
         return LaunchMode.Server;
 #else
+        // 개발용 직접 접속(PRD 08-2). 에디터 메뉴나 -devjoin 으로 켠다.
+        // 혼자 호스트가 되어 버리지 않고 이미 떠 있는 Dedicated Server 에 붙는다.
+        // Release 빌드에서는 FusionDevEntry 가 항상 false 라 이 분기를 타지 않는다.
+        if (FusionDevEntry.WantsClientJoin)
+        {
+            return LaunchMode.Client;
+        }
+
         // 에디터와 일반 클라이언트 빌드.
         // 기존처럼 혼자 켜서 테스트하던 흐름을 깨지 않으려고 AutoHostOrClient 로 둔다.
         // 전용 서버에 붙여 확인하려면 Inspector 를 Client 로 바꾸거나 -mode client 를 준다.

@@ -50,10 +50,18 @@ namespace UnderTheSea.Network.Editor
         /// <summary>
         /// QA 용 씬. 서버·클라 빌드 모두 이 씬 하나만 담는다.
         ///
-        /// `Fusion Client Test.asset` / `Windows Server Test.asset` 프로필의 Scene List 와 같은 값이다.
-        /// 그 프로필들은 사람이 Build Profiles 창에서 직접 빌드할 때 쓰라고 남겨 둔다.
+        /// PRD 08-2 부터 대상이 <b>Lobby</b> 다. 서버가 이 씬을 로드해 유지하고
+        /// 클라이언트도 이 씬으로 바로 뜬다.
+        ///
+        /// ⚠ 이 상수가 <b>실제 빌드의 유일한 기준</b>이다.
+        ///    `Assets/Settings/Build Profiles/*.asset` 의 Scene List 는 이 스크립트가 읽지 않는다.
+        ///    사람이 Build Profiles 창에서 직접 빌드할 때만 쓰인다.
+        ///    (`Windows Server Test.asset` 은 이름과 달리 Dedicated Server 프로필이 아니다. 아래 설명 참고)
+        ///
+        /// 일반 제품 Scene List(`ProjectSettings/EditorBuildSettings.asset`)에는 Lobby 가 이미 들어 있어
+        /// 이 변경 때문에 제품 빌드가 달라지지 않는다.
         /// </summary>
-        private const string TestScenePath = "Assets/Game/Scenes/Develop/GeonHee/ServerTestScene.unity";
+        private const string TestScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
 
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
