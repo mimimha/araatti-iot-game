@@ -47,9 +47,14 @@ public class BigWave : VoyageEvent
 
     [Header("밀리는 힘")]
     [Tooltip("파도가 치는 동안 뱃머리가 초당 이만큼 밀린다 (도/초).\n\n" +
-             "조타 회전 속도(기본 35)보다 작아야 사람이 붙으면 이긴다.\n" +
+             "🤝 **조타 회전 속도(기본 35)보다 크게** 잡는다. 그래야 혼자서는 지고\n" +
+             "둘이 붙어야(70) 이긴다. 이것이 6장의 협력 작업이다.\n\n" +
+             "  아무도 없음   45°/초        → 3.9초 뒤 실패\n" +
+             "  혼자          45−35 = 10    → 5.5초 뒤 실패. 시간은 벌지만 진다\n" +
+             "  둘이서        70−45 = +25   → 버틴다\n\n" +
+             "35 보다 작게 두면 혼자서도 이기고, 협력이 사라진다.\n" +
              "0 으로 두면 아무도 조타에 안 가도 파도가 저절로 넘어간다.")]
-    [SerializeField, Min(0f)] private float pushPerSecond = 20f;
+    [SerializeField, Min(0f)] private float pushPerSecond = 45f;
 
     [Tooltip("켜면 밀리는 방향을 매번 무작위로 정한다.")]
     [SerializeField] private bool randomSide = true;
@@ -277,6 +282,17 @@ public class BigWave : VoyageEvent
     public override string LiveHint()
     {
         float heading = _helm != null ? _helm.Heading : 0f;
+
+        // 🤝 혼자서는 못 이기는 사건이다. 그 사실을 제일 먼저 말해준다. (6장)
+        //
+        // 이 줄이 없으면 혼자 붙은 사람은 자기가 왜 밀리는지 모릅니다.
+        // "조타가 고장났나?" 로 읽히고, 도움을 부를 생각을 못 합니다.
+        if (_helm != null && _helm.NeedsHelp)
+        {
+            return IsRunning
+                ? $"혼자서는 못 버틴다 — 🆘 한 명 더!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)"
+                : "혼자서는 못 버틴다 — 둘이 조타륜을 잡아라";
+        }
 
         if (IsStraight)
         {

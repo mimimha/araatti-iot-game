@@ -27,6 +27,24 @@ public class HelmTask : TaskBase
              "0 이면 꺾인 채로 방치된다. 비운 대가를 주려면 0 으로 둔다.")]
     [SerializeField, Min(0f)] private float recenterSpeed = 0f;
 
+    [Header("🤝 협력 — 밀리는 동안")]
+    [Tooltip("파도가 뱃머리를 미는 동안에는 정원이 이만큼으로 늘어난다.\n\n" +
+             "파도가 미는 힘(45°/초)이 한 사람의 회전(35°/초)보다 세서, **혼자서는 집니다.**\n" +
+             "둘이 붙어야 70°/초가 되어 이깁니다. 이것이 6장의 협력 작업입니다.\n\n" +
+             "1 로 두면 협력이 꺼지고 예전처럼 혼자 버티게 된다.")]
+    [SerializeField, Range(1, 4)] private int pushedCapacity = 2;
+
+    /// <summary>
+    /// 밀리는 동안에는 정원이 늘어난다. 평소에는 인스펙터 값 그대로다.
+    ///
+    /// **자리를 늘려주지 않으면 두 번째 사람이 아예 붙을 수가 없습니다.**
+    /// 상호작용 아이콘이 회색으로 뜨고, 도와주러 와도 할 수 있는 것이 없습니다.
+    /// </summary>
+    public override int Capacity => IsPushed ? pushedCapacity : BaseCapacity;
+
+    /// <summary>지금 혼자 버티고 있는지. 한 명 더 와야 한다. HUD 가 이걸 읽는다.</summary>
+    public bool NeedsHelp => IsPushed && Workers.Count < pushedCapacity;
+
     [Header("배 회전 (선택)")]
     [Tooltip("연결하면 이 오브젝트를 뱃머리 각도만큼 실제로 돌린다.\n" +
              "⚠ 지금은 비워두세요. 플레이어가 배의 자식이 아니라서 배를 돌리면 " +
@@ -80,19 +98,30 @@ public class HelmTask : TaskBase
     /// <summary>누군가 붙어 있는 동안. 조타 입력만큼 뱃머리를 돌린다.</summary>
     protected override void Work(float deltaTime)
     {
-        // 붙어 있는 사람 전원의 조타를 합친다.
-        // 파도에 조타륜을 둘이 붙잡는 협력 작업(6장)이 붙으면 두 명분이 여기로 들어온다.
+        // 붙어 있는 사람 전원의 조타를 **합친다.** 여기서 1 로 자르지 않는 것이 핵심이다.
+        // 둘이 붙으면 두 배로 돌아가야 파도를 이길 수 있다. (SHIPCOOP.md 6장)
         float steer = 0f;
         for (int i = 0; i < Workers.Count; i++)
         {
             steer += ShipCoopInput.Steer(Workers[i].Input);
         }
 
-        Steer = Mathf.Clamp(steer, -1f, 1f);
-        Turn(Steer * turnSpeed * deltaTime);
+        // 정원만큼까지만 인정한다. 한 사람이 두 사람 몫을 낼 수는 없다.
+        float force = Mathf.Clamp(steer, -Capacity, Capacity);
+
+        // 표시용 값은 늘 -1 ~ +1 로 맞춘다. 정원이 2 면 둘 다 끝까지 꺾었을 때 1 이다.
+        Steer = force / Mathf.Max(1, Capacity);
+
+        Turn(force * turnSpeed * deltaTime);
 
         // 밀리는 힘은 사람이 붙어 있어도 계속 작용한다. 그래야 붙잡는 것이 일이 된다.
-        // 조타 속도(35)가 미는 속도(20)보다 커서, 붙어 있으면 이기고 놓으면 진다.
+        //
+        //   아무도 없음   45°/초 로 밀린다            → 3.9초 뒤 실패
+        //   혼자          45 − 35 = 10°/초 로 밀린다  → 5.5초 뒤 실패. 시간은 벌지만 진다
+        //   둘이서        70 − 45 = 25°/초 로 되돌린다 → 버틴다
+        //
+        // 혼자서도 시간을 버는 것이 중요하다. 그 사이에 🆘 를 누르고 둘째가 온다.
+        // 혼자가 아무 소용이 없으면 첫 번째 사람이 갈 이유가 없어진다.
         ApplyExternalPush(deltaTime);
     }
 
