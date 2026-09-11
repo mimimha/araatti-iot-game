@@ -21,7 +21,7 @@ public enum MineState
 }
 
 /// <summary>
-/// 판의 진행을 맡는다. **초를 세고, 턴을 넘기고, 끝나면 채점한다.**
+/// 판의 진행을 맡는다. **초를 세고, 턴을 넘기고, 복구와 힌트를 관리하고, 끝나면 채점한다.**
 ///
 ///     공개 7초 → [턴 30초 → 빈 시간] × 인원 → 채점 → 로비 보고
 ///
@@ -31,8 +31,12 @@ public enum MineState
 /// 모양은 <c>ShipCoopGame</c> 을 따랐다. 코루틴이 아니라 상태 + Update 인 이유는
 /// **밖에서 상태를 읽을 수 있어야** HUD 가 붙고 네트워크 동기화가 되기 때문이다.
 ///
-/// 이 단계에서 하지 않는 것 — 힌트·복구(4단계), 시야 제한(5단계),
-/// 탑뷰 연출(6단계), HUD 화면(10장), 네트워크 턴 소유권(9단계).
+/// **복구 개수는 여기 있고, 힌트 사용 여부는 <see cref="MineDigger"/> 에 있다.**
+/// 복구는 팀 공용이라 판마다 하나, 힌트는 1인 1회라 사람마다 하나이기 때문이다.
+/// (MINE.md 2·4장)
+///
+/// 이 단계에서 하지 않는 것 — 시야 제한(5단계), 탑뷰 연출(6단계),
+/// 진짜 HUD(11장 8단계), 네트워크 턴 소유권(10단계).
 /// </summary>
 public class MineGame : MonoBehaviour
 {
@@ -63,12 +67,22 @@ public class MineGame : MonoBehaviour
     [Tooltip("이 값 이상이면 성공. (MINE.md 7장)")]
     [SerializeField, Range(0f, 100f)] private float successThreshold = 60f;
 
+    [Header("복구와 힌트 (MINE.md 2·4장)")]
+    [Tooltip("사람 한 명당 복구 블록 몇 개. 1 이면 4명에 4개.\n" +
+             "블록은 팀 공용이다. 7번 밸런싱에서 조정할 값이다.")]
+    [SerializeField, Min(0)] private int restoresPerPlayer = 1;
+
+    [Tooltip("힌트로 목표를 다시 보여주는 시간(초).\n" +
+             "⚠ 보는 동안에도 턴 시간은 계속 흐른다. 그것이 힌트의 대가다.")]
+    [SerializeField, Min(0.5f)] private float hintSeconds = 3f;
+
     [Header("개발용")]
     [Tooltip("켜면 재생하자마자 판이 시작된다. 실제로는 로비가 불러준다.")]
     [SerializeField] private bool autoStart = true;
 
     private IMineSimilarity _similarity;
     private float _timer;
+    private float _hintTimer;
 
     /// <summary>지금 어느 단계인가.</summary>
     public MineState State { get; private set; } = MineState.Ready;
@@ -82,6 +96,26 @@ public class MineGame : MonoBehaviour
     /// <summary>지금 단계가 끝날 때까지 남은 초. HUD 가 이걸 읽는다.</summary>
     public float TimeLeft => Mathf.Max(0f, _timer);
 
+    /// <summary>지금 턴인 사람. 턴이 아니면 null.</summary>
+    public MineDigger CurrentDigger { get; private set; }
+
+    /// <summary>남은 복구 블록. **팀 공용이다.** (MINE.md 4장)</summary>
+    public int RestoresLeft { get; private set; }
+
+    /// <summary>이번 판에 주어진 복구 블록 전체 수.</summary>
+    public int TotalRestores => playerCount * restoresPerPlayer;
+
+    /// <summary>지금 힌트로 그림이 보이는 중인가.</summary>
+    public bool HintShowing => _hintTimer > 0f;
+
+    /// <summary>지금 턴인 사람이 힌트를 쓸 수 있는가.</summary>
+    public bool HintAvailable =>
+        State == MineState.Turn && CurrentDigger != null && !CurrentDigger.HintUsed;
+
+    /// <summary>이번 판의 목표 이름. 없으면 빈 문자열.</summary>
+    public string TargetName =>
+        grid != null && grid.Target != null ? grid.Target.displayName : string.Empty;
+
     /// <summary>채점 결과. 끝나기 전에는 비어 있다.</summary>
     public MineSimilarityResult Result { get; private set; }
 
@@ -93,6 +127,9 @@ public class MineGame : MonoBehaviour
 
     /// <summary>턴이 시작될 때. (몇 번째 턴인지, 1부터)</summary>
     public event Action<int> TurnStarted;
+
+    /// <summary>복구 블록이 줄어들 때. (남은 수)</summary>
+    public event Action<int> RestoresChanged;
 
     /// <summary>판이 끝났을 때. (성공 여부, 점수)</summary>
     public event Action<bool, int> Finished;
@@ -130,12 +167,15 @@ public class MineGame : MonoBehaviour
 
         foreach (MineDigger d in diggers)
         {
-            if (d != null) d.ResetStats();
+            if (d != null) d.ResetForNewGame();
         }
 
         TurnNumber = 0;
         Result = default;
         Success = false;
+
+        RestoresLeft = TotalRestores;
+        RestoresChanged?.Invoke(RestoresLeft);
 
         // 난이도별 도안 고르기는 나중에 여기서 grid.SetTarget() 으로 갈아끼운다.
         // (MINE.md 2장 — 인원이 곧 난이도)
@@ -147,6 +187,11 @@ public class MineGame : MonoBehaviour
     {
         // Ready 와 Finished 는 시간이 흐르지 않는다.
         if (State == MineState.Ready || State == MineState.Finished) return;
+
+        TickHint();
+
+        // 복구와 힌트 요청은 자기 턴에만 받는다.
+        if (State == MineState.Turn) HandleTurnRequests();
 
         _timer -= Time.deltaTime;
         if (_timer > 0f) return;
@@ -170,23 +215,110 @@ public class MineGame : MonoBehaviour
         }
     }
 
+    // ------------------------------------------------------------
+    // 복구와 힌트
+
+    /// <summary>
+    /// 지금 턴인 사람이 C · V 를 눌렀는지 물어본다.
+    ///
+    /// **입력은 MineDigger 만 읽고, 판단은 여기서 한다.** 복구가 몇 개 남았는지는
+    /// MineGame 만 알기 때문이다. MineDigger 가 여기로 말을 걸게 하면 화살표가
+    /// 거꾸로 생기므로, 눌린 것을 적어두게 하고 이쪽에서 가져온다.
+    /// </summary>
+    private void HandleTurnRequests()
+    {
+        MineDigger digger = CurrentDigger;
+        if (digger == null) return;
+
+        // 둘 다 반드시 부른다. 한쪽만 부르면 나머지 요청이 남아 다음 프레임에 터진다.
+        bool wantsRestore = digger.ConsumeRestoreRequest();
+        bool wantsHint = digger.ConsumeHintRequest();
+
+        if (wantsRestore) TryRestore(digger);
+        if (wantsHint) TryHint(digger);
+    }
+
+    private void TryRestore(MineDigger digger)
+    {
+        if (RestoresLeft <= 0)
+        {
+            Debug.Log("[MINE] 복구 블록이 남아 있지 않습니다.", this);
+            return;
+        }
+
+        // ⚠ 안 파인 칸에서 눌렀으면 블록을 깎지 않는다.
+        //   잘못 누른 것 때문에 귀한 블록이 날아가면 안 된다.
+        if (!digger.TryRestoreUnderfoot())
+        {
+            Debug.Log("[MINE] 발밑이 파여 있지 않아 되메울 것이 없습니다.", this);
+            return;
+        }
+
+        RestoresLeft--;
+        RestoresChanged?.Invoke(RestoresLeft);
+
+        Debug.Log($"[MINE] 복구 — 남은 블록 {RestoresLeft}/{TotalRestores}개", this);
+    }
+
+    private void TryHint(MineDigger digger)
+    {
+        if (digger.HintUsed)
+        {
+            Debug.Log("[MINE] 힌트를 이미 썼습니다. 한 사람당 1회입니다.", this);
+            return;
+        }
+
+        if (grid.TargetCells == null)
+        {
+            Debug.LogWarning($"{nameof(MineGame)}: 도안이 없어 힌트를 보여줄 수 없습니다.", this);
+            return;
+        }
+
+        digger.MarkHintUsed();
+
+        _hintTimer = hintSeconds;
+        if (view != null) view.SetShowTarget(true);
+
+        Debug.Log($"[MINE] 힌트 — {hintSeconds:0}초 동안 보여줍니다. " +
+                  $"그동안에도 턴 시간은 흐릅니다.", this);
+    }
+
+    private void TickHint()
+    {
+        if (_hintTimer <= 0f) return;
+
+        _hintTimer -= Time.deltaTime;
+        if (_hintTimer > 0f) return;
+
+        _hintTimer = 0f;
+
+        // 턴 중일 때만 다시 감춘다. 다른 단계는 각자 알아서 표시를 정한다.
+        if (State == MineState.Turn && view != null) view.SetShowTarget(false);
+    }
+
+    // ------------------------------------------------------------
+    // 단계 전환
+
     private void EnterReveal()
     {
         SetState(MineState.Reveal);
         _timer = revealSeconds;
+        _hintTimer = 0f;
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);          // 보는 시간이지 파는 시간이 아니다
         if (view != null) view.SetShowTarget(true);
 
         Debug.Log($"[MINE] 목표 공개 {revealSeconds:0}초 — " +
-                  $"{(grid.Target != null ? grid.Target.displayName : "(도안 없음)")}", this);
+                  $"{(string.IsNullOrEmpty(TargetName) ? "(도안 없음)" : TargetName)} · " +
+                  $"복구 {RestoresLeft}개", this);
     }
 
     private void EnterTurn(int turnNumber)
     {
         SetState(MineState.Turn);
         _timer = turnSeconds;
+        _hintTimer = 0f;
 
         TurnNumber = turnNumber;
 
@@ -197,7 +329,9 @@ public class MineGame : MonoBehaviour
         int index = (turnNumber - 1) % Mathf.Max(1, diggers.Length);
         SetOnlyDiggerActive(index);
 
-        Debug.Log($"[MINE] {turnNumber}/{TotalTurns} 턴 시작 — {turnSeconds:0}초", this);
+        Debug.Log($"[MINE] {turnNumber}/{TotalTurns} 턴 시작 — {turnSeconds:0}초 · " +
+                  $"복구 {RestoresLeft}개 · 힌트 {(HintAvailable ? "가능" : "사용함")}", this);
+
         TurnStarted?.Invoke(turnNumber);
     }
 
@@ -212,6 +346,7 @@ public class MineGame : MonoBehaviour
 
         SetState(MineState.TurnGap);
         _timer = turnGapSeconds;
+        _hintTimer = 0f;
 
         SetOnlyDiggerActive(-1);
     }
@@ -220,6 +355,7 @@ public class MineGame : MonoBehaviour
     {
         SetState(MineState.Finished);
         _timer = 0f;
+        _hintTimer = 0f;
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);
@@ -239,9 +375,10 @@ public class MineGame : MonoBehaviour
         Success = Result.Percent >= successThreshold;
 
         int score = Mathf.Clamp(Mathf.RoundToInt(Result.Percent), 0, 100);
-        string label = grid.Target != null ? grid.Target.displayName : "(이름 없음)";
+        string label = string.IsNullOrEmpty(TargetName) ? "(이름 없음)" : TargetName;
 
-        Debug.Log($"[MINE] 끝 — {label} · {(Success ? "성공" : "실패")} · {Result}", this);
+        Debug.Log($"[MINE] 끝 — {label} · {(Success ? "성공" : "실패")} · {Result} · " +
+                  $"복구 {TotalRestores - RestoresLeft}개 씀", this);
 
         Finished?.Invoke(Success, score);
         Report(Success, score);
@@ -257,16 +394,21 @@ public class MineGame : MonoBehaviour
     /// 지정한 사람만 팔 수 있게 한다. -1 이면 아무도 못 판다.
     ///
     /// 컴포넌트를 꺼버리지 않고 <see cref="MineDigger.DiggingAllowed"/> 로 막는 이유는
-    /// **꺼진 동안에도 스윙 입력을 계속 읽어서 버려야** 하기 때문이다.
+    /// **꺼진 동안에도 입력을 계속 읽어서 버려야** 하기 때문이다.
     /// 자세한 것은 MineDigger 쪽 주석에 적어두었다.
     /// </summary>
     private void SetOnlyDiggerActive(int index)
     {
+        CurrentDigger = null;
         if (diggers == null) return;
 
         for (int i = 0; i < diggers.Length; i++)
         {
-            if (diggers[i] != null) diggers[i].DiggingAllowed = i == index;
+            if (diggers[i] == null) continue;
+
+            bool active = i == index;
+            diggers[i].DiggingAllowed = active;
+            if (active) CurrentDigger = diggers[i];
         }
     }
 
