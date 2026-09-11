@@ -42,6 +42,40 @@ public class ShipCoopHud : MonoBehaviour
         public Image accent;
     }
 
+    /// <summary>
+    /// 팀원 초상화 한 칸. (SHIPCOOP.md 9장)
+    ///
+    /// ⚠ **층까지만 보여줍니다. 어느 자리에 붙었는지는 절대 보여주지 않습니다.**
+    ///
+    /// <code>
+    /// 층   "민화는 뒷갑판에 있다"   →  전략을 짤 재료
+    /// 자리 "돛이 비어 있다"         →  답을 그냥 준다
+    /// </code>
+    ///
+    /// 갑판이 3층이라 서로 안 보입니다. 누가 어디 있는지는 알아야 역할을 나눌 수 있지만,
+    /// **그 사람이 조타를 잡았는지 지나가는 중인지는 물어봐야** 합니다.
+    /// 자리까지 띄우면 "돛 비었어!" 라는 말이 통째로 사라집니다.
+    ///
+    /// 하트는 없습니다. 개인 HP 가 존재하지 않기 때문입니다. (2장)
+    /// </summary>
+    [System.Serializable]
+    public class PortraitSlot
+    {
+        public GameObject root;
+
+        [Tooltip("플레이어를 구분하는 색 테두리. 직업이 아니라 사람 구분용이다.")]
+        public Image frame;
+
+        [Tooltip("P1 ~ P4")]
+        public TextMeshProUGUI number;
+
+        [Tooltip("지금 있는 갑판 이름. 자리 이름을 넣지 않는다.")]
+        public TextMeshProUGUI deckLabel;
+
+        [Tooltip("🆘 를 눌렀을 때 켜진다.")]
+        public GameObject helpBadge;
+    }
+
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
     [SerializeField] private ShipCoopGame game;
     [SerializeField] private ShipHealth health;
@@ -110,6 +144,14 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Sprite eventIconHelm;
 
     [Header("상호작용 안내 (아래)")]
+    [Header("팀원 초상화 — 층과 🆘 만 보여준다")]
+    [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 꺼진다.")]
+    [SerializeField] private PortraitSlot[] portraits;
+
+    [Tooltip("아직 어느 갑판인지 모를 때 (배 밖이거나 떨어지는 중)")]
+    [SerializeField] private string unknownDeckText = "—";
+
+    [Header("상호작용")]
     [SerializeField] private GameObject interactPanel;
     [SerializeField] private TextMeshProUGUI interactLabel;
 
@@ -168,15 +210,76 @@ public class ShipCoopHud : MonoBehaviour
         UpdateProgress();
         UpdateFlooding();
         UpdateEvents();
+        UpdatePortraits();
         UpdateInteract();
+    }
+
+    /// <summary>
+    /// 팀원 초상화. **누가 어느 갑판에 있는지와 🆘 만** 보여준다.
+    ///
+    /// 갑판이 3층이 되면서 화면에 배 전체가 안 나옵니다. 그래서 여기가
+    /// "누가 어디 있나" 를 아는 **유일한 곳**이 됐습니다.
+    ///
+    /// 자리(조타 · 돛 · 대포)를 보여주지 않는 이유는 <see cref="PortraitSlot"/> 에 적어 두었습니다.
+    /// </summary>
+    private void UpdatePortraits()
+    {
+        if (portraits == null || portraits.Length == 0)
+        {
+            return;
+        }
+
+        // 사람 순서가 프레임마다 바뀌면 초상화가 자리를 바꿔 가며 깜빡인다.
+        // FindObjectsByType 의 순서는 보장되지 않으므로 이름으로 고정한다.
+        TaskWorker[] crew = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        System.Array.Sort(crew, (a, b) => string.CompareOrdinal(a.name, b.name));
+
+        for (int i = 0; i < portraits.Length; i++)
+        {
+            PortraitSlot slot = portraits[i];
+
+            if (slot == null)
+            {
+                continue;
+            }
+
+            bool has = i < crew.Length && crew[i] != null;
+
+            if (slot.root != null)
+            {
+                slot.root.SetActive(has);
+            }
+
+            if (!has)
+            {
+                continue;
+            }
+
+            if (slot.number != null)
+            {
+                slot.number.text = $"P{i + 1}";
+            }
+
+            if (slot.deckLabel != null)
+            {
+                ShipDeck deck = ShipDeck.At(crew[i].transform.position);
+                slot.deckLabel.text = deck != null ? deck.DeckName : unknownDeckText;
+            }
+
+            if (slot.helpBadge != null)
+            {
+                ShipCoopHelp help = crew[i].GetComponent<ShipCoopHelp>();
+                slot.helpBadge.SetActive(help != null && help.IsCalling);
+            }
+        }
     }
 
     /// <summary>
     /// 침수. **물이 있을 때만 뜬다.**
     ///
-    /// 침수는 HP 를 깎지 않고 속도를 깎습니다. 그래서 화면에 안 띄우면
-    /// **배가 왜 느려졌는지 알 방법이 아무 데도 없습니다.** 늦고 있다는 것만 보이고
-    /// 이유가 안 보이면 돛만 쳐다보게 됩니다. (4장)
+    /// 침수는 **물이 남아 있는 동안 초당 HP 를 깎습니다.** 그래서 화면에 안 띄우면
+    /// **HP 가 왜 줄어드는지 알 방법이 아무 데도 없습니다.** 사건도 안 떠 있는데
+    /// HP 만 깎이면 버그로 읽힙니다. (2장 · 4장)
     ///
     /// 물이 0 일 때 빈 게이지를 띄우지 않는 것도 같은 이유입니다.
     /// 늘 떠 있으면 "물은 원래 있는 것" 이 되고, 퍼내야 한다는 신호가 죽습니다.
@@ -356,9 +459,12 @@ public class ShipCoopHud : MonoBehaviour
 
             if (row.label != null)
             {
-                // 무슨 일인지(WarningText) 아래에 무엇을 해야 하는지(LiveHint)를 붙인다.
+                // 무슨 일인지(WarningLine) 아래에 무엇을 해야 하는지(LiveHint)를 붙인다.
                 // 경고만 띄우면 뭘 해야 하는지가 화면 어디에도 없다. 파도가 그랬다.
-                row.label.text = WithHint(e.WarningText, e.LiveHint());
+                //
+                // WarningLine 은 갑판이 정해지는 사건이면 층 이름까지 넣어준다.
+                // 갑판이 3층이라 화면 밖에서 벌어지는 일이 생겼기 때문이다. (9장)
+                row.label.text = WithHint(e.WarningLine, e.LiveHint());
             }
 
             if (row.icon != null)
