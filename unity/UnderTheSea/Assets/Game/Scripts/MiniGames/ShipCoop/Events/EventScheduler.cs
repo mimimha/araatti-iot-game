@@ -53,8 +53,10 @@ public class EventScheduler : MonoBehaviour
 
     [Header("출항 직후")]
     [Tooltip("출항하고 이 시간이 지난 뒤부터 사건을 뿌린다.\n" +
-             "시작하자마자 터지면 자리를 나누기도 전에 진다.")]
-    [SerializeField, Min(0f)] private float graceSeconds = 10f;
+             "시작하자마자 터지면 자리를 나누기도 전에 진다.\n\n" +
+             "제한시간보다 짧게가 아니라 **출항 구간보다 짧게** 잡아야 한다.\n" +
+             "이 값이 출항 구간보다 길면 출항 계획이 한 번도 돌지 않는다.")]
+    [SerializeField, Min(0f)] private float graceSeconds = 6f;
 
     [Header("무작위 고정 (선택)")]
     [Tooltip("0 이 아니면 이 값으로 무작위를 고정한다. 같은 순서를 다시 보고 싶을 때 쓴다.")]
@@ -115,6 +117,14 @@ public class EventScheduler : MonoBehaviour
     private void Update()
     {
         if (game == null || game.State != ShipCoopState.Sailing)
+        {
+            return;
+        }
+
+        // 사건을 고르는 것은 계산하는 쪽만 한다. (SHIPCOOP.md 11장)
+        // 4대가 각자 추첨하면 서로 다른 사건이 뜬다. 같은 씨앗을 줘도
+        // 프레임 타이밍이 달라 결국 어긋난다.
+        if (!game.IsAuthority)
         {
             return;
         }

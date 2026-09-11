@@ -12,18 +12,23 @@ using UnityEngine;
 public class ShipVoyage : MonoBehaviour
 {
     // ------------------------------------------------------------
-    // 기본값 계산 (제한시간 300초 기준)
+    // 기본값 계산 (제한시간 180초 기준)
     //
-    //   최저 속도로만 가면   1000 / 1.25 = 800초  →  시간 초과. 돛을 버릴 수 없다.
-    //   최대 속도로만 가면   1000 / 5.00 = 200초  →  100초를 남기고 도착
-    //   도착하려면          평균 3.33 m/s 이상   →  돛 힘 평균 0.55 정도
+    //   최저 속도로만 가면   600 / 1.25 = 480초  →  시간 초과. 돛을 버릴 수 없다.
+    //   최대 속도로만 가면   600 / 5.00 = 120초  →  60초를 남기고 도착
+    //   도착하려면          평균 3.33 m/s 이상  →  돛 힘 평균 0.55 정도
     //
     // 즉 "돛에 상시 한 명이면 여유, 가끔 봐주면 아슬아슬, 방치하면 실패"가 된다.
     // 밸런싱은 이 네 숫자(거리 · 최대속도 · 최저비율 · 제한시간)만 만지면 된다.
+    //
+    // 5분(1000m)에서 3분으로 줄일 때 거리도 600m 로 같이 줄였다.
+    // 180/300 = 0.6 이라 거리에 같은 0.6 을 걸면 위 세 줄의 **비율이 그대로 보존된다.**
+    // 필요 평균 속도도 돛 힘 0.55 도 5분짜리와 똑같다. 최대 속도와 최저 비율은
+    // 건드리지 않았다 — 그 둘은 바다가 흐르는 속도라 화면의 체감이 바뀐다.
     // ------------------------------------------------------------
 
     [Header("목적지까지의 거리 (m)")]
-    [SerializeField] private float totalDistance = 1000f;
+    [SerializeField] private float totalDistance = 600f;
 
     [Header("최대 속도 (m/s)")]
     [Tooltip("돛을 완벽하게 다뤘을 때의 속도")]
@@ -52,13 +57,8 @@ public class ShipVoyage : MonoBehaviour
     /// </summary>
     public float CourseFactor { get; set; } = 1f;
 
-    /// <summary>
-    /// 침수가 정하는 값. 0 ~ 1. **물이 안 찼으면 1**이다.
-    ///
-    /// ShipFlooding 이 매 프레임 넣어준다. 물이 찬 배는 무거워서 느려진다.
-    /// 침수는 HP 를 깎지 않고 **시간으로 갚게** 한다. (4장)
-    /// </summary>
-    public float FloodFactor { get; set; } = 1f;
+    // 침수는 여기에 손대지 않는다. 물이 찬 배를 느려지게 해봤지만 아무도 못 느꼈고,
+    // 지금은 ShipFlooding 이 배 HP 를 직접 깎는다. (SHIPCOOP.md 2장)
 
     /// <summary>
     /// 해류가 뒤집혔는지. **돌풍이 부는 동안 참**이다. (Squall 이 켜고 끈다)
@@ -78,8 +78,8 @@ public class ShipVoyage : MonoBehaviour
     /// <summary>
     /// 지금 속도 (m/s)
     ///
-    /// 조타와 침수는 **최저 속도 위쪽에만** 곱한다. 그래야 아무리 틀어지고
-    /// 아무리 물이 차도 배가 멈춰 서서 화면이 정지 화면이 되는 일이 없다.
+    /// 조타는 **최저 속도 위쪽에만** 곱한다. 그래야 아무리 틀어져 있어도
+    /// 배가 멈춰 서서 화면이 정지 화면이 되는 일이 없다.
     /// (2장 — 최저 속도를 두는 이유)
     /// </summary>
     public float Speed
@@ -87,7 +87,7 @@ public class ShipVoyage : MonoBehaviour
         get
         {
             float sailed = Mathf.Lerp(MinSpeed, maxSpeed, Mathf.Clamp01(SailPower01));
-            float kept = Mathf.Clamp01(CourseFactor) * Mathf.Clamp01(FloodFactor);
+            float kept = Mathf.Clamp01(CourseFactor);
 
             // 해류. 돌풍 중에는 반대로 분다.
             float drift = CurrentReversed ? -MinSpeed : MinSpeed;
@@ -125,7 +125,7 @@ public class ShipVoyage : MonoBehaviour
     /// 진행도를 바로 옮긴다. **개발용입니다.** (ShipCoopDevMode 가 부릅니다)
     ///
     /// 페이즈가 진행도로 갈리기 때문에, 뒷 구간을 보려면 여기까지 배를 몰고 와야 합니다.
-    /// 최저 속도로는 목적지까지 800초가 걸립니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
+    /// 최저 속도로는 목적지까지 480초가 걸립니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
     /// </summary>
     public void SetProgress01(float progress01)
     {
@@ -138,7 +138,6 @@ public class ShipVoyage : MonoBehaviour
         Distance = 0f;
         SailPower01 = 0f;
         CourseFactor = 1f;
-        FloodFactor = 1f;
         CurrentReversed = false;
     }
 }

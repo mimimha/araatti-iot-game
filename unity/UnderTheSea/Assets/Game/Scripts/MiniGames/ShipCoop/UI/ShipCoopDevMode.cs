@@ -9,7 +9,7 @@ using UnityEngine.InputSystem;
 ///
 /// 왜 필요한가
 ///   페이즈가 진행도로 갈리기 때문에, 뒷 구간을 보려면 배를 거기까지 몰고 가야 합니다.
-///   최저 속도로는 목적지까지 800초입니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
+///   최저 속도로는 목적지까지 480초입니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
 ///   사건도 10~20초 간격으로 무작위로 오니, 파도를 보려는데 암초만 세 번 올 수 있습니다.
 ///
 /// ⚠ 이 파일 전체가 `UNITY_EDITOR || DEVELOPMENT_BUILD` 로 감싸여 있습니다.
@@ -117,10 +117,17 @@ public class ShipCoopDevMode : MonoBehaviour
         _flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
         _scheduler = FindAnyObjectByType<EventScheduler>(FindObjectsInactive.Include);
 
-        // 씬에 있는 사건을 순서대로 담아 숫자키에 붙인다.
+        // 씬에 있는 사건을 담아 숫자키에 붙인다.
         // 종류를 코드에 적어두지 않는 이유는, 사건을 새로 만들어 씬에 놓으면
         // 이 파일을 고치지 않고도 바로 눌러볼 수 있게 하기 위해서다.
         _events.AddRange(FindObjectsByType<VoyageEvent>(FindObjectsInactive.Include));
+
+        // ⚠ 이름순으로 정렬한다. FindObjectsByType 의 순서는 보장되지 않아서,
+        //    정렬하지 않으면 **실행할 때마다 번호가 바뀝니다.**
+        //    어제 3번이 파도였는데 오늘은 암초면 도구로 쓸 수가 없습니다.
+        _events.Sort((a, b) => string.CompareOrdinal(
+            a != null ? a.name : string.Empty,
+            b != null ? b.name : string.Empty));
 
         IsOn = onAtStart;
     }
