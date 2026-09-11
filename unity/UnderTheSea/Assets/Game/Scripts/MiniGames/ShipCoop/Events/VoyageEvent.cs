@@ -76,8 +76,44 @@ public abstract class VoyageEvent : MonoBehaviour
 
     private static readonly List<VoyageEvent> ActiveEvents = new List<VoyageEvent>();
 
-    /// <summary>HUD 알림 문구</summary>
+    /// <summary>HUD 알림 문구. 갑판 이름은 안 붙는다. (<see cref="WarningLine"/> 참고)</summary>
     public string WarningText => warningText;
+
+    /// <summary>
+    /// 이 사건이 **어느 갑판에서** 벌어지는지. 배 전체에 걸리는 사건이면 null. (SHIPCOOP.md 9장)
+    ///
+    /// 갑판이 3층이 되면서 **화면 밖에서 벌어지는 일**이 생겼습니다.
+    /// 앞갑판에 있는데 뒷갑판에 구멍이 나면 눈에 안 보입니다.
+    /// 알림에 층 이름이 없으면 보고도 어디로 뛸지 모릅니다.
+    ///
+    /// ⚠ **아무 사건에나 붙이지 않습니다.**
+    ///
+    /// <code>
+    /// 💥 선체 파손   매번 다른 층에 생긴다        →  붙인다
+    /// 🪨🌊🌪️🏴‍☠️      대응하는 자리가 늘 같은 층이다  →  안 붙인다
+    /// </code>
+    ///
+    /// 조타가 뒷갑판이라는 것은 몇 판 하면 외워집니다. 그걸 매번 알려주면
+    /// 읽을 것만 늘고 정작 **변하는 정보(파손이 어디냐)** 가 묻힙니다.
+    /// </summary>
+    public virtual ShipDeck Where => null;
+
+    /// <summary>
+    /// HUD 알림의 첫 줄. 갑판이 정해지는 사건이면 층 이름이 함께 나온다.
+    ///
+    /// <code>
+    /// ⚠ 거대한 파도!
+    /// ⚠ 선체 파손!  (뒷갑판)
+    /// </code>
+    /// </summary>
+    public string WarningLine
+    {
+        get
+        {
+            ShipDeck deck = Where;
+            return deck != null ? $"{warningText}  ({deck.DeckName})" : warningText;
+        }
+    }
 
     /// <summary>
     /// 사건 알림 아래에 붙는 **지금 무엇을 해야 하는지**. 없으면 null.

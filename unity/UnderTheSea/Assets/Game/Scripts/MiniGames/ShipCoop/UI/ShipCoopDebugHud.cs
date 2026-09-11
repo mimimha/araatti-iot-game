@@ -108,6 +108,24 @@ public class ShipCoopDebugHud : MonoBehaviour
     /// </summary>
     private void AppendEvents()
     {
+        // 🆘 는 사건보다 위에 둔다. 사람이 부른 것이라 제일 급하다. (7장)
+        if (ShipCoopHelp.Calling.Count > 0)
+        {
+            _sb.AppendLine("── 도움 요청 ──");
+
+            for (int i = 0; i < ShipCoopHelp.Calling.Count; i++)
+            {
+                ShipCoopHelp call = ShipCoopHelp.Calling[i];
+
+                if (call != null)
+                {
+                    _sb.AppendLine($"{call.CallText}   ({call.name})");
+                }
+            }
+
+            _sb.AppendLine();
+        }
+
         _sb.AppendLine("── 사건 ──");
 
         if (VoyageEvent.Active.Count == 0)
@@ -125,7 +143,8 @@ public class ShipCoopDebugHud : MonoBehaviour
                 ? $"  {Mathf.Max(0f, e.Duration - e.Elapsed):F0}초"
                 : string.Empty;
 
-            _sb.AppendLine($"{e.WarningText}{timer}");
+            // 정식 HUD 와 같은 문구를 쓴다. 갑판 이름도 같이 나온다. (9장)
+            _sb.AppendLine($"{e.WarningLine}{timer}");
 
             string hint = HintFor(e);
             if (!string.IsNullOrEmpty(hint))

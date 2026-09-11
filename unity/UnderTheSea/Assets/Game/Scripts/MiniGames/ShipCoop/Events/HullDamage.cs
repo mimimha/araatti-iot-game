@@ -94,6 +94,15 @@ public class HullDamage : VoyageEvent
         }
     }
 
+    /// <summary>
+    /// 구멍이 난 갑판. **파손은 사건 중에 유일하게 매번 다른 층에 생깁니다.** (9장)
+    ///
+    /// 파손 자리가 세 층에 흩어져 있어서(4장 원칙 1), 앞갑판에 있는 사람은
+    /// 뒷갑판 구멍이 안 보입니다. 층 이름이 없으면 알림을 보고도 어디로 뛸지 모릅니다.
+    /// </summary>
+    public override ShipDeck Where =>
+        SpawnedPoint != null ? ShipDeck.At(SpawnedPoint.transform.position) : null;
+
     /// <summary>HUD 문구</summary>
     public override string LiveHint() => RepairHint();
 
