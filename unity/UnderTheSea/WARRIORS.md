@@ -84,3 +84,35 @@
 
 > 검증용 씬 `Scenes/Develop/SeoYeon/WarriorsTest.unity` 는 목표 처치 수만 **10** 으로
 > 낮춰 두었습니다. 메인 씬 값(30)은 건드리지 않습니다.
+
+---
+
+## 5. 프리팹 구성
+
+모두 `Assets/Game/Prefabs/MiniGames/Warriors/` 아래에 있습니다.
+
+| 프리팹 | 역할 |
+| --- | --- |
+| `Core/WarriorsGameRoot` | 진행 · 점수 · 스포너 · 입력 라우터 |
+| `Arena/WarriorsBeachArena` | 해변 무대와 스폰 지점 |
+| `UI/WarriorsHUD` | HUD 전체 |
+| `Boss/WarriorsKrakenBoss` | 크라켄과 촉수 |
+| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Monsters/*Visual` |
+| `Player/WarriorsStandalonePlayer` | 플레이어 |
+
+씬에는 앞의 네 개만 두면 됩니다.
+플레이어는 `WarriorsSceneBootstrap` 이, 몬스터는 스포너가 런타임에 만듭니다.
+
+---
+
+## 6. 사용 에셋
+
+| 대상 | 위치 |
+| --- | --- |
+| 몬스터 · 보스 모델 5종 | `Art/MiniGames/Warriors/Models/` (Meshy 생성) |
+| 하단 카드 아이콘 3종 | `Art/MiniGames/Warriors/UI/Icons/` (위 모델을 렌더링한 것) |
+| 바 채움 | `Art/MiniGames/Warriors/UI/BarFill.png` |
+| 카드 프레임 | `Art/UI/CharacterCustomization/Frames/RoundedCard.png` 재사용 |
+| 플레이어 검 | `Assets/ToonyTinyPeople/` 중 실사용 파일만 (`w_TH_sword`) |
+
+외부 에셋 출처 기록은 `ASSETS.md` 를 따릅니다.
