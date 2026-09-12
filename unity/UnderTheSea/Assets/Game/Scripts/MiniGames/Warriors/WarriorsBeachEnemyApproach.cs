@@ -24,7 +24,9 @@ namespace Warriors
             // Give each enemy its own lane around the player instead of converging
             // on the exact same point.  Keeping the offset in front also prevents
             // a fresh wave from immediately surrounding the player's feet.
-            targetOffset = new Vector3(Random.Range(-5.5f, 5.5f), 0f, Random.Range(0.4f, 2.4f));
+            // A tight ring around the player. The old spread reached 5.5m to the side,
+            // so enemies slid past instead of closing in; spacing is separation's job.
+            targetOffset = new Vector3(Random.Range(-2.2f, 2.2f), 0f, Random.Range(-0.9f, 0.9f));
             if (spawnPoint != null) transform.position = spawnPoint.position;
         }
 
@@ -46,20 +48,31 @@ namespace Warriors
 
             Vector3 playerOffset = player.position - position;
             playerOffset.y = 0f;
+            float playerDistance = playerOffset.magnitude;
+            Vector3 toPlayer = playerDistance > .001f ? playerOffset / playerDistance : transform.forward;
+
+            // Brief knockback after a hit, never a sustained retreat.
             if (Time.time < retreatUntil)
             {
-                if (playerOffset.sqrMagnitude > .01f)
-                    position -= playerOffset.normalized * (moveSpeed * 1.6f * deltaTime);
+                position -= toPlayer * (moveSpeed * 1.2f * deltaTime);
+                position.y = groundHeight;
                 transform.position = position;
                 return;
             }
+
             Vector3 offset = player.position + targetOffset - position;
             offset.y = 0f;
-            if (playerOffset.magnitude > stoppingDistance && offset.magnitude > .35f)
+            if (playerDistance > stoppingDistance && offset.magnitude > .35f)
             {
                 position += offset.normalized * (moveSpeed * deltaTime);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
                     Quaternion.LookRotation(offset.normalized), 360f * deltaTime);
+            }
+            else
+            {
+                // In range: hold the line facing the player instead of drifting off.
+                transform.rotation = Quaternion.RotateTowards(transform.rotation,
+                    Quaternion.LookRotation(toPlayer), 360f * deltaTime);
             }
 
             transform.position = position;
@@ -77,7 +90,17 @@ namespace Warriors
             }
             // Separation applies only to other WarriorsTarget roots.  Clamp the
             // correction so it opens readable gaps without overpowering pursuit.
-            position += Vector3.ClampMagnitude(separation, 1.4f) * (2.1f * deltaTime);
+            separation = Vector3.ClampMagnitude(separation, 1.4f);
+
+            // Pursuit switches off inside stoppingDistance, so an unfiltered separation
+            // push was the one force still acting near the player - a crowd shoved every
+            // member outwards and the enemies read as running away the moment the player
+            // closed in. Strip the component that points away from the player so the
+            // crowd only slides sideways around each other.
+            float retreatComponent = Vector3.Dot(separation, toPlayer);
+            if (retreatComponent < 0f) separation -= toPlayer * retreatComponent;
+
+            position += separation * (2.1f * deltaTime);
             position.y = groundHeight;
             transform.position = position;
         }
@@ -90,6 +113,7 @@ namespace Warriors
             stoppingDistance = 2.2f;
         }
 
-        public void Retreat(float duration) => retreatUntil = Time.time + Mathf.Max(.1f, duration);
+        /// <summary>Short hit reaction. Capped so it can never become a retreat.</summary>
+        public void Retreat(float duration) => retreatUntil = Time.time + Mathf.Clamp(duration, .05f, .25f);
     }
 }
