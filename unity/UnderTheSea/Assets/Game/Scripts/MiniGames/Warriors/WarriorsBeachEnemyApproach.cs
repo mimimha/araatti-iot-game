@@ -26,7 +26,7 @@ namespace Warriors
             // a fresh wave from immediately surrounding the player's feet.
             // A tight ring around the player. The old spread reached 5.5m to the side,
             // so enemies slid past instead of closing in; spacing is separation's job.
-            targetOffset = new Vector3(Random.Range(-2.2f, 2.2f), 0f, Random.Range(-0.9f, 0.9f));
+            targetOffset = new Vector3(WarriorsRun.Range(-2.2f, 2.2f), 0f, WarriorsRun.Range(-0.9f, 0.9f));
             if (spawnPoint != null) transform.position = spawnPoint.position;
         }
 

@@ -31521,7 +31521,6 @@ GameObject:
   - component: {fileID: 1806712079764153037}
   - component: {fileID: 7236162580209213610}
   - component: {fileID: 3359357438790071134}
-  - component: {fileID: 4058217664268436902}
   m_Layer: 0
   m_Name: SM_Env_Cloud_Ring_01
   m_TagString: Untagged
@@ -31601,28 +31600,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!95 &4058217664268436902
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5632013340115576173}
-  m_Enabled: 0
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 51148ae029a589942a6dbe8d54d71e8c, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &5642867872736160407
 GameObject:
   m_ObjectHideFlags: 0
@@ -39859,7 +39836,6 @@ GameObject:
   - component: {fileID: 6412166824022225900}
   - component: {fileID: 7243040993534041788}
   - component: {fileID: 3841177739372897115}
-  - component: {fileID: 3831861031024721129}
   m_Layer: 0
   m_Name: SM_Env_Cloud_Ring_01
   m_TagString: Untagged
@@ -39939,28 +39915,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!95 &3831861031024721129
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6974899663880624188}
-  m_Enabled: 0
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 8c7f388be2921854bb059f3dff9afeb9, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &6979295791870317341
 GameObject:
   m_ObjectHideFlags: 0

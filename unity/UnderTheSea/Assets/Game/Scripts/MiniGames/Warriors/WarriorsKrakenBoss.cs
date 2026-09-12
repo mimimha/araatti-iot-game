@@ -59,7 +59,7 @@ namespace Warriors
             foreach (WarriorsTarget tentacle in tentacles)
             {
                 if (tentacle == null) continue;
-                tentacle.ConfigureRequiredDirection((WarriorsAttackDirection)UnityEngine.Random.Range(0, 3));
+                tentacle.ConfigureRequiredDirection((WarriorsAttackDirection)WarriorsRun.Range(0, 3));
                 tentacle.ConfigureAsBossPart();
                 tentacle.SetAttackEnabled(false);
                 tentacle.Defeated -= HandleTentacleDefeated;
@@ -75,7 +75,7 @@ namespace Warriors
             foreach (WarriorsTarget tentacle in tentacles)
                 if (tentacle != null) tentacle.gameObject.SetActive(false);
             FinalFormHealth = finalFormMaxHealth;
-            FinalWeakness = (WarriorsAttackDirection)UnityEngine.Random.Range(0, 3);
+            FinalWeakness = (WarriorsAttackDirection)WarriorsRun.Range(0, 3);
             teamGauge?.ResetGauge();
             if (finalFormRoot != null) finalFormRoot.SetActive(true);
             else if (body != null) body.gameObject.SetActive(true);
@@ -93,7 +93,7 @@ namespace Warriors
             teamGauge?.Add(finalHitGaugeGain);
             StartCoroutine(HitPulse());
             if (FinalFormHealth == 0) FinalFormDefeated?.Invoke();
-            else FinalWeakness = (WarriorsAttackDirection)UnityEngine.Random.Range(0, 3);
+            else FinalWeakness = (WarriorsAttackDirection)WarriorsRun.Range(0, 3);
             return true;
         }
 
@@ -173,7 +173,7 @@ namespace Warriors
             yield return new WaitForSeconds(tentacleRespawnDelay);
             if (tentaclePhaseComplete || tentacle == null) yield break;
             WarriorsAttackDirection previous = tentacle.RequiredDirection;
-            WarriorsAttackDirection next = (WarriorsAttackDirection)(((int)previous + UnityEngine.Random.Range(1, 3)) % 3);
+            WarriorsAttackDirection next = (WarriorsAttackDirection)(((int)previous + WarriorsRun.Range(1, 3)) % 3);
             tentacle.ReviveBossPart(next);
             tentacle.Defeated -= HandleTentacleDefeated;
             tentacle.Defeated += HandleTentacleDefeated;

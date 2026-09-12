@@ -29,9 +29,9 @@ namespace Warriors
             alive.Clear();
             while (enabled)
             {
-                yield return new WaitForSeconds(Random.Range(spawnInterval.x, spawnInterval.y));
+                yield return new WaitForSeconds(WarriorsRun.Range(spawnInterval.x, spawnInterval.y));
                 if (score != null && !score.IsRunning) continue;
-                int count = Random.Range(spawnCount.x, spawnCount.y + 1);
+                int count = WarriorsRun.Range(spawnCount.x, spawnCount.y + 1);
                 for (int i = 0; i < count && alive.Count < maxAliveEnemies; i++) TrySpawn();
             }
         }
@@ -42,13 +42,13 @@ namespace Warriors
             if (enemyTemplates.Length == 0 || spawnPoints.Length == 0) return;
             for (int attempt = 0; attempt < 10; attempt++)
             {
-                Transform point = spawnPoints[Random.Range(0, spawnPoints.Length)];
-                Vector3 position = point.position + new Vector3(Random.Range(-1.5f, 1.5f), 0f, Random.Range(-.8f, .8f));
+                Transform point = spawnPoints[WarriorsRun.Range(0, spawnPoints.Length)];
+                Vector3 position = point.position + new Vector3(WarriorsRun.Range(-1.5f, 1.5f), 0f, WarriorsRun.Range(-.8f, .8f));
                 bool clear = true;
                 foreach (var existingEnemy in alive)
                     if (existingEnemy != null && Vector3.Distance(existingEnemy.transform.position, position) < minimumSpawnDistance) { clear = false; break; }
                 if (!clear) continue;
-                WarriorsTarget source = enemyTemplates[Random.Range(0, enemyTemplates.Length)];
+                WarriorsTarget source = enemyTemplates[WarriorsRun.Range(0, enemyTemplates.Length)];
                 WarriorsTarget enemy = Instantiate(source, position, point.rotation, enemyParent);
                 var approach = enemy.GetComponent<WarriorsBeachEnemyApproach>();
                 if (approach == null) approach = enemy.gameObject.AddComponent<WarriorsBeachEnemyApproach>();

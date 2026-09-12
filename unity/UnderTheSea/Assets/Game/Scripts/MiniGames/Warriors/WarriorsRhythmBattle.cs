@@ -130,11 +130,11 @@ namespace Warriors
             int repeated = 0;
             for (int i = 0; i < noteCount; i++)
             {
-                WarriorsAttackDirection type = (WarriorsAttackDirection)UnityEngine.Random.Range(0, 3);
+                WarriorsAttackDirection type = (WarriorsAttackDirection)WarriorsRun.Range(0, 3);
                 if (type == previous) repeated++; else repeated = 1;
                 if (repeated > 2)
                 {
-                    type = (WarriorsAttackDirection)(((int)type + UnityEngine.Random.Range(1, 3)) % 3);
+                    type = (WarriorsAttackDirection)(((int)type + WarriorsRun.Range(1, 3)) % 3);
                     repeated = 1;
                 }
                 previous = type;
