@@ -95,6 +95,39 @@ public static class SceneFlow
     /// <summary>ChannelSelect 에서 채널 접속에 성공했을 때.</summary>
     public static void FromChannelSelect() => Load(Lobby);
 
+    /// <summary>
+    /// 지금 씬을 처음부터 다시 시작한다. 미니게임 결과 화면의 [다시 하기] 용.
+    ///
+    /// ⚠ GAME_STRUCTURE.md 3장에 따라 씬 전환은 이 파일에만 둔다.
+    ///    미니게임 쪽에서는 SceneManager 를 직접 부르지 않고 이 메서드를 호출한다.
+    ///
+    /// Scene List 에 없는 Develop 씬(WarriorsTest 등)에서도 확인할 수 있도록
+    /// 에디터 플레이 모드에서는 경로로 다시 연다.
+    /// </summary>
+    public static void RestartCurrent()
+    {
+        // 라운드 안내가 시간을 멈춘 상태로 끝났을 수도 있으므로 먼저 되돌린다.
+        Time.timeScale = 1f;
+
+        Scene active = SceneManager.GetActiveScene();
+        Debug.Log($"[SceneFlow] 다시 시작: {active.name}");
+
+        if (active.buildIndex >= 0)
+        {
+            SceneManager.LoadScene(active.buildIndex);
+            return;
+        }
+
+#if UNITY_EDITOR
+        UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+            active.path, new LoadSceneParameters(LoadSceneMode.Single));
+#else
+        Debug.LogError(
+            $"[SceneFlow] \"{active.name}\" 씬이 Scene List 에 없어 다시 시작할 수 없습니다. " +
+            "File > Build Profiles 의 Scene List 를 확인해 주세요.");
+#endif
+    }
+
     // ------------------------------------------------------------
     // 뒤로 가는 흐름
     // ------------------------------------------------------------
