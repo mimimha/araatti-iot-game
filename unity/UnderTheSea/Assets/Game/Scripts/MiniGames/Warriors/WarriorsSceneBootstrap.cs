@@ -11,6 +11,11 @@ namespace Warriors
 
         private void Awake()
         {
+            // 판을 열기 전에 시드를 먼저 정한다. 스폰·보스 약점·리듬 악보가 모두
+            // 이 시드에서 나오므로, 네트워크가 붙으면 서버가 정한 시드를
+            // WarriorsRun.BeginRun(seed) 로 넣어 주기만 하면 네 명이 같은 판을 본다.
+            WarriorsRun.BeginRun();
+
             WarriorsLocalPlayerController localPlayer = FindFirstObjectByType<WarriorsLocalPlayerController>(FindObjectsInactive.Include);
             Transform playersRoot = localPlayer != null ? localPlayer.transform.parent : null;
 
