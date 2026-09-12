@@ -195,6 +195,39 @@ Warriors 씬에는 EventSystem 이 없으므로 `WarriorsRetryButton` 이 필요
 | 플레이어 무적 | **켜져 있음** (`WarriorsStandalonePlayer.prefab` → `immortalForTesting`) | 이 상태에서는 사망 종료가 발생하지 않습니다. ROUND 1 실패는 시간 초과뿐입니다 |
 | ROUND 3 협동 마무리 | 코드에는 있으나 도달하지 않음 | 리듬 전투가 먼저 끝나 클리어로 넘어갑니다. 4인 IoT 입력이 붙은 뒤 다시 봅니다 |
 | ROUND 3 노트 레인 판정 | 레인 구분 없이 가장 가까운 노트를 처리 | 4인일 때 남의 노트를 대신 칠 수 있습니다 |
-| 크라켄 약점(`WeakPoint`) 머티리얼 | 비어 있음 | ROUND 3에서 기본 머티리얼로 보입니다 |
-| `WarriorsBeachArena` 의 빈 Animator 2개 | 참조 없음 | 삭제된 테스트용 컨트롤러 자리입니다 |
 | 점수 배분 | 일반 100 / 보스 250 | 밸런스 미확정 |
+
+---
+
+## 10. 멀티플레이 준비 상태
+
+인원은 4명 고정이지만 **아직 네트워크 코드가 없습니다.** 지금은 한 대에서 혼자 도는 구조입니다.
+
+팀은 Photon Fusion(Dedicated Server + Client)을 씁니다. 붙일 때 따를 기존 패턴:
+
+| 파일 | 역할 |
+| --- | --- |
+| `Scripts/Network/FusionLauncher.cs` | 세션 기동. 씬을 **경로**로 지정한다 |
+| `Scripts/Network/PlayerSpawner.cs` | `IPlayerJoined` + `Runner.Spawn`, 서버만 스폰 |
+| `Scripts/Network/NetworkInputData.cs` | `INetworkInput` 입력 구조체 |
+
+### 이미 해둔 것
+
+- **난수를 판 단위 시드로 통일** (`WarriorsRun`). 스폰 · 촉수 약점 · 리듬 악보가 모두 한 시드에서 나옵니다.
+  서버가 판을 쥐면 `WarriorsRun.BeginRun(seed)` 로 시드만 넣어 주면 네 명이 같은 판을 봅니다.
+- 입력 경계(`IWarriorsInputSource`)와 `PlayerId 0~3` 구분이 이미 있습니다. (`AI_INPUT_CONTRACT.md`)
+- 결과가 `WarriorsResult(성공여부, 점수)` 이벤트로 분리돼 있어 로비 계약을 이미 충족합니다.
+
+### 남은 것
+
+| 항목 | 내용 |
+| --- | --- |
+| 몬스터 · 보스 네트워크 스폰 | 지금은 `Instantiate`. `NetworkObject` + 서버 스폰으로 |
+| 게임 상태 동기화 | `GameFlow` · `BattleScore` · `Health` 를 `[Networked]` 로 |
+| 공격 입력 | `INetworkInput` 으로. 키보드가 항상 `PlayerId 0` 인 것도 함께 정리 |
+| 피격 판정 권한 | 지금은 클라이언트 로컬 판정 |
+| ROUND 3 노트 레인 | `HandleAttack` 이 노트의 `PlayerIndex` 를 보지 않아 남의 노트를 대신 칠 수 있습니다 |
+
+> ⚠ 팀 네트워크 로드맵(`docs/prd/fusion-dedicated-lobby-roadmap.md`)은 Lobby 와 캐릭터 외형까지만 다룹니다.
+> **미니게임 네트워크는 아직 어느 단계에도 없습니다.** 착수 전에 네트워크 담당자와
+> "미니게임은 어느 단계에서 어떻게 붙일지" 를 먼저 합의해야 합니다.
