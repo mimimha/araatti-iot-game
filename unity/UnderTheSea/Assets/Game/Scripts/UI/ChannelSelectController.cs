@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnderTheSea.Account;
 
 /// <summary>
 /// 채널(서버) 선택 화면.
@@ -19,13 +19,6 @@ using UnityEngine.UI;
 /// </summary>
 public class ChannelSelectController : MonoBehaviour
 {
-    [Header("씬 이동")]
-    [Tooltip("입장에 성공하면 이동할 씬")]
-    [SerializeField] private string nextSceneName = "Lobby";
-
-    [Tooltip("뒤로가기로 이동할 씬")]
-    [SerializeField] private string backSceneName = "CharacterCreate";
-
     [Header("채널 줄")]
     [Tooltip("위에서부터 순서대로 넣는다. 채널이 줄보다 많으면 앞에서부터만 보인다.")]
     [SerializeField] private ChannelRowView[] rows;
@@ -205,7 +198,7 @@ public class ChannelSelectController : MonoBehaviour
         {
             // 서버가 없으면 접속 과정을 건너뛰고 그냥 다음 화면으로 넘어간다.
             Debug.Log($"[ChannelSelect] 서버 없이 진행합니다. 고른 채널: {serverId}");
-            LoadScene(nextSceneName, "다음 화면");
+            SceneFlow.FromChannelSelect();
             return;
         }
 
@@ -213,7 +206,8 @@ public class ChannelSelectController : MonoBehaviour
         if (joinButton != null) joinButton.interactable = false;
         SetMessage(connectingText);
 
-        NetworkServiceLocator.Current.Connect(PlayerNickname(), serverId);
+        // 캐릭터 이름은 CharacterCreate 에서 정한 것을 그대로 쓴다. (GAME_STRUCTURE.md 6장)
+        NetworkServiceLocator.Current.Connect(SceneFlow.NicknameOrDefault, serverId);
     }
 
     private void HandleConnectResult(bool success, string reason)
@@ -229,42 +223,24 @@ public class ChannelSelectController : MonoBehaviour
         }
 
         SetMessage(string.Empty);
-        LoadScene(nextSceneName, "다음 화면");
-    }
-
-    public void GoBack()
-    {
-        LoadScene(backSceneName, "뒤로가기");
+        SceneFlow.FromChannelSelect();
     }
 
     /// <summary>
-    /// 접속에 쓸 닉네임.
-    /// 캐릭터 생성 화면이 붙으면 거기서 정한 이름을 여기로 넘기면 된다.
+    /// [뒤로가기]. 로그아웃하고 로그인 화면으로 돌아간다.
+    ///
+    /// 지우는 것은 **로그인 세션과 메모리 캐시뿐**이다.
+    /// 가입한 계정과 이미 만든 캐릭터는 그대로 남는다.
+    /// 그래서 같은 계정으로 다시 로그인하면 캐릭터가 이미 있으므로
+    /// CharacterCreate 를 건너뛰고 이 화면으로 바로 돌아온다.
+    ///
+    /// 무엇을 지울지는 AccountServiceLocator 가 정한다. 이 화면은 알지 않는다.
+    /// 서비스가 없어도(씬 단독 실행) 안전하게 화면만 넘어간다.
     /// </summary>
-    private static string PlayerNickname()
+    public void GoBack()
     {
-        string saved = PlayerPrefs.GetString("PlayerNickname", string.Empty);
-        return string.IsNullOrWhiteSpace(saved) ? "선원" : saved;
-    }
-
-    private void LoadScene(string sceneName, string what)
-    {
-        if (string.IsNullOrEmpty(sceneName))
-        {
-            Debug.LogWarning($"[ChannelSelect] {what} 씬 이름이 비어 있습니다. Inspector 를 확인해 주세요.", this);
-            return;
-        }
-
-        if (!Application.CanStreamedLevelBeLoaded(sceneName))
-        {
-            Debug.LogError(
-                $"[ChannelSelect] \"{sceneName}\" 씬을 찾을 수 없습니다. " +
-                "File > Build Profiles 의 Scene List 에 등록되어 있는지 확인해 주세요.", this);
-            return;
-        }
-
-        Debug.Log($"[ChannelSelect] 씬 이동: {sceneName}");
-        SceneManager.LoadScene(sceneName);
+        AccountServiceLocator.LogOut();
+        SceneFlow.BackToLogin();
     }
 
     private void SetMessage(string text)

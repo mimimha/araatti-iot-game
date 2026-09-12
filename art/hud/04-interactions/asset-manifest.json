@@ -1,0 +1,86 @@
+[
+  {
+    "file": "icon-cannon.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-helm.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-repair.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "icon-sails.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "task-background.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 235
+  },
+  {
+    "file": "task-frame.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "task-label.png",
+    "width": 512,
+    "height": 128,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "task-progress-fill.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "task-progress-track.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "world-background.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 150
+  },
+  {
+    "file": "world-focus-ring.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "world-ring.png",
+    "width": 512,
+    "height": 512,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  }
+]

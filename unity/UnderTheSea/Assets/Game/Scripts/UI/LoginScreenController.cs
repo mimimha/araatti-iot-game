@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnderTheSea.Account;
 
 /// <summary>
 /// 로그인 / 회원가입 화면.
@@ -18,13 +18,6 @@ using UnityEngine.UI;
 /// </summary>
 public class LoginScreenController : MonoBehaviour
 {
-    [Header("씬 이동")]
-    [Tooltip("로그인 / 회원가입 후 이동할 씬")]
-    [SerializeField] private string nextSceneName = "CharacterCreate";
-
-    [Tooltip("뒤로가기로 이동할 씬")]
-    [SerializeField] private string backSceneName = "Title";
-
     [Header("탭")]
     [SerializeField] private Button loginTabButton;
     [SerializeField] private Button registerTabButton;
@@ -60,7 +53,20 @@ public class LoginScreenController : MonoBehaviour
     [SerializeField] private string loginLabelText = "로그인";
     [SerializeField] private string registerLabelText = "회원가입";
 
+    [Header("안내 문구")]
+    [Tooltip("실패 사유와 진행 상태를 보여준다. 비워 두면 Console 에만 남는다. (씬 수정 없이도 동작한다)")]
+    [SerializeField] private TextMeshProUGUI messageLabel;
+
+    [SerializeField] private string processingText = "확인하는 중...";
+
     private bool _isLoginMode = true;
+
+    /// <summary>요청을 보내고 결과를 기다리는 중인지. 버튼 중복 클릭을 막는다.</summary>
+    private bool _isBusy;
+
+    // 회원가입 성공 뒤 곧바로 로그인하기 위해 잠시 들고 있는다.
+    private string _pendingEmail = string.Empty;
+    private string _pendingPassword = string.Empty;
 
     /// <summary>지금 로그인 탭인지. false 면 회원가입 탭.</summary>
     public bool IsLoginMode => _isLoginMode;
@@ -78,6 +84,13 @@ public class LoginScreenController : MonoBehaviour
         if (registerTabButton != null) registerTabButton.onClick.AddListener(SelectRegisterTab);
         if (submitButton != null) submitButton.onClick.AddListener(Submit);
         if (backButton != null) backButton.onClick.AddListener(GoBack);
+
+        if (AccountServiceLocator.IsReady)
+        {
+            AccountServiceLocator.Auth.OnSignUpResult += HandleSignUpResult;
+            AccountServiceLocator.Auth.OnLogInResult += HandleLogInResult;
+            AccountServiceLocator.Characters.OnMyCharactersResult += HandleMyCharactersResult;
+        }
     }
 
     private void OnDisable()
@@ -86,6 +99,13 @@ public class LoginScreenController : MonoBehaviour
         if (registerTabButton != null) registerTabButton.onClick.RemoveListener(SelectRegisterTab);
         if (submitButton != null) submitButton.onClick.RemoveListener(Submit);
         if (backButton != null) backButton.onClick.RemoveListener(GoBack);
+
+        if (AccountServiceLocator.IsReady)
+        {
+            AccountServiceLocator.Auth.OnSignUpResult -= HandleSignUpResult;
+            AccountServiceLocator.Auth.OnLogInResult -= HandleLogInResult;
+            AccountServiceLocator.Characters.OnMyCharactersResult -= HandleMyCharactersResult;
+        }
     }
 
     private void Start()
@@ -165,39 +185,118 @@ public class LoginScreenController : MonoBehaviour
     /// 나중에 인증을 붙이면 이 안에서 서버에 요청하고,
     /// 성공했을 때만 씬을 넘기도록 바꾸면 된다.
     /// </summary>
+    /// <summary>
+    /// 로그인 / 회원가입 실행.
+    ///
+    /// 여기서 씬을 넘기지 않는다. 서비스가 성공을 알려주고, 이어서 캐릭터 개수를 받아온 뒤에야
+    /// 넘긴다. 검증도 서비스가 한다. 서버와 규칙이 갈라지지 않게 하기 위함이다.
+    /// </summary>
     public void Submit()
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         string email = emailField != null ? emailField.text : string.Empty;
-        string mode = _isLoginMode ? "로그인" : "회원가입";
+        string password = passwordField != null ? passwordField.text : string.Empty;
 
-        Debug.Log($"[LoginScreen] {mode} — 입력한 이메일: \"{email}\" (아직 검증하지 않습니다)");
+        if (!AccountServiceLocator.IsReady)
+        {
+            // 서비스가 없다. 이 씬만 단독 실행한 경우다. 예전 방식으로 통과시킨다.
+            Debug.LogWarning(
+                "[LoginScreen] 계정 서비스가 없어 이 PC 의 저장값만 보고 넘어갑니다. " +
+                "정상 흐름을 보려면 Boot 씬부터 실행해 주세요.", this);
+            SceneFlow.FromLogin();
+            return;
+        }
 
-        LoadScene(nextSceneName, "다음 화면");
+        _pendingEmail = email;
+        _pendingPassword = password;
+
+        SetBusy(true);
+        SetMessage(processingText);
+
+        if (_isLoginMode)
+        {
+            AccountServiceLocator.Auth.LogIn(email, password);
+        }
+        else
+        {
+            AccountServiceLocator.Auth.SignUp(email, password);
+        }
+    }
+
+    /// <summary>회원가입 결과. 성공하면 토큰을 받으러 곧바로 로그인한다.</summary>
+    private void HandleSignUpResult(bool success, string reason)
+    {
+        if (!success)
+        {
+            Fail(reason);
+            return;
+        }
+
+        // 가입 응답에는 토큰이 없다. (서버 규격) 그래서 로그인을 한 번 더 부른다.
+        AccountServiceLocator.Auth.LogIn(_pendingEmail, _pendingPassword);
+    }
+
+    /// <summary>로그인 결과. 성공하면 캐릭터 개수를 받아온다.</summary>
+    private void HandleLogInResult(bool success, string reason)
+    {
+        if (!success)
+        {
+            Fail(reason);
+            return;
+        }
+
+        _pendingPassword = string.Empty;
+        AccountServiceLocator.Characters.RequestMyCharacters();
+    }
+
+    /// <summary>캐릭터 개수를 받았다. 이제서야 다음 화면이 정해진다.</summary>
+    private void HandleMyCharactersResult(bool success, CharacterDto[] characters, string reason)
+    {
+        if (!success)
+        {
+            Fail(reason);
+            return;
+        }
+
+        SetBusy(false);
+        SetMessage(string.Empty);
+
+        SceneFlow.FromLogin(characters != null ? characters.Length : 0);
+    }
+
+    private void Fail(string reason)
+    {
+        _pendingPassword = string.Empty;
+        SetBusy(false);
+        SetMessage(string.IsNullOrWhiteSpace(reason) ? "요청을 처리하지 못했습니다." : reason);
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _isBusy = busy;
+        if (submitButton != null) submitButton.interactable = !busy;
+    }
+
+    /// <summary>안내 라벨이 연결되어 있지 않아도 동작한다. 그때는 Console 에만 남는다.</summary>
+    private void SetMessage(string text)
+    {
+        if (messageLabel == null)
+        {
+            if (!string.IsNullOrEmpty(text)) Debug.Log($"[LoginScreen] {text}", this);
+            return;
+        }
+
+        messageLabel.text = text;
+        messageLabel.gameObject.SetActive(!string.IsNullOrEmpty(text));
     }
 
     public void GoBack()
     {
-        LoadScene(backSceneName, "뒤로가기");
-    }
-
-    private void LoadScene(string sceneName, string what)
-    {
-        if (string.IsNullOrEmpty(sceneName))
-        {
-            Debug.LogWarning($"[LoginScreen] {what} 씬 이름이 비어 있습니다. Inspector 를 확인해 주세요.", this);
-            return;
-        }
-
-        if (!Application.CanStreamedLevelBeLoaded(sceneName))
-        {
-            Debug.LogError(
-                $"[LoginScreen] \"{sceneName}\" 씬을 찾을 수 없습니다. " +
-                "File > Build Profiles 의 Scene List 에 등록되어 있는지 확인해 주세요.", this);
-            return;
-        }
-
-        Debug.Log($"[LoginScreen] 씬 이동: {sceneName}");
-        SceneManager.LoadScene(sceneName);
+        SceneFlow.BackToTitle();
     }
 
     private void WarnIfMissing(Object reference, string fieldName)

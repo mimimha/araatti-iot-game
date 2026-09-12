@@ -30,6 +30,14 @@ namespace UnderTheSea.Character
             [NonSerialized] public GameObject activePart;
         }
 
+        /// <summary>
+        /// [생성 완료] 를 눌러 이름 검증을 통과하고 저장까지 끝났을 때 알린다. 인자는 저장된 이름.
+        ///
+        /// 검증에 걸려서 되돌아간 경우에는 호출되지 않는다.
+        /// 다음 화면으로 넘기는 것은 이 알림을 듣는 쪽(CharacterCreateFlow)이 한다.
+        /// </summary>
+        public event Action<string> Completed;
+
         [Header("Character")]
         [SerializeField] private Transform characterPreview;
         [SerializeField] private PartCollection face;
@@ -96,7 +104,9 @@ namespace UnderTheSea.Character
             if (skinColors.Length > 0)
                 ApplySkinColor(Mathf.Clamp(defaultSkinColorIndex, 0, skinColors.Length - 1));
 
-            ApplyCuteDefaultCharacter();
+            // 저장된 외형이 있으면 그것으로 시작한다. (CharacterCustomizationPersistence.cs)
+            if (!TryApplySavedAppearance())
+                ApplyCuteDefaultCharacter();
 
             OpenCategory(Category.Face);
         }
@@ -413,13 +423,9 @@ namespace UnderTheSea.Character
                 return;
             }
 
-            PlayerPrefs.SetString("PlayerNickname", nickname);
-            PlayerPrefs.Save();
-
-            if (sectionTitle != null)
-                sectionTitle.text = nickname + " 캐릭터 설정 완료!";
-
-            Debug.Log("Character customization completed for " + nickname + ".");
+            // 캐릭터를 서비스에 만든다. **성공했을 때만** 저장하고 Completed 를 알린다.
+            // 저장 · 알림 · 실패 표시는 모두 CharacterCustomizationPersistence.cs 에 있다.
+            SubmitCharacter(nickname);
         }
 
         private static string GetNicknameValidationMessage(string nickname)

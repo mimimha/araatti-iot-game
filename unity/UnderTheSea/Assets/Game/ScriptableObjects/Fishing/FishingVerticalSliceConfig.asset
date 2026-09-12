@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed6c2f67138aad648b4f5921fbabba4f, type: 3}
+  m_Name: FishingVerticalSliceConfig
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingGameConfigAsset
+  maxCastChargeSeconds: 1.5
+  minBiteDelaySeconds: 1.5
+  maxBiteDelaySeconds: 3.5
+  hookWindowSeconds: 0.9
+  hookSettleSeconds: 0.35
+  safeTensionMin: 0.3
+  safeTensionMax: 0.75
+  slackEscapeSeconds: 2
+  highTensionGraceSeconds: 1.2
+  highTensionDamagePerSecond: 60
+  fishDamagePerSecond: 36
+  fightTimeoutSeconds: 25
+  outcomeDisplaySeconds: 1.3
+  cooldownSeconds: 1
+  randomSeed: 20260821
+  fishId: training_carp
+  fishDisplayName: Training Carp
+  fishBaseScore: 100
+  fishMaxStamina: 100
+  fishPullStrength: 0.5

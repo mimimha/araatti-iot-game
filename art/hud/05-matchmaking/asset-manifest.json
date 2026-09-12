@@ -1,0 +1,107 @@
+[
+  {
+    "file": "harbour-background.png",
+    "width": 1672,
+    "height": 941,
+    "cornerAlpha": 255,
+    "centerAlpha": 255
+  },
+  {
+    "file": "loading-spinner.png",
+    "width": 256,
+    "height": 256,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "match-button-disabled.png",
+    "width": 512,
+    "height": 112,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "match-button-normal.png",
+    "width": 512,
+    "height": 112,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "match-button-pressed.png",
+    "width": 512,
+    "height": 112,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "match-panel.png",
+    "width": 1729,
+    "height": 910,
+    "cornerAlpha": 0,
+    "centerAlpha": 253
+  },
+  {
+    "file": "notice-divider.png",
+    "width": 512,
+    "height": 32,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "slot-empty-background.png",
+    "width": 320,
+    "height": 480,
+    "cornerAlpha": 0,
+    "centerAlpha": 180
+  },
+  {
+    "file": "slot-frame.png",
+    "width": 320,
+    "height": 480,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "slot-local-highlight.png",
+    "width": 320,
+    "height": 480,
+    "cornerAlpha": 0,
+    "centerAlpha": 0
+  },
+  {
+    "file": "slot-nameplate-dark.png",
+    "width": 288,
+    "height": 76,
+    "cornerAlpha": 0,
+    "centerAlpha": 225
+  },
+  {
+    "file": "slot-nameplate-light.png",
+    "width": 288,
+    "height": 76,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "slot-occupied-background.png",
+    "width": 320,
+    "height": 480,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "slot-question-mark.png",
+    "width": 200,
+    "height": 300,
+    "cornerAlpha": 0,
+    "centerAlpha": 255
+  },
+  {
+    "file": "slot-waiting-silhouette.png",
+    "width": 1047,
+    "height": 1501,
+    "cornerAlpha": 0,
+    "centerAlpha": 254
+  }
+]
