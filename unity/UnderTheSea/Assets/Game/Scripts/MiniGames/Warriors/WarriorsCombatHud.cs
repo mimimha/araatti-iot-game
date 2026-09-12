@@ -13,6 +13,16 @@ namespace Warriors
         private float actionUntil;
 
         public string ActiveActionLabel => Time.time <= actionUntil ? actionLabel : string.Empty;
+
+        /// <summary>
+        /// The swing the player just made, for the short window after it landed.
+        /// The HUD lights up the matching attack card with this instead of printing the
+        /// attack name across the middle of the screen.
+        /// </summary>
+        public WarriorsAttackDirection ActiveActionType =>
+            Time.time <= actionUntil ? actionType : WarriorsAttackDirection.None;
+
+        private WarriorsAttackDirection actionType = WarriorsAttackDirection.None;
         public void SetLegacyHudVisible(bool visible) => drawLegacyHud = visible;
         [SerializeField] private bool drawLegacyHud = true;
 
@@ -45,6 +55,7 @@ namespace Warriors
                 WarriorsAttackDirection.VerticalSlash => "CURRENT  2  VERTICAL",
                 _ => "CURRENT  3  THRUST"
             };
+            actionType = direction;
             actionLabel = direction switch
             {
                 WarriorsAttackDirection.HorizontalSlash => "↔  가로베기",

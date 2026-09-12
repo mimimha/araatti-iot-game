@@ -50,7 +50,7 @@ MonoBehaviour:
   playerHealth: {fileID: 0}
   comboSystem: {fileID: 0}
   rhythmBattle: {fileID: 4575159974201224617}
-  drawLegacyHud: 1
+  drawLegacyHud: 0
 --- !u!1 &3072022230968552565
 GameObject:
   m_ObjectHideFlags: 0
@@ -392,4 +392,4 @@ MonoBehaviour:
   perfectWindow: 0.12
   goodWindow: 0.3
   inputOffset: 0
-  drawLegacyHud: 1
+  drawLegacyHud: 0

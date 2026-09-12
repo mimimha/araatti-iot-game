@@ -44,6 +44,12 @@ namespace Warriors
             routine = StartCoroutine(DefeatAnimation());
         }
 
+        /// <summary>
+        /// A swing that does not match this monster's weakness.
+        /// Every monster caught in the arc used to shout "WRONG" over its head, so a clean
+        /// kill on one type spammed the screen with warnings from its neighbours. The
+        /// rejection still registers for the IoT feedback hub; it just no longer draws text.
+        /// </summary>
         public void PlayRejected()
         {
             rejectedUntil = Time.time + .35f;
@@ -90,16 +96,6 @@ namespace Warriors
                 flashBlock.SetColor("_Color", new Color(1f, .62f, .28f, 1f));
             }
             foreach (Renderer item in renderers) item.SetPropertyBlock(enabled ? flashBlock : null);
-        }
-
-        private void OnGUI()
-        {
-            if (Time.time >= rejectedUntil || Camera.main == null) return;
-            Vector3 screen = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 1.5f);
-            if (screen.z <= 0f) return;
-            GUIStyle style = new(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            style.normal.textColor = new Color(1f, .35f, .35f);
-            GUI.Label(new Rect(screen.x - 45f, Screen.height - screen.y - 14f, 90f, 28f), "WRONG", style);
         }
 
         private void OnDisable()

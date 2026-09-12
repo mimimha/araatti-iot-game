@@ -108,7 +108,10 @@ namespace Warriors
         private void OnGUI()
         {
             if (Time.time >= overlayUntil) return;
-            float alpha = Mathf.Clamp01((overlayUntil - Time.time) / .18f) * .20f;
+            // Surrounded by a full wave the 0.18s washes overlap end to end, so at the old
+            // 0.20 strength the whole game view stayed tinted red. Keep it as a hit cue,
+            // not a colour filter over the scene.
+            float alpha = Mathf.Clamp01((overlayUntil - Time.time) / .18f) * .09f;
             Color previous = GUI.color;
             GUI.color = new Color(1f, .08f, .04f, alpha);
             GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
