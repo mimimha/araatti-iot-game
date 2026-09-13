@@ -46,9 +46,8 @@ namespace UnderTheSea.Character
         [SerializeField] private PartCollection bottom;
         [SerializeField] private PartCollection shoes;
         [SerializeField] private PartCollection accessory;
-        [SerializeField] private SkinnedMeshRenderer[] skinRenderers;
+        [Tooltip("화면에 보여줄 피부색 팔레트. 실제로 칠하는 일은 Applier 가 한다.")]
         [SerializeField] private Color[] skinColors;
-        [SerializeField] private Material skinSourceMaterial;
         [SerializeField] private int defaultSkinColorIndex = 1;
 
         [Header("UI")]
@@ -72,15 +71,10 @@ namespace UnderTheSea.Character
         private Category activeCategory;
         private int currentPage;
         private Color currentSkinColor = Color.white;
-        private Material originalSkinMaterial;
-        private Texture2D originalSkinTexture;
-        private Material runtimeSkinMaterial;
-        private Texture2D runtimeSkinTexture;
 
         private void Awake()
         {
             EnsureReusableUiLayout();
-            CacheOriginalSkinAssets();
 
             for (int i = 0; i < categoryButtons.Length; i++)
             {
@@ -238,8 +232,8 @@ namespace UnderTheSea.Character
             runtimeRenderer.localBounds = source.localBounds;
             runtimeRenderer.updateWhenOffscreen = collection.targetRenderer.updateWhenOffscreen;
 
-            if (ReferenceEquals(collection, face))
-                ApplySkinMaterial(runtimeRenderer);
+            if (ReferenceEquals(collection, face) && appearance != null)
+                appearance.ApplySkinMaterialTo(runtimeRenderer);
 
             collection.targetRenderer.enabled = false;
 
@@ -282,134 +276,36 @@ namespace UnderTheSea.Character
             RefreshOptions();
         }
 
+        /// <summary>
+        /// 팔레트에서 고른 색을 입힌다.
+        ///
+        /// ⚠ <b>두 가지 일을 명확히 나눠 둔다.</b> (PRD 09-1)
+        ///    · 색을 칠하는 일   → Applier. UI 가 없어도 된다
+        ///    · 팔레트를 갱신하는 일 → 이 화면. UI 가 있어야 한다
+        ///    나누지 않으면 로비의 캐릭터에 색을 칠할 때 팔레트 버튼을 찾다가 죽는다.
+        /// </summary>
         private void ApplySkinColor(int colorIndex)
         {
             currentSkinColor = skinColors[colorIndex];
-            RebuildSkinMaterial();
 
-            foreach (SkinnedMeshRenderer renderer in skinRenderers)
-                ApplySkinMaterial(renderer);
+            if (appearance != null)
+            {
+                // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
+                appearance.ApplySkinColor(currentSkinColor);
 
-            if (face.activePart != null)
-                ApplySkinMaterial(face.activePart.GetComponent<SkinnedMeshRenderer>());
-
-            RefreshCatalogSkin();
+                // 카탈로그에 없는 파츠는 컨트롤러가 targetRenderer 경로로 붙였다. 그것만 여기서 칠한다.
+                if (face.activePart != null)
+                    appearance.ApplySkinMaterialTo(face.activePart.GetComponent<SkinnedMeshRenderer>());
+            }
 
             RefreshSkinColorOptions();
         }
 
-        private void RebuildSkinMaterial()
-        {
-            if (originalSkinMaterial == null || originalSkinTexture == null)
-            {
-                Debug.LogError("피부색 변경에 사용할 원본 재질 또는 텍스처를 찾지 못했습니다.", this);
-                return;
-            }
 
-            DestroyRuntimeSkinAssets();
 
-            // 항상 변경되지 않은 원본에서 다시 생성해야 밝은 색으로 되돌릴 수 있다.
-            runtimeSkinTexture = CreateRecoloredSkinTexture(originalSkinTexture, currentSkinColor);
-            runtimeSkinMaterial = new Material(originalSkinMaterial)
-            {
-                name = originalSkinMaterial.name + " (Runtime Skin)"
-            };
-            runtimeSkinMaterial.SetTexture("_BaseMap", runtimeSkinTexture);
-            runtimeSkinMaterial.SetColor("_BaseColor", Color.white);
-        }
 
-        private void CacheOriginalSkinAssets()
-        {
-            if (skinSourceMaterial != null)
-            {
-                originalSkinMaterial = skinSourceMaterial;
-                originalSkinTexture = skinSourceMaterial.GetTexture("_BaseMap") as Texture2D;
-                return;
-            }
-            foreach (SkinnedMeshRenderer renderer in skinRenderers)
-            {
-                if (renderer == null || renderer.sharedMaterial == null)
-                    continue;
 
-                originalSkinMaterial = renderer.sharedMaterial;
-                originalSkinTexture = originalSkinMaterial.GetTexture("_BaseMap") as Texture2D;
-                return;
-            }
-        }
 
-        private void ApplySkinMaterial(Renderer renderer)
-        {
-            if (renderer == null || runtimeSkinMaterial == null)
-                return;
-
-            renderer.sharedMaterial = runtimeSkinMaterial;
-
-            // 이전 구현에서 남은 전체 렌더러 색상 틴트를 제거한다.
-            renderer.SetPropertyBlock(null);
-        }
-
-        public static Texture2D CreateRecoloredSkinTexture(Texture2D source, Color skinColor)
-        {
-            RenderTexture temporary = RenderTexture.GetTemporary(
-                source.width,
-                source.height,
-                0,
-                RenderTextureFormat.ARGB32,
-                RenderTextureReadWrite.sRGB);
-            RenderTexture previous = RenderTexture.active;
-
-            Graphics.Blit(source, temporary);
-            RenderTexture.active = temporary;
-
-            Texture2D result = new Texture2D(source.width, source.height, TextureFormat.RGBA32, source.mipmapCount > 1);
-            result.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
-            result.Apply(false, false);
-
-            RenderTexture.active = previous;
-            RenderTexture.ReleaseTemporary(temporary);
-
-            Color[] pixels = result.GetPixels();
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                Color pixel = pixels[i];
-
-                // Cute Characters 팔레트에서 피부 메시가 참조하는 빨강/주황 계열만 교체한다.
-                bool isSkinPalette = pixel.r > 0.22f
-                    && pixel.r > pixel.g * 1.12f
-                    && pixel.r > pixel.b * 1.12f;
-                if (!isSkinPalette)
-                    continue;
-
-                float brightness = Mathf.Clamp01(Mathf.Max(pixel.r, Mathf.Max(pixel.g, pixel.b)));
-                Color recolored = skinColor * brightness;
-                recolored.a = pixel.a;
-                pixels[i] = recolored;
-            }
-
-            result.SetPixels(pixels);
-            result.wrapMode = source.wrapMode;
-            result.filterMode = source.filterMode;
-            result.anisoLevel = source.anisoLevel;
-            result.name = source.name + " (Runtime Skin)";
-            result.Apply(source.mipmapCount > 1, false);
-            return result;
-        }
-
-        private void OnDestroy()
-        {
-            DestroyRuntimeSkinAssets();
-        }
-
-        private void DestroyRuntimeSkinAssets()
-        {
-            if (runtimeSkinMaterial != null)
-                Destroy(runtimeSkinMaterial);
-            if (runtimeSkinTexture != null)
-                Destroy(runtimeSkinTexture);
-
-            runtimeSkinMaterial = null;
-            runtimeSkinTexture = null;
-        }
 
         private void CompleteCustomization()
         {
