@@ -58,8 +58,10 @@ public class DebugPlayerMover : MonoBehaviour
     [Tooltip("이 높이까지는 걸어 올라간다. 갑판 사이 계단 한 칸보다 크게 잡는다.")]
     [SerializeField, Min(0f)] private float stepHeight = 0.4f;
 
-    [Tooltip("이 각도까지는 걸어 올라간다.")]
-    [SerializeField, Range(0f, 80f)] private float slopeLimit = 50f;
+    [Tooltip("이 각도까지는 걸어 올라간다.\n\n" +
+             "배의 뒷갑판 계단이 48.2° 다. 그보다 커야 올라간다.\n" +
+             "낮추려면 계단 모델부터 바꿔야 한다.")]
+    [SerializeField, Range(0f, 80f)] private float slopeLimit = 55f;
 
     [Header("중력")]
     [Tooltip("갑판에서 떨어지거나 계단을 내려올 때 쓴다. 음수.")]
