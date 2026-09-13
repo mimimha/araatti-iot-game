@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -24,14 +25,46 @@ using UnityEngine;
 ///    그래서 옆이나 뒤에서 보면 배가 꺾이는 대신 바위가 미끄러지는 것이 보입니다.
 ///    앞쪽 부채꼴 안에서는 티가 나지 않으므로 그 범위로 묶어 둡니다.
 /// </summary>
+/// <summary>카메라가 무엇을 가운데에 둘지. (SHIPCOOP.md 9장)</summary>
+public enum CameraMode
+{
+    /// <summary>
+    /// 🪜 층 고정. 사람이 있는 갑판 한 층을 비춘다.
+    ///
+    /// 같은 층에 있는 사람끼리 **똑같은 화면**을 봅니다. 그래야 "야 저기!" 가 통합니다.
+    /// 자리가 늘 같은 곳에 보여서 어디에 뭐가 있는지도 외워집니다.
+    /// 돛대와 밧줄에 가리는 각도를 층마다 한 번만 잡아두면 됩니다.
+    /// </summary>
+    PerDeck,
+
+    /// <summary>
+    /// 🏃 사람 따라가기. 내 캐릭터를 따라다닌다.
+    ///
+    /// 내가 늘 화면 가운데 있어서 위치는 헷갈리지 않습니다. 대신 4명이 각자
+    /// 다른 화면을 보게 되고, 돛대에 가리는 순간이 계속 생깁니다.
+    /// </summary>
+    FollowPlayer,
+}
+
 [RequireComponent(typeof(Camera))]
 public class ShipCoopCamera : MonoBehaviour
 {
+    [Header("무엇을 가운데에 둘지")]
+    [Tooltip("층 고정 — 사람이 있는 갑판 한 층을 비춘다. 같은 층 사람끼리 같은 화면을 본다.\n" +
+             "사람 따라가기 — 내 캐릭터를 따라다닌다. 흔한 3D 게임 방식.\n\n" +
+             "어느 쪽이 나은지는 4명이서 해봐야 압니다. 그래서 골라 쓸 수 있게 두었습니다.")]
+    [SerializeField] private CameraMode mode = CameraMode.PerDeck;
+
+    [Tooltip("층이 바뀔 때 옮겨가는 시간 (초).\n\n" +
+             "0 이면 순간이동이라 어디로 갔는지 모릅니다.\n" +
+             "1초쯤 되면 답답합니다. 0.2~0.3 이 적당합니다.")]
+    [SerializeField, Range(0f, 1f)] private float moveTime = 0.25f;
+
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
-    [Tooltip("가운데에 둘 대상. 보통 배(갑판)다.")]
+    [Tooltip("층을 못 찾았을 때 가운데에 둘 대상. 보통 배다.")]
     [SerializeField] private Transform target;
 
-    [Tooltip("이 화면의 주인을 알려준다. 입력을 여기서 가져온다.")]
+    [Tooltip("이 화면의 주인을 알려준다. 입력과 지금 있는 층을 여기서 가져온다.")]
     [SerializeField] private ShipCoopHud hud;
 
     [Header("구도")]
@@ -61,6 +94,27 @@ public class ShipCoopCamera : MonoBehaviour
     /// <summary>지금 돌아간 각도. 0 이 정면.</summary>
     public float Yaw { get; private set; }
 
+    /// <summary>
+    /// 이 화면 주인이 지금 있는 갑판. 없으면 null.
+    ///
+    /// 카메라만 쓰는 것이 아닙니다. **HUD 가 "뒷갑판 침수!" 를 띄울 때도 이걸 봅니다.** (9장)
+    /// </summary>
+    public ShipDeck CurrentDeck { get; private set; }
+
+    /// <summary>지금 가운데에 두고 있는 자리. 층이 바뀌면 여기로 미끄러져 간다.</summary>
+    private Vector3 _pivot;
+    private Vector3 _pivotSpeed;
+    private bool _pivotReady;
+
+    /// <summary>
+    /// 지금 쓰고 있는 구도. 거리 · 높이 · 보는 높이 · 보는 앞쪽.
+    ///
+    /// **층마다 다릅니다.** 자리(pivot)와 함께 미끄러지듯 바뀌어야
+    /// 계단을 오를 때 카메라가 튀지 않습니다.
+    /// </summary>
+    private Vector4 _view;
+    private Vector4 _viewSpeed;
+
     private void Awake()
     {
         if (hud == null)
@@ -83,28 +137,295 @@ public class ShipCoopCamera : MonoBehaviour
             }
         }
 
-        if (target == null)
+        // 층(ShipDeck)이 있으면 그쪽을 먼저 쓰므로 target 이 없어도 된다.
+        // 둘 다 없을 때만 문제다.
+        if (target == null && ShipDeck.All.Count == 0)
         {
-            Debug.LogWarning($"[{name}] 가운데에 둘 대상을 찾지 못했습니다. 카메라가 움직이지 않습니다.", this);
+            Debug.LogWarning(
+                $"[{name}] 갑판(ShipDeck)도 가운데에 둘 대상도 찾지 못했습니다. " +
+                "Tools / ShipCoop / 갑판 3층으로 배치 를 한 번 돌리세요.", this);
         }
     }
 
     private void LateUpdate()
     {
-        if (target == null)
+        UpdateYaw();
+        UpdatePivot();
+
+        Quaternion spin = Quaternion.Euler(0f, Yaw, 0f);
+
+        transform.position = _pivot + spin * new Vector3(0f, _view.y, -_view.x);
+
+        Vector3 lookAt = _pivot + Vector3.up * _view.z + spin * (Vector3.forward * _view.w);
+        transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+
+        HideWhatBlocksNow();
+    }
+
+    // ------------------------------------------------------------
+    // 지금 눈앞을 가리는 것만 잠깐 감춘다
+    //
+    // 층마다 미리 정해둔 목록(`ShipDeck.hideWhenHere`)은 **그 층에서 늘 가리는 것**을
+    // 맡습니다. 뒷갑판 구조물처럼 어느 각도에서든 막는 것들입니다.
+    //
+    // 그런데 난간이나 돛대처럼 **카메라를 돌리면 비켜나는 것**이 있습니다.
+    // 이런 것까지 목록에 넣으면 그 층 내내 사라져 있습니다. 실제로 뒷갑판에서
+    // 난간을 목록에 넣었더니 **사방 난간이 통째로 없어졌습니다.**
+    // (난간 한 층이 메시 하나라 앞쪽만 감출 수가 없습니다)
+    //
+    // 그래서 **매 프레임 카메라에서 사람에게 선을 그어보고**, 거기 걸리는 것만
+    // 감춥니다. 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    // ------------------------------------------------------------
+
+    [Header("눈앞을 가리는 것 (카메라를 돌리면 돌아온다)")]
+    [Tooltip("끄면 미리 정해둔 목록만 쓴다. 난간·돛대가 사람을 가려도 그대로 둔다.")]
+    [SerializeField] private bool hideWhatBlocks = true;
+
+    [Tooltip("사람 주변 이만큼(m) 안에 걸리는 것을 가린 것으로 본다.\n" +
+             "가늘게 두면 난간 살 사이로 빠져나가 깜빡인다.")]
+    [SerializeField, Min(0.1f)] private float blockRadius = 0.8f;
+
+    [Tooltip("사람의 발밑이 아니라 이만큼(m) 위를 본다. 몸통 높이.")]
+    [SerializeField, Min(0f)] private float blockAimHeight = 1.4f;
+
+    /// <summary>
+    /// 가려도 **감추면 안 되는 것.** 이름이 이걸로 시작하면 그냥 둔다.
+    ///
+    /// ⚠ 가린다고 다 감추면 **사람이 봐야 하는 것까지 사라집니다.**
+    ///
+    ///   Deck      걷는 바닥. 감추면 갑판에 구멍이 뚫린 것처럼 보인다
+    ///   Stairs    걸어다니는 경사로가 안 보이므로, **올라갈 길을 알려주는 유일한 단서**
+    ///   Wheel     🛞 조타 자리. 지금 쓰는 물건이 사라지면 안 된다
+    ///   Cannon    💣 대포 자리. 같은 이유
+    ///   Mast      ⛵ 돛 자리이자 배의 뼈대. 통째로 사라지면 배가 무너져 보인다
+    ///   Hull      선체. 감추면 갑판만 바다 위에 뜬다
+    ///
+    /// 여기 없는 것 — 난간 · 밧줄 · 돛천 · 선실 벽 — 은 가리면 감춥니다.
+    /// 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    /// </summary>
+    private static readonly string[] NeverHideLive =
+    {
+        "Deck", "Stairs", "Wheel", "Cannon", "Mast", "Hull",
+    };
+
+    /// <summary>지금 감춰둔 것들. 안 가리게 되면 도로 켠다.</summary>
+    private readonly List<Renderer> _blocking = new List<Renderer>();
+
+    private readonly HashSet<Renderer> _stillBlocking = new HashSet<Renderer>();
+
+    private void OnDisable()
+    {
+        ShowBlockersAgain();
+    }
+
+    private void HideWhatBlocksNow()
+    {
+        if (!hideWhatBlocks)
+        {
+            ShowBlockersAgain();
+            return;
+        }
+
+        TaskWorker worker = FindObjectOfTypeCached();
+
+        if (worker == null)
+        {
+            ShowBlockersAgain();
+            return;
+        }
+
+        Vector3 target = worker.transform.position + Vector3.up * blockAimHeight;
+        Vector3 toTarget = target - transform.position;
+        float far = toTarget.magnitude;
+
+        if (far < 0.5f)
         {
             return;
         }
 
-        UpdateYaw();
+        _stillBlocking.Clear();
 
-        Quaternion spin = Quaternion.Euler(0f, Yaw, 0f);
-        Vector3 pivot = target.position;
+        // 사람 바로 앞에서 멈춘다. 사람 자신이나 사람이 든 물건은 안 감춘다.
+        RaycastHit[] hits = Physics.SphereCastAll(
+            transform.position, blockRadius, toTarget / far, far - blockRadius,
+            ~0, QueryTriggerInteraction.Ignore);
 
-        transform.position = pivot + spin * new Vector3(0f, height, -distance);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Transform what = hits[i].collider.transform;
 
-        Vector3 lookAt = pivot + Vector3.up * lookHeight + spin * (Vector3.forward * lookAhead);
-        transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+            if (what == worker.transform || what.IsChildOf(worker.transform))
+            {
+                continue;
+            }
+
+            if (MustStayVisible(what.name))
+            {
+                continue;
+            }
+
+            Renderer draw = hits[i].collider.GetComponent<Renderer>();
+
+            if (draw != null)
+            {
+                _stillBlocking.Add(draw);
+            }
+        }
+
+        // 이제 안 가리는 것은 도로 켠다.
+        for (int i = _blocking.Count - 1; i >= 0; i--)
+        {
+            if (_blocking[i] == null || !_stillBlocking.Contains(_blocking[i]))
+            {
+                if (_blocking[i] != null)
+                {
+                    _blocking[i].enabled = true;
+                }
+
+                _blocking.RemoveAt(i);
+            }
+        }
+
+        // 새로 가리는 것은 감춘다.
+        foreach (Renderer draw in _stillBlocking)
+        {
+            if (!draw.enabled || _blocking.Contains(draw))
+            {
+                continue;
+            }
+
+            draw.enabled = false;
+            _blocking.Add(draw);
+        }
+    }
+
+    private static bool MustStayVisible(string name)
+    {
+        for (int i = 0; i < NeverHideLive.Length; i++)
+        {
+            if (name.StartsWith(NeverHideLive[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ShowBlockersAgain()
+    {
+        for (int i = 0; i < _blocking.Count; i++)
+        {
+            if (_blocking[i] != null)
+            {
+                _blocking[i].enabled = true;
+            }
+        }
+
+        _blocking.Clear();
+    }
+
+    private TaskWorker _worker;
+
+    private TaskWorker FindObjectOfTypeCached()
+    {
+        if (_worker == null || !_worker.gameObject.activeInHierarchy)
+        {
+            _worker = FindAnyObjectByType<TaskWorker>(FindObjectsInactive.Exclude);
+        }
+
+        return _worker;
+    }
+
+    /// <summary>
+    /// 이 층을 어디서 볼지. 층이 따로 정해두지 않았으면 인스펙터 기본값을 쓴다.
+    ///
+    /// **층마다 생김새가 다릅니다.** 중간갑판은 뒤에 선미루(4.9m 높이)가 서 있어서,
+    /// 뒷갑판과 같은 높이로 보면 **카메라가 그 구조물 안으로 들어갑니다.**
+    /// 그러면 조타륜만 코앞에 보이고 갑판은 하나도 안 보입니다.
+    /// </summary>
+    private Vector4 WantedView()
+    {
+        if (CurrentDeck != null && CurrentDeck.OverridesCamera)
+        {
+            return CurrentDeck.CameraView;
+        }
+
+        return new Vector4(distance, height, lookHeight, lookAhead);
+    }
+
+    /// <summary>
+    /// 가운데에 둘 자리를 정한다.
+    ///
+    /// **층 고정** 이면 사람이 있는 갑판의 한가운데, **따라가기** 면 사람 자리다.
+    /// 둘의 차이는 이 함수 하나뿐이고, 구도(거리 · 높이 · 회전)는 똑같이 쓴다.
+    /// </summary>
+    private void UpdatePivot()
+    {
+        TaskWorker worker = hud != null ? hud.LocalWorker : null;
+
+        ShipDeck before = CurrentDeck;
+        CurrentDeck = worker != null ? ShipDeck.At(worker.transform.position) : null;
+
+        // 층이 바뀌면 가로막던 것을 도로 보여주고, 새 층의 가로막는 것을 감춘다.
+        //
+        // 중간갑판에 서면 뒷갑판 바닥과 난간이 눈앞을 가립니다. 카메라를 높여도
+        // 그 사이에 있으니 소용이 없어서, 그 층에 있는 동안에는 아예 감춥니다.
+        if (!ReferenceEquals(before, CurrentDeck))
+        {
+            if (before != null)
+            {
+                before.HideBlockers(false);
+            }
+
+            if (CurrentDeck != null)
+            {
+                CurrentDeck.HideBlockers(true);
+            }
+        }
+
+        Vector3 want = FindPivot(worker);
+        Vector4 wantView = WantedView();
+
+        if (!_pivotReady)
+        {
+            // 첫 프레임에 멀리서 날아오지 않게 바로 자리를 잡는다.
+            _pivot = want;
+            _view = wantView;
+            _pivotSpeed = Vector3.zero;
+            _viewSpeed = Vector4.zero;
+            _pivotReady = true;
+            return;
+        }
+
+        if (moveTime <= 0f)
+        {
+            _pivot = want;
+            _view = wantView;
+            return;
+        }
+
+        _pivot = Vector3.SmoothDamp(_pivot, want, ref _pivotSpeed, moveTime);
+
+        // 구도도 함께 미끄러진다. 자리만 옮기고 구도가 튀면 계단에서 멀미가 난다.
+        _view = Vector4.MoveTowards(_view, wantView,
+                                    (wantView - _view).magnitude * Time.deltaTime / Mathf.Max(0.01f, moveTime));
+    }
+
+    private Vector3 FindPivot(TaskWorker worker)
+    {
+        if (mode == CameraMode.FollowPlayer && worker != null)
+        {
+            return worker.transform.position;
+        }
+
+        if (CurrentDeck != null)
+        {
+            return CurrentDeck.Center;
+        }
+
+        // 층이 없는 씬(예전 평면 갑판)에서도 돌아가야 한다.
+        return target != null ? target.position : _pivot;
     }
 
     private void UpdateYaw()

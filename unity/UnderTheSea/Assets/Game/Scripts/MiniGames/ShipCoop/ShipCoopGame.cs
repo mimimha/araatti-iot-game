@@ -59,14 +59,30 @@ public class ShipCoopGame : MonoBehaviour
     [SerializeField] private ShipFlooding flooding;
 
     [Header("제한시간 (초)")]
-    [SerializeField] private float timeLimit = 300f;
+    [SerializeField] private float timeLimit = 180f;
 
+    // 출항 구간(0 ~ 페이즈 1)을 짧게 두는 이유
+    //
+    //   10% 는 60m 다. 돛을 안 잡으면 48초, 잡아도 12초.
+    //   혼자 테스트하면 그만큼을 빈 바다에서 보내게 된다. (SHIPCOOP.md 5장)
+    //
+    // 그래서 문턱을 5% 로 내렸다. 여기를 다시 올릴 거면 출항 구간의
+    // EventScheduler 계획도 같이 봐야 한다. 둘이 짝이다.
+    //
+    // 페이즈 문턱은 시간이 아니라 진행도 비율이라 제한시간을 줄여도 손댈 것이 없다.
+    // 3분 기준으로 각 구간이 차지하는 시간은 대략 이렇게 된다. (평균 속도로 갔을 때)
+    //
+    //   출항 0~9초 · 페이즈1 9~63초 · 페이즈2 63~108초 · 페이즈3 108~153초 · FINAL 153~180초
+    //
+    // FINAL 이 27초로 제일 짧은데, 이건 모든 것이 잘 풀렸을 때의 바닥값이다.
+    // 그 구간은 돌풍과 파도로 속도가 떨어지므로 실제로는 더 길게 머문다.
+    // 그래도 짧게 느껴지면 FINAL 문턱만 0.85 → 0.80 으로 내린다.
     [Header("페이즈 — 진행도가 이 지점을 넘으면 시작한다")]
     [SerializeField]
     private List<VoyagePhase> phases = new List<VoyagePhase>
     {
         new VoyagePhase { name = "출항",        startProgress01 = 0.00f },
-        new VoyagePhase { name = "페이즈 1",    startProgress01 = 0.10f },
+        new VoyagePhase { name = "페이즈 1",    startProgress01 = 0.05f },
         new VoyagePhase { name = "페이즈 2",    startProgress01 = 0.35f },
         new VoyagePhase { name = "페이즈 3",    startProgress01 = 0.60f },
         new VoyagePhase { name = "FINAL STORM", startProgress01 = 0.85f },
@@ -78,8 +94,11 @@ public class ShipCoopGame : MonoBehaviour
     [SerializeField] private float leakScore = 30f;
     [SerializeField] private float obstacleScore = 20f;
 
-    [Tooltip("남은 시간 1초당 점수. 성공했을 때만 준다. 돛을 잘 다룬 보상이다.")]
-    [SerializeField] private float timeBonusPerSecond = 5f;
+    [Tooltip("남은 시간 1초당 점수. 성공했을 때만 준다. 돛을 잘 다룬 보상이다.\n\n" +
+             "제한시간을 줄이면 여기도 같이 올려야 한다. 남길 수 있는 시간의 상한이\n" +
+             "곧 이 보상의 상한이라, 제한시간이 줄면 돛의 값어치가 조용히 떨어진다.\n" +
+             "3분(여유 60초)에서 8 이면 상한 480 으로, 5분(여유 100초)에 5 였을 때의 500 과 비슷하다.")]
+    [SerializeField] private float timeBonusPerSecond = 8f;
 
     [Header("시작")]
     [Tooltip("켜면 씬이 시작되자마자 출항한다. Develop 씬에서 혼자 테스트할 때 쓴다.")]
@@ -93,6 +112,24 @@ public class ShipCoopGame : MonoBehaviour
 
     /// <summary>지금 상태</summary>
     public ShipCoopState State { get; private set; } = ShipCoopState.Ready;
+
+    /// <summary>
+    /// **이 컴퓨터가 게임을 계산하는 쪽인가.** (SHIPCOOP.md 11장)
+    ///
+    /// 지금은 혼자 하므로 늘 참입니다. 네트워크가 붙으면 **호스트에서만 참**이 됩니다.
+    ///
+    /// 판정을 4대가 각자 하면 서로 다른 답이 나옵니다. 내 화면에선 물을 다 퍼냈는데
+    /// 옆 사람 화면에선 아직 차 있고, 둘 다 자기가 맞다고 믿습니다.
+    /// **그래서 계산은 한 대만 하고 나머지는 결과를 받아 그립니다.**
+    ///
+    /// 화면 쪽(HUD · 카메라 · 소리)은 이 값을 보지 않습니다. 전원이 다 그려야 하니까요.
+    /// 보는 것은 **공유 상태를 바꾸는 쪽**뿐입니다.
+    ///
+    /// <code>
+    /// 붙일 때   =&gt; Runner.IsServer
+    /// </code>
+    /// </summary>
+    public bool IsAuthority => true;
 
     /// <summary>출항 후 지난 시간 (초)</summary>
     public float Elapsed => _elapsed;
@@ -142,6 +179,12 @@ public class ShipCoopGame : MonoBehaviour
     private void Update()
     {
         if (State != ShipCoopState.Sailing)
+        {
+            return;
+        }
+
+        // 계산하는 쪽만 시간을 센다. 나머지는 호스트가 보내주는 값을 받는다. (11장)
+        if (!IsAuthority)
         {
             return;
         }
