@@ -51,6 +51,10 @@ Material:
         m_Texture: {fileID: 2800000, guid: e0595e1df515fa64fa99e3017d4ace24, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _TerrainHeightMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -105,6 +109,8 @@ Material:
     - _Distortion_Speed: 0.2
     - _Distortion_Strength: 0.06
     - _DstBlend: 10
+    - _DstBlendAlpha: 0
+    - _ENABLE_TERRAIN_SHORELINE: 0
     - _EdgePower: 0
     - _Enable_Animation: 1
     - _Enable_Caustics: 1
@@ -142,6 +148,7 @@ Material:
     - _Normal_Tiling: 0.04
     - _OcclusionStrength: 1
     - _OceanWaveFoamIntensity: 0.5
+    - _OceanWaveFrequency: 1
     - _OceanWaveHeight: 1
     - _OceanWaveSpeed: 0.5
     - _Ocean_Foam_Amount: 0.5
@@ -163,7 +170,7 @@ Material:
     - _ShoreEdgeTransparency: 0.58
     - _Shore_Edge_Foam_Intensity: 1
     - _Shore_Edge_Noise_Scale: 0.86
-    - _Shore_Edge_Opacity: 0.09
+    - _Shore_Edge_Opacity: 0.6
     - _Shore_Edge_Thickness: 0.233
     - _Shore_Edge_Transparency: 0.487
     - _Shore_Foam_Intensity: 0.504
@@ -179,11 +186,15 @@ Material:
     - _Shore_Wave_Return_Amount: 0.519
     - _Shore_Wave_Speed: 0.144
     - _Shore_Wave_Thickness: 0.113
+    - _ShorelineFade: 100
+    - _ShorelineHeight: 1
     - _Smoothness: 0.776
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 5
+    - _SrcBlendAlpha: 1
     - _Surface: 1
+    - _TerrainMapMultiplier: 1
     - _UVSec: 0
     - _UseVoronoiNoiseForCaustics: 0
     - _Very_Deep_Height: 4
@@ -197,6 +208,8 @@ Material:
     - _Water_Normal_Noise_Speed: 1
     - _Water_Normal_Pan_Speed: 1
     - _Water_Normal_Tiling: 0.04
+    - _WaveNoiseAmount: 0.2
+    - _WaveNoiseScale: 10
     - _WorkflowMode: 1
     - _ZTest: 4
     - _ZWrite: 0
@@ -212,7 +225,7 @@ Material:
     - _Distant_Water_Color: {r: 0, g: 0.17334907, b: 0.33962262, a: 1}
     - _Distortion_Direction: {r: 0.1, g: 0.1, b: 0, a: 0}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _Foam_Color: {r: 1, g: 1, b: 1, a: 0}
+    - _Foam_Color: {r: 1, g: 1, b: 1, a: 1}
     - _Foam_Glow_Color: {r: 1, g: 1, b: 1, a: 0}
     - _InvProjectionMatrix: {r: 0, g: 0, b: 0, a: 0}
     - _Metallic_Color: {r: 1, g: 1, b: 1, a: 0}
@@ -224,7 +237,7 @@ Material:
     - _Scrolling_Texture_Tiling: {r: 1, g: 1, b: 0, a: 0}
     - _Scrolling_Texture_Tint: {r: 0.37121746, g: 0.7245609, b: 0.8113207, a: 0}
     - _Shallow_Color: {r: 0.8313726, g: 0.7058824, b: 0.5529412, a: 1}
-    - _Shore_Foam_Color_Tint: {r: 1, g: 1, b: 1, a: 0}
+    - _Shore_Foam_Color_Tint: {r: 1, g: 1, b: 1, a: 1}
     - _Shore_Foam_Noise_Scale: {r: 1, g: 1, b: 0, a: 0}
     - _Shore_Glow_Color: {r: 1, g: 1, b: 1, a: 0}
     - _Shore_Wave_Color: {r: 1, g: 1, b: 1, a: 1}

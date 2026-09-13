@@ -28,6 +28,46 @@ public static class ShipCoopBlobShadow
     /// <summary>이 비율 안쪽은 고르게 짙다. 바깥으로 갈수록 흐려진다.</summary>
     private const float SolidPart = 0.35f;
 
+    private const string FoamTexturePath = Folder + "/SeaFoam.png";
+    private const string FoamMaterialPath = Folder + "/SeaFoam.mat";
+
+    /// <summary>
+    /// 🌊 물살 알갱이 재질. 같은 방법으로 만든 **하얗고 둥근 얼룩**입니다.
+    ///
+    /// 그림자와 그리는 법이 같고 색만 다릅니다. 가장자리가 흐려야
+    /// 물거품으로 보입니다 — 각진 사각형은 판때기로 보입니다.
+    /// </summary>
+    public static Material GetOrCreateFoam()
+    {
+        Material found = AssetDatabase.LoadAssetAtPath<Material>(FoamMaterialPath);
+
+        if (found != null)
+        {
+            return found;
+        }
+
+        Texture2D texture = GetOrCreateTexture(FoamTexturePath, Color.white, 0.85f);
+
+        if (texture == null)
+        {
+            return null;
+        }
+
+        // 파티클은 겹칠수록 밝아져야 물보라처럼 보인다. 그래서 더하기(Additive) 로 섞는다.
+        Material made = MakeTransparent(texture, UnityEngine.Rendering.BlendMode.One);
+
+        if (made == null)
+        {
+            return null;
+        }
+
+        made.name = "SeaFoam";
+        AssetDatabase.CreateAsset(made, FoamMaterialPath);
+        AssetDatabase.SaveAssets();
+
+        return made;
+    }
+
     /// <summary>둥근 그림자 재질. 없으면 만들어서 돌려준다.</summary>
     public static Material GetOrCreate()
     {
@@ -38,13 +78,40 @@ public static class ShipCoopBlobShadow
             return found;
         }
 
-        Texture2D texture = GetOrCreateTexture();
+        Texture2D texture = GetOrCreateTexture(TexturePath, Color.black, Darkest);
 
         if (texture == null)
         {
             return null;
         }
 
+        Material made = MakeTransparent(texture, UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+
+        if (made == null)
+        {
+            return null;
+        }
+
+        made.name = "BlobShadow";
+        AssetDatabase.CreateAsset(made, MaterialPath);
+        AssetDatabase.SaveAssets();
+
+        return made;
+    }
+
+    /// <summary>
+    /// 반투명 재질 하나. **칸 하나로는 안 됩니다.**
+    ///
+    /// `_Surface` 만 1 로 바꿔도 셰이더는 여전히 불투명하게 그립니다.
+    /// 섞는 방식(SrcBlend · DstBlend)과 키워드까지 같이 줘야 합니다.
+    /// 처음에 그걸 빼먹어서 검은 딱지가 되거나 아예 안 보였습니다.
+    /// </summary>
+    /// <param name="destination">
+    /// 뒤에 있는 것을 얼마나 남길지. `OneMinusSrcAlpha` 는 보통 반투명,
+    /// `One` 은 더하기 — 겹칠수록 밝아져서 물보라에 쓴다.
+    /// </param>
+    private static Material MakeTransparent(Texture2D texture, UnityEngine.Rendering.BlendMode destination)
+    {
         Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
 
         if (unlit == null)
@@ -54,17 +121,11 @@ public static class ShipCoopBlobShadow
         }
 
         Material made = new Material(unlit);
-        made.name = "BlobShadow";
 
-        // ⚠ **반투명은 칸 하나로 안 됩니다.**
-        //
-        //    `_Surface` 만 1 로 바꿔도 셰이더는 여전히 불투명하게 그립니다.
-        //    섞는 방식(SrcBlend · DstBlend)과 키워드까지 같이 줘야 합니다.
-        //    처음에 그걸 빼먹어서 **검은 딱지**가 되거나 아예 안 보였습니다.
         made.SetFloat("_Surface", 1f);                                    // 0 불투명, 1 반투명
         made.SetFloat("_Blend", 0f);                                      // Alpha
         made.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        made.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        made.SetFloat("_DstBlend", (float)destination);
         made.SetFloat("_ZWrite", 0f);
         made.SetFloat("_AlphaClip", 0f);
 
@@ -79,15 +140,13 @@ public static class ShipCoopBlobShadow
         made.SetTexture("_BaseMap", texture);
         made.SetColor("_BaseColor", Color.white);
 
-        AssetDatabase.CreateAsset(made, MaterialPath);
-        AssetDatabase.SaveAssets();
-
         return made;
     }
 
-    private static Texture2D GetOrCreateTexture()
+    /// <summary>가장자리로 갈수록 흐려지는 둥근 얼룩을 그려서 파일로 남긴다.</summary>
+    private static Texture2D GetOrCreateTexture(string path, Color tint, float strongest)
     {
-        Texture2D found = AssetDatabase.LoadAssetAtPath<Texture2D>(TexturePath);
+        Texture2D found = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
 
         if (found != null)
         {
@@ -115,20 +174,20 @@ public static class ShipCoopBlobShadow
                 float alpha = 1f - Mathf.InverseLerp(SolidPart, 1f, away);
 
                 // 제곱해서 가장자리를 더 흐리게. 각진 테두리가 안 보인다.
-                alpha = alpha * alpha * Darkest;
+                alpha = alpha * alpha * strongest;
 
-                made.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
+                made.SetPixel(x, y, new Color(tint.r, tint.g, tint.b, alpha));
             }
         }
 
         made.Apply();
 
-        File.WriteAllBytes(TexturePath, made.EncodeToPNG());
+        File.WriteAllBytes(path, made.EncodeToPNG());
         Object.DestroyImmediate(made);
 
-        AssetDatabase.ImportAsset(TexturePath, ImportAssetOptions.ForceUpdate);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
 
-        TextureImporter importer = AssetImporter.GetAtPath(TexturePath) as TextureImporter;
+        TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
 
         if (importer != null)
         {
@@ -138,6 +197,6 @@ public static class ShipCoopBlobShadow
             importer.SaveAndReimport();
         }
 
-        return AssetDatabase.LoadAssetAtPath<Texture2D>(TexturePath);
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
     }
 }
