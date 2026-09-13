@@ -23,9 +23,20 @@
 | Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 | 효진 | 2026-09-08 |
 | Quaternius Pirate Kit | https://quaternius.com/packs/piratekit.html | 무료 (CC0-1.0) | `Assets/QuaterniusPirateKit/` | 낚시 캐릭터·부두·소품 | 용주 | 2026-09-08 |
 | Quaternius Animated Fish | https://quaternius.com/packs/animatedfish.html | 무료 (CC0-1.0) | `Assets/QuaterniusAnimatedFish/` | 낚시 물고기 모델·애니메이션 | 용주 | 2026-09-08 |
+| WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | 배 협동 게임 바다 (표면 셰이더만) | 민화 | 2026-09-13 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
+
+> ⚠ WaterWorks 는 **일부만** 넣었습니다. 같이 들어 있는 `Water_Volume`(수중 볼륨)
+> 은 URP 17 에서 없어진 API 를 써서 **프로젝트 전체가 컴파일되지 않았습니다.**
+> 표면 셰이더(`SSR_Water`)와 서브그래프만 남기고 `Scripts/` · `Demo/` ·
+> `Volumetric_Water.shader` 는 지웠습니다. 업데이트할 때 다시 지워야 합니다.
+
+> ⛔ `Shaders/WSUV_Water.shadersubgraph` 의 Position 노드를 **월드 → 오브젝트**로
+> 바꿨습니다. (`"m_Space": 0`) 물 무늬가 판을 따라 흐르게 하려고 그런 것으로,
+> 배 협동 게임에서 **배가 나아가 보이는 것이 여기에 달려 있습니다.**
+> 업데이트하면 되돌아가니 다시 바꿔야 합니다. (`SHIPCOOP.md` 5장)
 
 ### 작성 예시
 

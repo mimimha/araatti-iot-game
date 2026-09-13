@@ -31,12 +31,29 @@ public class ShipCoopShipTurn : MonoBehaviour
              "배치 도구(ShipCoopDeckLayout)가 채웁니다.")]
     [SerializeField] private Transform[] carried;
 
+    // ------------------------------------------------------------
+    // ⚠ **꺾는 동안에만 틀어집니다. 다 꺾고 나면 다시 일자가 됩니다.**
+    //
+    //    처음에는 조타 각도(`Heading`)에 비례해서 틀었습니다. 그러면 키를 끝까지
+    //    꺾어 둔 동안 **배가 비스듬한 채로 영영 멈춰 있습니다.**
+    //    뱃머리만 돌고 고물이 안 따라오는 것처럼 보입니다.
+    //
+    //    카메라는 배를 따라다닙니다. 그래서 도는 중인 배는 화면에서 **일자로**
+    //    보이고, 대신 바다가 옆으로 흘러갑니다. (VoyageSea.ShipLateral)
+    //    비스듬해 보여야 하는 것은 **키를 돌리고 있는 그 순간**뿐입니다.
+    //
+    //    그래서 각도가 아니라 **각도가 바뀌는 속도**로 틉니다.
+    //    키를 돌리면 뱃머리가 쏠리고, 손을 멈추면 고물이 따라와 일자가 됩니다.
+    // ------------------------------------------------------------
+
     [Header("얼마나 틀지")]
-    [Tooltip("뱃머리 1도당 배가 몇 도 도는가.\n\n" +
-             "0.18 이면 최대 조타(60도)에서 약 11도 튼다.\n" +
-             "같이 도는 것들을 다 들고 있으므로 더 키워도 어긋나지는 않는다.\n" +
-             "다만 많이 돌면 카메라가 배를 옆에서 보게 되어 갑판이 좁아 보인다.")]
-    [SerializeField, Range(0f, 0.6f)] private float degreesPerHeading = 0.18f;
+    [Tooltip("조타가 초당 1도 바뀔 때 배가 몇 도 틀어지는가.\n\n" +
+             "조타는 초당 35도로 돈다. 0.35 면 꺾는 동안 약 12도 쏠린다.\n" +
+             "손을 멈추면 0 으로 돌아와 배가 일자가 된다.")]
+    [SerializeField, Range(0f, 1f)] private float degreesPerTurnRate = 0.35f;
+
+    [Tooltip("아무리 빨리 꺾어도 이 각도를 넘지 않는다.")]
+    [SerializeField, Range(0f, 40f)] private float mostDegrees = 14f;
 
     [Tooltip("도는 축의 z.\n\n" +
              "진짜 배는 한가운데가 아니라 **뱃머리에서 1/3 지점**을 축으로 돕니다.\n" +
@@ -69,6 +86,9 @@ public class ShipCoopShipTurn : MonoBehaviour
     private float _bank;
     private float _bankSpeed;
 
+    /// <summary>지난 프레임의 조타 각도. 얼마나 빨리 바뀌는지를 여기서 낸다.</summary>
+    private float _lastHeading;
+
     private void Awake()
     {
         if (helm == null)
@@ -94,9 +114,16 @@ public class ShipCoopShipTurn : MonoBehaviour
             return;
         }
 
-        // 배는 무겁다. 조타를 꺾어도 **천천히** 그 각도로 간다.
-        // 이 뒤처짐이 "뱃머리가 먼저 가고 나머지가 따라오는" 느낌을 만든다.
-        float wantYaw = helm.Heading * degreesPerHeading;
+        // 조타가 **얼마나 빨리 바뀌고 있는지.** 각도 자체가 아니다. (위 주석)
+        float rate = Time.deltaTime > 0f
+            ? (helm.Heading - _lastHeading) / Time.deltaTime
+            : 0f;
+
+        _lastHeading = helm.Heading;
+
+        float wantYaw = Mathf.Clamp(rate * degreesPerTurnRate, -mostDegrees, mostDegrees);
+
+        // 기울기는 다르다. **꺾어 둔 동안 계속** 기울어 있어야 도는 중인 것이 보인다.
         float wantBank = -helm.Heading01 * bankDegrees;
 
         if (followSeconds > 0f)

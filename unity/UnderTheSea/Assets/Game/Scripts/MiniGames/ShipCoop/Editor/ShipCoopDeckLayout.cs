@@ -165,7 +165,31 @@ public static class ShipCoopDeckLayout
     // 로비가 쓰는 물과 같은 재질입니다. 씬마다 바다 색이 다르면 어색합니다.
     // ------------------------------------------------------------
 
-    /// <summary>로비가 쓰는 물. 여기서 베껴 온다.</summary>
+    // ------------------------------------------------------------
+    // 어느 물을 쓸지
+    //
+    // ⚠ **거품은 물 셰이더에 붙어 있습니다.** 떼어 쓸 수가 없습니다.
+    //
+    //    로비의 Synty 물에도 해안 거품 기능이 있는데(`_Enable_Shore_Foam`)
+    //    화면에 나오지 않았습니다. 진짜 스위치는 `_ENABLE_TERRAIN_SHORELINE`
+    //    이라는 셰이더 키워드인데, 이름대로 **지형 기준**이라 배에는 안 맞습니다.
+    //
+    //    WaterWorks 의 `SSR_Water` 는 **물에 닿은 물체의 가장자리**를 재서
+    //    거품을 만듭니다. (Edge_Distance) 그래서 선체를 따라 생깁니다.
+    //
+    // ⚠ WaterWorks 는 **Depth · Opaque 텍스처**가 켜져 있어야 합니다.
+    //    PC_RPAsset 은 켜져 있고 Mobile_RPAsset 은 꺼져 있습니다.
+    //    지금 품질 레벨은 PC 라 괜찮지만, 모바일로 내릴 일이 생기면 거기도 켜야 합니다.
+    //
+    // ⚠ **로비와 바다 모양이 달라집니다.** 로비는 Synty 물을 그대로 씁니다.
+    //    같아야 한다면 로비도 바꾸거나, 여기를 Synty 로 되돌리면 됩니다.
+    // ------------------------------------------------------------
+
+    private const bool UseWaterWorks = true;
+
+    private const string WaterWorksPath = "Assets/WaterWorks/Materials/SSR_Water.mat";
+
+    /// <summary>로비가 쓰는 물. WaterWorks 를 안 쓸 때 여기서 베껴 온다.</summary>
     private const string LobbyWaterPath =
         "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Materials/Water_River.mat";
 
@@ -180,8 +204,19 @@ public static class ShipCoopDeckLayout
 
     private const string SeaGroupName = "Sea";
 
-    /// <summary>판 한 장의 앞뒤 길이 (m). 이 길이로 되돌린다.</summary>
-    private const float SeaTileLength = 60f;
+    // ------------------------------------------------------------
+    // 바다는 **한 장**입니다. 여러 장으로 나누면 안 됩니다.
+    //
+    // ⚠ 물 무늬는 판에 그려지고(오브젝트 좌표) 판이 뒤로 흐릅니다.
+    //    (`WSUV_Water` 서브그래프. 5장 "배가 나아가 보이게" 참고)
+    //
+    //    그래서 판을 여러 장으로 나누면 **장마다 같은 무늬가 처음부터** 그려집니다.
+    //    이음새마다 파도가 꺾이고, 그 금이 배 쪽으로 밀려옵니다.
+    //    한 장이면 이음새가 아예 없습니다.
+    //
+    // ⚠ 그리고 **되돌리지 않습니다.** 항해는 600m 고 판은 1300m 라
+    //    끝까지 가도 판이 모자라지 않습니다. 되돌리는 순간 무늬가 튑니다.
+    // ------------------------------------------------------------
 
     /// <summary>판의 좌우 폭 (m). 화면 밖까지 덮어야 끝이 안 보인다.</summary>
     private const float SeaWidth = 400f;
@@ -189,8 +224,20 @@ public static class ShipCoopDeckLayout
     /// <summary>배 뒤로 이만큼부터 깐다.</summary>
     private const float SeaBackZ = -120f;
 
-    /// <summary>배 앞으로 이만큼까지 깐다. 목적지 섬(400m)보다 멀어야 한다.</summary>
+    /// <summary>배 앞으로 이만큼까지 보인다. 목적지 섬(400m)보다 멀어야 한다.</summary>
     private const float SeaFrontZ = 480f;
+
+    /// <summary>
+    /// 판의 앞뒤 길이 (m).
+    ///
+    /// 보이는 600m(`SeaBackZ`~`SeaFrontZ`) + 항해 거리 600m + 여유 100m.
+    /// `ShipVoyage.totalDistance` 를 늘리면 여기도 같이 늘려야 합니다.
+    /// 모자라면 항해 끝에 **배 앞의 바다가 사라집니다.**
+    /// </summary>
+    private const float SeaLength = 1300f;
+
+    /// <summary>물거품 줄이 되돌아오는 간격 (m). 지금은 물거품을 안 씁니다.</summary>
+    private const float FoamLoopLength = 60f;
 
     // ------------------------------------------------------------
     // 물거품 줄무늬 — **흐르는 것이 보이게 하는 유일한 것**
@@ -294,6 +341,7 @@ public static class ShipCoopDeckLayout
         BuildWalls(root, log);
         CoverTheHold(root, log);
         MoveSea(log);
+        MatchLobbySky(log);
         MoveStations(log);
         MovePlayers(log);
         AttachCharacters(log);
@@ -439,7 +487,12 @@ public static class ShipCoopDeckLayout
         }
 
         SerializedObject so = new SerializedObject(turn);
-        so.FindProperty("degreesPerHeading").floatValue = 0.3f;
+
+        // ⚠ **조타 각도가 아니라 바뀌는 속도**로 튼다. 각도에 비례하면
+        //    키를 끝까지 꺾어 둔 동안 배가 비스듬한 채로 멈춰 있어서,
+        //    뱃머리만 돌고 고물이 안 따라오는 것처럼 보인다.
+        so.FindProperty("degreesPerTurnRate").floatValue = 0.35f;
+        so.FindProperty("mostDegrees").floatValue = 14f;
 
         // ⚠ **한가운데가 아니라 뱃머리에서 1/3 지점**을 축으로 둔다.
         //    한가운데에 두면 앞뒤가 똑같이 벌어져서 제자리에서 빙 도는 것처럼 보인다.
@@ -1655,7 +1708,14 @@ public static class ShipCoopDeckLayout
             return;
         }
 
-        ShowHullFoam(water, log);
+        if (UseWaterWorks)
+        {
+            TuneWaterWorks(water, log);
+        }
+        else
+        {
+            ShowHullFoam(water, log);
+        }
 
         Transform group = FindOrCreateGroup(sea.transform, SeaGroupName);
 
@@ -1666,23 +1726,21 @@ public static class ShipCoopDeckLayout
 
         var scroll = new System.Collections.Generic.List<Transform>();
 
-        int count = Mathf.CeilToInt((SeaFrontZ - SeaBackZ) / SeaTileLength);
+        // 한 장. 가운데를 보이는 범위 뒤끝에서 판 길이의 절반만큼 앞에 둔다.
+        // 그러면 앞쪽으로 700m 가 남아서, 600m 를 흘러도 바다가 안 모자란다.
+        Transform sheet = MakeSeaTile(group, "Water", water,
+            new Vector3(0f, 0f, SeaBackZ + SeaLength * 0.5f));
 
-        for (int i = 0; i < count; i++)
-        {
-            // 유니티 기본 Plane 은 한 변이 10m 다. 그래서 10 으로 나눈다.
-            Transform tile = MakeFlat(group, $"Water_{i + 1:00}", water,
-                new Vector3(SeaWidth / 10f, 1f, SeaTileLength / 10f),
-                new Vector3(0f, 0f, SeaBackZ + SeaTileLength * (i + 0.5f)));
-
-            scroll.Add(tile);
-        }
+        scroll.Add(sheet);
 
         int foam = BuildFoam(group, scroll, log);
 
         SerializedObject so = new SerializedObject(sea);
 
-        so.FindProperty("scrollLoopLength").floatValue = SeaTileLength;
+        // ⚠ **되돌리지 않습니다.** `VoyageSea` 는 간 거리를 이 값으로 나눈
+        //    나머지만큼 판을 뒤로 밉니다. 항해(600m)보다 크게 두면
+        //    나머지가 곧 간 거리라서 판이 **한 번도 안 튀고** 끝까지 흐릅니다.
+        so.FindProperty("scrollLoopLength").floatValue = SeaLength;
 
         SerializedProperty list = so.FindProperty("scrollWithSpeed");
         list.arraySize = scroll.Count;
@@ -1694,15 +1752,12 @@ public static class ShipCoopDeckLayout
 
         so.ApplyModifiedProperties();
 
-        // 물결을 배 속도로 밀어준다. 판을 옮기는 것만으로는 무늬가 안 따라온다.
-        if (group.GetComponent<ShipCoopSeaFlow>() == null)
-        {
-            Undo.AddComponent<ShipCoopSeaFlow>(group.gameObject);
-            log.AppendLine("  물결을 배 속도로 밀도록 ShipCoopSeaFlow 를 붙였습니다");
-        }
+        // ⚠ 무늬를 코드로 미는 방식은 **버렸습니다.** (`ShipCoopSeaFlow`, 지웠음)
+        //    이 셰이더에는 무늬를 밀 값이 없습니다. 대신 무늬를 판에 그리게 해서
+        //    (`WSUV_Water` 를 오브젝트 좌표로) 판이 흐르면 무늬도 같이 흐릅니다.
 
-        log.AppendLine($"  물 판 {count}장 ({SeaWidth:F0} × {SeaTileLength:F0}m) · 물거품 {foam}줄 을 깔고 " +
-                       $"{SeaTileLength:F0}m 마다 되돌리게 했습니다");
+        log.AppendLine($"  물 판 한 장 ({SeaWidth:F0} × {SeaLength:F0}m) · 물거품 {foam}줄 을 깔고 " +
+                       $"되돌리지 않고 끝까지 흐르게 했습니다");
     }
 
     /// <summary>
@@ -1713,29 +1768,39 @@ public static class ShipCoopDeckLayout
     /// </summary>
     private static Material GetOrCopyWater(StringBuilder log)
     {
+        string from = UseWaterWorks ? WaterWorksPath : LobbyWaterPath;
+        string what = UseWaterWorks ? "WaterWorks" : "로비";
+
         Material mine = AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
 
-        if (mine != null)
+        // 쓰기로 한 셰이더와 지금 사본의 셰이더가 다르면 다시 베낀다.
+        Material source = AssetDatabase.LoadAssetAtPath<Material>(from);
+
+        if (source == null)
+        {
+            log.AppendLine($"  ⚠ 물 재질을 못 찾음: {from}");
+            return mine;
+        }
+
+        if (mine != null && mine.shader == source.shader)
         {
             return mine;
         }
 
-        Material lobby = AssetDatabase.LoadAssetAtPath<Material>(LobbyWaterPath);
-
-        if (lobby == null)
+        if (mine != null)
         {
-            log.AppendLine($"  ⚠ 로비 물 재질을 못 찾음: {LobbyWaterPath}");
-            return null;
+            AssetDatabase.DeleteAsset(WaterMaterialPath);
+            log.AppendLine($"  물을 {what} 것으로 바꿉니다. 예전 사본을 지웠습니다.");
         }
 
-        if (!AssetDatabase.CopyAsset(LobbyWaterPath, WaterMaterialPath))
+        if (!AssetDatabase.CopyAsset(from, WaterMaterialPath))
         {
             log.AppendLine($"  ⚠ 물 재질을 베끼지 못했습니다: {WaterMaterialPath}");
             return null;
         }
 
         AssetDatabase.ImportAsset(WaterMaterialPath);
-        log.AppendLine($"  로비 물을 베껴 우리 것을 만들었습니다: {WaterMaterialPath}");
+        log.AppendLine($"  {what} 물을 베껴 우리 것을 만들었습니다: {WaterMaterialPath}");
 
         return AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
     }
@@ -1781,6 +1846,111 @@ public static class ShipCoopDeckLayout
         log.AppendLine("  물이 배에 닿는 자리에 거품이 보이게 했습니다 (셰이더 기능, 알파가 0 이었음)");
     }
 
+    /// <summary>
+    /// WaterWorks 물을 **우리 배 크기에 맞춘다.**
+    ///
+    /// ⚠ 받아온 값은 **연못 크기**에 맞춰져 있습니다. 우리 바다는 400 × 600m 라
+    ///    무늬가 너무 촘촘해서 화면이 **자잘한 흰 점으로 지글거립니다.**
+    ///    무늬를 크게 늘리고 잔결을 줄여야 바다로 보입니다.
+    ///
+    /// 색도 회색이라 이 게임의 그림체와 안 맞습니다. 로비 바다에 가까운
+    /// 청록으로 맞춰 둡니다.
+    ///
+    /// 이 값들은 **눈으로 보고 맞추는 것**입니다. `SeaWater.mat` 을 인스펙터에서
+    /// 바로 만지면 됩니다. 우리 사본이라 WaterWorks 원본은 안 바뀝니다.
+    /// </summary>
+    private static void TuneWaterWorks(Material water, StringBuilder log)
+    {
+        Undo.RecordObject(water, "배 모델과 갑판 배치");
+
+        // ------------------------------------------------------------
+        // ⚠ **이 셰이더에 있는 값만 만집니다.**
+        //
+        //    한동안 `_Frequency` · `_Foam_Cutoff` · `_Edge_Offset` 을 같이
+        //    넣고 있었습니다. **셰이더에 없는 이름이라 전부 무시됐습니다.**
+        //    재질 파일에는 남아 있어서 고치고 있는 줄 알았습니다.
+        //    실제로 있는 값은 아래 열일곱 개뿐입니다.
+        //
+        // ⚠ **작고 빠르면 벌레처럼 보입니다.**
+        //
+        //    무늬를 11m 마다, 잔결을 0.12, 흐름을 0.6 으로 뒀더니 물 전체가
+        //    **자잘한 흰 점이 빠르게 기어다니는 것**처럼 보였습니다.
+        //
+        //    바다는 원래 **크고 느립니다.** 움직이는 느낌은 잔결이 아니라
+        //    파도(`_Displacement_*`)가 만들게 두고, 무늬는 크고 느리게 둡니다.
+        // ------------------------------------------------------------
+
+        // 무늬 간격. 낮출수록 무늬가 크다. 0.04 면 25m 마다 한 번.
+        SetIfHas(water, "_Tiling", 0.04f);
+
+        // 잔결의 깊이. 높으면 물이 오돌토돌해진다.
+        SetIfHas(water, "_NormalStrength", 0.06f);
+
+        // 무늬가 흐르는 속도. 이게 빠르면 벌레가 기어다닌다.
+        SetIfHas(water, "_Speed", 0.15f);
+
+        // ------------------------------------------------------------
+        // 파도 — 물 표면을 위아래로 울린다
+        //
+        // ⚠ **판이 촘촘해야만 보입니다.** (`ShipCoopSeaMesh`)
+        //    기본 Plane 위에서는 이 값을 아무리 올려도 물이 평평합니다.
+        //    꼭짓점이 40m 마다 하나뿐이라 밀어 올릴 곳이 없기 때문입니다.
+        //    그래서 파도가 "안 되는 것" 으로 보였습니다. 판을 바꾸니 됩니다.
+        // ------------------------------------------------------------
+
+        // 파도 높이(m). 마루에서 골까지는 이것의 두 배쯤 된다.
+        SetIfHas(water, "_Displacement_Amount", 1.4f);
+
+        // 파도 하나의 크기. 작을수록 물결이 길고 완만하다.
+        // 0.04 면 물결 하나가 25m 안팎 — 우리 배(42m)에 두어 개가 걸린다.
+        SetIfHas(water, "_Displacement_Scale", 0.04f);
+
+        // 파도가 지나가는 속도. 무늬가 흐르는 속도보다 조금 빠른 정도.
+        SetIfHas(water, "_Displacement_Speed", 0.2f);
+
+        // ------------------------------------------------------------
+        // 흰 거품 — 화면의 흰 점은 대부분 여기서 나옵니다
+        // ------------------------------------------------------------
+
+        // 거품 줄의 촘촘함. 3 이면 가는 흰 줄이 빽빽하게 깔린다.
+        SetIfHas(water, "_WaveFrequency", 1.2f);
+        SetIfHas(water, "_WaveSpeed", 0.4f);
+
+        // 선체에 붙는 거품의 폭. 얇으면 플레이 중에 안 보인다.
+        SetIfHas(water, "_WaveDist", 12f);
+
+        // 거품이 보이는 거리. 멀리까지 켜두면 수평선이 지글거린다.
+        SetIfHas(water, "_MaxWaveDist", 120f);
+
+        // ⚠ 4 는 HDR 흰색이라 **눈이 부십니다.** 흰 점으로 보이는 주범입니다.
+        SetColorIfHas(water, "_FoamColor", new Color(1.4f, 1.4f, 1.4f, 1f));
+
+        // 그림체에 맞는 청록. 회색 바다는 배와 따로 논다.
+        SetColorIfHas(water, "_Color", new Color(0.10f, 0.42f, 0.45f, 1f));
+        SetColorIfHas(water, "_EdgeColor", new Color(0.35f, 0.72f, 0.72f, 1f));
+
+        EditorUtility.SetDirty(water);
+        AssetDatabase.SaveAssets();
+
+        log.AppendLine("  WaterWorks 물을 우리 바다 크기(400 × 600m)에 맞췄습니다");
+    }
+
+    private static void SetIfHas(Material material, string name, float value)
+    {
+        if (material.HasProperty(name))
+        {
+            material.SetFloat(name, value);
+        }
+    }
+
+    private static void SetColorIfHas(Material material, string name, Color value)
+    {
+        if (material.HasProperty(name))
+        {
+            material.SetColor(name, value);
+        }
+    }
+
     private static void SetAlpha(Material material, string name, float alpha)
     {
         if (!material.HasProperty(name))
@@ -1814,7 +1984,7 @@ public static class ShipCoopDeckLayout
             return 0;
         }
 
-        int bands = Mathf.CeilToInt((FoamFrontZ - FoamBackZ) / SeaTileLength);
+        int bands = Mathf.CeilToInt((FoamFrontZ - FoamBackZ) / FoamLoopLength);
         int spots = FoamSpots.GetLength(0);
         int made = 0;
 
@@ -1823,7 +1993,7 @@ public static class ShipCoopDeckLayout
             for (int i = 0; i < spots; i++)
             {
                 float x = FoamSpots[i, 0];
-                float z = FoamBackZ + SeaTileLength * (band + FoamSpots[i, 1]);
+                float z = FoamBackZ + FoamLoopLength * (band + FoamSpots[i, 1]);
                 float length = FoamSpots[i, 2];
 
                 MakeFlat(group, $"Foam_{band + 1:00}_{i + 1}", foamMaterial,
@@ -1836,6 +2006,104 @@ public static class ShipCoopDeckLayout
         }
 
         return made;
+    }
+
+    // ------------------------------------------------------------
+    // 하늘 — 로비와 같은 하늘을 쓴다
+    //
+    // ⚠ **하늘 재질이 문제가 아니었습니다.**
+    //
+    //    로비도 이 씬도 하늘 재질은 똑같은 유니티 기본 것입니다.
+    //    (`Default-Skybox`, fileID 10304) 그런데 로비는 환하고 여기는 칙칙했습니다.
+    //
+    //    다른 것은 **빛 설정**이었습니다.
+    //      · 로비  주변광 = 하늘색 그라데이션, 세기 1.19, 안개 켬
+    //      · 여기  주변광 = 회색 계열 기본값,  세기 1,    안개 끔
+    //
+    //    그래서 재질을 옮기는 대신 **빛 설정을 옮겨옵니다.**
+    //    아래 값은 전부 `Lobby.unity` 에서 그대로 읽어온 것입니다.
+    //
+    // ⚠ 안개는 **수평선을 만들어 줍니다.** 끄면 바다가 허공에서 뚝 끊깁니다.
+    //    로비 값(밀도 0.001, 지수제곱)이면 500m 앞이 살짝 뿌예지는 정도입니다.
+    // ------------------------------------------------------------
+
+    /// <summary>로비와 같은 하늘·빛을 이 씬에 옮겨온다.</summary>
+    private static void MatchLobbySky(StringBuilder log)
+    {
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor = new Color(0.514151f, 0.9568135f, 1f, 1f);
+        RenderSettings.ambientEquatorColor = new Color(0.8301887f, 0.75861585f, 0.68529725f, 1f);
+        RenderSettings.ambientGroundColor = new Color(0.3962264f, 0.3395333f, 0.25978997f, 1f);
+        RenderSettings.ambientIntensity = 1.19f;
+
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogColor = new Color(0.603f, 0.9192912f, 1f, 1f);
+        RenderSettings.fogDensity = 0.001f;
+
+        log.AppendLine("  하늘 빛을 로비와 같게 맞췄습니다 (주변광 하늘색 1.19 · 안개 켬)");
+
+        MatchLobbySun(log);
+    }
+
+    // 로비의 Light_Sun 과 같은 해를 만든다. 없으면 씬의 방향광을 고친다.
+    private static void MatchLobbySun(StringBuilder log)
+    {
+        Light sun = null;
+
+        foreach (Light found in Object.FindObjectsByType<Light>(FindObjectsInactive.Include,
+                                                               FindObjectsSortMode.None))
+        {
+            if (found.type == LightType.Directional)
+            {
+                sun = found;
+                break;
+            }
+        }
+
+        if (sun == null)
+        {
+            log.AppendLine("  ⚠ 방향광이 없어서 해를 못 맞췄습니다");
+            return;
+        }
+
+        Undo.RecordObject(sun, "배 모델과 갑판 배치");
+        Undo.RecordObject(sun.transform, "배 모델과 갑판 배치");
+
+        sun.color = new Color(1f, 0.9436667f, 0.87f, 1f);
+        sun.intensity = 2f;
+        sun.shadows = LightShadows.Soft;
+        sun.transform.rotation = Quaternion.Euler(27.938f, -46.273f, -89.244f);
+
+        RenderSettings.sun = sun;
+
+        log.AppendLine($"  해({sun.name})를 로비와 같은 각도·세기로 맞췄습니다");
+    }
+
+    /// <summary>
+    /// 바다 판 한 장. **기본 Plane 이 아니라 촘촘한 격자**를 쓴다.
+    ///
+    /// ⚠ 기본 Plane 을 400m 로 늘리면 꼭짓점이 40m 마다 하나뿐이라
+    ///    파도(`_Displacement_Amount`)를 아무리 올려도 물이 평평합니다.
+    ///    격자는 2m 마다 꼭짓점이 있습니다. (`ShipCoopSeaMesh`)
+    ///
+    /// 격자는 이미 미터 단위로 만들어져 있어서 **늘리지 않습니다.**
+    /// </summary>
+    private static Transform MakeSeaTile(Transform group, string name, Material paint, Vector3 at)
+    {
+        Mesh grid = ShipCoopSeaMesh.GetOrCreate(SeaWidth, SeaLength);
+
+        GameObject made = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+        Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+        made.GetComponent<MeshFilter>().sharedMesh = grid;
+        made.GetComponent<MeshRenderer>().sharedMaterial = paint;
+
+        made.transform.SetParent(group, false);
+        made.transform.localPosition = at;
+        made.transform.localScale = Vector3.one;
+
+        return made.transform;
     }
 
     /// <summary>물 위에 눕히는 납작한 판 하나. 콜라이더는 지운다.</summary>
