@@ -1,0 +1,118 @@
+# 무쌍 게임 (Warriors) 규격
+
+담당: 서연 · 씬: `Assets/Game/Scenes/Main/MiniGames/Warriors.unity`
+
+해변으로 몰려오는 바다 몬스터를 **종류에 맞는 공격**으로 베어 넘기고,
+마지막에 크라켄을 쓰러뜨리는 3라운드 전투 게임입니다.
+
+이 문서에는 **다른 사람이 연결할 때 알아야 하는 것만** 적습니다.
+전투 규칙과 화면 구성은 코드와 프리팹을 보세요.
+
+---
+
+## 1. 미니게임 공통 규격
+
+`GAME_STRUCTURE.md` 8장이 요구하는 두 가지입니다.
+
+| 항목 | 값 |
+| --- | --- |
+| 인원 | **4명 고정** — 촉수 4개와 협동 마무리가 4명을 전제로 설계됨 |
+| 끝날 때 돌려주는 것 | `WarriorsResult(성공여부, 점수)` — `WarriorsGameFlow.Completed` 이벤트 |
+
+로비 쪽에서는 이 이벤트만 받으면 됩니다.
+
+---
+
+## 2. 라운드와 공격
+
+| 라운드 | 목표 |
+| --- | --- |
+| 1 · 해변 방어 | 몬스터 30마리 처치 (제한 180초) |
+| 2 · 촉수 절단 | 촉수 4개 절단 |
+| 3 · 최후의 일격 | 크라켄과 리듬 전투 |
+
+공격은 3종이고 몬스터마다 통하는 것이 하나로 정해져 있습니다.
+
+| 몬스터 | 공격 | 키보드(검증용) |
+| --- | --- | --- |
+| 물고기 | 가로베기 | `1` |
+| 게 | 세로베기 | `2` |
+| 해파리 | 찌르기 | `3` |
+
+> 키보드 `1` `2` `3` 은 IoT 없이 검증하기 위한 임시 입력입니다.
+> 실제 입력은 IoT 검에서 들어옵니다 — `WarriorsIoTInput.OnSwing(playerId, ...)`,
+> 계약은 `Scripts/MiniGames/Warriors/AI_INPUT_CONTRACT.md`.
+
+---
+
+## 3. 서버 연동 ⚠ 네트워크 담당자가 볼 부분
+
+**아직 네트워크 코드가 없습니다.** 지금은 한 대에서 혼자 도는 구조입니다.
+
+### 이미 준비된 것
+
+- **난수가 판 단위 시드로 묶여 있습니다** (`WarriorsRun`).
+  스폰 · 촉수 약점 · 리듬 악보가 모두 한 시드에서 나옵니다.
+  **서버가 판을 쥐면 `WarriorsRun.BeginRun(seed)` 로 시드만 내려주면
+  네 명이 같은 판을 봅니다.** 다른 코드는 바꿀 것이 없습니다.
+- 입력 경계(`IWarriorsInputSource`)와 `PlayerId 0~3` 구분이 이미 있습니다.
+- 결과가 이벤트로 분리돼 있어 로비 계약을 이미 충족합니다.
+
+### 남은 것
+
+| 항목 | 내용 |
+| --- | --- |
+| 몬스터 · 보스 스폰 | 지금은 `Instantiate`. `NetworkObject` + 서버 스폰으로 |
+| 상태 동기화 | `WarriorsGameFlow` · `WarriorsBattleScore` · `WarriorsHealth` |
+| 공격 입력 | `INetworkInput` 으로. 키보드가 항상 `PlayerId 0` 인 것도 함께 |
+| 피격 판정 권한 | 지금은 클라이언트 로컬 판정 |
+
+> 팀 네트워크 로드맵(`docs/prd/fusion-dedicated-lobby-roadmap.md`)은 Lobby 와
+> 캐릭터 외형까지만 다룹니다. **미니게임은 아직 어느 단계에도 없습니다.**
+> 착수 전에 "미니게임은 어느 단계에서 어떻게 붙일지" 합의가 필요합니다.
+
+---
+
+## 4. 지금 알려진 제약
+
+| 항목 | 상태 |
+| --- | --- |
+| 플레이어 무적 | `WarriorsStandalonePlayer.prefab` → `immortalForTesting` 이 **켜져 있음**. 사망 종료가 발생하지 않아 ROUND 1 실패는 시간 초과뿐입니다 |
+| ROUND 3 협동 마무리 | 코드에 있으나 도달하지 않습니다. 리듬 전투가 먼저 끝나 클리어로 넘어갑니다 |
+| ROUND 3 노트 레인 | 레인 구분 없이 가장 가까운 노트를 처리합니다. 4인일 때 남의 노트를 대신 칠 수 있습니다 |
+| 밸런스 | 30마리 / 180초 / 일반 100점 · 보스 250점 — 미확정 |
+
+> 검증용 씬 `Scenes/Develop/SeoYeon/WarriorsTest.unity` 는 목표 처치 수만 **10** 으로
+> 낮춰 두었습니다. 메인 씬 값(30)은 건드리지 않습니다.
+
+---
+
+## 5. 프리팹 구성
+
+모두 `Assets/Game/Prefabs/MiniGames/Warriors/` 아래에 있습니다.
+
+| 프리팹 | 역할 |
+| --- | --- |
+| `Core/WarriorsGameRoot` | 진행 · 점수 · 스포너 · 입력 라우터 |
+| `Arena/WarriorsBeachArena` | 해변 무대와 스폰 지점 |
+| `UI/WarriorsHUD` | HUD 전체 |
+| `Boss/WarriorsKrakenBoss` | 크라켄과 촉수 |
+| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Monsters/*Visual` |
+| `Player/WarriorsStandalonePlayer` | 플레이어 |
+
+씬에는 앞의 네 개만 두면 됩니다.
+플레이어는 `WarriorsSceneBootstrap` 이, 몬스터는 스포너가 런타임에 만듭니다.
+
+---
+
+## 6. 사용 에셋
+
+| 대상 | 위치 |
+| --- | --- |
+| 몬스터 · 보스 모델 5종 | `Art/MiniGames/Warriors/Models/` (Meshy 생성) |
+| 하단 카드 아이콘 3종 | `Art/MiniGames/Warriors/UI/Icons/` (위 모델을 렌더링한 것) |
+| 바 채움 | `Art/MiniGames/Warriors/UI/BarFill.png` |
+| 카드 프레임 | `Art/UI/CharacterCustomization/Frames/RoundedCard.png` 재사용 |
+| 플레이어 검 | `Assets/ToonyTinyPeople/` 중 실사용 파일만 (`w_TH_sword`) |
+
+외부 에셋 출처 기록은 `ASSETS.md` 를 따릅니다.

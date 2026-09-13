@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7460072b7d3fc7347a8fede3441ed6a1, type: 3}
+  m_Name: w_TH_sword
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsWeaponDefinition
+  weaponPrefab: {fileID: 100000, guid: 17bfb6b0b5f721143a5a6a80cd50a153, type: 3}
+  gripLocalPosition: {x: 0, y: 0.26, z: 0}
+  gripLocalRotation: {x: 0, y: 0, z: -90}
+  localScale: {x: 0.65, y: 0.65, z: 0.65}
+  hitboxCenter: {x: -0.45, y: 0, z: 0}
+  hitboxSize: {x: 1.8, y: 0.18, z: 0.22}
+  damage: 25
