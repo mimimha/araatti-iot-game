@@ -28,16 +28,52 @@ public class VoyageSea : MonoBehaviour
     [SerializeField] private Transform origin;
 
     [Header("거리")]
-    [Tooltip("수평선까지의 거리 (m). 장애물이 여기서 나타나 배까지 온다.")]
-    [SerializeField, Min(1f)] private float horizonDistance = 60f;
+    // ⚠ **뱃머리(z 34.3)보다 한참 멀어야 반응할 시간이 생깁니다.**
+    //
+    //    60m 였을 때는 바위가 **2.3초** 만에 뱃머리에 닿았습니다. 실제로 다가올
+    //    거리가 60 − 43.8 = 16m 밖에 없었기 때문입니다. 예고를 보고 조타로
+    //    뛰어가는 것은 고사하고, 그 자리에 서서 즉시 꺾어도 못 피했습니다.
+    //    100m 면 5.7초가 되어 반응할 시간이 3.75초 생깁니다.
+    [Tooltip("수평선까지의 거리 (m). 장애물이 여기서 나타나 배까지 온다.\n" +
+             "뱃머리보다 한참 멀어야 반응할 시간이 생긴다.")]
+    [SerializeField, Min(1f)] private float horizonDistance = 100f;
 
-    [Tooltip("지나간 뒤 이만큼 더 가서 사라진다. 뒤로 흘러가는 것이 보여야 한다.")]
-    [SerializeField, Min(0f)] private float passDistance = 12f;
+    // ⚠ **배 뒤끝(z −19.7)보다 더 뒤까지 가야 합니다.**
+    //
+    //    12m 였을 때는 바위가 z −12 에서 멈췄습니다. 큰 바위는 뒷면이 z −4 라
+    //    **배 옆구리에 걸친 채로 사건이 끝났습니다.** 암초 판정이 배 전체를
+    //    훑는 방식(`Reef.OnShow`)이라, 다 지나가질 못하니 판정이 안 끝납니다.
+    //    34m 면 가장 큰 바위(19m)도 뒷면이 z −24.5 로 배를 완전히 벗어납니다.
+    [Tooltip("지나간 뒤 이만큼 더 가서 사라진다. 뒤로 흘러가는 것이 보여야 한다.\n" +
+             "배 뒤끝보다 더 뒤까지 가야 암초가 배를 다 지나간다.")]
+    [SerializeField, Min(0f)] private float passDistance = 34f;
 
     [Header("조타")]
     [Tooltip("조타 1도당 배가 옆으로 비키는 거리 (m).\n" +
              "최대 조타각 60도 × 이 값 = 최대로 비킬 수 있는 거리다.")]
     [SerializeField, Min(0f)] private float lateralPerDegree = 0.08f;
+
+    // ------------------------------------------------------------
+    // ⚠ **지연이 0 이면 배가 평행으로 미끄러집니다.**
+    //
+    //    조타각을 그대로 거리로 바꾸면 휠을 돌리는 즉시 세상이 초당 7m 로
+    //    미끄러집니다. 그런데 뱃머리가 도는 것(`ShipCoopShipTurn`)은 0.8초에
+    //    걸쳐 겨우 10도입니다. 회전이 묻혀서 **배가 게처럼 옆으로 평행이동**
+    //    하는 것으로만 보입니다.
+    //
+    //    진짜 배는 **먼저 돌고 그 다음에 그쪽으로 밀려납니다.** 그래서 옆으로
+    //    가는 것을 뱃머리보다 늦게 따라오게 합니다.
+    //
+    //      0.0초  뱃머리 0도    옆으로 0.0m
+    //      0.5초  뱃머리 3도    옆으로 0.6m    ← 거의 안 밀렸다. 돌기만 한다
+    //      2.0초  뱃머리 10.6도 옆으로 7.4m    ← 이제 밀려난다
+    //      4.5초  뱃머리 0도    옆으로 12.0m   ← 일자로 펴진 채 옆에 서 있다
+    // ------------------------------------------------------------
+
+    [Tooltip("옆으로 밀려나는 것이 뱃머리보다 이만큼 늦게 따라온다 (초).\n\n" +
+             "0 이면 휠을 돌리는 즉시 배가 평행으로 미끄러집니다.\n" +
+             "뱃머리가 도는 시간(ShipCoopShipTurn.followSeconds)보다 커야 합니다.")]
+    [SerializeField, Range(0f, 3f)] private float lateralLagSeconds = 1.2f;
 
     [Header("목적지 섬")]
     [Tooltip("수평선에 띄울 목적지. 비워두면 회색 큐브를 만들어 쓴다. (프로토타입용)")]
@@ -95,13 +131,25 @@ public class VoyageSea : MonoBehaviour
     /// <summary>수평선까지의 거리 (m)</summary>
     public float HorizonDistance => horizonDistance;
 
+    /// <summary>배를 지나친 뒤 더 가는 거리 (m). 바위가 다가오는 속도를 내는 데 쓴다.</summary>
+    public float PassDistance => passDistance;
+
     /// <summary>
     /// 배가 옆으로 얼마나 비켜 있는지 (m). 좌현이 음수, 우현이 양수.
     ///
     /// 조타를 안 잡고 있어도 꺾여 있던 각도는 유지되므로, 이 값도 유지됩니다.
     /// 자리를 비웠다고 배가 저절로 제자리로 오지는 않습니다.
+    ///
+    /// ⚠ **조타각을 그대로 쓰지 않고 늦게 따라옵니다.** (위 주석)
+    ///    먼저 뱃머리가 돌고, 그 다음에 그쪽으로 밀려나야 배처럼 보입니다.
     /// </summary>
-    public float ShipLateral => helm == null ? 0f : helm.Heading * lateralPerDegree;
+    public float ShipLateral => _lateral;
+
+    /// <summary>조타각이 가리키는 자리. <see cref="ShipLateral"/> 이 여기로 따라간다.</summary>
+    private float WantLateral => helm == null ? 0f : helm.Heading * lateralPerDegree;
+
+    private float _lateral;
+    private float _lateralSpeed;
 
     private Vector3[] _scrollStart;
     private Transform _island;
@@ -226,6 +274,12 @@ public class VoyageSea : MonoBehaviour
         {
             return;
         }
+
+        // ⚠ 옆으로 밀려나는 것은 **뱃머리보다 늦게** 따라온다. (위 주석)
+        //    이것을 빼면 배가 게처럼 평행으로 미끄러진다.
+        _lateral = lateralLagSeconds > 0f
+            ? Mathf.SmoothDamp(_lateral, WantLateral, ref _lateralSpeed, lateralLagSeconds)
+            : WantLateral;
 
         // 목적지 쪽으로 향한 만큼만 나아간다. cos 라서 따로 정할 상수가 없다.
         // 뱃머리가 섬을 보고 있으면 1, 옆을 보고 있으면 줄어든다.

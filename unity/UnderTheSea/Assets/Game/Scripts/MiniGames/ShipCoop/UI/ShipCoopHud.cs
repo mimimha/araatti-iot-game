@@ -599,7 +599,8 @@ public class ShipCoopHud : MonoBehaviour
 
         if (current != null)
         {
-            Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current));
+            Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current),
+                 TwoSidedGauge(current));
             return;
         }
 
@@ -639,6 +640,32 @@ public class ShipCoopHud : MonoBehaviour
 
     private void Show(string text, float gauge01, Sprite icon)
     {
+        Show(text, gauge01, icon, false);
+    }
+
+    // ------------------------------------------------------------
+    // ⚠ **조타 게이지는 가운데에서 좌우로 찹니다.**
+    //
+    //    전에는 절댓값(`|Heading01|`)을 한 방향으로만 채웠습니다. 그러면
+    //    **좌현 끝과 우현 끝이 둘 다 "가득 참"** 으로 보입니다. 어느 쪽으로
+    //    꺾여 있는지 게이지만 봐서는 알 수 없습니다.
+    //
+    //    거대한 파도(`BigWave`)는 초당 45도로 조타를 미는데 사람은 35도로만
+    //    돌립니다. **버텨도 밀립니다.** 그래서 꺾어둔 키가 0을 지나 반대편으로
+    //    넘어가고, 게이지가 찼다가 비었다가 다시 차는 것처럼 보입니다.
+    //    내가 꺾고 있는 것인지 밀리고 있는 것인지 구분이 안 됩니다.
+    //
+    //    링은 이미 `Radial360` · 시작점이 **위**입니다. 그래서 부호만 살려
+    //    `fillClockwise` 를 뒤집으면 위(중앙)에서 좌우로 갈라져 찹니다.
+    // ------------------------------------------------------------
+
+    /// <summary>양쪽으로 차는 게이지가 한쪽으로 최대일 때 링의 몇 할을 채우는가.</summary>
+    private const float HalfRing = 0.5f;
+
+    /// <param name="gauge01">0~1. 양쪽으로 차는 것은 -1~+1 이고 부호가 방향이다.</param>
+    /// <param name="twoSided">가운데(위)에서 좌우로 갈라져 차는가.</param>
+    private void Show(string text, float gauge01, Sprite icon, bool twoSided)
+    {
         interactPanel.SetActive(true);
 
         if (interactLabel != null)
@@ -657,13 +684,32 @@ public class ShipCoopHud : MonoBehaviour
             return;
         }
 
-        bool hasGauge = gauge01 >= 0f;
+        // 양쪽으로 차는 것은 음수가 정상이다. 한쪽으로만 차는 것만 -1 이 "없음" 이다.
+        bool hasGauge = twoSided || gauge01 >= 0f;
         interactGauge.gameObject.SetActive(hasGauge);
 
-        if (hasGauge)
+        if (!hasGauge)
         {
-            interactGauge.fillAmount = Mathf.Clamp01(gauge01);
+            return;
         }
+
+        if (twoSided)
+        {
+            // 우현(양수)은 시계방향, 좌현(음수)은 반시계방향으로 찬다.
+            interactGauge.fillClockwise = gauge01 >= 0f;
+            interactGauge.fillAmount = Mathf.Clamp01(Mathf.Abs(gauge01)) * HalfRing;
+            return;
+        }
+
+        // ⚠ 되돌려 놓습니다. 조타를 보다가 다른 자리로 가면 반시계로 남습니다.
+        interactGauge.fillClockwise = true;
+        interactGauge.fillAmount = Mathf.Clamp01(gauge01);
+    }
+
+    /// <summary>이 작업의 게이지가 가운데에서 좌우로 차는가. 조타만 그렇다.</summary>
+    private static bool TwoSidedGauge(TaskBase task)
+    {
+        return task is HelmTask;
     }
 
     /// <summary>작업마다 게이지가 무엇을 뜻하는지 다르다. 없으면 -1.</summary>
@@ -671,7 +717,8 @@ public class ShipCoopHud : MonoBehaviour
     {
         switch (task)
         {
-            case HelmTask helm: return Mathf.Abs(helm.Heading01);
+            // ⚠ **절댓값을 쓰지 마세요.** 좌우 구분이 사라집니다. (위 주석)
+            case HelmTask helm: return helm.Heading01;
             case SailTask sail: return sail.SailPower01;
             case RepairTask repair: return repair.Progress01;
             case CannonTask cannon: return cannon.MaxAmmo <= 0 ? 0f : (float)cannon.Ammo / cannon.MaxAmmo;

@@ -2847,9 +2847,14 @@ public static class ShipCoopDeckLayout
             list.GetArrayElementAtIndex(i).objectReferenceValue = rock;
         }
 
-        // ⚠ 뱃머리는 **재서** 넣습니다. 배 모델을 바꿔도 따라가야 합니다.
+        // ⚠ 배의 앞뒤 끝은 **재서** 넣습니다. 배 모델을 바꿔도 따라가야 합니다.
         //    (Reef 는 실행 중에도 스스로 재지만, 배를 못 찾을 때 쓸 값입니다)
         so.FindProperty("fallbackBowZ").floatValue = MeasureBowZ();
+        so.FindProperty("fallbackSternZ").floatValue = ShipSternZ;
+
+        // ⚠ 암초는 배를 **다 지나가야** 판정이 끝납니다. 지속 시간이 짧으면
+        //    바위가 배 옆구리에 걸친 채 사건이 끝납니다. (`VoyageSea.passDistance`)
+        so.FindProperty("duration").floatValue = 10.5f;
 
         // ⚠ 씬에 박힌 값이 코드 기본값을 이깁니다. 회피가 가능한 값으로 맞춥니다.
         //    자세한 계산은 `Reef.Judge` 주석에 있습니다.
@@ -2892,6 +2897,19 @@ public static class ShipCoopDeckLayout
             //    됩니다. 조타를 조금만 건드려도 항로 밖으로 나가 버립니다.
             //    ±5m 로 두면 다시 ±25도가 됩니다.
             seaSo.FindProperty("courseHalfWidth").floatValue = LateralPerDegree * 25f;
+
+            // ⚠ 0 이면 휠을 돌리는 즉시 배가 **평행으로 미끄러집니다.**
+            //    뱃머리가 도는 시간(followSeconds 0.8)보다 커야 회전이 먼저 보입니다.
+            seaSo.FindProperty("lateralLagSeconds").floatValue = 1.2f;
+
+            // ⚠ 바위가 **배 뒤끝보다 더 뒤까지** 가야 판정이 끝납니다.
+            //    12m 면 큰 바위 뒷면이 z −4 라 배 옆구리에 걸친 채 멈춥니다.
+            seaSo.FindProperty("passDistance").floatValue = 34f;
+
+            // ⚠ 수평선이 **뱃머리(z 34.3)보다 한참 멀어야** 반응할 시간이 생깁니다.
+            //    60m 면 바위가 2.3초 만에 뱃머리에 닿아서, 즉시 꺾어도 못 피합니다.
+            //    100m 면 5.7초가 되어 반응할 시간이 3.75초 생깁니다.
+            seaSo.FindProperty("horizonDistance").floatValue = 100f;
             seaSo.ApplyModifiedProperties();
 
             log.AppendLine($"  조타 1도당 옆으로 {LateralPerDegree}m 비켜서게 했습니다 " +

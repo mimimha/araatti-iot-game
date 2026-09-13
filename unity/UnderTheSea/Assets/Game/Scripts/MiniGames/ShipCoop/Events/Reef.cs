@@ -67,9 +67,12 @@ public class Reef : VoyageEvent
     [Tooltip("바위 폭 1m 당 필요 간격이 이만큼 늘어난다 (m). 큰 바위는 더 꺾어야 한다.")]
     [SerializeField, Range(0f, 0.3f)] private float widthPenalty = 0.08f;
 
-    [Header("뱃머리")]
+    [Header("배의 앞뒤 끝")]
     [Tooltip("배를 못 찾을 때 쓸 뱃머리 z (m). 배치 도구가 재어서 넣는다.")]
     [SerializeField] private float fallbackBowZ = 22.8f;
+
+    [Tooltip("배를 못 찾을 때 쓸 배 뒤끝 z (m). 배치 도구가 재어서 넣는다.")]
+    [SerializeField] private float fallbackSternZ = -19.7f;
 
     /// <summary>배 오브젝트 이름. 뱃머리를 재려고 찾는다.</summary>
     private const string ShipName = "PirateShip";
@@ -101,11 +104,16 @@ public class Reef : VoyageEvent
     /// <summary>띄운 바위의 높이 (m). 물에 잠그는 데 쓴다.</summary>
     public float RockHeight { get; private set; } = 1.6f;
 
-    /// <summary>이번 바위를 이미 판정했는가. 뱃머리를 넘는 순간 한 번만 한다.</summary>
+    /// <summary>이번 바위를 이미 판정했는가.</summary>
     private bool _judged;
 
-    /// <summary>재어둔 뱃머리 z. 배는 안 바뀌므로 한 번만 잰다.</summary>
+    /// <summary>바위가 배 옆에 들어온 적이 있는가. 다 지나가면 "피했다" 가 된다.</summary>
+    private bool _wasAlongside;
+
+    /// <summary>재어둔 배의 앞뒤 끝 z. 배는 안 바뀌므로 한 번만 잰다.</summary>
     private float? _bowZ;
+
+    private float? _sternZ;
 
     /// <summary>
     /// 예고 시작. **여기서 바위를 띄운다.**
@@ -119,6 +127,7 @@ public class Reef : VoyageEvent
 
         // 지난 판의 판정이 남아 있으면 이번 바위를 그냥 지나칩니다.
         _judged = false;
+        _wasAlongside = false;
 
         RockSide = randomSide
             ? (Random.value < 0.5f ? -1f : 1f)
@@ -244,56 +253,105 @@ public class Reef : VoyageEvent
             return;
         }
 
-        // 바위의 앞면이 뱃머리를 넘었는가. 가운데가 아니라 앞면으로 본다.
-        float nose = _rock.transform.position.z - RockWidth * 0.5f;
+        // ------------------------------------------------------------
+        // ⚠ **뱃머리 한 점이 아니라 배 전체로 봅니다.**
+        //
+        //    전에는 바위 앞면이 뱃머리(z 22.8)를 넘는 **순간 한 번**만 봤습니다.
+        //    그래서 뱃머리만 피하고 바로 키를 되돌리면, 바위가 배 옆구리를
+        //    그대로 긁고 지나가도 "피했다" 가 떴습니다.
+        //
+        //    지금은 바위가 **뱃머리부터 배 뒤끝(z −19.7)까지** 지나가는 내내
+        //    봅니다. 어디서든 닿으면 그 순간 부딪힌 것입니다.
+        //    끝까지 다 지나가야 피한 것이 됩니다.
+        // ------------------------------------------------------------
 
-        if (nose <= BowZ)
+        float rockZ = _rock.transform.position.z;
+        float half = RockWidth * 0.5f;
+
+        float nose = rockZ - half;   // 바위 앞면
+        float tail = rockZ + half;   // 바위 뒷면
+
+        // 배와 앞뒤로 겹쳐 있는가
+        bool alongside = nose <= BowZ && tail >= SternZ;
+
+        if (alongside)
+        {
+            _wasAlongside = true;
+
+            float gap = VoyageSea.Current.LateralGap(LaneX);
+            float need = safeGap + RockWidth * widthPenalty;
+
+            if (gap < need)
+            {
+                _judged = true;
+                Hit(gap, need, rockZ);
+            }
+
+            return;
+        }
+
+        // 배 뒤끝까지 다 지나갔다. 한 번도 안 닿았으면 피한 것이다.
+        //
+        // ⚠ 여기서부터는 안 봅니다. 배 뒤로 다 빠진 바위가 화면 밖에서
+        //    조타에 따라 옆으로 움직여도 손실이 나면 안 됩니다.
+        if (_wasAlongside && tail < SternZ)
         {
             _judged = true;
-            Judge();
+            Dodged();
         }
     }
 
-    /// <summary>
-    /// 뱃머리의 z. 배를 재서 찾고, 못 찾으면 적어둔 값을 쓴다.
-    ///
-    /// 배를 재는 이유는 배 모델을 바꿔도 따라가게 하기 위해서입니다.
-    /// </summary>
+    /// <summary>뱃머리의 z. 배를 재서 찾고, 못 찾으면 적어둔 값을 쓴다.</summary>
     private float BowZ
     {
         get
         {
-            if (_bowZ.HasValue)
-            {
-                return _bowZ.Value;
-            }
-
-            GameObject ship = GameObject.Find(ShipName);
-
-            if (ship == null)
-            {
-                _bowZ = fallbackBowZ;
-                return _bowZ.Value;
-            }
-
-            Renderer[] draws = ship.GetComponentsInChildren<Renderer>();
-
-            if (draws.Length == 0)
-            {
-                _bowZ = fallbackBowZ;
-                return _bowZ.Value;
-            }
-
-            Bounds box = draws[0].bounds;
-
-            for (int i = 1; i < draws.Length; i++)
-            {
-                box.Encapsulate(draws[i].bounds);
-            }
-
-            _bowZ = box.max.z;
+            MeasureShip();
             return _bowZ.Value;
         }
+    }
+
+    /// <summary>배 뒤끝의 z. 여기를 다 지나야 "지나갔다" 가 된다.</summary>
+    private float SternZ
+    {
+        get
+        {
+            MeasureShip();
+            return _sternZ.Value;
+        }
+    }
+
+    /// <summary>
+    /// 배의 앞뒤 끝을 한 번 재어 둔다.
+    ///
+    /// 배를 재는 이유는 배 모델을 바꿔도 따라가게 하기 위해서입니다.
+    /// </summary>
+    private void MeasureShip()
+    {
+        if (_bowZ.HasValue && _sternZ.HasValue)
+        {
+            return;
+        }
+
+        GameObject ship = GameObject.Find(ShipName);
+        Renderer[] draws = ship != null ? ship.GetComponentsInChildren<Renderer>() : null;
+
+        if (draws == null || draws.Length == 0)
+        {
+            _bowZ = fallbackBowZ;
+            _sternZ = fallbackSternZ;
+            return;
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        _bowZ = box.max.z;
+        _sternZ = box.min.z;
     }
 
     private void Judge()
@@ -314,14 +372,42 @@ public class Reef : VoyageEvent
 
         if (gap >= need)
         {
-            Debug.Log($"[{name}] 비켜서 지나갔다. 간격 {gap:F1}m (필요 {need:F1}m, 바위 {RockWidth:F1}m)", this);
-            Succeed();
+            Dodged();
             return;
         }
 
-        Debug.Log($"[{name}] 뱃머리에 부딪혔다. 간격 {gap:F1}m (필요 {need:F1}m, " +
+        Hit(gap, need, _rock != null ? _rock.transform.position.z : 0f);
+    }
+
+    /// <summary>
+    /// 배 어딘가에 닿았다. **바위는 그 자리에서 사라집니다.**
+    ///
+    /// <see cref="OnHide"/> 가 지웁니다. 배를 뚫고 지나가는 바위를 보여줄 수는 없습니다.
+    /// </summary>
+    private void Hit(float gap, float need, float rockZ)
+    {
+        string where = rockZ > BowZ * 0.5f ? "뱃머리"
+            : rockZ > SternZ * 0.5f ? "배 가운데"
+            : "배 뒤쪽";
+
+        Debug.Log($"[{name}] {where}에 부딪혔다. 간격 {gap:F1}m (필요 {need:F1}m, " +
                   $"바위 {RockWidth:F1}m, 대가 ×{FailScale:F2})", this);
+
         Fail();
+    }
+
+    /// <summary>
+    /// 배 전체를 스치지 않고 지나갔다.
+    ///
+    /// ⚠ **바위는 지우지 않고 놓아줍니다.** 배 뒤끝을 막 지난 참이라
+    ///    아직 화면에 한참 남아 있습니다. 여기서 지우면 눈앞에서 뿅 사라집니다.
+    /// </summary>
+    private void Dodged()
+    {
+        Debug.Log($"[{name}] 배 전체를 스치지 않고 지나갔다. (바위 {RockWidth:F1}m)", this);
+
+        LetItDriftBy();
+        Succeed();
     }
 
     protected override void OnTick(float deltaTime)
@@ -367,6 +453,30 @@ public class Reef : VoyageEvent
     {
         // 피한 것도 점수다. (2장 — 피한 암초 · 파도 × 20)
         Game?.ReportObstacleAvoided();
+    }
+
+    /// <summary>
+    /// 피한 바위를 **사건에서 떼어내** 스스로 흘러가게 놓아준다.
+    ///
+    /// 떼어낸 뒤에는 <see cref="OnHide"/> 가 지울 것이 없으므로 바위가 살아남습니다.
+    /// 화면 뒤로 다 지나가면 <see cref="ReefDrift"/> 가 스스로 지웁니다.
+    /// </summary>
+    private void LetItDriftBy()
+    {
+        if (_rock == null || VoyageSea.Current == null)
+        {
+            return;
+        }
+
+        // 여기까지 오던 속도 그대로 계속 간다. 갑자기 느려지면 눈에 띈다.
+        float span = VoyageSea.Current.HorizonDistance + VoyageSea.Current.PassDistance;
+        float speed = Duration > 0f ? span / Duration : 9f;
+
+        ReefDrift drift = _rock.AddComponent<ReefDrift>();
+        drift.Begin(LaneX, speed, -RockHeight * sink);
+
+        // ⚠ 손을 뗀다. 이걸 안 하면 OnHide 가 방금 놓아준 바위를 지운다.
+        _rock = null;
     }
 
     /// <summary>끝났으면 바위를 치운다. 성공·실패·취소 모두 여기를 지난다.</summary>
