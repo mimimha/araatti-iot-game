@@ -68,10 +68,14 @@ public class DebugPlayerMover : MonoBehaviour
     [SerializeField] private float gravity = -20f;
 
     [Header("몸 크기 (m)")]
-    [Tooltip("CharacterController 가 없을 때 이 값으로 만들어 붙인다.")]
-    [SerializeField, Min(0.1f)] private float bodyHeight = 1.6f;
+    [Tooltip("캐릭터 키에 맞춘다.\n\n" +
+             "이 배는 **키 3m 사람에 맞춰 만들어져 있습니다.**\n" +
+             "문 3.39m · 조타륜 지름 2.08m 에서 역산한 값입니다.\n" +
+             "캐릭터 모델은 1.2m 라 2.25배로 키워 씁니다. (ShipCoopDeckLayout)")]
+    [SerializeField, Min(0.1f)] private float bodyHeight = 2.7f;
 
-    [SerializeField, Min(0.05f)] private float bodyRadius = 0.35f;
+    [Tooltip("계단 폭이 1.9m 다. 반지름이 0.95 를 넘으면 계단에 못 들어간다.")]
+    [SerializeField, Min(0.05f)] private float bodyRadius = 0.5f;
 
     [Header("화면 기준으로 움직일지")]
     [Tooltip("켜면 **보이는 대로** 움직인다. 위를 누르면 화면 위쪽(카메라에서 먼 쪽)으로 간다.\n\n" +
@@ -131,6 +135,13 @@ public class DebugPlayerMover : MonoBehaviour
         _body.center = new Vector3(0f, bodyHeight * 0.5f, 0f);
         _body.stepOffset = stepHeight;
         _body.slopeLimit = slopeLimit;
+
+        // ⚠ **캐릭터가 바닥에서 뜨는 원인.**
+        //
+        // skinWidth 는 캡슐이 벽·바닥에 파묻히지 않게 남겨두는 여유입니다.
+        // 기본값 0.08 을 그대로 두면 그만큼 **발이 갑판 위에 떠 있습니다.**
+        // 유니티 권장대로 반지름의 10% 로 둡니다.
+        _body.skinWidth = bodyRadius * 0.1f;
     }
 
     /// <summary>
@@ -153,6 +164,39 @@ public class DebugPlayerMover : MonoBehaviour
 
             colliders[i].enabled = false;
             Debug.Log($"[{name}] {colliders[i].GetType().Name} 를 껐습니다. 이동은 CharacterController 가 합니다.", this);
+        }
+
+        IgnoreTheShip();
+    }
+
+    /// <summary>
+    /// 배 모델과는 **아예 안 부딪히게** 한다.
+    ///
+    /// 배의 갑판 메시는 콜라이더가 켜져 있습니다. 걸으라고 켠 것이 아니라,
+    /// `ShipCoopCharacter` 가 **보이는 갑판 높이를 찾으려고** 켜 둔 것입니다.
+    /// (ShipCoopDeckLayout.LetDecksBeFound)
+    ///
+    /// 그대로 두면 울퉁불퉁한 배 위를 걷게 되어, 평평한 큐브를 깔아 둔 뜻이 사라집니다.
+    /// 그래서 이 캡슐만 배를 통과하게 만듭니다. 레이는 그대로 맞으므로
+    /// 발 높이는 계속 찾을 수 있습니다.
+    /// </summary>
+    private void IgnoreTheShip()
+    {
+        GameObject ship = GameObject.Find("PirateShip");
+
+        if (ship == null)
+        {
+            return;
+        }
+
+        Collider[] parts = ship.GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (parts[i] != null && parts[i].enabled)
+            {
+                Physics.IgnoreCollision(_body, parts[i], true);
+            }
         }
     }
 
