@@ -73,6 +73,13 @@ public class DebugPlayerMover : MonoBehaviour
 
     [SerializeField, Min(0.05f)] private float bodyRadius = 0.35f;
 
+    [Header("화면 기준으로 움직일지")]
+    [Tooltip("켜면 **보이는 대로** 움직인다. 위를 누르면 화면 위쪽(카메라에서 먼 쪽)으로 간다.\n\n" +
+             "카메라는 오른손 스틱으로 좌우 100도까지 돈다. 끄면 월드 +z 로 고정이라,\n" +
+             "카메라를 돌린 채 위를 누르면 캐릭터가 비스듬히 간다.\n" +
+             "화면과 손이 어긋나면 우당탕탕하는 중에 엉뚱한 데로 뛴다.")]
+    [SerializeField] private bool cameraRelative = true;
+
     [Header("작업 중에는 못 움직이게 할지")]
     [Tooltip("끄면 작업에 붙은 채로도 움직일 수 있다.\n" +
              "켜면 오버쿡처럼 자리에 고정된다. 다만 걸어나가서 떨어지는 것을 확인할 수 없다.")]
@@ -87,6 +94,9 @@ public class DebugPlayerMover : MonoBehaviour
     private IPlayerController _input;
     private TaskWorker _worker;
     private CharacterController _body;
+
+    /// <summary>화면 기준 이동에 쓰는 카메라. 한 번 찾아 두고 다시 안 찾는다.</summary>
+    private Camera _view;
 
     /// <summary>아래로 쌓이는 속도. 땅에 닿으면 초기화된다.</summary>
     private float _fallSpeed;
@@ -165,9 +175,8 @@ public class DebugPlayerMover : MonoBehaviour
             return;
         }
 
-        // 스틱의 y 는 앞뒤(월드 z)로 간다.
         Vector2 move = _input.Move;
-        Vector3 direction = new Vector3(move.x, 0f, move.y);
+        Vector3 direction = ToWorld(new Vector3(move.x, 0f, move.y));
 
         if (direction.sqrMagnitude > 1f)
         {
@@ -179,6 +188,38 @@ public class DebugPlayerMover : MonoBehaviour
 
         Fall(direction * (IsSprinting ? sprintSpeed : walkSpeed), deltaTime);
         FaceMoveDirection(direction, deltaTime);
+    }
+
+    /// <summary>
+    /// 스틱이 가리킨 방향을 **화면 기준에서 월드 기준으로** 바꾼다.
+    ///
+    /// 카메라는 오른손 스틱으로 좌우 100도까지 돕니다. (ShipCoopCamera)
+    /// 그 상태에서 스틱 위를 월드 +z 로 그대로 쓰면, 화면에서는 **비스듬히** 갑니다.
+    /// 우당탕탕하는 중에 화면과 손이 어긋나면 엉뚱한 데로 뜁니다.
+    ///
+    /// 카메라의 좌우 각도(yaw)만 씁니다. 위아래로 기울어진 것은 빼야
+    /// 갑판을 기어오르지 않습니다.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ **네트워크에서는 이 변환을 각자 자기 쪽에서 해야 합니다.** (11장)
+    ///    카메라는 사람마다 다르게 돌아가 있어서 호스트가 알 수 없습니다.
+    ///    입력을 보낼 때 **돌린 뒤의 방향**을 보내거나, 카메라 각도를 같이 보내야 합니다.
+    /// </remarks>
+    private Vector3 ToWorld(Vector3 stick)
+    {
+        if (!cameraRelative)
+        {
+            return stick;
+        }
+
+        Camera view = _view != null ? _view : (_view = Camera.main);
+
+        if (view == null)
+        {
+            return stick;
+        }
+
+        return Quaternion.Euler(0f, view.transform.eulerAngles.y, 0f) * stick;
     }
 
     /// <summary>
