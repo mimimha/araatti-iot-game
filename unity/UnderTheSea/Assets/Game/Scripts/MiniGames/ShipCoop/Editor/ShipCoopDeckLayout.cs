@@ -556,10 +556,8 @@ public static class ShipCoopDeckLayout
         so.FindProperty("degreesPerTurnRate").floatValue = 0.35f;
         so.FindProperty("mostDegrees").floatValue = 14f;
 
-        // ⚠ 꺾어 **둔 동안**의 각. 0 이면 조타륜을 잡고 있어도 배가 저절로
-        //    일자로 돌아와서, 뱃머리가 좌우로 간다는 느낌이 안 납니다.
-        //    재본 값은 `ShipCoopShipTurn` 주석에 있습니다.
-        so.FindProperty("heldDegrees").floatValue = 18f;
+        // ⛔ 조타 각도에 비례하는 성분은 **없습니다.** 넣으면 조타륜을 잡고 있는
+        //    내내 배가 비스듬한 채로 굳습니다. 시간이 지나면 일자여야 합니다.
 
         // ⚠ **축은 고정이 아니라 고물에서 뱃머리 쪽으로 미끄러집니다.**
         //
@@ -624,7 +622,7 @@ public static class ShipCoopDeckLayout
         so.ApplyModifiedProperties();
 
         log.AppendLine($"  조타하면 뱃머리가 좌우로 틀어지게 했습니다 " +
-                       $"(꺾는 순간 최대 14도 + 꺾어둔 동안 18도, 기울기 3도, " +
+                       $"(꺾는 순간 최대 14도, 기울기 3도, 시간이 지나면 일자로 돌아옴, " +
                        $"축 z {ShipBowZ - (ShipBowZ - ShipSternZ) / 3f:F1}, 같이 도는 것 {carried.Count}개)");
     }
 
@@ -2805,6 +2803,17 @@ public static class ShipCoopDeckLayout
         "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Spikes_01.prefab",
     };
 
+    /// <summary>
+    /// 조타 1도당 배가 옆으로 비켜서는 거리 (m).
+    ///
+    /// ⚠ **`safeGap` 과 짝입니다.** 한쪽만 바꾸면 난이도가 소리 없이 달라집니다.
+    ///
+    /// 0.08 이었을 때는 끝까지 꺾어도 4.8m 라, 조타수 화면에서 항로선이
+    /// 67px(화면의 3.5%)밖에 안 움직였습니다. **배가 옆으로 가는 것이
+    /// 안 보였습니다.** 갑판 폭이 8m 인데 그 절반도 안 비켜선 것입니다.
+    /// </summary>
+    private const float LateralPerDegree = 0.2f;
+
     /// <summary>암초에 진짜 바위들을 넣고, 뱃머리 자리를 재어 넣는다.</summary>
     private static void SetUpReefRocks(StringBuilder log)
     {
@@ -2849,11 +2858,45 @@ public static class ShipCoopDeckLayout
         //    가만히 있으면 바위 안쪽 끝이 3.9m 라 선체를 스치고 지나갑니다.
         so.FindProperty("laneOffset").floatValue = 12f;
 
-        // 가만히 있으면 12m 라 실패, 끝까지 꺾으면 16.8m 라 성공.
-        so.FindProperty("safeGap").floatValue = 13f;
+        // ⚠ **`VoyageSea.lateralPerDegree` 와 짝입니다. 한쪽만 바꾸지 마세요.**
+        //
+        //    비켜서는 양을 0.08 → 0.2 로 키웠습니다 (끝까지 꺾으면 4.8m → 12m).
+        //    화면에서 배가 움직이는 것이 3.5% 밖에 안 돼서 안 보였기 때문입니다.
+        //
+        //    그런데 `safeGap` 을 그대로 두면 **훨씬 조금만 꺾어도 피해집니다.**
+        //    필요한 조타 각도가 28.8도에서 11.5도로 줄어듭니다.
+        //    그래서 같은 비율로 올려 **난이도를 그대로 둡니다.**
+        //
+        //      필요한 옆 이동 = safeGap + 바위폭×0.08 − laneOffset
+        //      필요한 조타각  = 그 이동 / lateralPerDegree     ← 이것이 그대로여야 한다
+        //
+        //      전     13   + 16.2×0.08 − 12 = 2.3m  ÷ 0.08 = 28.8도
+        //      지금   16.5 + 16.2×0.08 − 12 = 5.8m  ÷ 0.2  = 28.8도  ✅ 같다
+        so.FindProperty("safeGap").floatValue = 16.5f;
         so.FindProperty("widthPenalty").floatValue = 0.08f;
 
         so.ApplyModifiedProperties();
+
+        // ⚠ **짝이 되는 값이라 같은 자리에서 함께 씁니다.** 따로 두면 한쪽만
+        //    바뀌어서 난이도가 소리 없이 달라집니다. (위 계산 참고)
+        VoyageSea sea = Object.FindAnyObjectByType<VoyageSea>(FindObjectsInactive.Include);
+
+        if (sea != null)
+        {
+            SerializedObject seaSo = new SerializedObject(sea);
+            seaSo.FindProperty("lateralPerDegree").floatValue = LateralPerDegree;
+
+            // ⚠ 항로 폭도 같이 키웁니다. **안 키우면 항로가 2.5배 좁아집니다.**
+            //    노란 선은 "이 안에 있으면 제대로 가고 있다" 는 표시입니다.
+            //    0.08 일 때 ±2m 는 조타 ±25도였는데, 0.2 로 바꾸면 ±10도가
+            //    됩니다. 조타를 조금만 건드려도 항로 밖으로 나가 버립니다.
+            //    ±5m 로 두면 다시 ±25도가 됩니다.
+            seaSo.FindProperty("courseHalfWidth").floatValue = LateralPerDegree * 25f;
+            seaSo.ApplyModifiedProperties();
+
+            log.AppendLine($"  조타 1도당 옆으로 {LateralPerDegree}m 비켜서게 했습니다 " +
+                           $"(끝까지 꺾으면 {LateralPerDegree * 60f:F1}m)");
+        }
 
         log.AppendLine($"  암초에 바위 {found}종을 넣고 뱃머리를 " +
                        $"z {so.FindProperty("fallbackBowZ").floatValue:F1} 로 잡았습니다");
