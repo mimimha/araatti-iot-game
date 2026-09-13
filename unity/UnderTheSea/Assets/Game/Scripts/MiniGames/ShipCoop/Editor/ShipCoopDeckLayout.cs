@@ -612,6 +612,41 @@ public static class ShipCoopDeckLayout
             carried.Add(t.transform);
         }
 
+        // ------------------------------------------------------------
+        // ⚠ **파손 지점이 생기는 자리도 챙겨야 합니다.**
+        //
+        //    안 챙기면 두 가지가 깨집니다.
+        //      ① 자리 자체가 제자리에 남아서, 배가 돌수록 구멍이 배 밖에 뚫린다
+        //      ② 거기 생긴 빨간 수리 큐브가 **갑판 위를 미끄러져 다닌다**
+        //
+        //    `HullDamage.Spawn` 이 파손 지점을 **그 자리의 부모 밑에** 넣으므로,
+        //    부모만 여기 넣어두면 게임 중에 생긴 것도 저절로 같이 돕니다.
+        //    이 목록은 에디터에서 만들어지니 실행 중에 생긴 것은 넣을 수가 없습니다.
+        // ------------------------------------------------------------
+
+        foreach (HullDamage hull in Object.FindObjectsByType<HullDamage>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            SerializedProperty spots = new SerializedObject(hull).FindProperty("spawnPoints");
+
+            for (int i = 0; i < spots.arraySize; i++)
+            {
+                Transform spot = spots.GetArrayElementAtIndex(i).objectReferenceValue as Transform;
+
+                if (spot == null)
+                {
+                    continue;
+                }
+
+                // 부모를 넣는다. 자리 하나하나가 아니라 묶음째 돌아야 서로 안 어긋난다.
+                Transform group = spot.parent != null ? spot.parent : spot;
+
+                if (!carried.Contains(group))
+                {
+                    carried.Add(group);
+                }
+            }
+        }
+
         foreach (TaskWorker t in Object.FindObjectsByType<TaskWorker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             carried.Add(t.transform);

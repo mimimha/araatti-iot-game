@@ -109,6 +109,23 @@ public class DroppedCargo : MonoBehaviour
 
         made.transform.SetPositionAndRotation(where, Quaternion.identity);
 
+        // ------------------------------------------------------------
+        // ⚠ **갑판의 자식으로 넣습니다. 안 그러면 배가 돌 때 미끄러집니다.**
+        //
+        //    씬 루트에 두면 `ShipCoopShipTurn` 이 들고 도는 목록(`carried`)에
+        //    없어서 제자리에 남습니다. 배만 돌아가고 떨어뜨린 물건은 갑판 위를
+        //    **미끄러져 다닙니다.**
+        //
+        //    그 목록은 배치 도구가 **에디터에서** 만들어 둔 것이라, 게임 중에
+        //    생긴 것은 들어갈 수가 없습니다. 그래서 이미 목록에 있는 것의
+        //    자식으로 넣습니다. 부모가 돌면 자식은 저절로 따라갑니다.
+        // ------------------------------------------------------------
+
+        if (deck != null)
+        {
+            made.transform.SetParent(deck.transform, true);
+        }
+
         DroppedCargo dropped = made.AddComponent<DroppedCargo>();
         dropped.Kind = kind;
 
