@@ -99,6 +99,35 @@ public static class ShipCoopDeckLayout
     private const float AftStairRun = 4.0f;
     private const float ForeStairRun = 2.2f;
 
+    // ------------------------------------------------------------
+    // 배에 있는 실물의 자리 — 작업 자리를 여기에 맞춘다
+    //
+    // ⚠ 이걸 안 맞추면 **화면에 보이는 대포와 붙는 자리가 따로 놉니다.**
+    //    조타만 우연히 맞았고 돛과 대포는 1.7m / 13m 어긋나 있었습니다.
+    //    모델에서 잰 값이라, 배를 바꾸면 다시 재야 합니다.
+    // ------------------------------------------------------------
+
+    /// <summary>조타륜(Wheel). 선미루 위.</summary>
+    private const float WheelX = 1.05f;
+    private const float WheelZ = -7.93f;
+
+    /// <summary>주 돛대(MastMid) 밑동. 굵기 1.25m.</summary>
+    private const float MastMidX = 1.03f;
+    private const float MastMidZ = 3.80f;
+
+    // 💣 대포는 배 모델에서 **중간갑판**에 놓여 있습니다. 설계는 앞갑판입니다. (4장)
+    //
+    //    중간갑판에 두면 돛과 3.1m 거리로 붙어서 **층을 나눈 의미가 없어지고**,
+    //    앞갑판에는 뱃전만 남습니다. 그래서 자리를 바꾸는 대신
+    //    **배에 있는 대포를 앞갑판으로 옮깁니다.** (MoveShipCannon)
+    //
+    //    대포는 x 방향으로 3.5m 길어서 우현을 향해 놓입니다.
+    private const float CannonX = 3.21f;
+    private const float CannonZ = 13.65f;
+
+    /// <summary>배 모델에서 대포가 원래 있던 자리. 여기서 위 자리로 옮긴다.</summary>
+    private static readonly Vector3 ShipCannonHome = new Vector3(3.21f, -3.49f, 0.70f);
+
     // 갑판 면에서 얼마나 띄울지. 오브젝트마다 크기가 달라 0 이면 바닥에 묻힌다.
     private const float HelmLift = 0.70f;
     private const float SailLift = 1.60f;
@@ -110,6 +139,9 @@ public static class ShipCoopDeckLayout
     private const string RootName = "ShipDecks";
 
     // ------------------------------------------------------------
+
+    /// <summary>뒤쪽 경사로가 중간갑판 쪽으로 뻗어 끝나는 z. 여기보다 앞에 물건을 둔다.</summary>
+    private static float RampEndZ => MidBackZ + AftStairRun;
 
     private static float AftCenterZ => (AftBackZ + AftFrontZ) * 0.5f;
     private static float MidCenterZ => (MidBackZ + MidFrontZ) * 0.5f;
@@ -131,6 +163,7 @@ public static class ShipCoopDeckLayout
 
         BuildDecks(root, log);
         BuildStairs(root, log);
+        BuildWalls(root, log);
         MoveStations(log);
         MovePlayers(log);
 
@@ -191,6 +224,112 @@ public static class ShipCoopDeckLayout
         }
 
         log.AppendLine($"  배 모델을 놓고 콜라이더 {off}개를 껐습니다. (평평한 큐브가 바닥을 맡습니다)");
+
+        MoveShipCannon(ship, log);
+    }
+
+    /// <summary>
+    /// 배에 달린 대포를 **앞갑판으로 옮긴다.**
+    ///
+    /// 이 배는 대포가 하나뿐이고 그게 중간갑판에 있습니다. 설계는 앞갑판입니다. (4장)
+    /// 자리를 배에 맞추면 돛과 3.1m 거리로 붙어서 **층을 나눈 의미가 없어지고**,
+    /// 앞갑판에는 뱃전만 남습니다.
+    ///
+    /// 그래서 **보이는 대포를 옮깁니다.** 자리를 옮기는 것보다 이쪽이 맞습니다 —
+    /// 설계가 먼저이고 모델이 거기에 맞춰야 합니다.
+    ///
+    /// 되풀이해 돌려도 되도록 **원래 자리에서의 거리**로 옮깁니다.
+    /// </summary>
+    private static void MoveShipCannon(GameObject ship, StringBuilder log)
+    {
+        Transform cannon = null;
+
+        foreach (Transform t in ship.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == "Cannon")
+            {
+                cannon = t;
+                break;
+            }
+        }
+
+        if (cannon == null)
+        {
+            log.AppendLine("  ⚠ 배에서 대포를 못 찾았습니다. 앞갑판에 대포가 안 보일 겁니다.");
+            return;
+        }
+
+        Vector3 want = new Vector3(CannonX, ForeSurfaceY, CannonZ);
+
+        Undo.RecordObject(cannon, "배 모델과 갑판 배치");
+        cannon.position += want - ShipCannonHome;
+
+        log.AppendLine($"  대포를 앞갑판으로 옮겼습니다. {Describe(cannon.position)}");
+    }
+
+    // ------------------------------------------------------------
+    // 배 밖으로 못 나가게 하는 벽
+    // ------------------------------------------------------------
+
+    /// <summary>바닥에서 이만큼 아래부터 벽이 시작한다. 낮은 층까지 덮기 위함.</summary>
+    private const float WallBottom = -5.0f;
+
+    /// <summary>벽 꼭대기. 제일 높은 갑판(뒷갑판 0.98)보다 충분히 위.</summary>
+    private const float WallTop = 4.0f;
+
+    private const float WallThickness = 0.4f;
+
+    /// <summary>
+    /// 배 둘레에 **보이지 않는 벽**을 세운다.
+    ///
+    /// 떨어지면 바다인데 **다시 올라올 방법이 없습니다.** 남은 시간 동안 그 사람은
+    /// 게임에서 빠지고, 4명이 해야 하는 일이 3명 몫이 됩니다. 벌이 너무 큽니다.
+    ///
+    /// 난간 메시를 콜라이더로 쓰지 않는 이유는 갑판과 같습니다 —
+    /// 난간에는 살 사이에 틈이 있어서 캡슐이 끼거나 빠져나갑니다.
+    /// 평평한 판 4장이 확실합니다.
+    ///
+    /// 층마다 따로 두르지 않고 **배 전체를 한 번에** 두릅니다. 층 사이는
+    /// 높이 차이가 알아서 막아주고, 떨어질 수 있는 곳은 바깥쪽뿐입니다.
+    /// </summary>
+    private static void BuildWalls(Transform root, StringBuilder log)
+    {
+        float left = CenterX - DeckWidth * 0.5f;
+        float right = CenterX + DeckWidth * 0.5f;
+        float back = AftBackZ;
+        float front = ForeFrontZ;
+
+        float height = WallTop - WallBottom;
+        float middleY = (WallTop + WallBottom) * 0.5f;
+        float middleZ = (back + front) * 0.5f;
+        float length = front - back;
+
+        MakeWall(root, "Wall_Port", new Vector3(left, middleY, middleZ),
+                 new Vector3(WallThickness, height, length));
+
+        MakeWall(root, "Wall_Starboard", new Vector3(right, middleY, middleZ),
+                 new Vector3(WallThickness, height, length));
+
+        // 앞뒤 마개는 좌우 벽 사이를 메운다. 모서리가 벌어지면 거기로 빠진다.
+        MakeWall(root, "Wall_Stern", new Vector3(CenterX, middleY, back),
+                 new Vector3(DeckWidth, height, WallThickness));
+
+        MakeWall(root, "Wall_Bow", new Vector3(CenterX, middleY, front),
+                 new Vector3(DeckWidth, height, WallThickness));
+
+        log.AppendLine();
+        log.AppendLine($"  벽   x {left:F1} / {right:F1}, z {back:F1} / {front:F1}, 높이 {WallBottom:F1}~{WallTop:F1}");
+    }
+
+    private static void MakeWall(Transform root, string name, Vector3 center, Vector3 size)
+    {
+        Transform wall = FindOrCreateBox(root, name);
+
+        wall.localPosition = center;
+        wall.localScale = size;
+        wall.localRotation = Quaternion.identity;
+
+        HideButKeepCollider(wall);
     }
 
     private static Transform FindOrCreateRoot()
@@ -471,14 +610,18 @@ public static class ShipCoopDeckLayout
         log.AppendLine();
         log.AppendLine("  자리:");
 
-        // 🛞 조타 — 배에 있는 조타륜(Wheel) 자리. 선미루 위다.
-        Place<HelmTask>(log, "🛞 조타", CenterX, AftSurfaceY + HelmLift, -8.0f);
+        // ⚠ **배에 있는 실물 위에 놓는다.** 갑판 한가운데 같은 "적당한" 자리에 두면
+        //    보이는 조타륜·돛대·대포와 어긋나서, 화면에는 대포가 저기 있는데
+        //    붙는 자리는 여기가 됩니다. 아래 숫자는 모델에서 직접 잰 값입니다.
 
-        // ⛵ 돛 — 주 돛대. 중간갑판 한가운데.
-        Place<SailTask>(log, "⛵ 돛", CenterX, MidSurfaceY + SailLift, MidCenterZ);
+        // 🛞 조타 — 배의 조타륜(Wheel). 선미루 위.
+        Place<HelmTask>(log, "🛞 조타", WheelX, AftSurfaceY + HelmLift, WheelZ);
 
-        // 💣 대포 — 앞갑판 우현.
-        Place<CannonTask>(log, "💣 대포", CenterX + 2.8f, ForeSurfaceY + CannonLift, ForeCenterZ);
+        // ⛵ 돛 — 배의 주 돛대(MastMid) 밑동. 중간갑판.
+        Place<SailTask>(log, "⛵ 돛", MastMidX, MidSurfaceY + SailLift, MastMidZ);
+
+        // 💣 대포 — 앞갑판 우현. 배에 있는 대포를 여기로 옮겨 온다. (MoveShipCannon)
+        Place<CannonTask>(log, "💣 대포", CannonX, ForeSurfaceY + CannonLift, CannonZ);
 
         PlaceDumps(log);
         PlaceBoxes(log);
@@ -561,7 +704,9 @@ public static class ShipCoopDeckLayout
                     break;
 
                 default:
-                    where = new Vector3(CenterX - 3.0f, MidSurfaceY + BoxLift, MidBackZ + 3.0f);
+                    // ⚠ 경사로 앞에 둔다. 예전 자리(MidBackZ + 3)는 경사로 **안**이었다.
+                    //    좌우 계단이 z MidBackZ ~ MidBackZ + AftStairRun 을 차지한다.
+                    where = new Vector3(CenterX, MidSurfaceY + BoxLift, RampEndZ + 0.8f);
                     label = "🪣 양동이 상자";
                     break;
             }
@@ -585,7 +730,7 @@ public static class ShipCoopDeckLayout
         {
             new Vector3(CenterX - 3.0f, AftSurfaceY + DamageLift, AftCenterZ),
             new Vector3(CenterX + 3.0f, MidSurfaceY + DamageLift, MidCenterZ + 3.0f),
-            new Vector3(CenterX - 3.5f, MidSurfaceY + DamageLift, MidBackZ + 2.0f),
+            new Vector3(CenterX - 3.5f, MidSurfaceY + DamageLift, RampEndZ + 1.0f),
             new Vector3(CenterX + 2.5f, ForeSurfaceY + DamageLift, ForeCenterZ - 2.0f),
         };
 
@@ -642,7 +787,7 @@ public static class ShipCoopDeckLayout
         //
         // ⚠ **경사로를 피해서 세운다.** 경사로 위에 세우면 파묻히거나 튕겨나간다.
         //    앞뒤로는 경사로 끝에서 2m 앞, 좌우로는 두 계단 사이(가운데)에 몰아 둔다.
-        float startZ = MidBackZ + AftStairRun + 2f;
+        float startZ = RampEndZ + 2f;
         float startX = CenterX - 2.4f;
 
         int off = 0;
