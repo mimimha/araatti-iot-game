@@ -121,12 +121,11 @@ public static class ShipCoopDeckLayout
     //    앞갑판에는 뱃전만 남습니다. 그래서 자리를 바꾸는 대신
     //    **배에 있는 대포를 앞갑판으로 옮깁니다.** (MoveShipCannon)
     //
-    //    대포는 x 방향으로 3.5m 길어서 우현을 향해 놓입니다.
-    private const float CannonX = 3.21f;
+    //    ⚠ **대포는 우현(+x)을 봅니다.** 포신(가는 쪽)이 +x 끝에 있습니다.
+    //       x 는 대포 **한가운데**라, 포신 끝은 여기서 +1.74m 입니다.
+    //       4.45 면 포신이 6.19 — 난간(6.42) 바로 앞입니다. 더 밀면 난간을 뚫습니다.
+    private const float CannonX = 4.45f;
     private const float CannonZ = 13.65f;
-
-    /// <summary>배 모델에서 대포가 원래 있던 자리. 여기서 위 자리로 옮긴다.</summary>
-    private static readonly Vector3 ShipCannonHome = new Vector3(3.21f, -3.49f, 0.70f);
 
     // 갑판 면에서 얼마나 띄울지. 오브젝트마다 크기가 달라 0 이면 바닥에 묻힌다.
     private const float HelmLift = 0.70f;
@@ -238,7 +237,10 @@ public static class ShipCoopDeckLayout
     /// 그래서 **보이는 대포를 옮깁니다.** 자리를 옮기는 것보다 이쪽이 맞습니다 —
     /// 설계가 먼저이고 모델이 거기에 맞춰야 합니다.
     ///
-    /// 되풀이해 돌려도 되도록 **원래 자리에서의 거리**로 옮깁니다.
+    /// ⚠ **지금 어디 있든 같은 자리로 간다.** 처음에는 "원래 자리에서 이만큼"
+    ///    으로 옮겼는데, 그러면 배치를 두 번 돌릴 때 **대포가 두 번 날아갑니다.**
+    ///    이 도구는 되풀이해 돌리는 것이 전제라 그러면 안 됩니다.
+    ///    그래서 지금 차지하고 있는 자리(bounds)를 재서 목표에 맞춥니다.
     /// </summary>
     private static void MoveShipCannon(GameObject ship, StringBuilder log)
     {
@@ -253,18 +255,26 @@ public static class ShipCoopDeckLayout
             }
         }
 
-        if (cannon == null)
+        Renderer draw = cannon != null ? cannon.GetComponent<Renderer>() : null;
+
+        if (draw == null)
         {
             log.AppendLine("  ⚠ 배에서 대포를 못 찾았습니다. 앞갑판에 대포가 안 보일 겁니다.");
             return;
         }
 
-        Vector3 want = new Vector3(CannonX, ForeSurfaceY, CannonZ);
+        Bounds area = draw.bounds;
+
+        // 앞뒤·좌우는 한가운데를 맞추고, 높이는 **바닥이 갑판에 닿게** 맞춘다.
+        Vector3 move = new Vector3(
+            CannonX - area.center.x,
+            ForeSurfaceY - area.min.y,
+            CannonZ - area.center.z);
 
         Undo.RecordObject(cannon, "배 모델과 갑판 배치");
-        cannon.position += want - ShipCannonHome;
+        cannon.position += move;
 
-        log.AppendLine($"  대포를 앞갑판으로 옮겼습니다. {Describe(cannon.position)}");
+        log.AppendLine($"  대포를 앞갑판으로 옮겼습니다. 포신 끝 x {area.max.x + move.x:F2}");
     }
 
     // ------------------------------------------------------------
@@ -359,26 +369,22 @@ public static class ShipCoopDeckLayout
         // 그러면 조타륜만 코앞에 보이고 갑판이 하나도 안 보입니다.
         // 선미루 꼭대기(y 3.9)보다 위에서 내려다보도록 높이를 올립니다.
 
+        // 가릴 것은 여기에 적지 않습니다. `FillBlockers` 가 **카메라에서 직접 레이를
+        // 쏴서** 찾습니다. 층마다 무엇이 가리는지는 배 모델에 달린 문제라,
+        // 사람이 목록으로 들고 있으면 모델을 바꿀 때마다 틀립니다.
+
         MakeDeck(root, "Deck_Aft", AftCenterZ, AftLength, AftSurfaceY, "뒷갑판",
-                 new Vector4(13f, 7f, 1.5f, 6f), hideBehindZ: float.NegativeInfinity, alsoHide: null);
+                 new Vector4(13f, 7f, 1.5f, 6f));
 
         // 중간갑판에 서면 **뒷갑판이 통째로 눈앞을 가로막습니다.**
         // 카메라를 높여도 그 사이에 있으니 소용이 없어서, 그 층에 있는 동안 감춥니다.
-        //
-        // 이름을 하나씩 적지 않고 **선미 쪽(z < 중간갑판 뒤끝)에 있는 것 전부**를 잡습니다.
-        // 하나만 빠져도 그게 화면에 덩그러니 떠 있어서, 목록으로 관리하면 반드시 빠뜨립니다.
-        //
-        // ⚠ **계단(StairsUpper)은 감추지 않습니다.**
-        //    걸어다니는 경사로가 보이지 않기 때문에, 이 모델이 **어디로 올라가는지
-        //    알려주는 유일한 단서**입니다. 감췄더니 올라갈 길이 화면에서 사라졌습니다.
-        //    계단은 z -6.2 ~ -0.7 이라 위치로는 안 잡히므로 그냥 두면 됩니다.
         MakeDeck(root, "Deck_Main", MidCenterZ, MidLength, MidSurfaceY, "중간갑판",
-                 new Vector4(15f, 8.5f, 1.5f, 6f),
-                 hideBehindZ: MidBackZ,
-                 alsoHide: null);
+                 new Vector4(15f, 8.5f, 1.5f, 6f));
 
+        // 앞갑판은 **주 돛대와 주 돛**이 코앞을 막습니다. 카메라가 돛대에서 3m 뒤라
+        // 기둥 하나가 화면을 반으로 가릅니다.
         MakeDeck(root, "Deck_Fore", ForeCenterZ, ForeLength, ForeSurfaceY, "앞갑판",
-                 new Vector4(13f, 8f, 1.5f, 6f), hideBehindZ: float.NegativeInfinity, alsoHide: null);
+                 new Vector4(13f, 8f, 1.5f, 6f));
 
         log.AppendLine($"  뒷갑판   y {AftSurfaceY,6:F2}  z {AftBackZ,6:F1} ~ {AftFrontZ,5:F1}   🛞 조타");
         log.AppendLine($"  중간갑판 y {MidSurfaceY,6:F2}  z {MidBackZ,6:F1} ~ {MidFrontZ,5:F1}   ⛵ 돛 · 📦 상자");
@@ -386,13 +392,15 @@ public static class ShipCoopDeckLayout
     }
 
     private static void MakeDeck(Transform root, string name, float centerZ, float length,
-                                 float surfaceY, string label, Vector4 view,
-                                 float hideBehindZ, string[] alsoHide)
+                                 float surfaceY, string label, Vector4 view)
     {
         Transform deck = FindOrCreateBox(root, name);
 
         deck.localScale = new Vector3(DeckWidth, DeckThickness, length);
         deck.localPosition = new Vector3(CenterX, surfaceY - DeckThickness * 0.5f, centerZ);
+
+        // 가리는 것을 레이로 찾으려면 이 갑판이 물리에 올라와 있어야 한다.
+        Physics.SyncTransforms();
 
         HideButKeepCollider(deck);
 
@@ -412,68 +420,141 @@ public static class ShipCoopDeckLayout
         so.FindProperty("cameraLookHeight").floatValue = view.z;
         so.FindProperty("cameraLookAhead").floatValue = view.w;
 
-        FillBlockers(so, hideBehindZ, alsoHide);
+        // 여기서 카메라 값을 먼저 확정해야 FillBlockers 가 같은 구도로 레이를 쏜다.
+        so.ApplyModifiedProperties();
+
+        FillBlockers(so, mark, view);
 
         so.ApplyModifiedProperties();
     }
-
     /// <summary>
     /// 이 층에 있을 때 감출 배 부분들을 찾아 넣는다.
     ///
-    /// **이름 목록이 아니라 위치로 잡습니다.** `hideBehindZ` 보다 뒤에 있는 것은 전부입니다.
-    /// 이름으로 관리하면 하나씩 빠뜨리고, 빠진 것은 화면에 덩그러니 떠 있게 됩니다.
-    /// 배 모델을 바꿔도 이 방식이면 그대로 동작합니다.
+    /// **이름 목록으로 관리하지 않습니다.** 하나씩 적으면 반드시 빠뜨리고,
+    /// 빠진 것은 화면에 덩그러니 떠서 앞을 가립니다. 배 모델을 바꾸면 또 다시 적어야 합니다.
     ///
-    /// <paramref name="alsoHide"/> 는 경계에 걸쳐 있어 위치로는 안 잡히는 것들입니다.
-    /// (계단이 그렇습니다 — 아래층 위에 놓여 있지만 위층에 속한 물건입니다)
+    /// 그래서 **카메라에서 갑판으로 실제로 레이를 쏴 봅니다.** 맞는 것이 가리는 것입니다.
+    /// 처음에는 "이 z 보다 뒤에 있는 것 전부" 로 잡았는데, 앞갑판에서는 그러면
+    /// **선체(Hull)까지 잡혀서** 배가 통째로 사라집니다. 앞갑판을 가리는 것은
+    /// 뒤에 있는 구조물이 아니라 **한가운데 서 있는 주 돛대와 돛**이었습니다.
+    ///
+    /// 갑판 위에 있는 것은 감추지 않습니다. 조타륜 · 대포 · 앞 돛대는 가려도
+    /// **그 갑판의 물건**이라, 없으면 오히려 어디가 어딘지 모릅니다.
+    /// 감추는 것은 **카메라와 갑판 사이에 끼어든 것**뿐입니다.
     /// </summary>
-    private static void FillBlockers(SerializedObject so, float hideBehindZ, string[] alsoHide)
+    private static void FillBlockers(SerializedObject so, ShipDeck deck, Vector4 view)
     {
         SerializedProperty list = so.FindProperty("hideWhenHere");
         list.arraySize = 0;
 
-        if (float.IsNegativeInfinity(hideBehindZ) && (alsoHide == null || alsoHide.Length == 0))
-        {
-            return;
-        }
-
         GameObject ship = GameObject.Find(ShipName);
 
-        if (ship == null)
+        if (ship == null || deck == null)
         {
             return;
         }
+
+        // 배 콜라이더는 평소에 꺼져 있다. 재는 동안만 켠다.
+        var turnedOn = new System.Collections.Generic.List<Collider>();
+
+        foreach (Collider c in ship.GetComponentsInChildren<Collider>(true))
+        {
+            if (!c.enabled)
+            {
+                c.enabled = true;
+                turnedOn.Add(c);
+            }
+        }
+
+        Physics.SyncTransforms();
+
+        Bounds area = deck.Area;
+        Vector3 pivot = deck.Center;
+        Vector3 camera = pivot + new Vector3(0f, view.y, -view.x);
 
         var found = new System.Collections.Generic.List<Renderer>();
 
-        foreach (Renderer r in ship.GetComponentsInChildren<Renderer>(true))
+        // 갑판을 촘촘히 훑는다. 한 점만 보면 그 각도에서만 안 가린다.
+        for (int ix = 0; ix <= SightSamples; ix++)
         {
-            bool behind = r.bounds.center.z < hideBehindZ;
-            bool named = false;
-
-            if (alsoHide != null)
+            for (int iz = 0; iz <= SightSamples; iz++)
             {
-                foreach (string want in alsoHide)
-                {
-                    if (r.name == want)
-                    {
-                        named = true;
-                        break;
-                    }
-                }
-            }
+                float x = Mathf.Lerp(area.min.x + 0.5f, area.max.x - 0.5f, ix / (float)SightSamples);
+                float z = Mathf.Lerp(area.min.z + 0.5f, area.max.z - 0.5f, iz / (float)SightSamples);
 
-            if (behind || named)
-            {
-                found.Add(r);
+                // 발치와 머리끝 둘 다 본다.
+                CollectBlockers(found, ship, deck, camera, new Vector3(x, area.max.y + 0.1f, z));
+                CollectBlockers(found, ship, deck, camera, new Vector3(x, area.max.y + 1.6f, z));
             }
         }
+
+        foreach (Collider c in turnedOn)
+        {
+            c.enabled = false;
+        }
+
+        Physics.SyncTransforms();
 
         list.arraySize = found.Count;
 
         for (int i = 0; i < found.Count; i++)
         {
             list.GetArrayElementAtIndex(i).objectReferenceValue = found[i];
+        }
+    }
+
+    /// <summary>몇 칸으로 나눠 훑을지. 촘촘할수록 확실하지만 느려진다.</summary>
+    private const int SightSamples = 8;
+
+    /// <summary>
+    /// 가려도 **절대 감추지 않는 것.**
+    ///
+    ///   Hull      선체는 갑판 아래로도 이어져 있어서 어느 각도에서든 레이에 걸립니다.
+    ///             감추면 갑판만 바다 위에 떠 있게 됩니다.
+    ///
+    ///   Stairs*   걸어다니는 경사로가 보이지 않기 때문에, 계단 모델이
+    ///             **어디로 올라가는지 알려주는 유일한 단서**입니다.
+    ///             한 번 감췄다가 "계단이 아예 없어졌다" 는 소리를 들었습니다.
+    ///             계단은 두 층에 걸쳐 있어서 자동으로는 반드시 잡힙니다.
+    /// </summary>
+    private static readonly string[] NeverHide =
+    {
+        "Hull", "StairsUpper", "StairsFore", "StairsLower",
+    };
+
+    private static void CollectBlockers(System.Collections.Generic.List<Renderer> found,
+                                        GameObject ship, ShipDeck deck,
+                                        Vector3 camera, Vector3 spot)
+    {
+        Vector3 toSpot = spot - camera;
+        RaycastHit[] hits = Physics.RaycastAll(camera, toSpot.normalized, toSpot.magnitude);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Transform t = hits[i].collider.transform;
+
+            if (!t.IsChildOf(ship.transform))
+            {
+                continue;
+            }
+
+            // 갑판 위에 있는 것은 그 갑판의 물건이다. 가려도 감추지 않는다.
+            if (hits[i].point.z >= deck.Area.min.z)
+            {
+                continue;
+            }
+
+            if (System.Array.IndexOf(NeverHide, t.name) >= 0)
+            {
+                continue;
+            }
+
+            Renderer draw = t.GetComponent<Renderer>();
+
+            if (draw != null && !found.Contains(draw))
+            {
+                found.Add(draw);
+            }
         }
     }
 
