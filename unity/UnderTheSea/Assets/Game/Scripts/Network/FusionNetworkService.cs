@@ -4,6 +4,7 @@ using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnderTheSea.Account;
 
 /// <summary>
 /// <see cref="INetworkService"/> 의 실제 Fusion 구현.
@@ -86,6 +87,26 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         if (isConnecting)
         {
             Debug.Log("[FusionNetworkService] 이미 접속 중입니다.");
+            return;
+        }
+
+        // ⚠ 캐릭터가 정해지지 않았으면 접속하지 않는다. (PRD 09-2)
+        //
+        //    "로그인 성공" 과 "활성 캐릭터가 정해졌다" 는 서로 다른 판단이다.
+        //      SceneFlow.FromLogin(count) 은 **개수**로 화면을 정한다 — 2개면 ChannelSelect 로 보낸다
+        //      CharacterSessionCache.SelectFromList 는 2개 이상이면 **아무것도 고르지 않는다**
+        //    그래서 캐릭터가 둘인 계정은 ChannelSelect 에 와 있는데 CurrentCharacter 가 null 이다.
+        //    (지금은 서버가 계정당 1개로 막고 있어 생기지 않지만, CharacterSelect 를 만들며
+        //     그 상한을 올리는 순간 열린다)
+        //
+        //    이때 기본 외형으로 조용히 들여보내지 않는다. 남의 캐릭터로 보이거나
+        //    자기 캐릭터를 잃은 것처럼 보이는 편이 훨씬 나쁘다.
+        if (!HasChosenCharacter())
+        {
+            Debug.LogWarning(
+                "[FusionNetworkService] 활성 캐릭터가 정해지지 않아 접속하지 않습니다. " +
+                "CharacterSelect 화면이 필요한 상태일 수 있습니다.");
+            OnConnectResult?.Invoke(false, "캐릭터 선택이 필요합니다.");
             return;
         }
 
@@ -239,6 +260,23 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
     }
 
     /// <summary>사용자가 읽을 수 있는 실패 사유로 바꾼다.</summary>
+    /// <summary>
+    /// 활성 캐릭터가 정해져 있는가.
+    ///
+    /// 개발용 Lobby 직접 진입에는 계정 서비스 자체가 로그인 상태가 아니므로
+    /// 이 가드를 거치지 않는다. 그쪽은 ChannelSelect 를 지나오지 않는다.
+    /// </summary>
+    private static bool HasChosenCharacter()
+    {
+        if (!AccountServiceLocator.IsReady || AccountServiceLocator.Characters == null)
+        {
+            // 계정 서비스가 없다면 정상 Login 경로가 아니다. 막지 않는다.
+            return true;
+        }
+
+        return AccountServiceLocator.Characters.CurrentCharacter != null;
+    }
+
     private static string DescribeFailure(ShutdownReason reason, string channelId)
     {
         string channel = ChannelCatalog.GetDisplayName(channelId);

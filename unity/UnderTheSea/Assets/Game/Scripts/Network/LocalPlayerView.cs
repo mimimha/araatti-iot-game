@@ -45,6 +45,12 @@ public class LocalPlayerView : NetworkBehaviour
     /// </summary>
     private bool isLocalPlayer;
 
+    /// <summary>카메라를 내 캐릭터에 붙였는가.</summary>
+    private bool cameraReady;
+
+    /// <summary>서버가 복제한 외형을 입혔는가. (PRD 09-2)</summary>
+    private bool appearanceReady;
+
     /// <summary>-logmoves 로 켜는 진단 로그.</summary>
     private static readonly bool LogCamera = FusionLaunchArguments.HasFlag(FusionLaunchArguments.LogMovesKey);
 
@@ -96,11 +102,16 @@ public class LocalPlayerView : NetworkBehaviour
             $"카메라 위치 {boundCamera.transform.position.ToString("F2")}, " +
             $"캐릭터까지 {Vector3.Distance(boundCamera.transform.position, transform.position):F2}m");
 
-        // 여기가 "화면을 사용자에게 넘겨도 되는" 첫 순간이다.
-        //   · 내 캐릭터가 있고 (LocalPlayer.Register 완료)
-        //   · 카메라가 그 뒤에 자리를 잡았다 (BindPlayer + SnapToPlayer 완료)
-        // 이 두 가지가 다 끝난 뒤에만 부른다. 접속 성공만으로는 부르지 않는다.
-        TransitionStatus.SetReady();
+        // 카메라 쪽 준비가 끝났다.
+        cameraReady = true;
+
+        // 외형 복제 컴포넌트가 없으면 기다릴 것이 없다. (09-2 이전 프리팹 호환)
+        if (GetComponent<NetworkPlayerAppearance>() == null)
+        {
+            appearanceReady = true;
+        }
+
+        TryFinishLoading();
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -128,6 +139,37 @@ public class LocalPlayerView : NetworkBehaviour
             boundCamera.BindPlayer(null);
             boundCamera = null;
         }
+    }
+
+    /// <summary>
+    /// 서버가 복제한 외형을 입혔다고 <see cref="NetworkPlayerAppearance"/> 가 알려 준다.
+    ///
+    /// 빈 외형(개발용 직접 진입)이어도 불린다. 그래야 Overlay 가 닫힌다.
+    /// </summary>
+    public void NotifyAppearanceReady()
+    {
+        appearanceReady = true;
+        TryFinishLoading();
+    }
+
+    /// <summary>
+    /// "화면을 사용자에게 넘겨도 되는" 순간인지 보고, 맞으면 가림막을 걷는다.
+    ///
+    /// 세 가지가 다 끝나야 한다. 접속 성공만으로는 부르지 않는다.
+    ///   · 내 캐릭터가 있다        (LocalPlayer.Register 완료)
+    ///   · 카메라가 자리를 잡았다   (BindPlayer + SnapToPlayer 완료)
+    ///   · 외형이 입혀졌다          (서버가 AppearanceReady 를 세운 뒤)
+    ///
+    /// 외형을 기다리지 않으면 기본 옷을 입은 내 캐릭터가 한순간 보였다가 바뀐다.
+    /// </summary>
+    private void TryFinishLoading()
+    {
+        if (!cameraReady || !appearanceReady)
+        {
+            return;
+        }
+
+        TransitionStatus.SetReady();
     }
 
     /// <summary>
