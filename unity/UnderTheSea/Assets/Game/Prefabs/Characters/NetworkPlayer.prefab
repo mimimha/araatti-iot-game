@@ -2622,6 +2622,8 @@ GameObject:
   - component: {fileID: 21729067265443704}
   - component: {fileID: 5914260661426472076}
   - component: {fileID: 6977053469386830287}
+  - component: {fileID: 8538979805706242742}
+  - component: {fileID: 560222595692780822}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -2767,6 +2769,7 @@ MonoBehaviour:
   - {fileID: 21729067265443704}
   - {fileID: 5914260661426472076}
   - {fileID: 6977053469386830287}
+  - {fileID: 560222595692780822}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
 MonoBehaviour:
@@ -2842,6 +2845,68 @@ MonoBehaviour:
   mouseX: Mouse X
   mouseY: Mouse Y
   mouseScroll: Mouse ScrollWheel
+--- !u!114 &8538979805706242742
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8462df2f05a0ea44f989ff1416dcc35d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Character.CharacterAppearanceApplier
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  slotBindings:
+  - slot: 64
+    renderer: {fileID: 935464223484873736}
+  - slot: 1
+    renderer: {fileID: 5882337014050662027}
+  - slot: 2
+    renderer: {fileID: 5600996917220441141}
+  - slot: 4
+    renderer: {fileID: 5354920792050839995}
+  - slot: 8
+    renderer: {fileID: 8700587433197752663}
+  - slot: 16
+    renderer: {fileID: 949127814580835760}
+  - slot: 32
+    renderer: {fileID: 3849758233510915295}
+  - slot: 128
+    renderer: {fileID: 6352330707333600832}
+  - slot: 256
+    renderer: {fileID: 3254775409339683019}
+  - slot: 512
+    renderer: {fileID: 1694874984087900539}
+  - slot: 1024
+    renderer: {fileID: 1026112851835519029}
+  - slot: 2048
+    renderer: {fileID: 9013021581876772554}
+  - slot: 4096
+    renderer: {fileID: 1220827403233914486}
+  skinRenderers:
+  - {fileID: 935464223484873736}
+  - {fileID: 5882337014050662027}
+  - {fileID: 6352330707333600832}
+  skinSourceMaterial: {fileID: 2100000, guid: 6a4c0a5109ac9314e97b0138b1203c35, type: 2}
+--- !u!114 &560222595692780822
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ffdbe8fb8ab274a8a7995830fc20a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerAppearance
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  applier: {fileID: 8538979805706242742}
+  hiddenUntilReady: []
+  _AppearanceReady:
+    RawValue: 0
 --- !u!1 &6448122823236699881
 GameObject:
   m_ObjectHideFlags: 0
