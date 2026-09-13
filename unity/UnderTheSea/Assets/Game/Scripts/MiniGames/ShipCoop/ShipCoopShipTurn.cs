@@ -65,7 +65,18 @@ public class ShipCoopShipTurn : MonoBehaviour
     [Tooltip("목표 각도까지 도는 데 걸리는 시간(초).\n\n" +
              "0 이면 조타와 동시에 **툭 꺾입니다.** 배는 무거워서 천천히 돕니다.\n" +
              "뱃머리가 먼저 가고 나머지가 따라오는 느낌은 여기서 나옵니다.")]
-    [SerializeField, Range(0f, 3f)] private float followSeconds = 0.8f;
+    [SerializeField, Range(0f, 3f)] private float followSeconds = 1.6f;
+
+    [Header("떨림 막기")]
+    // ⚠ 이 값이 0 이면 배가 덜덜 떨립니다. 자세한 것은 LateUpdate 주석 참고.
+    [Tooltip("조타 속도를 이만큼 다듬어서 쓴다 (초).\n\n" +
+             "0 이면 프레임 시간의 흔들림이 그대로 뱃머리로 갑니다.\n" +
+             "너무 키우면 꺾는 반응이 굼떠집니다.")]
+    [SerializeField, Range(0f, 0.5f)] private float rateSmoothSeconds = 0.15f;
+
+    [Tooltip("이보다 느리게 도는 것은 안 도는 것으로 친다 (도/초).\n" +
+             "손을 뗐는데 남은 미세한 값이 배를 계속 흔드는 것을 막는다.")]
+    [SerializeField, Min(0f)] private float rateDeadZone = 1.5f;
 
     [Header("기울기")]
     [Tooltip("도는 쪽으로 배가 기우는 정도 (도).\n\n" +
@@ -88,6 +99,11 @@ public class ShipCoopShipTurn : MonoBehaviour
 
     /// <summary>지난 프레임의 조타 각도. 얼마나 빨리 바뀌는지를 여기서 낸다.</summary>
     private float _lastHeading;
+
+    /// <summary>다듬은 조타 속도. 날것을 그대로 쓰면 배가 떨린다.</summary>
+    private float _rate;
+
+    private float _rateSpeed;
 
     private void Awake()
     {
@@ -115,13 +131,33 @@ public class ShipCoopShipTurn : MonoBehaviour
         }
 
         // 조타가 **얼마나 빨리 바뀌고 있는지.** 각도 자체가 아니다. (위 주석)
-        float rate = Time.deltaTime > 0f
+        float raw = Time.deltaTime > 0f
             ? (helm.Heading - _lastHeading) / Time.deltaTime
             : 0f;
 
         _lastHeading = helm.Heading;
 
-        float wantYaw = Mathf.Clamp(rate * degreesPerTurnRate, -mostDegrees, mostDegrees);
+        // ------------------------------------------------------------
+        // ⚠ **이 값을 그대로 쓰면 배가 덜덜 떨립니다.**
+        //
+        //    `변화량 / deltaTime` 은 수치 미분입니다. 조타는 초당 35도로 고르게
+        //    도는데, **deltaTime 이 프레임마다 흔들리면** 나눈 결과가 크게
+        //    출렁입니다. 60fps 에서 dt 가 15~18ms 사이로만 놀아도
+        //    rate 가 32~39 로 튀고, 그게 그대로 뱃머리 각도로 갑니다.
+        //
+        //    SmoothDamp 는 목표를 **따라가는** 것이라, 목표 자체가 떨리면
+        //    떨림이 그대로 남습니다. 그래서 목표를 만들기 전에 먼저 다듬습니다.
+        // ------------------------------------------------------------
+
+        _rate = Mathf.SmoothDamp(_rate, raw, ref _rateSpeed, rateSmoothSeconds);
+
+        // 손을 뗐는데 미세하게 남은 값이 계속 배를 흔드는 것을 막는다.
+        if (Mathf.Abs(_rate) < rateDeadZone)
+        {
+            _rate = 0f;
+        }
+
+        float wantYaw = Mathf.Clamp(_rate * degreesPerTurnRate, -mostDegrees, mostDegrees);
 
         // 기울기는 다르다. **꺾어 둔 동안 계속** 기울어 있어야 도는 중인 것이 보인다.
         float wantBank = -helm.Heading01 * bankDegrees;

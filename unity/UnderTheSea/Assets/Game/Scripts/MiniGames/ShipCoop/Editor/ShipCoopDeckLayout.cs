@@ -242,7 +242,7 @@ public static class ShipCoopDeckLayout
     //    이음새마다 파도가 꺾이고, 그 금이 배 쪽으로 밀려옵니다.
     //    한 장이면 이음새가 아예 없습니다.
     //
-    // ⚠ 그리고 **되돌리지 않습니다.** 항해는 600m 고 판은 1300m 라
+    // ⚠ 그리고 **되돌리지 않습니다.** 항해 거리보다 판이 훨씬 길어서
     //    끝까지 가도 판이 모자라지 않습니다. 되돌리는 순간 무늬가 튑니다.
     // ------------------------------------------------------------
 
@@ -269,12 +269,28 @@ public static class ShipCoopDeckLayout
     /// <summary>
     /// 판의 앞뒤 길이 (m).
     ///
-    /// 보이는 만큼(`SeaBackZ`~`SeaFrontZ` = 1030m) + 항해 거리 600m + 여유.
+    /// 보이는 만큼(`SeaBackZ`~`SeaFrontZ` = 1030m) + 항해 거리 + 여유.
     /// `ShipVoyage.totalDistance` 를 늘리면 여기도 같이 늘려야 합니다.
     /// 모자라면 항해 끝에 **배 앞의 바다가 사라집니다.**
     /// 도구가 끝날 때 덮는지 계산해서 로그에 적어줍니다.
     /// </summary>
     private const float SeaLength = 1750f;
+
+    /// <summary>
+    /// 물 판을 이만큼 돌린다. **물이 흐르는 방향을 정하는 값입니다.**
+    ///
+    /// 무늬가 흐르는 방향은 셰이더 그래프에 박혀 있어서 값으로 못 바꿉니다.
+    /// 대신 무늬가 판을 따라 도니까, 판을 돌려서 방향을 맞춥니다.
+    ///
+    ///   0    받아온 그대로. 오른쪽에서 왼쪽으로 흐른다 (배가 옆으로 미끄러져 보임)
+    ///   -90  뱃머리 쪽에서 고물 쪽으로 흐른다 ← 이게 "배가 앞으로 간다"
+    ///   90   반대. 물이 배 쪽으로 밀려온다 (뒤로 가는 것처럼 보임)
+    ///
+    /// ⚠ -90 과 90 중 어느 쪽인지는 **눈으로 보고 정해야 합니다.** 돌려보고
+    ///    물이 배 뒤쪽으로 흘러가면 맞고, 앞으로 밀려오면 부호를 뒤집으세요.
+    /// </summary>
+    private const float SeaFlowYaw = -90f;
+
 
     /// <summary>물거품 줄이 되돌아오는 간격 (m). 지금은 물거품을 안 씁니다.</summary>
     private const float FoamLoopLength = 60f;
@@ -358,6 +374,9 @@ public static class ShipCoopDeckLayout
     /// <summary>뒤쪽 경사로가 중간갑판 쪽으로 뻗어 끝나는 z. 여기보다 앞에 물건을 둔다.</summary>
     private static float RampEndZ => MidBackZ + AftStairRun;
 
+    /// <summary>앞계단이 시작되는 z. 앞갑판으로 올라가는 경사로의 아래 끝.</summary>
+    private static float ForeStairZ => MidFrontZ - ForeStairRun;
+
     private static float AftCenterZ => (AftBackZ + AftFrontZ) * 0.5f;
     private static float MidCenterZ => (MidBackZ + MidFrontZ) * 0.5f;
     private static float ForeCenterZ => (ForeBackZ + ForeFrontZ) * 0.5f;
@@ -386,6 +405,10 @@ public static class ShipCoopDeckLayout
         MoveStations(log);
         MovePlayers(log);
         AttachCharacters(log);
+        SizeHeldVisual(log);
+        SetUpCarryPose(log);
+        SetUpPortraits(log);
+        SetUpReefRocks(log);
 
         EditorSceneManager.MarkAllScenesDirty();
 
@@ -682,6 +705,10 @@ public static class ShipCoopDeckLayout
     private static readonly string[] RemoveFromShip =
     {
         "MastAft", "SailAft", "Flag_02", "RiggingAft",
+
+        // ⚠ 뒷계단 사이에 놓인 장식입니다. **계단 통행을 막습니다.**
+        //    밑에 깔린 `Pallet` 은 납작해서(높이 0.24m) 걸리지 않으니 남겨둡니다.
+        "Barrel", "Box",
     };
 
     private static void TurnOffShipParts(GameObject ship, StringBuilder log)
@@ -995,11 +1022,122 @@ public static class ShipCoopDeckLayout
 
         Physics.SyncTransforms();
 
+        AddPartners(ship, found);
+        AddAlsoHide(ship, deck, found);
+
         list.arraySize = found.Count;
 
         for (int i = 0; i < found.Count; i++)
         {
             list.GetArrayElementAtIndex(i).objectReferenceValue = found[i];
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 같이 숨어야 하는 짝
+    //
+    // ⚠ **조타 기둥만 사라지고 바퀴가 허공에 떴습니다.**
+    //
+    //    가림 판정은 오브젝트마다 따로 합니다. `WheelStand` 는 크고 넓어서
+    //    (4.5 × 2.2 × 3.9m) 레이에 잘 걸리는데, `Wheel` 은 얇아서
+    //    (2.1 × 2.1 × 0.45m) 같은 각도에서도 안 걸릴 때가 있습니다.
+    //    그래서 기둥만 사라지고 바퀴가 남습니다.
+    //
+    //    눈으로는 **한 물건**이므로 같이 숨어야 합니다.
+    // ------------------------------------------------------------
+
+    private static readonly string[,] HideTogether =
+    {
+        { "WheelStand", "Wheel" },
+    };
+
+
+    // ------------------------------------------------------------
+    // 층마다 **무조건 더 감추는 것**
+    //
+    // ⚠ 자동 판정은 **카메라와 그 층 사이**를 막는 것만 찾습니다.
+    //    그런데 조타석에서는 그 너머, **수평선을 가리는 것**이 문제입니다.
+    //
+    //    돛(`SailMid_01`)이 화면 한가운데를 덮어서 **앞바다가 안 보입니다.**
+    //    암초는 멀수록 화면 중앙으로 모이므로 옆으로 빼도 소용이 없습니다.
+    //    조타를 보는 사람이 앞을 못 보면 피할 방법 자체가 없습니다.
+    //
+    //    앞갑판은 이미 같은 이유로 돛을 감추고 있었습니다. 조타석도 같습니다.
+    // ------------------------------------------------------------
+
+    private static readonly (string Deck, string[] Hide)[] AlsoHide =
+    {
+        ("뒷갑판", new[] { "SailMid_01" }),
+    };
+
+    // 그 층에서 무조건 감출 것들을 목록에 더한다.
+    private static void AddAlsoHide(GameObject ship, ShipDeck deck,
+                                    System.Collections.Generic.List<Renderer> found)
+    {
+        for (int i = 0; i < AlsoHide.Length; i++)
+        {
+            if (deck.DeckName != AlsoHide[i].Deck)
+            {
+                continue;
+            }
+
+            foreach (string want in AlsoHide[i].Hide)
+            {
+                foreach (Transform t in ship.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name != want)
+                    {
+                        continue;
+                    }
+
+                    Renderer draw = t.GetComponent<Renderer>();
+
+                    if (draw != null && !found.Contains(draw))
+                    {
+                        found.Add(draw);
+                    }
+                }
+            }
+        }
+    }
+    // 숨기기로 한 것의 짝도 같이 넣는다.
+    private static void AddPartners(GameObject ship, System.Collections.Generic.List<Renderer> found)
+    {
+        for (int pair = 0; pair < HideTogether.GetLength(0); pair++)
+        {
+            string one = HideTogether[pair, 0];
+            string other = HideTogether[pair, 1];
+
+            bool hasOne = false;
+            bool hasOther = false;
+
+            for (int i = 0; i < found.Count; i++)
+            {
+                if (found[i].name == one) hasOne = true;
+                if (found[i].name == other) hasOther = true;
+            }
+
+            if (hasOne == hasOther)
+            {
+                continue;
+            }
+
+            string missing = hasOne ? other : one;
+
+            foreach (Transform t in ship.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name != missing)
+                {
+                    continue;
+                }
+
+                Renderer draw = t.GetComponent<Renderer>();
+
+                if (draw != null && !found.Contains(draw))
+                {
+                    found.Add(draw);
+                }
+            }
         }
     }
 
@@ -1305,10 +1443,14 @@ public static class ShipCoopDeckLayout
             switch (boxes[i].Kind)
             {
                 case Cargo.Ammo:
-                    where = new Vector3(CenterX - 3.0f, MidSurfaceY + BoxLift, MidFrontZ - 3.0f);
+                    // ⚠ **앞계단 두 개 사이, 한가운데에 둡니다.**
+                    //
+                    //    x -1.95 에 있었더니 좌현 계단 입구를 막아서 지나갈 때마다
+                    //    걸렸습니다. 계단은 x -2.79 와 +4.89 에 폭 1.9m 로 있으니,
+                    //    그 사이(x -1.84 ~ 3.94)의 한가운데가 x 1.05 입니다.
+                    where = new Vector3(CenterX, MidSurfaceY + BoxLift, ForeStairZ - 1.6f);
                     label = "📦 포탄 상자";
                     break;
-
                 case Cargo.Plank:
                     where = new Vector3(CenterX + 3.0f, MidSurfaceY + BoxLift, MidCenterZ - 2.0f);
                     label = "🪵 자재 상자";
@@ -1324,6 +1466,13 @@ public static class ShipCoopDeckLayout
 
             Undo.RecordObject(boxes[i].transform, "배 모델과 갑판 배치");
             boxes[i].transform.position = where;
+
+            // ⚠ 포탄 상자만 **가로로 늘립니다.** 계단 사이에 홀로 놓이니
+            //    작은 정육면체는 갑판에 파묻혀 보입니다. 넓적해야 "상자" 로 읽힙니다.
+            if (boxes[i].Kind == Cargo.Ammo)
+            {
+                boxes[i].transform.localScale = new Vector3(2.2f, 0.7f, 0.9f);
+            }
 
             log.AppendLine($"    {label,-14}  {Describe(where)}");
         }
@@ -1768,7 +1917,7 @@ public static class ShipCoopDeckLayout
         var scroll = new System.Collections.Generic.List<Transform>();
 
         // 한 장. 가운데를 보이는 범위 뒤끝에서 판 길이의 절반만큼 앞에 둔다.
-        // 그러면 앞쪽으로 700m 가 남아서, 600m 를 흘러도 바다가 안 모자란다.
+        // 그러면 앞쪽에 넉넉히 남아서 끝까지 흘러도 바다가 안 모자란다.
         Transform sheet = MakeSeaTile(group, "Water", water,
             new Vector3(0f, 0f, SeaBackZ + SeaLength * 0.5f));
 
@@ -1779,7 +1928,7 @@ public static class ShipCoopDeckLayout
         SerializedObject so = new SerializedObject(sea);
 
         // ⚠ **되돌리지 않습니다.** `VoyageSea` 는 간 거리를 이 값으로 나눈
-        //    나머지만큼 판을 뒤로 밉니다. 항해(600m)보다 크게 두면
+        //    나머지만큼 판을 뒤로 밉니다. 항해 거리보다 크게 두면
         //    나머지가 곧 간 거리라서 판이 **한 번도 안 튀고** 끝까지 흐릅니다.
         so.FindProperty("scrollLoopLength").floatValue = SeaLength;
 
@@ -1797,8 +1946,9 @@ public static class ShipCoopDeckLayout
         //    무늬가 판이 아니라 시간과 월드 좌표로 그려져서, 판을 아무리 뒤로
         //    밀어도 무늬는 제자리에 있습니다. 무늬 자체를 밀어야 합니다.
         //
-        //    로비와 같은 Synty 물에는 그 값(`_Animation_Offset`)이 있습니다.
-        //    WaterWorks 에는 없어서 한참 돌아갔습니다. (5장)
+        //    미는 값은 `_Normal_Pan_Speed` 입니다. 이름이 비슷한
+        //    `_Animation_Offset` 은 해안가 파도용이라 먼바다에는 아무 상관이
+        //    없습니다. 그걸로 한참 돌아갔습니다. (5장)
         ShipCoopSeaFlow flow = group.GetComponent<ShipCoopSeaFlow>();
 
         if (flow == null)
@@ -1808,11 +1958,11 @@ public static class ShipCoopDeckLayout
         }
 
         // ⚠ 이미 붙어 있으면 기본값이 안 들어갑니다. 씬에 박힌 값을 여기서 맞춥니다.
-        //    18 로 붙어 있던 것을 3 으로 못 고쳐서 "흐르는 게 안 느껴진다" 를
+        //    스크립트만 고치고 씬을 안 고쳐서 "흐르는 게 안 느껴진다" 를
         //    한 번 더 들었습니다.
         SerializedObject flowSo = new SerializedObject(flow);
-        flowSo.FindProperty("metersPerLoop").floatValue = 3f;
-        flowSo.FindProperty("idleFlowPerSecond").floatValue = 0.08f;
+        flowSo.FindProperty("flowPerShipSpeed").floatValue = 4f;
+        flowSo.FindProperty("leastFlow").floatValue = 1.5f;
         flowSo.ApplyModifiedProperties();
 
         log.AppendLine($"  물 판 한 장 ({SeaWidth:F0} × {SeaLength:F0}m) · 물거품 {foam}줄 을 깔았습니다");
@@ -1906,7 +2056,7 @@ public static class ShipCoopDeckLayout
         //
         //    ⚠ 더 잘게 쪼개면 멀리서 지글거립니다. 전에 그걸로 한참 고생했습니다.
         //      (`UseWaves` 주석) 흐르는 게 부족하면 무늬를 더 쪼개지 말고
-        //      **`ShipCoopSeaFlow.metersPerLoop` 를 낮추세요.**
+        //      **`ShipCoopSeaFlow.flowPerShipSpeed` 를 올리세요.**
         SetIfHas(water, "_Normal_Tiling", 0.15f);
 
         EditorUtility.SetDirty(water);
@@ -2334,17 +2484,28 @@ public static class ShipCoopDeckLayout
     }
 
     /// <summary>
-    /// 바다 판 한 장. **기본 Plane 이 아니라 촘촘한 격자**를 쓴다.
+    /// 바다 판 한 장.
     ///
-    /// ⚠ 기본 Plane 을 400m 로 늘리면 꼭짓점이 40m 마다 하나뿐이라
-    ///    파도(`_Displacement_Amount`)를 아무리 올려도 물이 평평합니다.
-    ///    격자는 2m 마다 꼭짓점이 있습니다. (`ShipCoopSeaMesh`)
+    /// ⚠ **판을 돌려서 물이 흐르는 방향을 정합니다.** (`SeaFlowYaw`)
     ///
-    /// 격자는 이미 미터 단위로 만들어져 있어서 **늘리지 않습니다.**
+    ///    물 무늬가 흐르는 방향은 셰이더 그래프에 박혀 있어서 값으로 못 바꿉니다.
+    ///    그냥 두면 **오른쪽에서 왼쪽으로** 흘러서, 배가 앞으로 가는 게 아니라
+    ///    옆으로 미끄러지는 것처럼 보입니다.
+    ///
+    ///    그런데 무늬는 **판을 따라 돕니다.** (얼려놓고 90도 돌려서 확인했습니다)
+    ///    그래서 판을 돌리면 흐르는 방향도 같이 돕니다.
+    ///
+    /// ⚠ **격자는 가로세로를 바꿔서 만듭니다.** 판을 90도 돌릴 거라,
+    ///    돌리고 나서 월드에서 1150 × 1750m 가 되려면 격자는 1750 × 1150 이어야
+    ///    합니다. 안 그러면 앞뒤가 모자라서 항해 끝에 바다가 사라집니다.
     /// </summary>
     private static Transform MakeSeaTile(Transform group, string name, Material paint, Vector3 at)
     {
-        Mesh grid = ShipCoopSeaMesh.GetOrCreate(SeaWidth, SeaLength);
+        bool turned = Mathf.Abs(Mathf.Sin(SeaFlowYaw * Mathf.Deg2Rad)) > 0.5f;
+
+        Mesh grid = turned
+            ? ShipCoopSeaMesh.GetOrCreate(SeaLength, SeaWidth)
+            : ShipCoopSeaMesh.GetOrCreate(SeaWidth, SeaLength);
 
         GameObject made = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
         Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
@@ -2354,6 +2515,7 @@ public static class ShipCoopDeckLayout
 
         made.transform.SetParent(group, false);
         made.transform.localPosition = at;
+        made.transform.localRotation = Quaternion.Euler(0f, SeaFlowYaw, 0f);
         made.transform.localScale = Vector3.one;
 
         return made.transform;
@@ -2449,6 +2611,304 @@ public static class ShipCoopDeckLayout
     /// </code>
     ///
     /// `Animator` 는 살려둡니다. `ShipCoopCharacter` 가 **움직인 거리를 재서** 굴립니다.
+
+    // ------------------------------------------------------------
+    // 드는 자세 — **머리 위가 아니라 두 팔로 안게** 한다
+    //
+    // ⚠ 캐릭터 컨트롤러에 **드는 동작 클립이 없습니다.** 걷기 · 달리기 ·
+    //    점프 · 공격뿐입니다. 그래서 클립 대신 IK 로 손을 끌어다 씁니다.
+    //
+    // ⚠ **애니메이터 레이어의 IK Pass 를 켜야** `OnAnimatorIK` 가 불립니다.
+    //    꺼져 있으면 스크립트가 붙어 있어도 아무 일도 안 일어납니다.
+    //    ithappy 컨트롤러를 건드리는 것이라 `ASSETS.md` 에 적어 두었습니다.
+    //    IK Pass 만으로는 화면이 안 바뀝니다. 쓰는 스크립트가 있어야 바뀝니다.
+    // ------------------------------------------------------------
+
+    /// <summary>드는 자세를 붙이고, 애니메이터의 IK Pass 를 켠다.</summary>
+    private static void SetUpCarryPose(StringBuilder log)
+    {
+        int posed = 0;
+        int opened = 0;
+
+        foreach (CarryTask carry in Object.FindObjectsByType<CarryTask>(FindObjectsInactive.Include,
+                                                                       FindObjectsSortMode.None))
+        {
+            Animator animator = carry.GetComponentInChildren<Animator>(true);
+
+            if (animator == null)
+            {
+                log.AppendLine($"  ⚠ {carry.name} 에 Animator 가 없어 드는 자세를 못 만듭니다");
+                continue;
+            }
+
+            if (animator.GetComponent<ShipCoopCarryPose>() == null)
+            {
+                Undo.AddComponent<ShipCoopCarryPose>(animator.gameObject);
+                posed++;
+            }
+
+            if (TurnOnIkPass(animator))
+            {
+                opened++;
+            }
+        }
+
+        log.AppendLine($"  드는 자세를 {posed}명에게 붙였습니다 (IK Pass {opened}개 켬)");
+    }
+
+    // 애니메이터 레이어의 IK Pass 를 켠다. 이미 켜져 있으면 아무 일도 안 한다.
+    private static bool TurnOnIkPass(Animator animator)
+    {
+        var controller = animator.runtimeAnimatorController
+            as UnityEditor.Animations.AnimatorController;
+
+        if (controller == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+
+        for (int i = 0; i < controller.layers.Length; i++)
+        {
+            if (controller.layers[i].iKPass)
+            {
+                continue;
+            }
+
+            // ⚠ layers 는 복사본을 돌려줍니다. 고쳐서 **다시 넣어야** 남습니다.
+            var layers = controller.layers;
+            layers[i].iKPass = true;
+            controller.layers = layers;
+
+            changed = true;
+        }
+
+        if (changed)
+        {
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
+        return changed;
+    }
+
+    // ------------------------------------------------------------
+    // 프로필 사진 — **각자의 캐릭터를 찍어서 씁니다**
+    //
+    // ⚠ 그림 한 장을 박아두면 4명이 전부 같은 얼굴이 됩니다. 사람을 구분하라고
+    //    만든 칸인데 구분이 안 됩니다. 자세한 것은 `ShipCoopPortrait` 참고.
+    //
+    // ⚠ **전용 레이어가 필요합니다.** 촬영용 카메라가 그 사람만 찍어야 하는데,
+    //    레이어가 없으면 촬영장 전체가 한 장에 들어옵니다.
+    //    없으면 여기서 만들어 줍니다. (비어 있는 첫 칸을 씁니다)
+    // ------------------------------------------------------------
+
+    /// <summary>프로필 사진 찍는 것을 붙이고, 전용 레이어를 만든다.</summary>
+    private static void SetUpPortraits(StringBuilder log)
+    {
+        int layer = MakeLayerIfMissing(ShipCoopPortrait.PortraitLayerName, log);
+
+        if (layer < 0)
+        {
+            log.AppendLine("  ⚠ 레이어가 꽉 차서 프로필 사진을 못 찍습니다");
+            return;
+        }
+
+        ShipCoopHud hud = Object.FindAnyObjectByType<ShipCoopHud>(FindObjectsInactive.Include);
+
+        if (hud == null)
+        {
+            log.AppendLine("  ⚠ HUD 를 못 찾아서 프로필 사진을 못 붙였습니다");
+            return;
+        }
+
+        if (hud.GetComponent<ShipCoopPortrait>() == null)
+        {
+            Undo.AddComponent<ShipCoopPortrait>(hud.gameObject);
+            log.AppendLine($"  프로필 사진을 찍도록 ShipCoopPortrait 를 붙였습니다 " +
+                           $"(레이어 {layer} {ShipCoopPortrait.PortraitLayerName})");
+        }
+    }
+
+    // 이름이 같은 레이어가 있으면 그 번호를, 없으면 빈 칸에 만들어서 돌려준다.
+    private static int MakeLayerIfMissing(string name, StringBuilder log)
+    {
+        int found = LayerMask.NameToLayer(name);
+
+        if (found >= 0)
+        {
+            return found;
+        }
+
+        SerializedObject tags = new SerializedObject(
+            AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+
+        SerializedProperty layers = tags.FindProperty("layers");
+
+        // 0~7 은 유니티가 쓰는 자리다. 8 부터 본다.
+        for (int i = 8; i < layers.arraySize; i++)
+        {
+            SerializedProperty slot = layers.GetArrayElementAtIndex(i);
+
+            if (!string.IsNullOrEmpty(slot.stringValue))
+            {
+                continue;
+            }
+
+            slot.stringValue = name;
+            tags.ApplyModifiedProperties();
+
+            log.AppendLine($"  레이어 {i} 를 '{name}' 으로 만들었습니다");
+            return i;
+        }
+
+        return -1;
+    }
+
+    // ------------------------------------------------------------
+    // 암초 — **로비가 쓰는 진짜 바위**로 띄운다
+    //
+    // ⚠ 회색 큐브였습니다. 바다에 네모가 떠 있으면 암초로 안 읽힙니다.
+    //
+    // 네 개를 넣고 매번 다른 것을 띄웁니다. 하나만 쓰면 두 번째부터
+    // "아, 그거" 가 되어 긴장이 사라집니다.
+    //
+    // ⚠ **크기가 다른 것으로 고릅니다.** 아픈 정도가 폭에 비례하므로
+    //    (`Reef.normalWidth`), 크기가 비슷하면 그 장치가 아무 일도 안 합니다.
+    // ------------------------------------------------------------
+
+    private static readonly string[] ReefRockPaths =
+    {
+        // 16.2m — 뾰족하게 솟은 것. 제일 크고 제일 아프다
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Spikes_02.prefab",
+
+        // 11.8m — 덩어리
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Cliff_02.prefab",
+
+        // 9.9m — 낮게 쌓인 것
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Pile_07.prefab",
+
+        // 9.6m — 작게 뾰족한 것
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Spikes_01.prefab",
+    };
+
+    /// <summary>암초에 진짜 바위들을 넣고, 뱃머리 자리를 재어 넣는다.</summary>
+    private static void SetUpReefRocks(StringBuilder log)
+    {
+        Reef reef = Object.FindAnyObjectByType<Reef>(FindObjectsInactive.Include);
+
+        if (reef == null)
+        {
+            log.AppendLine("  ⚠ 암초 사건을 못 찾았습니다");
+            return;
+        }
+
+        SerializedObject so = new SerializedObject(reef);
+        SerializedProperty list = so.FindProperty("rockPrefabs");
+
+        list.arraySize = ReefRockPaths.Length;
+        int found = 0;
+
+        for (int i = 0; i < ReefRockPaths.Length; i++)
+        {
+            GameObject rock = AssetDatabase.LoadAssetAtPath<GameObject>(ReefRockPaths[i]);
+
+            if (rock == null)
+            {
+                log.AppendLine($"  ⚠ 바위를 못 찾음: {ReefRockPaths[i]}");
+            }
+            else
+            {
+                found++;
+            }
+
+            list.GetArrayElementAtIndex(i).objectReferenceValue = rock;
+        }
+
+        // ⚠ 뱃머리는 **재서** 넣습니다. 배 모델을 바꿔도 따라가야 합니다.
+        //    (Reef 는 실행 중에도 스스로 재지만, 배를 못 찾을 때 쓸 값입니다)
+        so.FindProperty("fallbackBowZ").floatValue = MeasureBowZ();
+
+        // ⚠ 씬에 박힌 값이 코드 기본값을 이깁니다. 회피가 가능한 값으로 맞춥니다.
+        //    자세한 계산은 `Reef.Judge` 주석에 있습니다.
+        // ⚠ **옆으로 확 빼야 보입니다.** 6m 로는 삭구와 뱃머리에 계속 걸렸습니다.
+        //    12m 면 선체(반폭 5.6m) 밖으로 완전히 나와 한눈에 들어옵니다.
+        //    가만히 있으면 바위 안쪽 끝이 3.9m 라 선체를 스치고 지나갑니다.
+        so.FindProperty("laneOffset").floatValue = 12f;
+
+        // 가만히 있으면 12m 라 실패, 끝까지 꺾으면 16.8m 라 성공.
+        so.FindProperty("safeGap").floatValue = 13f;
+        so.FindProperty("widthPenalty").floatValue = 0.08f;
+
+        so.ApplyModifiedProperties();
+
+        log.AppendLine($"  암초에 바위 {found}종을 넣고 뱃머리를 " +
+                       $"z {so.FindProperty("fallbackBowZ").floatValue:F1} 로 잡았습니다");
+    }
+
+    // 배의 앞 끝 z. 못 찾으면 적어둔 값.
+    private static float MeasureBowZ()
+    {
+        GameObject ship = GameObject.Find(ShipName);
+
+        if (ship == null)
+        {
+            return ShipBowZ;
+        }
+
+        Renderer[] draws = ship.GetComponentsInChildren<Renderer>();
+
+        if (draws.Length == 0)
+        {
+            return ShipBowZ;
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        return box.max.z;
+    }
+    // ------------------------------------------------------------
+    // 들고 있는 표시의 **크기**만 정한다
+    //
+    // ⚠ 자리는 여기서 안 잡습니다. 손에 들려야 하므로 `ShipCoopCarryPose` 가
+    //    매 프레임 두 손 사이로 옮깁니다.
+    //
+    //    한동안 여기서 **머리 위에** 올려뒀습니다. 보이기는 하는데 팔은
+    //    가만히 있고 물건만 떠다녀서 드는 것으로 안 읽혔습니다.
+    // ------------------------------------------------------------
+
+    /// <summary>들고 있는 표시의 한 변 (m). 멀리서도 보여야 한다.</summary>
+    private const float HeldSize = 0.6f;
+
+    /// <summary>들고 있는 표시의 크기를 정한다.</summary>
+    private static void SizeHeldVisual(StringBuilder log)
+    {
+        int sized = 0;
+
+        foreach (CarryTask carry in Object.FindObjectsByType<CarryTask>(FindObjectsInactive.Include,
+                                                                       FindObjectsSortMode.None))
+        {
+            SerializedObject so = new SerializedObject(carry);
+
+            if (so.FindProperty("heldVisual").objectReferenceValue is not GameObject held)
+            {
+                log.AppendLine($"  ⚠ {carry.name} 에 들고 있는 표시가 비어 있습니다");
+                continue;
+            }
+
+            Undo.RecordObject(held.transform, "배 모델과 갑판 배치");
+            held.transform.localScale = Vector3.one * HeldSize;
+            sized++;
+        }
+
+        log.AppendLine($"  들고 있는 표시 {sized}개를 {HeldSize:F2}m 로 맞췄습니다");
+    }
     /// </summary>
     private static void AttachCharacters(StringBuilder log)
     {

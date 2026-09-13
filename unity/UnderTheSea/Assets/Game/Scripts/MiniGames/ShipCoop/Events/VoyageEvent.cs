@@ -221,6 +221,19 @@ public abstract class VoyageEvent : MonoBehaviour
     /// <summary>끝났다. (사건, 성공 여부)</summary>
     public event Action<VoyageEvent, bool> Finished;
 
+    // ------------------------------------------------------------
+    // 실패 대가를 **크기에 맞게** 키우고 줄이는 값
+    //
+    // 암초는 바위 종류마다 크기가 다릅니다. 16m 짜리 바위와 9m 짜리 바위가
+    // 똑같이 깎으면, **보이는 것과 아픈 정도가 따로 놉니다.**
+    // 큰 바위가 무섭게 생겼는데 안 아프면 피할 이유를 눈으로 못 읽습니다.
+    //
+    // 기본은 1 이라 아무 일도 안 합니다. 쓰는 사건만 채웁니다. (`Reef`)
+    // ------------------------------------------------------------
+
+    /// <summary>실패 대가에 곱하는 값. 1 이면 인스펙터 값 그대로.</summary>
+    protected float FailScale { get; set; } = 1f;
+
     protected ShipHealth Health => health;
     protected ShipCoopGame Game => game;
     protected ShipVoyage Voyage => voyage;
@@ -376,16 +389,16 @@ public abstract class VoyageEvent : MonoBehaviour
 
         if (damageOnFail > 0f && health != null)
         {
-            health.TakeDamage(damageOnFail, warningText);
+            health.TakeDamage(damageOnFail * FailScale, warningText);
         }
 
         // 배가 느려진다. 돛을 다시 올리려면 누군가 그리로 가야 하고,
         // 그동안 그 사람의 원래 자리가 빈다. 사건이 사람을 움직이게 만드는 쪽이
         // 돛을 계속 눌러야 하게 만드는 것보다 낫다. (4장)
-        if (sailLossOnFail > 0f && voyage != null)
+        if (sailLossOnFail * FailScale > 0f && voyage != null)
         {
             float before = voyage.SailPower01;
-            voyage.SailPower01 = Mathf.Clamp01(before - sailLossOnFail);
+            voyage.SailPower01 = Mathf.Clamp01(before - sailLossOnFail * FailScale);
 
             if (!Mathf.Approximately(before, voyage.SailPower01))
             {

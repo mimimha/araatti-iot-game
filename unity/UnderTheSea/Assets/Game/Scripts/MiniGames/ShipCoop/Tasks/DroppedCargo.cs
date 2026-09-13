@@ -102,6 +102,11 @@ public class DroppedCargo : MonoBehaviour
         }
 
         GameObject made = BuildVisual(kind);
+
+        // ⚠ 갑판 **위에 얹습니다.** 그냥 놓으면 원점이 가운데라 절반이 묻혀서,
+        //    가뜩이나 작은 것이 더 작아 보이고 난간 뒤로 사라집니다.
+        where.y += LiftOf(made, kind);
+
         made.transform.SetPositionAndRotation(where, Quaternion.identity);
 
         DroppedCargo dropped = made.AddComponent<DroppedCargo>();
@@ -113,6 +118,12 @@ public class DroppedCargo : MonoBehaviour
     /// <summary>
     /// 회색 큐브로 먼저 만든다. 진짜 에셋은 나중이다. (5장)
     /// 종류마다 모양과 색을 다르게 둬야 **갑판에 뭐가 굴러다니는지 한눈에 읽힙니다.**
+    ///
+    /// ⚠ **크기는 사람 키에 맞춰야 합니다.**
+    ///
+    ///    포탄이 0.32m 였습니다. 키 1m 회색 큐브 플레이어 시절 값인데,
+    ///    2.7m 캐릭터를 씌우면서 안 고쳐서 **자갈만 해졌습니다.**
+    ///    난간(높이 1.26m) 뒤로 넘어가면 아예 안 보입니다.
     /// </summary>
     private static GameObject BuildVisual(Cargo kind)
     {
@@ -125,19 +136,19 @@ public class DroppedCargo : MonoBehaviour
             case Cargo.Ammo:
                 shape = PrimitiveType.Sphere;
                 color = new Color(0.15f, 0.15f, 0.18f);
-                size = Vector3.one * 0.32f;
+                size = Vector3.one * 0.7f;
                 break;
 
             case Cargo.Plank:
                 shape = PrimitiveType.Cube;
                 color = new Color(0.55f, 0.38f, 0.22f);
-                size = new Vector3(0.8f, 0.12f, 0.28f);
+                size = new Vector3(1.7f, 0.26f, 0.6f);
                 break;
 
             default:
                 shape = PrimitiveType.Cylinder;
                 color = new Color(0.35f, 0.62f, 0.90f);
-                size = new Vector3(0.3f, 0.18f, 0.3f);
+                size = new Vector3(0.65f, 0.4f, 0.65f);
                 break;
         }
 
@@ -161,5 +172,18 @@ public class DroppedCargo : MonoBehaviour
         }
 
         return made;
+    }
+
+    /// <summary>
+    /// 갑판 위에 **얹히는** 높이. 원점이 가운데라 그냥 놓으면 절반이 묻힙니다.
+    ///
+    /// ⚠ 실린더는 유니티 기본 높이가 2 라서 `localScale.y` 가 곧 반높이입니다.
+    ///    구와 큐브는 높이가 1 이라 반이 `localScale.y * 0.5` 입니다.
+    /// </summary>
+    private static float LiftOf(GameObject made, Cargo kind)
+    {
+        Vector3 size = made.transform.localScale;
+
+        return kind == Cargo.Water ? size.y : size.y * 0.5f;
     }
 }

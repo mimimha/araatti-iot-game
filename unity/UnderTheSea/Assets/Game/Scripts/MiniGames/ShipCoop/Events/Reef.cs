@@ -18,18 +18,61 @@ using UnityEngine;
 public class Reef : VoyageEvent
 {
     [Header("바다 위 바위")]
-    [Tooltip("띄울 바위. 비워두면 회색 큐브를 만들어 쓴다. (프로토타입용)")]
-    [SerializeField] private GameObject rockPrefab;
+    // ------------------------------------------------------------
+    // ⚠ **여러 개를 넣고 매번 다른 것을 띄웁니다.**
+    //
+    //    하나만 쓰면 두 번째부터는 "아, 그거" 가 되어 긴장이 사라집니다.
+    //    로비가 쓰는 Synty 바위 중 큰 것들을 넣어 둡니다.
+    //    (배치 도구가 채웁니다. 비워두면 회색 큐브로 돌아갑니다)
+    // ------------------------------------------------------------
+    [Tooltip("띄울 바위들. 이 중에서 매번 무작위로 하나를 고른다.\n" +
+             "비워두면 회색 큐브를 만들어 쓴다. (프로토타입용)")]
+    [SerializeField] private GameObject[] rockPrefabs;
 
     [Tooltip("큐브로 만들 때 입힐 색. 비워두면 회색이라 바다에서 안 보인다.")]
     [SerializeField] private Material rockMaterial;
 
-    [Tooltip("바위가 뱃길 중심에서 좌우로 얼마나 치우쳐 있는지 (m).\n" +
-             "0 이면 정면이라 어느 쪽으로 피할지 알 수 없다. 조금 치우쳐야 읽힌다.")]
-    [SerializeField, Min(0f)] private float laneOffset = 1f;
+    [Tooltip("바위를 물에 이만큼 잠근다 (바위 높이 대비 비율).\n" +
+             "0 이면 수면 위에 통째로 떠 있어서 바위가 아니라 배처럼 보인다.")]
+    [SerializeField, Range(0f, 0.9f)] private float sink = 0.35f;
 
-    [Tooltip("지나가는 순간 이만큼 떨어져 있으면 피한 것으로 본다 (m).")]
-    [SerializeField, Min(0.5f)] private float safeGap = 2.5f;
+    // ------------------------------------------------------------
+    // 크기에 맞춰 **아픈 정도와 피할 폭**이 같이 커집니다
+    //
+    // ⚠ 16m 짜리 바위와 9m 짜리 바위가 똑같이 깎으면 **보이는 것과 아픈 정도가
+    //    따로 놉니다.** 큰 바위가 무섭게 생겼는데 안 아프면 피할 이유를 눈으로
+    //    못 읽습니다. 반대로 작은 바위에 크게 맞으면 억울합니다.
+    // ------------------------------------------------------------
+
+    [Tooltip("이 폭(m)인 바위가 인스펙터에 적힌 대가를 그대로 준다.\n" +
+             "더 크면 비례해서 더 아프고, 작으면 덜 아프다.")]
+    [SerializeField, Min(1f)] private float normalWidth = 10f;
+
+    [Tooltip("아무리 커도 이 배수를 넘지 않는다.")]
+    [SerializeField, Min(1f)] private float mostScale = 2f;
+
+    // ⚠ **1m 는 돛 뒤였습니다.** 돛이 정중앙에 있어서 화면 한가운데를 거의 다
+    //    가립니다. 1m 옆이면 여전히 돛에 가려 암초가 보이지 않습니다.
+    //    3.5m 쯤 빼야 돛 옆으로 나옵니다.
+    [Tooltip("바위가 뱃길 중심에서 좌우로 얼마나 치우쳐 있는지 (m).\n\n" +
+             "0 이면 정면이라 어느 쪽으로 피할지 알 수 없다.\n" +
+             "⚠ 너무 작으면 돛에 가려서 아예 안 보인다.")]
+    [SerializeField, Min(0f)] private float laneOffset = 3.5f;
+
+    [Tooltip("이만큼 떨어져 있으면 피한 것으로 본다 (m).")]
+    [SerializeField, Min(0.5f)] private float safeGap = 5f;
+
+    // ⚠ 0.5 로 두면 폭의 절반이 더해져서 **어떤 바위도 못 피합니다.**
+    //    조타를 끝까지 꺾어도 4.8m 밖에 안 밀리기 때문입니다.
+    [Tooltip("바위 폭 1m 당 필요 간격이 이만큼 늘어난다 (m). 큰 바위는 더 꺾어야 한다.")]
+    [SerializeField, Range(0f, 0.3f)] private float widthPenalty = 0.08f;
+
+    [Header("뱃머리")]
+    [Tooltip("배를 못 찾을 때 쓸 뱃머리 z (m). 배치 도구가 재어서 넣는다.")]
+    [SerializeField] private float fallbackBowZ = 22.8f;
+
+    /// <summary>배 오브젝트 이름. 뱃머리를 재려고 찾는다.</summary>
+    private const string ShipName = "PirateShip";
 
     [Header("회피 — 바다가 없을 때만 쓴다")]
     [Tooltip("뱃머리를 이 각도 이상 꺾어야 피한 것으로 본다.")]
@@ -52,6 +95,18 @@ public class Reef : VoyageEvent
     private HelmTask _helm;
     private GameObject _rock;
 
+    /// <summary>띄운 바위의 폭 (m). 클수록 크게 꺾어야 하고 크게 아프다.</summary>
+    public float RockWidth { get; private set; } = 2f;
+
+    /// <summary>띄운 바위의 높이 (m). 물에 잠그는 데 쓴다.</summary>
+    public float RockHeight { get; private set; } = 1.6f;
+
+    /// <summary>이번 바위를 이미 판정했는가. 뱃머리를 넘는 순간 한 번만 한다.</summary>
+    private bool _judged;
+
+    /// <summary>재어둔 뱃머리 z. 배는 안 바뀌므로 한 번만 잰다.</summary>
+    private float? _bowZ;
+
     /// <summary>
     /// 예고 시작. **여기서 바위를 띄운다.**
     ///
@@ -61,6 +116,9 @@ public class Reef : VoyageEvent
     protected override void OnWarn()
     {
         _helm = FindHelm();
+
+        // 지난 판의 판정이 남아 있으면 이번 바위를 그냥 지나칩니다.
+        _judged = false;
 
         RockSide = randomSide
             ? (Random.value < 0.5f ? -1f : 1f)
@@ -76,29 +134,193 @@ public class Reef : VoyageEvent
             return;
         }
 
-        if (rockPrefab != null)
+        GameObject pick = PickRock();
+
+        if (pick != null)
         {
-            _rock = Instantiate(rockPrefab);
+            _rock = Instantiate(pick);
         }
         else
         {
-            // 프로토타입. 에셋이 오면 rockPrefab 을 채우면 된다.
+            // 프로토타입. 에셋이 오면 rockPrefabs 를 채우면 된다.
             _rock = GameObject.CreatePrimitive(PrimitiveType.Cube);
             _rock.transform.localScale = new Vector3(2f, 1.6f, 2f);
             VoyageSea.Paint(_rock, rockMaterial);
         }
 
         _rock.name = $"Reef_{Time.frameCount}";
+
+        // 같은 바위라도 매번 다르게 보이도록 돌려 놓는다.
+        _rock.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        MeasureRock();
+
         VoyageSea.Current.Place(_rock.transform, LaneX, Approach01);
+        SinkRock();
     }
 
-    /// <summary>예고 때부터 계속 다가온다. 판정은 안 한다.</summary>
+    // 넣어둔 것 중에 하나. 비어 있으면 null.
+    private GameObject PickRock()
+    {
+        if (rockPrefabs == null || rockPrefabs.Length == 0)
+        {
+            return null;
+        }
+
+        // 비어 있는 칸은 건너뛴다. 인스펙터에서 지우다 만 칸이 자주 남는다.
+        var ok = new System.Collections.Generic.List<GameObject>();
+
+        for (int i = 0; i < rockPrefabs.Length; i++)
+        {
+            if (rockPrefabs[i] != null)
+            {
+                ok.Add(rockPrefabs[i]);
+            }
+        }
+
+        return ok.Count == 0 ? null : ok[Random.Range(0, ok.Count)];
+    }
+
+    // 띄운 바위의 실제 폭과 높이를 재서, 아픈 정도와 피할 폭을 거기에 맞춘다.
+    private void MeasureRock()
+    {
+        Renderer[] draws = _rock.GetComponentsInChildren<Renderer>();
+
+        if (draws.Length == 0)
+        {
+            RockWidth = 2f;
+            RockHeight = 1.6f;
+            FailScale = 1f;
+            return;
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        RockWidth = Mathf.Max(box.size.x, box.size.z);
+        RockHeight = box.size.y;
+
+        // 큰 바위는 더 아프다. 아무리 커도 mostScale 을 넘지 않는다.
+        FailScale = Mathf.Clamp(RockWidth / normalWidth, 0.4f, mostScale);
+    }
+
+    // 물에 잠근다. 통째로 떠 있으면 바위가 아니라 배처럼 보인다.
+    private void SinkRock()
+    {
+        if (_rock == null || RockHeight <= 0f)
+        {
+            return;
+        }
+
+        _rock.transform.position += new Vector3(0f, -RockHeight * sink, 0f);
+    }
+
+    /// <summary>
+    /// 예고 때부터 계속 다가온다. **뱃머리에 닿는 순간 판정한다.**
+    ///
+    /// ⚠ 전에는 `OnTimeout` 에서 판정했는데, 그때 바위는 `z = -passDistance`,
+    ///    즉 **배를 다 지나 12m 뒤**에 있었습니다. 뱃머리가 22.8m 앞이니
+    ///    바위가 배를 통째로 관통한 뒤에야 "부딪혔다" 가 떴습니다.
+    ///    보이는 것과 판정이 35m 어긋나 있었습니다.
+    ///
+    ///    그래서 바위의 z 를 직접 보고, 뱃머리 선을 넘는 순간 한 번 판정합니다.
+    /// </summary>
     protected override void OnShow(float deltaTime)
     {
-        if (_rock != null && VoyageSea.Current != null)
+        if (_rock == null || VoyageSea.Current == null)
         {
-            VoyageSea.Current.Place(_rock.transform, LaneX, Approach01);
+            return;
         }
+
+        VoyageSea.Current.Place(_rock.transform, LaneX, Approach01);
+        SinkRock();
+
+        if (_judged || !IsRunning)
+        {
+            return;
+        }
+
+        // 바위의 앞면이 뱃머리를 넘었는가. 가운데가 아니라 앞면으로 본다.
+        float nose = _rock.transform.position.z - RockWidth * 0.5f;
+
+        if (nose <= BowZ)
+        {
+            _judged = true;
+            Judge();
+        }
+    }
+
+    /// <summary>
+    /// 뱃머리의 z. 배를 재서 찾고, 못 찾으면 적어둔 값을 쓴다.
+    ///
+    /// 배를 재는 이유는 배 모델을 바꿔도 따라가게 하기 위해서입니다.
+    /// </summary>
+    private float BowZ
+    {
+        get
+        {
+            if (_bowZ.HasValue)
+            {
+                return _bowZ.Value;
+            }
+
+            GameObject ship = GameObject.Find(ShipName);
+
+            if (ship == null)
+            {
+                _bowZ = fallbackBowZ;
+                return _bowZ.Value;
+            }
+
+            Renderer[] draws = ship.GetComponentsInChildren<Renderer>();
+
+            if (draws.Length == 0)
+            {
+                _bowZ = fallbackBowZ;
+                return _bowZ.Value;
+            }
+
+            Bounds box = draws[0].bounds;
+
+            for (int i = 1; i < draws.Length; i++)
+            {
+                box.Encapsulate(draws[i].bounds);
+            }
+
+            _bowZ = box.max.z;
+            return _bowZ.Value;
+        }
+    }
+
+    private void Judge()
+    {
+        float gap = VoyageSea.Current.LateralGap(LaneX);
+
+        // ⚠ **바위 폭의 절반을 그대로 더하면 안 됩니다.**
+        //
+        //    조타를 끝까지 꺾어도 세상은 4.8m 밖에 안 밀립니다.
+        //    (`VoyageSea.lateralPerDegree` 0.08 × `HelmTask.maxHeading` 60)
+        //    폭의 절반을 더하면 9.6m 짜리도 7.3m 가 필요해서 **절대 못 피합니다.**
+        //
+        //    이 게임의 회피는 물리가 아니라 **약속**입니다. 배 폭이 11m 라
+        //    실제로 비키려면 애초에 조타 범위가 부족합니다. 그러니 크기는
+        //    "조금 더 꺾어야 한다" 정도로만 반영합니다.
+        float need = safeGap + RockWidth * widthPenalty;
+
+        if (gap >= need)
+        {
+            Debug.Log($"[{name}] 비켜서 지나갔다. 간격 {gap:F1}m (필요 {need:F1}m, 바위 {RockWidth:F1}m)", this);
+            Succeed();
+            return;
+        }
+
+        Debug.Log($"[{name}] 뱃머리에 부딪혔다. 간격 {gap:F1}m (필요 {need:F1}m, " +
+                  $"바위 {RockWidth:F1}m, 대가 ×{FailScale:F2})", this);
+        Fail();
     }
 
     protected override void OnTick(float deltaTime)
@@ -116,26 +338,28 @@ public class Reef : VoyageEvent
         }
     }
 
-    /// <summary>바위가 배에 닿았다. 여기서 한 번만 판정한다.</summary>
+    /// <summary>
+    /// 시간이 다 됐다. **보통은 여기 오기 전에 뱃머리에서 이미 판정됩니다.**
+    ///
+    /// 여기까지 왔다면 바다가 없거나(옛 씬) 바위가 안 떠 있는 경우입니다.
+    /// 그때만 예전처럼 지나가는 순간으로 판정합니다.
+    /// </summary>
     protected override void OnTimeout()
     {
+        if (_judged)
+        {
+            return;
+        }
+
+        _judged = true;
+
         if (VoyageSea.Current == null)
         {
             base.OnTimeout();
             return;
         }
 
-        float gap = VoyageSea.Current.LateralGap(LaneX);
-
-        if (gap >= safeGap)
-        {
-            Debug.Log($"[{name}] 비켜서 지나갔다. 간격 {gap:F1}m (필요 {safeGap:F1}m)", this);
-            Succeed();
-            return;
-        }
-
-        Debug.Log($"[{name}] 부딪혔다. 간격 {gap:F1}m (필요 {safeGap:F1}m)", this);
-        Fail();
+        Judge();
     }
 
     protected override void OnSucceed()

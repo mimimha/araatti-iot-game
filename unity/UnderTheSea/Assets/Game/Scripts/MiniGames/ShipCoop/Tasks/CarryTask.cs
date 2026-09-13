@@ -68,6 +68,9 @@ public class CarryTask : MonoBehaviour
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
     [SerializeField] private GameObject heldVisual;
 
+    /// <summary>들고 있는 표시. 드는 자세를 만드는 쪽이 자리를 잡아준다.</summary>
+    public GameObject HeldVisual => heldVisual;
+
     /// <summary>지금 무엇을 들고 있는지. 빈손이면 None.</summary>
     public Cargo Carrying { get; private set; }
 
@@ -494,11 +497,63 @@ public class CarryTask : MonoBehaviour
         }
     }
 
+    // ------------------------------------------------------------
+    // 들고 있는 것을 **색으로 구분합니다.**
+    //
+    // ⚠ 큐브 하나를 켜고 끄기만 하면 **무엇을 들었는지 알 수가 없습니다.**
+    //    포탄을 들고 파손 지점으로 뛰어가는 사고가 그래서 납니다.
+    //
+    //    지금은 에셋이 없어서 큐브입니다. 모델이 오면 색 대신 모델을 바꿉니다.
+    //    색은 HUD 와 상자 색을 따라갑니다.
+    // ------------------------------------------------------------
+
+    [Header("들고 있는 것의 색 (에셋 오기 전까지)")]
+    [SerializeField] private Color ammoColor = new Color(0.16f, 0.17f, 0.20f);
+    [SerializeField] private Color plankColor = new Color(0.72f, 0.48f, 0.24f);
+    [SerializeField] private Color waterColor = new Color(0.25f, 0.60f, 0.85f);
+
+    /// <summary>색을 칠할 사본. 공용 재질에 칠하면 파일이 바뀐다.</summary>
+    private Material _heldPaint;
+
     private void ShowHeld(bool visible)
     {
-        if (heldVisual != null)
+        if (heldVisual == null)
         {
-            heldVisual.SetActive(visible);
+            return;
+        }
+
+        heldVisual.SetActive(visible);
+
+        if (!visible)
+        {
+            return;
+        }
+
+        if (_heldPaint == null)
+        {
+            Renderer draw = heldVisual.GetComponentInChildren<Renderer>();
+
+            if (draw == null)
+            {
+                return;
+            }
+
+            // ⚠ 사본. `sharedMaterial` 에 칠하면 재질 파일이 실제로 바뀌어서
+            //    다른 것들까지 같이 물듭니다.
+            _heldPaint = draw.material;
+        }
+
+        _heldPaint.color = ColorOf(Carrying);
+    }
+
+    private Color ColorOf(Cargo what)
+    {
+        switch (what)
+        {
+            case Cargo.Ammo: return ammoColor;
+            case Cargo.Plank: return plankColor;
+            case Cargo.Water: return waterColor;
+            default: return Color.white;
         }
     }
 }

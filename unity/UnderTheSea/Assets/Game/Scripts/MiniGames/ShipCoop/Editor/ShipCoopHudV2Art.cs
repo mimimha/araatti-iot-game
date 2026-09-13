@@ -398,17 +398,19 @@ public static class ShipCoopHudV2Art
         Img(frame, Sprite("panel-team-frame"), Color.white);
 
         string[] frames = { "portrait-frame-red", "portrait-frame-yellow", "portrait-frame-green", "portrait-frame-purple" };
-        string[] faces = { "portrait-captain", "portrait-wig", "portrait-jester", "portrait-diver" };
-
+        // ⚠ 얼굴 그림(`portrait-captain` 등)은 **더 이상 안 씁니다.**
+        //    4명이 각자 커스터마이징한 캐릭터로 들어오면 박아둔 그림은
+        //    사람을 구분해 주지 못합니다. 대신 `ShipCoopPortrait` 가
+        //    각자의 캐릭터를 찍어서 넣습니다.
         wired.Portraits = new ShipCoopHud.PortraitSlot[4];
 
         for (int i = 0; i < 4; i++)
         {
-            wired.Portraits[i] = BuildSlot(row, i, frames[i], faces[i]);
+            wired.Portraits[i] = BuildSlot(row, i, frames[i]);
         }
     }
 
-    private static ShipCoopHud.PortraitSlot BuildSlot(RectTransform row, int index, string frameSprite, string faceSprite)
+    private static ShipCoopHud.PortraitSlot BuildSlot(RectTransform row, int index, string frameSprite)
     {
         // 칸도 왼쪽 끝 기준. 패널이 줄어도 있던 자리에 그대로 있어야 한다.
         RectTransform slot = Rect($"Slot_{index + 1}", row);
@@ -425,9 +427,17 @@ public static class ShipCoopHudV2Art
         Mask mask = plate.gameObject.AddComponent<Mask>();
         mask.showMaskGraphic = false;
 
+        // ⚠ Image 가 아니라 **RawImage** 입니다. 사진이 스프라이트가 아니라
+        //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
+        //    그림 한 장을 박아두면 4명이 전부 같은 얼굴이 됩니다.
         RectTransform face = Rect("Face", plate);
         Stretch(face, 0f, 0f, 0f, 0f);
-        Img(face, Sprite(faceSprite), Color.white);
+
+        RawImage faceImage = face.gameObject.AddComponent<RawImage>();
+        faceImage.raycastTarget = false;
+
+        // 사진이 아직 없을 때 보이는 것. 찍히면 덮인다.
+        faceImage.color = new Color(1f, 1f, 1f, 0.15f);
 
         // 색 테두리는 마스크 밖에 둔다. 안에 두면 같이 잘린다.
         RectTransform ring = Rect("Frame", slot);
@@ -460,6 +470,7 @@ public static class ShipCoopHudV2Art
             frame = ringImage,
             deckLabel = deck,
             helpBadge = help.gameObject,
+            face = faceImage,
         };
     }
 
@@ -527,6 +538,7 @@ public static class ShipCoopHudV2Art
             item.FindPropertyRelative("frame").objectReferenceValue = w.Portraits[i].frame;
             item.FindPropertyRelative("deckLabel").objectReferenceValue = w.Portraits[i].deckLabel;
             item.FindPropertyRelative("helpBadge").objectReferenceValue = w.Portraits[i].helpBadge;
+            item.FindPropertyRelative("face").objectReferenceValue = w.Portraits[i].face;
         }
 
         so.ApplyModifiedPropertiesWithoutUndo();

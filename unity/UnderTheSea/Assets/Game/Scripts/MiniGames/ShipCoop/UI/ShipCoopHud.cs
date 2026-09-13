@@ -71,6 +71,11 @@ public class ShipCoopHud : MonoBehaviour
 
         [Tooltip("🆘 를 눌렀을 때 켜진다. 초상화 아래쪽에 겹치는 빨간 글씨.")]
         public GameObject helpBadge;
+
+        // ⚠ Image 가 아니라 RawImage 입니다. 사진이 스프라이트가 아니라
+        //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
+        [Tooltip("그 사람의 캐릭터를 찍은 사진. ShipCoopPortrait 가 채운다.")]
+        public RawImage face;
     }
 
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
@@ -211,7 +216,12 @@ public class ShipCoopHud : MonoBehaviour
         if (health == null) health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         if (voyage == null) voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
         if (flooding == null) flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+
+        _portrait = FindAnyObjectByType<ShipCoopPortrait>(FindObjectsInactive.Include);
     }
+
+    // 프로필 사진을 찍어 두는 쪽. 없으면 사진 없이 굴러간다.
+    private ShipCoopPortrait _portrait;
 
     private void Update()
     {
@@ -303,6 +313,20 @@ public class ShipCoopHud : MonoBehaviour
             {
                 ShipCoopHelp help = crew[i].GetComponent<ShipCoopHelp>();
                 slot.helpBadge.SetActive(help != null && help.IsCalling);
+            }
+
+            // ⚠ "없을 때만 넣기" 로 두면 안 됩니다. 다시 찍으면(`Retake`) 사진이
+            //    새로 만들어지는데, 옛 사진을 든 채로 있으면 **버려진 텍스처**를
+            //    그리게 됩니다. 달라졌을 때만 넣으면 비용도 없습니다.
+            if (slot.face != null && _portrait != null)
+            {
+                Texture shot = _portrait.Of(crew[i].name);
+
+                if (shot != null && slot.face.texture != shot)
+                {
+                    slot.face.texture = shot;
+                    slot.face.color = Color.white;
+                }
             }
         }
     }
