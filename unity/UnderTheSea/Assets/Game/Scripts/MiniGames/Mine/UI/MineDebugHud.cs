@@ -34,6 +34,9 @@ public class MineDebugHud : MonoBehaviour
 
     /// <summary>랜턴 반경만 읽는다. 밸런싱용이라 진짜 HUD 에는 안 들어간다.</summary>
     private MineVision _vision;
+
+    /// <summary>시점만 읽는다. 랜턴과 같은 이유로 진짜 HUD 에는 안 들어간다.</summary>
+    private MineCamera _camera;
     private GUIStyle _style;
     private bool _visible = true;
     private readonly StringBuilder _sb = new StringBuilder(512);
@@ -42,6 +45,7 @@ public class MineDebugHud : MonoBehaviour
     {
         _game = FindAnyObjectByType<MineGame>(FindObjectsInactive.Include);
         _vision = FindAnyObjectByType<MineVision>(FindObjectsInactive.Include);
+        _camera = FindAnyObjectByType<MineCamera>(FindObjectsInactive.Include);
     }
 
     private void Update()
@@ -105,6 +109,12 @@ public class MineDebugHud : MonoBehaviour
         if (_vision != null)
         {
             _sb.AppendLine($"랜턴      {_vision.LanternRange:0.#}m  ({(_vision.Lit ? "밝음" : "어두움")})");
+        }
+
+        if (_camera != null)
+        {
+            _sb.AppendLine($"시점      {(_camera.IsBoardView ? "탑뷰" : "낮은 3인칭")}" +
+                           $"  (탑뷰 높이 {_camera.BoardHeight:0.#}m)");
         }
 
         if (_game.State == MineState.Finished)

@@ -62,6 +62,9 @@ public class MineGame : MonoBehaviour
     [Tooltip("비워두면 씬에서 찾는다. 어둠과 랜턴을 맡는다. (MINE.md 6장)")]
     [SerializeField] private MineVision vision;
 
+    [Tooltip("비워두면 씬에서 찾는다. 시점 전환을 맡는다. (MINE.md 6장)")]
+    [SerializeField] private MineCamera cameraRig;
+
     [Tooltip("파는 사람들. 개발 중에는 하나만 넣어도 되고, 그러면 혼자 여러 턴을 돈다.")]
     [SerializeField] private MineDigger[] diggers;
 
@@ -166,6 +169,7 @@ public class MineGame : MonoBehaviour
         if (grid == null) grid = FindAnyObjectByType<MineGrid>();
         if (view == null && grid != null) view = grid.GetComponent<MineGridView>();
         if (vision == null) vision = FindAnyObjectByType<MineVision>();
+        if (cameraRig == null) cameraRig = FindAnyObjectByType<MineCamera>();
 
         // 판정 방식은 인스펙터에서 고른다. (MINE.md 7장)
         _similarity = judge == MineJudge.Shape
@@ -312,6 +316,10 @@ public class MineGame : MonoBehaviour
         // 어두우면 색을 바꿔봐야 안 보인다. 힌트 동안에는 판을 밝힌다. (MINE.md 6장)
         if (vision != null) vision.SetLit(true);
 
+        // ⚠ 카메라도 올려야 한다. 낮으면 내 주변 도안만 보인다.
+        //   밝히기만 하고 이걸 빠뜨리면 힌트가 반쪽이 된다.
+        if (cameraRig != null) cameraRig.ShowBoard();
+
         Debug.Log($"[MINE] 힌트 — {hintSeconds:0}초 동안 보여줍니다. " +
                   $"그동안에도 턴 시간은 흐릅니다.", this);
     }
@@ -330,6 +338,9 @@ public class MineGame : MonoBehaviour
 
         if (view != null) view.SetShowTarget(false);
         if (vision != null) vision.SetLit(false);   // 다시 어두워지고 랜턴이 켜진다
+
+        if (cameraRig != null && CurrentDigger != null)
+            cameraRig.FollowPlayer(CurrentDigger.transform);   // 다시 광산 안으로
     }
 
     // ------------------------------------------------------------
@@ -346,6 +357,9 @@ public class MineGame : MonoBehaviour
         if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetShowTarget(true); }
         // 그림을 봐야 하는 시간이므로 밝게. 랜턴은 필요 없다.
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
+
+        // 그림 전체를 봐야 외울 수 있다. (MINE.md 6장)
+        if (cameraRig != null) cameraRig.ShowBoard();
 
         Debug.Log($"[MINE] 목표 공개 {revealSeconds:0}초 — " +
                   $"{(string.IsNullOrEmpty(TargetName) ? "(도안 없음)" : TargetName)} · " +
@@ -374,6 +388,10 @@ public class MineGame : MonoBehaviour
             vision.SetLit(false);
             vision.Follow(CurrentDigger != null ? CurrentDigger.transform : null);
         }
+
+        // 광산 안으로 내려간다. 여기부터 전체가 안 보인다.
+        if (cameraRig != null && CurrentDigger != null)
+            cameraRig.FollowPlayer(CurrentDigger.transform);
 
         Debug.Log($"[MINE] {turnNumber}/{TotalTurns} 턴 시작 — {turnSeconds:0}초 · " +
                   $"복구 {RestoresLeft}개 · 힌트 {(HintAvailable ? "가능" : "사용함")}", this);
@@ -415,6 +433,9 @@ public class MineGame : MonoBehaviour
 
         // 판이 끝났으니 전체를 밝힌다. 여기가 이 게임의 하이라이트다. (MINE.md 3장 7번)
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
+
+        // 카메라가 위로 올라가 완성된 그림을 처음으로 보여준다. (MINE.md 3장 7번)
+        if (cameraRig != null) cameraRig.ShowBoard(finale: true);
 
         if (grid.TargetCells == null)
         {

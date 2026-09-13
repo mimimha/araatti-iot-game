@@ -500,6 +500,7 @@ MonoBehaviour:
   grid: {fileID: 1014668933}
   view: {fileID: 1014668932}
   vision: {fileID: 0}
+  cameraRig: {fileID: 0}
   diggers:
   - {fileID: 1398097736}
   playerCount: 4
@@ -559,6 +560,7 @@ GameObject:
   - component: {fileID: 2137228882}
   - component: {fileID: 2137228881}
   - component: {fileID: 2137228884}
+  - component: {fileID: 2137228885}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -684,6 +686,27 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &2137228885
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2137228880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe254db9490c82945b50b4bbf4aa766c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MineCamera
+  followOffset: {x: 0, y: 4.5, z: -7.5}
+  lookHeight: 1
+  followSmoothing: 0.12
+  boardMargin: 1.15
+  minBoardHeight: 5
+  transitionSeconds: 0.5
+  finaleSeconds: 1.5
+  cam: {fileID: 0}
+  grid: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
