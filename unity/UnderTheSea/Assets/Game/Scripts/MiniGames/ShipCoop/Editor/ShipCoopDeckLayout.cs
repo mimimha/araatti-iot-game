@@ -127,6 +127,130 @@ public static class ShipCoopDeckLayout
     private const float CannonX = 4.45f;
     private const float CannonZ = 13.65f;
 
+    // ------------------------------------------------------------
+    // 바다 높이 — 암초 · 섬 · 항로선이 여기에 놓인다
+    //
+    // ⚠ 이걸 안 맞추면 **암초가 갑판 위로 굴러옵니다.**
+    //    `VoyageSea` 가 원점(0,0,0)에 있었는데, 실제 배는 중간갑판이 y -3.49 라
+    //    바다가 갑판보다 3.5m 위였습니다. 항로선(노란 선)도 갑판을 가로질렀습니다.
+    //    회색 큐브 시절(갑판 y = 0)에 맞춰둔 값이 그대로 남아 있던 것입니다.
+    //
+    // 흘수선은 배에서 읽었습니다.
+    //
+    //   선체가 가장 넓은 곳    y  -4.0   11.20m
+    //   포문(GunPorts) 밑      y  -7.39  ← 물 위에 있어야 한다
+    //   용골(선체 맨 아래)     y -11.46
+    //
+    // 포문 바로 아래인 -8.0 으로 둡니다. 잠기는 깊이 3.5m, 건현 4.5m 입니다.
+    // ------------------------------------------------------------
+
+    private const float SeaLevelY = -8.0f;
+
+    // ------------------------------------------------------------
+    // 바다 판 — **뒤로 흘러야 배가 나아가 보인다**
+    //
+    // 배는 실제로 앞으로 가지 않습니다. 제자리에 서 있고 **바다가 뒤로 흘러갑니다.**
+    // (VoyageSea) 그래서 물도 같이 흘러야 합니다. 가만히 있으면 배가 멈춰 보입니다.
+    //
+    // 이어 붙이는 방법
+    //   한 장을 뒤로 밀다가 되돌리면 **툭 튑니다.** 대신 **같은 판을 60m 간격으로
+    //   여러 장 깔고 다 같이 밉니다.** 60m 밀린 순간 뒤판이 앞판 자리에 정확히
+    //   들어가 있어서, 되돌려도 그림이 안 바뀝니다.
+    //
+    // 로비가 쓰는 물과 같은 재질입니다. 씬마다 바다 색이 다르면 어색합니다.
+    // ------------------------------------------------------------
+
+    /// <summary>로비가 쓰는 물. 여기서 베껴 온다.</summary>
+    private const string LobbyWaterPath =
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Materials/Water_River.mat";
+
+    /// <summary>
+    /// 우리 전용 물. 로비 것을 그대로 베낀 사본입니다.
+    ///
+    /// ⚠ **원본을 쓰면 안 됩니다.** 물결을 밀려면 재질 값을 매 프레임 바꿔야 하는데,
+    ///    원본을 건드리면 **로비 물까지 같이 흘러갑니다.**
+    ///    색을 바꾸고 싶으면 이 사본만 고치면 로비는 그대로입니다.
+    /// </summary>
+    private const string WaterMaterialPath = "Assets/Game/Art/Materials/ShipCoop/SeaWater.mat";
+
+    private const string SeaGroupName = "Sea";
+
+    /// <summary>판 한 장의 앞뒤 길이 (m). 이 길이로 되돌린다.</summary>
+    private const float SeaTileLength = 60f;
+
+    /// <summary>판의 좌우 폭 (m). 화면 밖까지 덮어야 끝이 안 보인다.</summary>
+    private const float SeaWidth = 400f;
+
+    /// <summary>배 뒤로 이만큼부터 깐다.</summary>
+    private const float SeaBackZ = -120f;
+
+    /// <summary>배 앞으로 이만큼까지 깐다. 목적지 섬(400m)보다 멀어야 한다.</summary>
+    private const float SeaFrontZ = 480f;
+
+    // ------------------------------------------------------------
+    // 물거품 줄무늬 — **흐르는 것이 보이게 하는 유일한 것**
+    //
+    // ⚠ 물 판을 밀어도 **물결이 안 따라옵니다.**
+    //
+    //    `Water_River` 는 Synty 물 셰이더인데, 무늬를 **월드 좌표로** 그리고
+    //    **시간으로 스스로 일렁입니다.** (`_Distortion_Speed` · `_Caustics_Speed`)
+    //    그래서 판을 아무리 뒤로 밀어도 제자리에서 출렁이기만 하고,
+    //    배가 나아가는 것은 표현이 안 됩니다. 실제로 잘 밀리고 있는데도
+    //    멈춰 있는 것처럼 보입니다.
+    //
+    // 그래서 **물 위에 얹은 물체**로 보여줍니다. 이건 월드 좌표와 상관없이
+    // 자기가 움직이므로 눈에 그대로 보입니다. 배 쪽으로 쓸려 내려오면
+    // 속도가 읽히고, 돛을 당겨 빨라지면 더 빨리 지나갑니다.
+    //
+    // ⚠ **잘고 가늘어야 물거품으로 보입니다.** 처음에 7~15m 짜리로 깔았더니
+    //    바다 위에 흰 판때기가 둥둥 뜬 것처럼 보였습니다.
+    //
+    // **한 칸(60m) 안의 무늬를 모든 칸에 똑같이 되풀이합니다.** 그래야 60m 마다
+    // 되돌릴 때 앞칸이 뒷칸 자리에 정확히 들어가서 안 튑니다.
+    // ------------------------------------------------------------
+
+    // ⚠ **지금은 꺼 두었습니다.**
+    //
+    //    납작한 사각형을 물 위에 얹으면 아무리 잘게 줄여도 **흰 판때기로 보입니다.**
+    //    7~15m 로도, 2~5m 로도 마찬가지였습니다. 그림 없는 네모라서 그렇습니다.
+    //
+    //    제대로 하려면 물거품 **그림(텍스처)** 이나 파티클이 있어야 합니다.
+    //    그건 그림 작업이라 여기서 숫자로 만들 수 없습니다.
+    //    재료가 생기면 이 스위치만 켜면 자리는 그대로 잡힙니다.
+    private const bool UseFoam = false;
+
+    private const string FoamMaterialPath = "Assets/Game/Art/Materials/ShipCoop/Wave.mat";
+
+    /// <summary>줄무늬 굵기 (m). 굵으면 판때기로 보인다.</summary>
+    private const float FoamWidth = 0.32f;
+
+    /// <summary>물 위로 살짝 띄운다. 같은 높이면 서로 지지고 깜빡인다.</summary>
+    private const float FoamLift = 0.05f;
+
+    private const float FoamBackZ = -60f;
+    private const float FoamFrontZ = 300f;
+
+    /// <summary>한 칸(60m)에 놓을 물거품. { 좌우 x, 칸 안에서의 앞뒤 0~1, 길이 m }</summary>
+    private static readonly float[,] FoamSpots =
+    {
+        { -74f, 0.03f, 4.0f },
+        { -41f, 0.09f, 2.6f },
+        {   9f, 0.14f, 3.4f },
+        {  52f, 0.19f, 2.2f },
+        { -23f, 0.27f, 4.6f },
+        {  78f, 0.33f, 3.0f },
+        { -58f, 0.41f, 2.4f },
+        {  27f, 0.46f, 3.8f },
+        {  -9f, 0.54f, 2.8f },
+        {  63f, 0.61f, 4.2f },
+        { -86f, 0.68f, 3.2f },
+        {  41f, 0.72f, 2.5f },
+        { -31f, 0.79f, 3.6f },
+        {  16f, 0.85f, 2.9f },
+        {  88f, 0.91f, 3.3f },
+        { -50f, 0.96f, 2.7f },
+    };
+
     // 갑판 면에서 얼마나 띄울지. 오브젝트마다 크기가 달라 0 이면 바닥에 묻힌다.
     private const float HelmLift = 0.70f;
     private const float SailLift = 1.60f;
@@ -163,8 +287,10 @@ public static class ShipCoopDeckLayout
         BuildDecks(root, log);
         BuildStairs(root, log);
         BuildWalls(root, log);
+        MoveSea(log);
         MoveStations(log);
         MovePlayers(log);
+        AttachCharacters(log);
 
         EditorSceneManager.MarkAllScenesDirty();
 
@@ -179,11 +305,22 @@ public static class ShipCoopDeckLayout
     // ------------------------------------------------------------
 
     /// <summary>
-    /// 배를 씬에 놓고 **콜라이더를 전부 끈다.**
+    /// 배를 씬에 놓고 **콜라이더를 전부 켠다.**
     ///
-    /// 배에는 `MeshCollider` 가 47개 붙어 있습니다. 그대로 두면 계단과 난간이
-    /// 울퉁불퉁해서 걸어다닐 수가 없습니다. 걸어다니는 바닥은 아래에서 만드는
-    /// **평평한 큐브**가 맡고, 배는 보이기만 합니다.
+    /// ⚠ 걸으라고 켜는 것이 아닙니다. 걷는 바닥은 여전히 **보이지 않는 평평한 큐브**가
+    ///    맡습니다. 배의 `MeshCollider` 47개는 계단과 난간이 울퉁불퉁해서 그 위로는
+    ///    걸어다닐 수가 없습니다.
+    ///
+    /// 켜는 이유는 두 가지, **둘 다 레이를 맞히기 위해서**입니다.
+    ///
+    ///   발 높이   `ShipCoopCharacter` 가 보이는 갑판을 찾아 발을 맞춥니다.
+    ///             걷는 큐브와 보이는 갑판이 층마다 다르게 어긋나 있습니다.
+    ///   가림      `ShipCoopCamera` 가 카메라와 사람 사이에 뭐가 끼었는지 봅니다.
+    ///             난간·돛대는 카메라를 돌리면 비켜나므로 그때만 감춥니다.
+    ///
+    /// **캐릭터는 배를 통과합니다.** `DebugPlayerMover.IgnoreTheShip` 이
+    /// `Physics.IgnoreCollision` 으로 캡슐과 배를 통째로 떼어놓습니다.
+    /// 그래서 콜라이더가 켜져 있어도 걷는 느낌은 하나도 안 바뀝니다.
     /// </summary>
     private static void PlaceShip(StringBuilder log)
     {
@@ -208,21 +345,23 @@ public static class ShipCoopDeckLayout
         ship.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         ship.transform.localScale = Vector3.one;
 
-        int off = 0;
+        int on = 0;
 
         foreach (Collider hit in ship.GetComponentsInChildren<Collider>(true))
         {
-            if (!hit.enabled)
+            if (hit.enabled)
             {
+                on++;
                 continue;
             }
 
             Undo.RecordObject(hit, "배 모델과 갑판 배치");
-            hit.enabled = false;
-            off++;
+            hit.enabled = true;
+            on++;
         }
 
-        log.AppendLine($"  배 모델을 놓고 콜라이더 {off}개를 껐습니다. (평평한 큐브가 바닥을 맡습니다)");
+        log.AppendLine($"  배 모델을 놓고 콜라이더 {on}개를 켰습니다. " +
+                       "(걷는 용도가 아니라 **레이를 맞히는 용도** — 위 주석 참고)");
 
         TurnOffShipParts(ship, log);
         MoveShipCannon(ship, log);
@@ -571,10 +710,20 @@ public static class ShipCoopDeckLayout
     ///             **어디로 올라가는지 알려주는 유일한 단서**입니다.
     ///             한 번 감췄다가 "계단이 아예 없어졌다" 는 소리를 들었습니다.
     ///             계단은 두 층에 걸쳐 있어서 자동으로는 반드시 잡힙니다.
+    ///
+    ///   Railing*  난간은 **갑판이 어디서 끝나는지 알려주는 표시**입니다.
+    ///             떨어지는 것은 보이지 않는 벽이 막고 있어서, 난간이 없으면
+    ///             어디까지가 바닥인지 눈으로 읽을 수가 없습니다.
+    ///
+    ///             ⚠ 한 층의 난간이 **메시 하나**입니다. 앞쪽만 감출 수가 없어서
+    ///               감추면 그 층 난간이 **사방 통째로** 사라집니다.
+    ///               가리는 문제는 감추는 대신 **카메라를 올려서** 풉니다.
     /// </summary>
     private static readonly string[] NeverHide =
     {
-        "Hull", "StairsUpper", "StairsFore", "StairsLower",
+        "Hull",
+        "StairsUpper", "StairsFore", "StairsLower",
+        "RailingAft", "RailingMid", "RailingFore",
     };
 
     private static void CollectBlockers(System.Collections.Generic.List<Renderer> found,
@@ -969,6 +1118,532 @@ public static class ShipCoopDeckLayout
         {
             log.AppendLine($"  그중 {off}명은 꺼져 있습니다. 그대로 둡니다. (혼자 테스트하려고 꺼 둔 것)");
         }
+    }
+
+    /// <summary>
+    /// 바다를 흘수선으로 내린다.
+    ///
+    /// `VoyageSea` 하나가 **암초 · 섬 · 항로선을 전부** 자기 자리 기준으로 놓습니다.
+    /// (`Place` · `Origin`) 그래서 이것만 옮기면 셋이 같이 따라옵니다.
+    ///
+    /// `origin` 칸을 비워야 이 오브젝트의 자리를 씁니다. 채워져 있으면 그쪽이 이깁니다.
+    /// </summary>
+    private static void MoveSea(StringBuilder log)
+    {
+        VoyageSea sea = Object.FindAnyObjectByType<VoyageSea>(FindObjectsInactive.Include);
+
+        if (sea == null)
+        {
+            log.AppendLine("  ⚠ VoyageSea 를 못 찾았습니다. 암초가 갑판 위로 올라옵니다.");
+            return;
+        }
+
+        Vector3 want = new Vector3(CenterX, SeaLevelY, 0f);
+
+        Undo.RecordObject(sea.transform, "배 모델과 갑판 배치");
+        sea.transform.position = want;
+
+        SerializedObject so = new SerializedObject(sea);
+        SerializedProperty origin = so.FindProperty("origin");
+
+        if (origin.objectReferenceValue != null)
+        {
+            origin.objectReferenceValue = null;
+            so.ApplyModifiedProperties();
+            log.AppendLine("  VoyageSea 의 origin 칸을 비웠습니다. (채워져 있으면 그쪽이 이깁니다)");
+        }
+
+        log.AppendLine();
+        log.AppendLine($"  바다   {Describe(want)}   (갑판보다 {MidSurfaceY - SeaLevelY:F1}m 아래)");
+
+        BuildSeaTiles(sea, log);
+        SeeFarEnough(log);
+        HideResult(log);
+    }
+
+    /// <summary>
+    /// 결과 화면을 **끈 채로 저장한다.**
+    ///
+    /// 플레이를 누르면 `ShipCoopResultView.Awake` 가 알아서 숨기므로 게임에는
+    /// 지장이 없습니다. 다만 **켜진 채로 저장돼 있으면 에디터 Game 뷰에
+    /// "항해 성공" 이 떠 있습니다.** 진행도 0%, 0분 0초로요.
+    /// 플레이가 꺼져 있는지 켜져 있는지 헷갈리게 만듭니다.
+    /// </summary>
+    private static void HideResult(StringBuilder log)
+    {
+        ShipCoopResultView view = Object.FindAnyObjectByType<ShipCoopResultView>(FindObjectsInactive.Include);
+
+        if (view == null)
+        {
+            return;
+        }
+
+        SerializedObject so = new SerializedObject(view);
+        Object panel = so.FindProperty("panel").objectReferenceValue;
+        GameObject go = panel as GameObject;
+
+        if (go == null || !go.activeSelf)
+        {
+            return;
+        }
+
+        Undo.RecordObject(go, "배 모델과 갑판 배치");
+        go.SetActive(false);
+
+        log.AppendLine("  결과 화면이 켜져 있어서 껐습니다. (에디터에서 '항해 성공' 이 떠 있던 것)");
+    }
+
+    /// <summary>
+    /// 카메라가 **목적지 섬까지 보이게** 사거리를 늘린다.
+    ///
+    /// ⚠ 카메라 far 가 200m 인데 섬은 **400m 앞**에 뜹니다. (`islandFarDistance`)
+    ///    그래서 게임의 목표가 화면에 한 번도 안 나왔습니다.
+    ///    "저기까지 가면 된다" 가 안 보이면 진행도 막대가 무슨 뜻인지도 모릅니다. (9장)
+    ///
+    /// 바다 판이 끝나는 곳(480m)보다 조금 더 멀리 둡니다. 그래야 바다 끝이
+    /// 잘려 보이지 않고 **수평선처럼** 하늘과 맞닿습니다.
+    /// </summary>
+    private static void SeeFarEnough(StringBuilder log)
+    {
+        ShipCoopCamera rig = Object.FindAnyObjectByType<ShipCoopCamera>(FindObjectsInactive.Include);
+        Camera cam = rig != null ? rig.GetComponent<Camera>() : Camera.main;
+
+        if (cam == null)
+        {
+            return;
+        }
+
+        float want = SeaFrontZ + 20f;
+
+        if (cam.farClipPlane >= want)
+        {
+            return;
+        }
+
+        Undo.RecordObject(cam, "배 모델과 갑판 배치");
+        log.AppendLine($"  카메라 사거리 {cam.farClipPlane:F0}m → {want:F0}m (목적지 섬이 400m 앞에 뜬다)");
+        cam.farClipPlane = want;
+    }
+
+    /// <summary>
+    /// 물 판을 깔고 `VoyageSea` 의 "속도에 맞춰 흐를 것" 목록에 넣는다.
+    ///
+    /// 판은 `VoyageSea` 의 자식으로 둡니다. 바다 높이를 바꾸면 같이 따라 내려갑니다.
+    /// 콜라이더는 지웁니다 — 물은 밟는 것이 아니고, 남겨두면 갑판을 재는 레이가
+    /// 물에 먼저 맞아서 배치 도구가 엉뚱한 값을 읽습니다.
+    /// </summary>
+    private static void BuildSeaTiles(VoyageSea sea, StringBuilder log)
+    {
+        Material water = GetOrCopyWater(log);
+
+        if (water == null)
+        {
+            return;
+        }
+
+        Transform group = FindOrCreateGroup(sea.transform, SeaGroupName);
+
+        for (int i = group.childCount - 1; i >= 0; i--)
+        {
+            Object.DestroyImmediate(group.GetChild(i).gameObject);
+        }
+
+        var scroll = new System.Collections.Generic.List<Transform>();
+
+        int count = Mathf.CeilToInt((SeaFrontZ - SeaBackZ) / SeaTileLength);
+
+        for (int i = 0; i < count; i++)
+        {
+            // 유니티 기본 Plane 은 한 변이 10m 다. 그래서 10 으로 나눈다.
+            Transform tile = MakeFlat(group, $"Water_{i + 1:00}", water,
+                new Vector3(SeaWidth / 10f, 1f, SeaTileLength / 10f),
+                new Vector3(0f, 0f, SeaBackZ + SeaTileLength * (i + 0.5f)));
+
+            scroll.Add(tile);
+        }
+
+        int foam = BuildFoam(group, scroll, log);
+
+        SerializedObject so = new SerializedObject(sea);
+
+        so.FindProperty("scrollLoopLength").floatValue = SeaTileLength;
+
+        SerializedProperty list = so.FindProperty("scrollWithSpeed");
+        list.arraySize = scroll.Count;
+
+        for (int i = 0; i < scroll.Count; i++)
+        {
+            list.GetArrayElementAtIndex(i).objectReferenceValue = scroll[i];
+        }
+
+        so.ApplyModifiedProperties();
+
+        // 물결을 배 속도로 밀어준다. 판을 옮기는 것만으로는 무늬가 안 따라온다.
+        if (group.GetComponent<ShipCoopSeaFlow>() == null)
+        {
+            Undo.AddComponent<ShipCoopSeaFlow>(group.gameObject);
+            log.AppendLine("  물결을 배 속도로 밀도록 ShipCoopSeaFlow 를 붙였습니다");
+        }
+
+        log.AppendLine($"  물 판 {count}장 ({SeaWidth:F0} × {SeaTileLength:F0}m) · 물거품 {foam}줄 을 깔고 " +
+                       $"{SeaTileLength:F0}m 마다 되돌리게 했습니다");
+    }
+
+    /// <summary>
+    /// 우리 전용 물 재질을 준비한다. 없으면 로비 것을 베껴 온다.
+    ///
+    /// 베끼는 이유는 위 `WaterMaterialPath` 주석에 적어 두었습니다 —
+    /// 원본을 밀면 로비 물까지 흘러갑니다.
+    /// </summary>
+    private static Material GetOrCopyWater(StringBuilder log)
+    {
+        Material mine = AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
+
+        if (mine != null)
+        {
+            return mine;
+        }
+
+        Material lobby = AssetDatabase.LoadAssetAtPath<Material>(LobbyWaterPath);
+
+        if (lobby == null)
+        {
+            log.AppendLine($"  ⚠ 로비 물 재질을 못 찾음: {LobbyWaterPath}");
+            return null;
+        }
+
+        if (!AssetDatabase.CopyAsset(LobbyWaterPath, WaterMaterialPath))
+        {
+            log.AppendLine($"  ⚠ 물 재질을 베끼지 못했습니다: {WaterMaterialPath}");
+            return null;
+        }
+
+        AssetDatabase.ImportAsset(WaterMaterialPath);
+        log.AppendLine($"  로비 물을 베껴 우리 것을 만들었습니다: {WaterMaterialPath}");
+
+        return AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
+    }
+
+    /// <summary>
+    /// 물거품 줄무늬를 깐다. 몇 줄 깔았는지 돌려준다.
+    ///
+    /// 물 판만으로는 흐르는 것이 안 보입니다. 이유는 위 주석에 적어 두었습니다.
+    /// </summary>
+    private static int BuildFoam(Transform group, System.Collections.Generic.List<Transform> scroll,
+                                 StringBuilder log)
+    {
+        if (!UseFoam)
+        {
+            return 0;
+        }
+
+        Material foamMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoamMaterialPath);
+
+        if (foamMaterial == null)
+        {
+            log.AppendLine($"  ⚠ 물거품 재질을 못 찾음: {FoamMaterialPath}. 흐르는 것이 안 보입니다.");
+            return 0;
+        }
+
+        int bands = Mathf.CeilToInt((FoamFrontZ - FoamBackZ) / SeaTileLength);
+        int spots = FoamSpots.GetLength(0);
+        int made = 0;
+
+        for (int band = 0; band < bands; band++)
+        {
+            for (int i = 0; i < spots; i++)
+            {
+                float x = FoamSpots[i, 0];
+                float z = FoamBackZ + SeaTileLength * (band + FoamSpots[i, 1]);
+                float length = FoamSpots[i, 2];
+
+                MakeFlat(group, $"Foam_{band + 1:00}_{i + 1}", foamMaterial,
+                    new Vector3(length / 10f, 1f, FoamWidth / 10f),
+                    new Vector3(x, FoamLift, z));
+
+                scroll.Add(group.GetChild(group.childCount - 1));
+                made++;
+            }
+        }
+
+        return made;
+    }
+
+    /// <summary>물 위에 눕히는 납작한 판 하나. 콜라이더는 지운다.</summary>
+    private static Transform MakeFlat(Transform group, string name, Material paint,
+                                      Vector3 scale, Vector3 at)
+    {
+        GameObject made = GameObject.CreatePrimitive(PrimitiveType.Plane);
+        made.name = name;
+        Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+        Collider bump = made.GetComponent<Collider>();
+
+        if (bump != null)
+        {
+            // 물은 밟는 것이 아니다. 남겨두면 갑판을 재는 레이가 물에 먼저 맞는다.
+            Object.DestroyImmediate(bump);
+        }
+
+        made.GetComponent<Renderer>().sharedMaterial = paint;
+
+        made.transform.SetParent(group, false);
+        made.transform.localScale = scale;
+        made.transform.localPosition = at;
+
+        return made.transform;
+    }
+
+    // ------------------------------------------------------------
+    // 캐릭터 — 큐브 대신 진짜 몸을 얹는다
+    // ------------------------------------------------------------
+
+    private const string CharacterPrefabPath = "Assets/Game/Prefabs/Characters/P_JaeYoung.prefab";
+
+    /// <summary>플레이어 밑에 붙는 몸의 이름. 이 이름으로 찾아서 다시 안 만든다.</summary>
+    private const string CharacterChildName = "Body";
+
+    // ------------------------------------------------------------
+    // 캐릭터를 얼마나 키울지
+    //
+    // **이 배는 키 3m 사람에 맞춰 만들어져 있습니다.** 모델에서 역산한 값입니다.
+    //
+    //   문 3.39m       (보통 2.0m)  →  사람 키 2.97m
+    //   조타륜 2.08m   (보통 1.2m)  →  사람 키 3.04m
+    //
+    // 캐릭터(`P_JaeYoung`)는 1.2m 라, 2.25배로 키우면 2.7m 가 됩니다.
+    //
+    // ⚠ **프리팹이 아니라 씬에 놓인 것만 키웁니다.** 프리팹을 키우면
+    //    로비에 서 있는 캐릭터까지 거인이 됩니다.
+    //
+    // ⚠ 키우면 **같은 속도가 느려 보입니다.** 화면에서 차지하는 크기가 커지는데
+    //    초당 움직이는 거리는 그대로라서 그렇습니다. 밸런스(일 하나 10초)는
+    //    거리로 잡혀 있으니 숫자는 건드리지 않습니다. 느리게 **느껴지면**
+    //    속도가 아니라 카메라를 먼저 보세요. (DebugPlayerMover 주석)
+    // ------------------------------------------------------------
+
+    /// <summary>모델을 그대로 뒀을 때의 키. 메시를 재서 나온 값이다.</summary>
+    private const float CharacterHeight = 1.27f;
+
+    /// <summary>1.27m × 2.25 = 2.86m</summary>
+    private const float CharacterScale = 2.25f;
+
+    /// <summary>몸통 캡슐의 반지름. 계단 폭 1.9m 보다 충분히 좁아야 한다.</summary>
+    private const float BodyRadius = 0.5f;
+
+    /// <summary>
+    /// 모델을 이만큼 **아래로 내려서 붙인다.**
+    ///
+    /// `CharacterController` 는 `skinWidth` 만큼 바닥에서 띄운 채로 멈춥니다.
+    /// 벽에 파묻히지 않으려고 남기는 여유라 없앨 수 없습니다. 줄이면 갑판을 뚫습니다.
+    ///
+    /// 그래서 **캡슐은 그대로 두고 보이는 몸만** 그만큼 내립니다.
+    /// 발이 갑판에 닿아 보이고, 부딪히는 것은 원래대로 돕니다.
+    /// </summary>
+    private static float CharacterSink => BodyRadius * 0.1f;
+
+    /// <summary>
+    /// 플레이어 큐브 밑에 **캐릭터 모델을 자식으로 얹는다.**
+    ///
+    /// 큐브를 캐릭터로 **바꾸지 않습니다.** 큐브에는 `TaskWorker` ·
+    /// `DebugPlayerMover` · `KeyboardPlayerController` 가 붙어 있고,
+    /// 카메라와 HUD 가 그것들을 찾아 씁니다. 바꾸면 연결이 다 끊어집니다.
+    /// 큐브는 그대로 두고 **보이는 몫만** 캐릭터에게 넘깁니다.
+    ///
+    /// 모델 쪽에서 꺼야 하는 것
+    /// <code>
+    ///   MovePlayerInput     키보드를 직접 읽는다. 그대로 두면 한 번 누를 때
+    ///                       우리 이동과 둘 다 반응해서 두 배로 걷는다
+    ///   CharacterMover      저쪽 이동. 걷기 1 / 달리기 4 로 우리 밸런스와 다르다
+    ///   CharacterController 두 번째 캡슐. 부모 캡슐과 서로 밀어낸다
+    /// </code>
+    ///
+    /// `Animator` 는 살려둡니다. `ShipCoopCharacter` 가 **움직인 거리를 재서** 굴립니다.
+    /// </summary>
+    private static void AttachCharacters(StringBuilder log)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPrefabPath);
+
+        if (prefab == null)
+        {
+            log.AppendLine($"  ⚠ 캐릭터 프리팹을 못 찾음: {CharacterPrefabPath}");
+            return;
+        }
+
+        TaskWorker[] players = Object.FindObjectsByType<TaskWorker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        log.AppendLine();
+        log.AppendLine("  캐릭터:");
+
+        for (int i = 0; i < players.Length; i++)
+        {
+            Transform player = players[i].transform;
+
+            // ⚠ **큐브의 찌그러진 크기를 없앤다.**
+            //
+            //    사람 모양처럼 보이려고 큐브를 (0.8, 1.2, 0.8) 로 눌러 놨습니다.
+            //    자식으로 캐릭터를 넣으면 **그 찌그러짐이 그대로 딸려가서**
+            //    옆으로 눌리고 위로 늘어난 사람이 됩니다.
+            //    큐브는 어차피 안 보이므로 1 로 돌립니다.
+            if (player.localScale != Vector3.one)
+            {
+                Undo.RecordObject(player, "배 모델과 갑판 배치");
+                player.localScale = Vector3.one;
+            }
+
+            Transform body = player.Find(CharacterChildName);
+
+            if (body == null)
+            {
+                GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                made.name = CharacterChildName;
+                Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+                body = made.transform;
+                body.SetParent(player, false);
+            }
+
+            Undo.RecordObject(body, "배 모델과 갑판 배치");
+            body.localPosition = new Vector3(0f, -CharacterSink, 0f);
+            body.localRotation = Quaternion.identity;
+            body.localScale = Vector3.one * CharacterScale;
+
+            int off = TurnOffRivalMovers(body);
+
+            // 큐브는 이제 안 보인다. 콜라이더도 CharacterController 가 대신한다.
+            foreach (Renderer draw in player.GetComponents<Renderer>())
+            {
+                if (draw.enabled)
+                {
+                    Undo.RecordObject(draw, "배 모델과 갑판 배치");
+                    draw.enabled = false;
+                }
+            }
+
+            ShipCoopCharacter view = player.GetComponent<ShipCoopCharacter>();
+
+            if (view == null)
+            {
+                view = Undo.AddComponent<ShipCoopCharacter>(player.gameObject);
+            }
+
+            AttachFootShadow(player, view);
+
+            // 캡슐을 캐릭터 키에 맞춘다. 안 맞추면 보이는 몸과 부딪히는 몸이 따로 논다.
+            DebugPlayerMover mover = player.GetComponent<DebugPlayerMover>();
+
+            if (mover != null)
+            {
+                SerializedObject so = new SerializedObject(mover);
+                so.FindProperty("bodyHeight").floatValue = CharacterHeight * CharacterScale;
+                so.FindProperty("bodyRadius").floatValue = BodyRadius;
+                so.ApplyModifiedProperties();
+            }
+
+            log.AppendLine($"    {players[i].name,-12}  키 {CharacterHeight * CharacterScale:F2}m, 저쪽 이동 {off}개 껐습니다");
+        }
+    }
+
+    /// <summary>발밑 그림자 지름. 캐릭터 몸통보다 조금 넓게.</summary>
+    private const float FootShadowSize = 1.6f;
+
+    /// <summary>
+    /// 발밑에 둥근 그림자를 깔고 `ShipCoopCharacter` 에 연결한다.
+    ///
+    /// 캐릭터의 자식이 **아닙니다.** 자식으로 두면 몸이 돌 때 같이 돌고,
+    /// 계단을 오를 때 몸을 따라 기울어집니다. 바닥에 눕혀 따로 두고
+    /// `ShipCoopCharacter` 가 매 프레임 바닥에 붙여 줍니다.
+    /// </summary>
+    private static void AttachFootShadow(Transform player, ShipCoopCharacter view)
+    {
+        Material paint = ShipCoopBlobShadow.GetOrCreate();
+
+        if (paint == null)
+        {
+            return;
+        }
+
+        string name = player.name + "_FootShadow";
+        Transform shadow = null;
+
+        foreach (Transform t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (t.name == name)
+            {
+                shadow = t;
+                break;
+            }
+        }
+
+        if (shadow == null)
+        {
+            GameObject made = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            made.name = name;
+            Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+            Collider bump = made.GetComponent<Collider>();
+
+            if (bump != null)
+            {
+                Object.DestroyImmediate(bump);
+            }
+
+            shadow = made.transform;
+        }
+
+        Renderer draw = shadow.GetComponent<Renderer>();
+        draw.sharedMaterial = paint;
+
+        // 그림자가 또 그림자를 드리우면 안 된다.
+        draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        draw.receiveShadows = false;
+
+        Undo.RecordObject(shadow, "배 모델과 갑판 배치");
+        shadow.SetParent(player.parent, false);
+
+        // Quad 는 서 있으므로 눕힌다.
+        shadow.rotation = Quaternion.Euler(90f, 0f, 0f);
+        shadow.localScale = Vector3.one * FootShadowSize;
+        shadow.position = player.position;
+
+        SerializedObject so = new SerializedObject(view);
+        so.FindProperty("footShadow").objectReferenceValue = shadow;
+        so.ApplyModifiedProperties();
+    }
+
+    /// <summary>모델에 딸려온 이동·입력·캡슐을 끈다. 몇 개 껐는지 돌려준다.</summary>
+    private static int TurnOffRivalMovers(Transform body)
+    {
+        int off = 0;
+
+        foreach (MonoBehaviour script in body.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            string kind = script.GetType().Name;
+
+            if (kind != "CharacterMover" && kind != "MovePlayerInput")
+            {
+                continue;
+            }
+
+            if (script.enabled)
+            {
+                Undo.RecordObject(script, "배 모델과 갑판 배치");
+                script.enabled = false;
+                off++;
+            }
+        }
+
+        foreach (CharacterController capsule in body.GetComponentsInChildren<CharacterController>(true))
+        {
+            if (capsule.enabled)
+            {
+                Undo.RecordObject(capsule, "배 모델과 갑판 배치");
+                capsule.enabled = false;
+                off++;
+            }
+        }
+
+        return off;
     }
 
     private static string Describe(Vector3 p) => $"x {p.x,5:F1}  y {p.y,6:F2}  z {p.z,6:F1}";
