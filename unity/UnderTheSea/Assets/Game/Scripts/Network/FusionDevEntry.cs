@@ -1,5 +1,3 @@
-using UnityEngine;
-
 /// <summary>
 /// 개발용 직접 Lobby 실행 경로.
 ///
@@ -9,10 +7,13 @@ using UnityEngine;
 /// 즉 일반 사용자 경로와 네트워크 구조가 완전히 같고, 앞단의 UI 만 건너뛴다.
 ///
 /// <b>어디에서만 켜지는가.</b>
-/// 아래 조건부 컴파일 밖에서는 이 클래스가 늘 <c>false</c> 를 돌려준다.
-/// 그래서 Release 빌드에는 로그인 우회 수단이 아예 들어가지 않는다.
-///   UNITY_EDITOR      에디터에서 Lobby 씬을 직접 Play
-///   DEVELOPMENT_BUILD "Development Build" 로 만든 실행 파일
+/// <c>DEVELOPMENT_BUILD</c> 로 만든 실행 파일에서 <c>-devjoin</c> 을 줬을 때만 <c>true</c> 다.
+/// Release 빌드에는 로그인 우회 수단이 아예 들어가지 않는다.
+///
+/// <b>에디터는 여기에 해당하지 않는다.</b> 에디터에서 Lobby 를 Play 하면
+/// <see cref="FusionLauncher"/> 가 언제나 <c>GameMode.Client</c> 로 떠서 Dedicated Server 에 붙는다.
+/// 토글로 켜고 끄던 예전 방식은 없앴다 — 켜는 것을 잊고 혼자 Host 로 놀게 되는 일이 실제로 있었다.
+/// 즉 <b>플레이 모드 테스트에는 Dedicated Server 가 떠 있어야 한다.</b>
 ///
 /// <b>신원 · 외형.</b>
 /// 이번 단계(PRD 08-2)는 모든 플레이어가 기본 외형이므로 가짜 신원을 만들 필요가 없다.
@@ -25,27 +26,20 @@ using UnityEngine;
 /// </summary>
 public static class FusionDevEntry
 {
-#if UNITY_EDITOR
-    /// <summary>
-    /// 에디터에서 개발용 접속을 켤지 여부. 메뉴로 토글한다.
-    /// EditorPrefs 라 이 PC 의 이 에디터에만 남고 저장소에는 들어가지 않는다.
-    /// </summary>
-    public const string EditorPrefsKey = "AraAtti.Fusion.DevJoinAsClient";
-#endif
-
     /// <summary>
     /// 지금 실행이 "개발용 직접 접속" 인가.
     ///
-    /// true 면 <see cref="FusionLauncher"/> 가 AutoHostOrClient 대신 Client 로 뜬다.
-    /// 즉 혼자 호스트가 되어 버리지 않고, 이미 떠 있는 Dedicated Server 를 찾아 붙는다.
+    /// true 면 앞단 UI(Login · ChannelSelect) 없이 Lobby 씬만 열어도
+    /// <see cref="FusionLauncher"/> 가 세션을 시작하도록 허용한다.
+    ///
+    /// ⚠ 이 값은 더 이상 <c>GameMode</c> 를 고르지 않는다. 모드는 언제나 Client 다.
+    ///    이 값이 정하는 것은 **"Lobby 만 직접 열어도 되는가"** 하나뿐이다.
     /// </summary>
     public static bool WantsClientJoin
     {
         get
         {
-#if UNITY_EDITOR
-            return UnityEditor.EditorPrefs.GetBool(EditorPrefsKey, false);
-#elif DEVELOPMENT_BUILD
+#if DEVELOPMENT_BUILD
             // Development Build 에서는 실행 인자로만 켠다. 메뉴가 없기 때문이다.
             //   AraAtti-Client.exe -devjoin -session lobby-ch1
             return System.Array.Exists(

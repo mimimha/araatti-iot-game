@@ -92,15 +92,109 @@ public static class SceneFlow
     /// <summary>CharacterCreate 에서 [생성 완료] 가 처리된 뒤.</summary>
     public static void FromCharacterCreate() => Load(ChannelSelect);
 
+    /// <summary>
+    /// 네트워크가 Lobby 를 직접 로드했는가.
+    ///
+    /// Fusion 으로 채널에 접속하면 <b>Fusion 이 Lobby 를 네트워크 씬으로 올린다.</b>
+    /// 그 상태에서 여기서 또 <c>SceneManager.LoadScene("Lobby")</c> 를 하면
+    /// 네트워크 오브젝트가 붙지 않은 Lobby 가 덮어써져 캐릭터가 사라진다.
+    ///
+    /// 그래서 <b>로드 주체를 하나로 정한다</b> — 이 값이 true 면 Fusion 이 주체다.
+    /// 값을 켜고 끄는 것은 네트워크 계층의 일이다. (FusionNetworkService)
+    /// 이 파일은 Fusion 을 알지 못한 채 bool 하나만 본다.
+    ///
+    /// Fake 경로에서는 늘 false 이므로 예전처럼 여기서 Lobby 를 연다.
+    /// </summary>
+    public static bool LobbyLoadedByNetwork { get; set; }
+
     /// <summary>ChannelSelect 에서 채널 접속에 성공했을 때.</summary>
-    public static void FromChannelSelect() => Load(Lobby);
+    public static void FromChannelSelect()
+    {
+        if (LobbyLoadedByNetwork)
+        {
+            Debug.Log("[SceneFlow] Lobby 는 네트워크가 이미 로드했습니다. 씬을 다시 열지 않습니다.");
+            return;
+        }
+
+        Load(Lobby);
+    }
+
+    /// <summary>
+    /// 네트워크가 Lobby 를 <b>추가로</b> 올린 뒤, 그때까지 보이던 화면 씬을 내린다.
+    ///
+    /// ⚠ 왜 필요한가.
+    ///    Fusion 은 PeerMode.Multiple 에서 네트워크 씬을 <b>additive 로</b> 올리고
+    ///    이전 씬을 내리지 않는다. 그래서 ChannelSelect 가 그대로 남는다.
+    ///    카메라는 꺼도 <c>ScreenSpaceOverlay</c> Canvas 는 카메라와 무관하게 계속 그려지므로
+    ///    Lobby 가 멀쩡히 로드됐는데도 화면에는 ChannelSelect UI 만 보인다.
+    ///    실제로 그 상태였다 — 로그는 전부 정상인데 화면만 안 넘어갔다.
+    ///
+    ///    <c>SceneManager.LoadScene</c>(Single)과 달리 Unity 가 알아서 치워 주지 않으므로
+    ///    씬을 올린 쪽이 아니라 <b>흐름을 아는 이 파일이</b> 내린다.
+    /// </summary>
+    public static void UnloadScreenScene(Scene screen)
+    {
+        if (!screen.IsValid() || !screen.isLoaded)
+        {
+            return;
+        }
+
+        if (screen.name == Lobby)
+        {
+            // 방금 올린 Lobby 를 실수로 내리지 않는다.
+            Debug.LogWarning("[SceneFlow] Lobby 를 내리려 했습니다. 건너뜁니다.");
+            return;
+        }
+
+        if (SceneManager.sceneCount <= 1)
+        {
+            // 마지막 남은 씬은 내릴 수 없다.
+            Debug.LogWarning($"[SceneFlow] '{screen.name}' 이(가) 마지막 씬이라 내리지 않습니다.");
+            return;
+        }
+
+        Debug.Log($"[SceneFlow] 네트워크가 Lobby 를 올렸으므로 '{screen.name}' 씬을 내립니다.");
+        SceneManager.UnloadSceneAsync(screen);
+    }
 
     // ------------------------------------------------------------
     // 뒤로 가는 흐름
     // ------------------------------------------------------------
 
+    /// <summary>
+    /// 네트워크가 Lobby 를 쥐고 있다는 표시를 푼다.
+    ///
+    /// ⚠ 이 값이 true 로 남아 있으면 <see cref="FromChannelSelect"/> 가 Lobby 를 열지 않는다.
+    ///    Fake 로 되돌렸을 때 "입장을 눌러도 아무 일도 안 일어나는" 회귀가 바로 이것이다.
+    ///    그래서 게임 흐름에서 **물러날 때마다** 반드시 푼다.
+    ///    네트워크 쪽에서도 접속 실패 · 연결 끊김 · Runner 종료 때 푼다.
+    /// </summary>
+    private static void ReleaseNetworkLobby()
+    {
+        if (LobbyLoadedByNetwork)
+        {
+            Debug.Log("[SceneFlow] 네트워크 Lobby 표시를 해제합니다.");
+            LobbyLoadedByNetwork = false;
+        }
+    }
+
+    /// <summary>
+    /// 플레이 모드에 들어갈 때마다 비운다.
+    /// 에디터에서 "Reload Domain" 을 꺼 두면 static 이 이전 플레이의 값을 그대로 들고 있다.
+    /// 그 상태로 Fake 로 바꿔서 실행하면 Lobby 가 열리지 않는다.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetOnPlay()
+    {
+        LobbyLoadedByNetwork = false;
+    }
+
     /// <summary>Login 에서 [뒤로가기].</summary>
-    public static void BackToTitle() => Load(Title);
+    public static void BackToTitle()
+    {
+        ReleaseNetworkLobby();
+        Load(Title);
+    }
 
     /// <summary>
     /// ChannelSelect 에서 [뒤로가기]. 로그인 화면으로 돌아간다.
@@ -108,7 +202,11 @@ public static class SceneFlow
     /// ⚠ 로그아웃은 여기서 하지 않는다. 이 파일은 씬 전환만 담당한다.
     ///    (GAME_STRUCTURE.md 3장) 세션을 지우는 것은 부르는 쪽의 일이다.
     /// </summary>
-    public static void BackToLogin() => Load(Login);
+    public static void BackToLogin()
+    {
+        ReleaseNetworkLobby();
+        Load(Login);
+    }
 
     /// <summary>
     /// CharacterCreate 로 되돌아간다.

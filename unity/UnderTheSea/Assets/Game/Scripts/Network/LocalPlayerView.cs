@@ -25,11 +25,6 @@ using ithappy.Cute_Characters.Controller;
 /// </summary>
 public class LocalPlayerView : NetworkBehaviour
 {
-    [Header("내 화면 카메라가 있는 씬")]
-    [Tooltip("이 이름의 씬에 있는 카메라를 내 화면으로 쓴다. " +
-             "Fusion 이 만드는 러너 전용 씬과 구분하기 위해 필요하다.")]
-    [SerializeField] private string viewSceneName = "Lobby";
-
     [Header("마우스")]
     [SerializeField] private string mouseX = "Mouse X";
     [SerializeField] private string mouseY = "Mouse Y";
@@ -69,18 +64,22 @@ public class LocalPlayerView : NetworkBehaviour
         // 카메라보다 먼저 하는 이유: 카메라 쪽에서 문제가 나도 포털은 살아 있게 하려고.
         LocalPlayer.Register(Object);
 
-        boundCamera = PickViewCamera();
+        // 표식이 붙은 게임플레이 카메라만 쓴다. 씬 이름이나 탐색 순서에 기대지 않는다.
+        LobbyGameplayCamera marked = LobbyGameplayCamera.ResolveFor(transform);
 
-        if (boundCamera == null)
+        if (marked == null || marked.Follower == null)
         {
-            Debug.LogWarning(
-                $"[LocalPlayerView] '{viewSceneName}' 씬에서 PlayerCamera 를 찾지 못했습니다. " +
-                "Lobby 의 MainCamera 에 ThirdPersonCamera 가 붙어 있는지, " +
-                "Inspector 의 '내 화면 카메라가 있는 씬' 이름이 맞는지 확인해 주세요.");
+            // ResolveFor 가 이미 이유를 남겼다. 아무 카메라나 대신 집지 않는다.
+            Debug.LogError(
+                "[LocalPlayerView] 쓸 수 있는 게임플레이 카메라가 없어 화면을 붙이지 못했습니다.");
+
+            TransitionStatus.SetFailed("게임플레이 카메라를 찾지 못했습니다.");
             return;
         }
 
-        KeepOnlyThisViewer(boundCamera.GetComponent<Camera>());
+        boundCamera = marked.Follower;
+
+        KeepOnlyThisViewer(marked.Camera);
         boundCamera.BindPlayer(transform);
 
         // ⚠ 붙이자마자 제자리로 보낸다. 이 한 줄이 빠지면 카메라가 원래 있던 곳에서
@@ -129,48 +128,6 @@ public class LocalPlayerView : NetworkBehaviour
             boundCamera.BindPlayer(null);
             boundCamera = null;
         }
-    }
-
-    /// <summary>
-    /// 내 화면을 보여 줄 카메라를 고른다. <b>실행 타이밍과 무관하게 같은 결과가 나와야 한다.</b>
-    ///
-    /// ⚠ 접속 후에는 이 프로세스에 <b>MainCamera 가 둘</b> 있다.
-    ///    Fusion 은 세션을 시작할 때 원래 씬을 러너 전용 씬으로 가져간 뒤
-    ///    (NetworkSceneManagerDefault.IsSceneTakeOverEnabled) 서버가 지시한 씬을 새로 로드한다.
-    ///    그래서 원래 씬의 MainCamera 가 러너 씬에 남는다. 실제 로그로 확인했다.
-    ///      [0] MainCamera scene='Lobby'
-    ///      [1] MainCamera scene='NetworkManager_[Player:2]'
-    ///
-    ///    러너가 들어 있는 씬으로 판별하려 했더니 <b>타이밍에 따라 갈렸다.</b>
-    ///    Spawned 시점에 러너가 아직 옮겨지기 전이면 러너의 씬이 'Lobby' 로 나와
-    ///    엉뚱한 쪽을 고른다. 실제로 클라이언트마다 다른 카메라가 선택됐다.
-    ///
-    ///    그래서 <b>씬 이름으로 못박는다.</b> 러너 전용 씬 이름은 러너 오브젝트 이름에서
-    ///    만들어지므로 실제 레벨 씬 이름과 절대 겹치지 않는다.
-    /// </summary>
-    private PlayerCamera PickViewCamera()
-    {
-        PlayerCamera[] all = FindObjectsByType<PlayerCamera>(
-            FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        foreach (PlayerCamera candidate in all)
-        {
-            if (candidate.gameObject.scene.name == viewSceneName)
-            {
-                return candidate;
-            }
-        }
-
-        if (all.Length > 0)
-        {
-            // 이름이 안 맞는 상황은 설정 실수다. 화면이 아예 안 나오는 것보다는 낫게 하나 고른다.
-            Debug.LogWarning(
-                $"[LocalPlayerView] '{viewSceneName}' 씬에서 카메라를 찾지 못해 " +
-                $"'{all[0].gameObject.scene.name}' 씬의 것을 씁니다. Inspector 설정을 확인해 주세요.");
-            return all[0];
-        }
-
-        return null;
     }
 
     /// <summary>
