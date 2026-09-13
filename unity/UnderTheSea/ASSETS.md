@@ -17,13 +17,13 @@
 
 | 에셋 이름 | 출처 | 라이선스 | 폴더 | 용도 | 추가한 사람 | 날짜 |
 | --- | --- | --- | --- | --- | --- | --- |
-| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 | 효진 | 2026-09-07 |
+| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 | 효진 | 2026-09-07 |
 | Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
 | ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
 | Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 | 효진 | 2026-09-08 |
 | Quaternius Pirate Kit | https://quaternius.com/packs/piratekit.html | 무료 (CC0-1.0) | `Assets/QuaterniusPirateKit/` | 낚시 캐릭터·부두·소품 | 용주 | 2026-09-08 |
 | Quaternius Animated Fish | https://quaternius.com/packs/animatedfish.html | 무료 (CC0-1.0) | `Assets/QuaterniusAnimatedFish/` | 낚시 물고기 모델·애니메이션 | 용주 | 2026-09-08 |
-| WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | 배 협동 게임 바다 (표면 셰이더만) | 민화 | 2026-09-13 |
+| WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
@@ -33,10 +33,11 @@
 > 표면 셰이더(`SSR_Water`)와 서브그래프만 남기고 `Scripts/` · `Demo/` ·
 > `Volumetric_Water.shader` 는 지웠습니다. 업데이트할 때 다시 지워야 합니다.
 
-> ⛔ `Shaders/WSUV_Water.shadersubgraph` 의 Position 노드를 **월드 → 오브젝트**로
-> 바꿨습니다. (`"m_Space": 0`) 물 무늬가 판을 따라 흐르게 하려고 그런 것으로,
-> 배 협동 게임에서 **배가 나아가 보이는 것이 여기에 달려 있습니다.**
-> 업데이트하면 되돌아가니 다시 바꿔야 합니다. (`SHIPCOOP.md` 5장)
+> ⛔ **WaterWorks 는 지금 아무 데서도 안 씁니다.** 파도를 넣으려고 가져왔는데
+> 셰이더가 파도의 법선을 계산하지 않아 쓸 수 없었습니다. (`SHIPCOOP.md` 5장)
+> 배 협동 게임 바다는 로비와 같은 Synty `Water_River` 로 되돌렸습니다.
+> 한동안 `WSUV_Water.shadersubgraph` 를 고쳐 뒀었는데 **원래대로 돌려놨습니다.**
+> 폴더를 지울지는 팀에서 정하세요. 지우면 파도를 다시 시도할 길이 없어집니다.
 
 ### 작성 예시
 

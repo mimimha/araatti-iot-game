@@ -185,7 +185,35 @@ public static class ShipCoopDeckLayout
     //    같아야 한다면 로비도 바꾸거나, 여기를 Synty 로 되돌리면 됩니다.
     // ------------------------------------------------------------
 
-    private const bool UseWaterWorks = true;
+    // ⚠ **WaterWorks 를 안 씁니다. 로비와 같은 물을 씁니다.**
+    //
+    //    WaterWorks 를 가져온 이유는 파도 하나였습니다. 그 파도를 뺐으니
+    //    남을 이유가 없습니다. 로비가 쓰는 Synty 물을 그대로 베껴 씁니다.
+    //    바다 색이 로비와 어긋나지 않는 것이 이 게임에 더 중요합니다.
+    private const bool UseWaterWorks = false;
+
+    // ------------------------------------------------------------
+    // ⛔ **물결은 껐습니다. 다시 켜지 마세요.**
+    //
+    //    파도 · 잔결 · 거품을 넣어보려고 한참 매달렸는데, 어느 조합으로도
+    //    **멀리서 지글거리는 것**을 못 없앴습니다. 화면에서는 물결이 아니라
+    //    렌더링 오류처럼 보입니다.
+    //
+    //    뿌리는 셰이더에 있습니다. 꼭짓점만 밀고 **법선을 다시 계산하지 않아서**
+    //    (`VertexDescription.Normal` 이 안 연결됨) 파도가 빛을 안 받습니다.
+    //    그래서 파도를 보이게 하려면 잔결(`_NormalStrength`)을 올려야 하는데,
+    //    올리면 멀리서 무늬가 한 픽셀보다 작아져 반짝임이 지글거립니다.
+    //    **둘 다 만족하는 값이 없습니다.**
+    //
+    //    그래서 잔잔한 물로 둡니다. 배가 나아가는 느낌은 물 무늬가 아니라
+    //    수평선의 섬과 흘러오는 장애물이 냅니다.
+    //
+    //    되살리려면 셰이더 그래프에서 법선을 먼저 이어야 합니다.
+    //    그 전에는 값만 만져서는 안 됩니다. 안 해봐서 모르는 게 아니라
+    //    해보고 안 된 것입니다. (SHIPCOOP.md 5장)
+    // ------------------------------------------------------------
+
+    private const bool UseWaves = false;
 
     private const string WaterWorksPath = "Assets/WaterWorks/Materials/SSR_Water.mat";
 
@@ -218,11 +246,22 @@ public static class ShipCoopDeckLayout
     //    끝까지 가도 판이 모자라지 않습니다. 되돌리는 순간 무늬가 튑니다.
     // ------------------------------------------------------------
 
-    /// <summary>판의 좌우 폭 (m). 화면 밖까지 덮어야 끝이 안 보인다.</summary>
-    private const float SeaWidth = 400f;
+    /// <summary>
+    /// 판의 좌우 폭 (m).
+    ///
+    /// ⚠ **하늘돔보다 넓어야 합니다.** (`SkyRadius` 480)
+    ///    400 으로 뒀더니 옆을 볼 때 200m 에서 바다가 끝나고 **그 너머로 돔
+    ///    밑동이 보였습니다.** 수평선에 흰 띠가 생기고 바다가 잘려 보입니다.
+    ///    1150 이면 좌우 575m 라 돔 안쪽을 덮습니다.
+    /// </summary>
+    private const float SeaWidth = 1150f;
 
-    /// <summary>배 뒤로 이만큼부터 깐다.</summary>
-    private const float SeaBackZ = -120f;
+    /// <summary>
+    /// 배 뒤로 이만큼부터 깐다.
+    ///
+    /// ⚠ 이것도 하늘돔 반지름보다 뒤여야 합니다. 뒤를 돌아보면 바다가 끝나 있습니다.
+    /// </summary>
+    private const float SeaBackZ = -550f;
 
     /// <summary>배 앞으로 이만큼까지 보인다. 목적지 섬(400m)보다 멀어야 한다.</summary>
     private const float SeaFrontZ = 480f;
@@ -230,11 +269,12 @@ public static class ShipCoopDeckLayout
     /// <summary>
     /// 판의 앞뒤 길이 (m).
     ///
-    /// 보이는 600m(`SeaBackZ`~`SeaFrontZ`) + 항해 거리 600m + 여유 100m.
+    /// 보이는 만큼(`SeaBackZ`~`SeaFrontZ` = 1030m) + 항해 거리 600m + 여유.
     /// `ShipVoyage.totalDistance` 를 늘리면 여기도 같이 늘려야 합니다.
     /// 모자라면 항해 끝에 **배 앞의 바다가 사라집니다.**
+    /// 도구가 끝날 때 덮는지 계산해서 로그에 적어줍니다.
     /// </summary>
-    private const float SeaLength = 1300f;
+    private const float SeaLength = 1750f;
 
     /// <summary>물거품 줄이 되돌아오는 간격 (m). 지금은 물거품을 안 씁니다.</summary>
     private const float FoamLoopLength = 60f;
@@ -342,6 +382,7 @@ public static class ShipCoopDeckLayout
         CoverTheHold(root, log);
         MoveSea(log);
         MatchLobbySky(log);
+        BuildSky(log);
         MoveStations(log);
         MovePlayers(log);
         AttachCharacters(log);
@@ -1863,76 +1904,66 @@ public static class ShipCoopDeckLayout
     {
         Undo.RecordObject(water, "배 모델과 갑판 배치");
 
-        // ------------------------------------------------------------
         // ⚠ **이 셰이더에 있는 값만 만집니다.**
         //
-        //    한동안 `_Frequency` · `_Foam_Cutoff` · `_Edge_Offset` 을 같이
-        //    넣고 있었습니다. **셰이더에 없는 이름이라 전부 무시됐습니다.**
-        //    재질 파일에는 남아 있어서 고치고 있는 줄 알았습니다.
-        //    실제로 있는 값은 아래 열일곱 개뿐입니다.
-        //
-        // ⚠ **작고 빠르면 벌레처럼 보입니다.**
-        //
-        //    무늬를 11m 마다, 잔결을 0.12, 흐름을 0.6 으로 뒀더니 물 전체가
-        //    **자잘한 흰 점이 빠르게 기어다니는 것**처럼 보였습니다.
-        //
-        //    바다는 원래 **크고 느립니다.** 움직이는 느낌은 잔결이 아니라
-        //    파도(`_Displacement_*`)가 만들게 두고, 무늬는 크고 느리게 둡니다.
-        // ------------------------------------------------------------
+        //    한동안 `_Frequency` · `_Foam_Cutoff` · `_Edge_Offset` 을 같이 넣고
+        //    있었습니다. **셰이더에 없는 이름이라 전부 무시됐습니다.** 재질
+        //    파일에는 남아 있어서 고치고 있는 줄 알았습니다. 실제로 있는 값은
+        //    `SSR_Water.shadergraph` 의 `m_DefaultReferenceName` 열일곱 개뿐입니다.
 
-        // 무늬 간격. 낮출수록 무늬가 크다. 0.04 면 25m 마다 한 번.
-        SetIfHas(water, "_Tiling", 0.04f);
-
-        // 잔결의 깊이. 높으면 물이 오돌토돌해진다.
-        SetIfHas(water, "_NormalStrength", 0.06f);
-
-        // 무늬가 흐르는 속도. 이게 빠르면 벌레가 기어다닌다.
-        SetIfHas(water, "_Speed", 0.15f);
-
-        // ------------------------------------------------------------
-        // 파도 — 물 표면을 위아래로 울린다
-        //
-        // ⚠ **판이 촘촘해야만 보입니다.** (`ShipCoopSeaMesh`)
-        //    기본 Plane 위에서는 이 값을 아무리 올려도 물이 평평합니다.
-        //    꼭짓점이 40m 마다 하나뿐이라 밀어 올릴 곳이 없기 때문입니다.
-        //    그래서 파도가 "안 되는 것" 으로 보였습니다. 판을 바꾸니 됩니다.
-        // ------------------------------------------------------------
-
-        // 파도 높이(m). 마루에서 골까지는 이것의 두 배쯤 된다.
-        SetIfHas(water, "_Displacement_Amount", 1.4f);
-
-        // 파도 하나의 크기. 작을수록 물결이 길고 완만하다.
-        // 0.04 면 물결 하나가 25m 안팎 — 우리 배(42m)에 두어 개가 걸린다.
-        SetIfHas(water, "_Displacement_Scale", 0.04f);
-
-        // 파도가 지나가는 속도. 무늬가 흐르는 속도보다 조금 빠른 정도.
-        SetIfHas(water, "_Displacement_Speed", 0.2f);
-
-        // ------------------------------------------------------------
-        // 흰 거품 — 화면의 흰 점은 대부분 여기서 나옵니다
-        // ------------------------------------------------------------
-
-        // 거품 줄의 촘촘함. 3 이면 가는 흰 줄이 빽빽하게 깔린다.
-        SetIfHas(water, "_WaveFrequency", 1.2f);
-        SetIfHas(water, "_WaveSpeed", 0.4f);
-
-        // 선체에 붙는 거품의 폭. 얇으면 플레이 중에 안 보인다.
-        SetIfHas(water, "_WaveDist", 12f);
-
-        // 거품이 보이는 거리. 멀리까지 켜두면 수평선이 지글거린다.
-        SetIfHas(water, "_MaxWaveDist", 120f);
-
-        // ⚠ 4 는 HDR 흰색이라 **눈이 부십니다.** 흰 점으로 보이는 주범입니다.
-        SetColorIfHas(water, "_FoamColor", new Color(1.4f, 1.4f, 1.4f, 1f));
+        // 무늬 간격. 낮출수록 무늬가 크다. 0.03 이면 33m 마다 한 번.
+        SetIfHas(water, "_Tiling", 0.03f);
 
         // 그림체에 맞는 청록. 회색 바다는 배와 따로 논다.
-        SetColorIfHas(water, "_Color", new Color(0.10f, 0.42f, 0.45f, 1f));
-        SetColorIfHas(water, "_EdgeColor", new Color(0.35f, 0.72f, 0.72f, 1f));
+        // 하늘돔이 밝아서 물은 진해야 바다로 읽힙니다.
+        SetColorIfHas(water, "_Color", new Color(0.05f, 0.28f, 0.34f, 1f));
+        SetColorIfHas(water, "_EdgeColor", new Color(0.25f, 0.62f, 0.66f, 1f));
+
+        // 화면 공간 반사. 물 위에 픽셀 단위 잡음을 얹는다. 무겁기도 하다.
+        SetIfHas(water, "_ScreenSpaceReflections", 0f);
+
+        // 코스틱은 **바닥이 있어야** 의미가 있다. 망망대해엔 바닥이 없다.
+        SetIfHas(water, "_Caustic_Strength", 0f);
+
+        if (UseWaves)
+        {
+            // 켜는 법은 위 `UseWaves` 주석을 먼저 읽으세요.
+            // 셰이더 법선을 잇기 전에는 지글거림이 반드시 따라옵니다.
+            SetIfHas(water, "_Displacement_Amount", 2.5f);
+            SetIfHas(water, "_Displacement_Scale", 0.04f);
+            SetIfHas(water, "_Displacement_Speed", 0.2f);
+            SetIfHas(water, "_NormalStrength", 0.18f);
+            SetIfHas(water, "_Speed", 0.15f);
+            SetIfHas(water, "_UseFoam", 1f);
+            SetColorIfHas(water, "_FoamColor", new Color(0.62f, 0.82f, 0.86f, 1f));
+            SetIfHas(water, "_WaveFrequency", 1.2f);
+            SetIfHas(water, "_WaveSpeed", 0.4f);
+            SetIfHas(water, "_WaveDist", 12f);
+            SetIfHas(water, "_MaxWaveDist", 120f);
+        }
+        else
+        {
+            // 잔잔한 물. 지글거리게 만드는 것을 전부 0 으로 둔다.
+            SetIfHas(water, "_Displacement_Amount", 0f);
+            SetIfHas(water, "_Speed", 0.05f);
+
+            // ⚠ **0 으로 두면 물이 거울이 됩니다.**
+            //    완전히 평평한 물은 하늘을 그대로 비춰서 **허연 판때기**로 보입니다.
+            //    하늘돔을 씌우고 나서 더 심해졌습니다. 하늘이 밝아졌으니까요.
+            //    지글거리지 않을 만큼만 남깁니다.
+            SetIfHas(water, "_NormalStrength", 0.08f);
+            SetIfHas(water, "_Transparency", 0.55f);
+            SetIfHas(water, "_UseFoam", 0f);
+            SetIfHas(water, "_WaveFrequency", 0f);
+            SetIfHas(water, "_WaveSpeed", 0f);
+        }
 
         EditorUtility.SetDirty(water);
         AssetDatabase.SaveAssets();
 
-        log.AppendLine("  WaterWorks 물을 우리 바다 크기(400 × 600m)에 맞췄습니다");
+        log.AppendLine(UseWaves
+            ? "  WaterWorks 물에 물결을 넣었습니다"
+            : "  WaterWorks 물을 잔잔하게 뒀습니다 (물결 꺼짐)");
     }
 
     private static void SetIfHas(Material material, string name, float value)
@@ -2044,6 +2075,200 @@ public static class ShipCoopDeckLayout
         log.AppendLine("  하늘 빛을 로비와 같게 맞췄습니다 (주변광 하늘색 1.19 · 안개 켬)");
 
         MatchLobbySun(log);
+    }
+
+    // ------------------------------------------------------------
+    // 하늘 — **돔과 구름 고리를 씌웁니다**
+    //
+    // ⚠ **유니티의 Skybox 칸으로는 안 됩니다.**
+    //
+    //    처음에는 로비처럼 빛 설정만 옮기고 끝냈습니다. 그런데 로비도 이 씬도
+    //    하늘 재질이 유니티 기본 것(`Default-Skybox`)이라, **하늘이 그냥 파란
+    //    그라데이션**입니다. 구름도 없고 볼 것이 없습니다.
+    //
+    //    Synty 는 하늘을 Skybox 로 안 만듭니다. **큰 돔 메시**를 씌우고 그 안쪽에
+    //    그라데이션을 칠합니다. 그래서 `Skybox_Tropical_Day` 는 이름과 달리
+    //    Skybox 셰이더가 아니라 **돔 메시용**입니다. (`SkyDome.shadergraph`)
+    //    RenderSettings 의 Skybox 칸에 넣으면 아무 일도 안 일어납니다.
+    //
+    //    구름도 따로입니다. 고리 모양 메시(`SM_Env_Cloud_Ring_01/02`)를
+    //    돔 안쪽에 두 겹 띄웁니다.
+    //
+    // ⚠ **카메라 사거리 안에 들어와야 보입니다.** 사거리가 500m 라
+    //    돔 반지름을 480 으로 둡니다. 더 키우면 잘려서 안 보입니다.
+    //
+    // ⚠ **콜라이더를 지웁니다.** 배치 도구가 갑판 높이를 레이로 재는데,
+    //    하늘이 콜라이더를 갖고 있으면 레이가 하늘에 먼저 맞습니다.
+    // ------------------------------------------------------------
+
+    private const string SkyGroupName = "Sky";
+
+    private const string SkydomePath = "Assets/Synty/PNB_Core/Prefabs/SM_Env_Skydome_01.prefab";
+    private const string CloudRing1Path = "Assets/Synty/PNB_Core/Prefabs/SM_Env_Cloud_Ring_01.prefab";
+    private const string CloudRing2Path = "Assets/Synty/PNB_Core/Prefabs/SM_Env_Cloud_Ring_02.prefab";
+
+    /// <summary>돔에 입힐 낮 하늘. 받아온 기본값은 노을이라 이 게임과 안 맞는다.</summary>
+    private const string SkyMaterialPath =
+        "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Materials/Skybox_Tropical_Day.mat";
+
+    /// <summary>구름 색. 기본값은 노을용이라 같이 바꾼다.</summary>
+    private const string CloudMaterialPath =
+        "Assets/Synty/PNB_Core/Materials/Synty_Clouds_Tropical.mat";
+
+    /// <summary>돔의 반지름 (m). 카메라 사거리(500)보다 작아야 한다.</summary>
+    private const float SkyRadius = 480f;
+
+    /// <summary>
+    /// 구름 고리의 반지름 (m). 돔 안쪽이어야 한다.
+    ///
+    /// ⚠ **낮고 멀어야 바다 위 구름으로 보입니다.** 330m · 높이 110m 로 뒀더니
+    ///    올려본 각도가 18° 라 **화면 위로 벗어나서** 갑판에서는 거의 안 보였습니다.
+    ///    수평선 가까이 두면 "바다 끝에 낀 구름" 이 되어 훨씬 잘 읽힙니다.
+    /// </summary>
+    private const float CloudRadius = 440f;
+
+    /// <summary>구름이 뜨는 높이 (해수면 기준, m).</summary>
+    private const float CloudHeight = 45f;
+
+    // 씬 맨 위에 있는 빈 오브젝트. 없으면 만든다. (하늘처럼 부모가 없는 것용)
+    private static Transform FindOrCreateRootGroup(string name)
+    {
+        GameObject found = GameObject.Find(name);
+
+        if (found == null)
+        {
+            found = new GameObject(name);
+            Undo.RegisterCreatedObjectUndo(found, "배 모델과 갑판 배치");
+        }
+
+        found.transform.position = Vector3.zero;
+        return found.transform;
+    }
+
+    /// <summary>하늘돔과 구름을 씌운다.</summary>
+    private static void BuildSky(StringBuilder log)
+    {
+        Transform group = FindOrCreateRootGroup(SkyGroupName);
+
+        group.gameObject.SetActive(true);
+
+        for (int i = group.childCount - 1; i >= 0; i--)
+        {
+            Object.DestroyImmediate(group.GetChild(i).gameObject);
+        }
+
+        Material sky = AssetDatabase.LoadAssetAtPath<Material>(SkyMaterialPath);
+        Material cloud = AssetDatabase.LoadAssetAtPath<Material>(CloudMaterialPath);
+
+        // ⚠ 돔의 밑동을 해수면보다 **아래**로 내립니다. 딱 맞추면 수평선에서
+        //    바다와 돔이 겹쳐 지글거립니다.
+        Transform dome = PutSkyPiece(group, SkydomePath, sky, SkyRadius,
+            new Vector3(CenterX, SeaLevelY - 6f, 0f), 0f, log);
+
+        // 구름은 세 겹입니다. 각도와 높이를 전부 다르게 둡니다.
+        // 같은 각도로 겹치면 고리 두 개가 한 겹으로 보여서 넣은 값이 없어집니다.
+        Transform ring1 = PutSkyPiece(group, CloudRing1Path, cloud, CloudRadius,
+            new Vector3(CenterX, SeaLevelY + CloudHeight, 0f), 0f, log);
+
+        Transform ring2 = PutSkyPiece(group, CloudRing2Path, cloud, CloudRadius * 0.82f,
+            new Vector3(CenterX, SeaLevelY + CloudHeight * 2.4f, 0f), 55f, log);
+
+        Transform ring3 = PutSkyPiece(group, CloudRing1Path, cloud, CloudRadius * 0.6f,
+            new Vector3(CenterX, SeaLevelY + CloudHeight * 4.2f, 0f), 140f, log);
+
+        int made = (dome != null ? 1 : 0) + (ring1 != null ? 1 : 0)
+                 + (ring2 != null ? 1 : 0) + (ring3 != null ? 1 : 0);
+
+        log.AppendLine($"  하늘 {made}겹 (돔 반지름 {SkyRadius:F0}m · 구름 {CloudRadius:F0}m)");
+    }
+
+    // 하늘 조각 하나를 놓는다. 반지름에 맞춰 키우고, 콜라이더와 그림자를 지운다.
+    private static Transform PutSkyPiece(Transform group, string path, Material paint,
+                                         float wantRadius, Vector3 at, float yaw,
+                                         StringBuilder log)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+        if (prefab == null)
+        {
+            log.AppendLine($"  ⚠ 하늘 조각을 못 찾음: {path}");
+            return null;
+        }
+
+        GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+        made.transform.SetParent(group, false);
+        made.transform.localScale = Vector3.one;
+        made.transform.position = Vector3.zero;
+
+        // 원래 크기를 재서 원하는 반지름이 되도록 키운다.
+        Renderer[] draws = made.GetComponentsInChildren<Renderer>();
+
+        if (draws.Length == 0)
+        {
+            log.AppendLine($"  ⚠ {prefab.name} 에 그릴 것이 없습니다");
+            Object.DestroyImmediate(made);
+            return null;
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        float nowRadius = Mathf.Max(box.size.x, box.size.z) * 0.5f;
+        float grow = nowRadius > 0.01f ? wantRadius / nowRadius : 1f;
+
+        made.transform.localScale = Vector3.one * grow;
+        made.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        made.transform.position = at;
+
+        // ⚠ **원점이 아니라 아랫면을 기준으로 놓습니다.**
+        //
+        //    프리팹의 원점이 메시 한가운데에 있다는 보장이 없습니다. 구름 고리는
+        //    원점이 메시보다 20m 아래에 있어서, 반지름에 맞춰 3배로 키우자
+        //    그 간격도 3배가 됐습니다. **45m 에 놓으라고 했는데 100m 에 떴습니다.**
+        //    올려보는 각이 12도가 되어 화면 위로 벗어났고, 그래서 구름이
+        //    하나도 안 보였습니다.
+        //
+        //    키운 뒤에 다시 재서, 아랫면이 원하는 높이에 오도록 내려줍니다.
+        Bounds after = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            after.Encapsulate(draws[i].bounds);
+        }
+
+        made.transform.position += new Vector3(0f, at.y - after.min.y, 0f);
+
+        for (int i = 0; i < draws.Length; i++)
+        {
+            if (paint != null)
+            {
+                draws[i].sharedMaterial = paint;
+            }
+
+            // 하늘은 그림자를 주고받지 않는다. 480m 짜리 껍데기가 그림자를
+            // 드리우면 그림자 지도가 그만큼 늘어나 해상도만 깎아먹는다.
+            draws[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            draws[i].receiveShadows = false;
+        }
+
+        // ⚠ 콜라이더는 반드시 지운다. 갑판을 재는 레이가 하늘에 맞으면
+        //    배치 도구가 엉뚱한 높이를 읽는다.
+        Collider[] bumps = made.GetComponentsInChildren<Collider>();
+
+        for (int i = 0; i < bumps.Length; i++)
+        {
+            Object.DestroyImmediate(bumps[i]);
+        }
+
+        made.name = prefab.name;
+
+        return made.transform;
     }
 
     // 로비의 Light_Sun 과 같은 해를 만든다. 없으면 씬의 방향광을 고친다.
