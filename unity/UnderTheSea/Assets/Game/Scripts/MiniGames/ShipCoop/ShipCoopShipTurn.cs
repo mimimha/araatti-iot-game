@@ -32,7 +32,8 @@ using UnityEngine;
 public class ShipCoopShipTurn : MonoBehaviour
 {
     [Header("연결 — 비워두면 씬에서 찾는다")]
-    [SerializeField] private HelmTask helm;
+    [Tooltip("배가 옆으로 미끄러지는 속도를 여기서 가져온다. 그것으로 뱃머리를 튼다.")]
+    [SerializeField] private VoyageSea sea;
 
     [Header("같이 돌 것들")]
     [Tooltip("배 · 걷는 바닥 · 작업 자리 · 상자 · 사람.\n\n" +
@@ -41,25 +42,35 @@ public class ShipCoopShipTurn : MonoBehaviour
     [SerializeField] private Transform[] carried;
 
     // ------------------------------------------------------------
-    // ⚠ **꺾는 동안에만 틀어집니다. 시간이 지나면 다시 일자가 됩니다.**
+    // ⚠ **뱃머리는 "배가 옆으로 가는 속도"를 따라 틉니다.**
     //
-    //    조타 각도가 아니라 **각도가 바뀌는 속도**로 틉니다. 그래서 키를
-    //    돌리는 동안만 뱃머리가 쏠리고, 조타륜을 끝까지 꺾어 잡고 있으면
-    //    배가 저절로 일자로 돌아옵니다.
+    //    ⛔ 조타를 **돌리는 속도**로 틀면 안 됩니다. 그렇게 했더니 배가
+    //       **어떨 때는 뱃머리부터 가고 어떨 때는 평행으로** 미끄러졌습니다.
     //
-    //      0.5초  배  3.0도   2.0초  배 10.6도   3.0초  배 2.6도   4.5초  배 0도
+    //       뱃머리 회전은 "조타를 돌리는 속도"를, 옆 이동(`VoyageSea.ShipLateral`)은
+    //       "조타 각도"를 봤습니다. **서로 다른 것을 봅니다.** 그래서 휠에서
+    //       손을 멈추면(끝까지 꺾어 잡고 있어도) 뱃머리는 즉시 펴지는데
+    //       배는 3초를 더 미끄러졌습니다. 그 구간이 전부 평행이었습니다.
     //
-    //    ⛔ 이걸 바꾸지 마세요. 카메라가 배를 따라다니므로 배가 비스듬한 채로
-    //       굳으면 **화면이 통째로 기울어 보입니다.**
+    //         2.0초  뱃머리 −10.6도 · 옆속도 5.29 m/s   뱃머리가 나간 채
+    //         3.6초  뱃머리  −0.8도 · 옆속도 1.10 m/s   ⚠ 평행
+    //         4.4초  뱃머리  −0.1도 · 옆속도 0.39 m/s   ⚠ 평행
+    //
+    //    옆으로 가는 속도를 보면 둘이 같은 것을 봅니다.
+    //    **미끄러지는 동안은 늘 그쪽으로 뱃머리가 나가 있고, 다 미끄러져
+    //    멈추면 저절로 일자가 됩니다.** 시간이 지나면 일자가 되는 것도 그대로입니다.
+    //
+    //      휠을 끝까지 꺾고 잡고 있기      평행 구간 14% · 끝 뱃머리 0.00도
+    //      살짝만 건드리기                 평행 구간 28% · 끝 뱃머리 0.00도
+    //      꺾었다가 중앙으로 되돌리기       평행 구간 13% · 끝 뱃머리 0.03도
     // ------------------------------------------------------------
 
     [Header("얼마나 틀지")]
-    [Tooltip("조타가 초당 1도 바뀔 때 배가 몇 도 틀어지는가.\n\n" +
-             "조타는 초당 35도로 돈다. 0.35 면 꺾는 동안 약 12도 쏠린다.\n" +
-             "손을 멈추면 0 으로 돌아와 배가 일자가 된다.")]
-    [SerializeField, Range(0f, 1f)] private float degreesPerTurnRate = 0.35f;
+    [Tooltip("배가 옆으로 초당 1m 갈 때 뱃머리를 몇 도 트는가.\n\n" +
+             "옆으로 가는 최고 속도가 5.5m/s 라 2.2 면 최대 12도쯤 틀어진다.")]
+    [SerializeField, Range(0f, 6f)] private float degreesPerSlideSpeed = 2.2f;
 
-    [Tooltip("아무리 빨리 꺾어도 이 각도를 넘지 않는다.")]
+    [Tooltip("아무리 빨리 미끄러져도 이 각도를 넘지 않는다.")]
     [SerializeField, Range(0f, 40f)] private float mostDegrees = 14f;
 
     // ------------------------------------------------------------
@@ -120,18 +131,12 @@ public class ShipCoopShipTurn : MonoBehaviour
     [Tooltip("목표 각도까지 도는 데 걸리는 시간(초).\n\n" +
              "0 이면 조타와 동시에 **툭 꺾입니다.** 배는 무거워서 천천히 돕니다.\n" +
              "뱃머리가 먼저 가고 나머지가 따라오는 느낌은 여기서 나옵니다.")]
-    [SerializeField, Range(0f, 3f)] private float followSeconds = 0.8f;
+    [SerializeField, Range(0f, 3f)] private float followSeconds = 0.4f;
 
     [Header("떨림 막기")]
-    // ⚠ 이 값이 0 이면 배가 덜덜 떨립니다. 자세한 것은 LateUpdate 주석 참고.
-    [Tooltip("조타 속도를 이만큼 다듬어서 쓴다 (초).\n\n" +
-             "0 이면 프레임 시간의 흔들림이 그대로 뱃머리로 갑니다.\n" +
-             "너무 키우면 꺾는 반응이 굼떠집니다.")]
-    [SerializeField, Range(0f, 0.5f)] private float rateSmoothSeconds = 0.15f;
-
-    [Tooltip("이보다 느리게 도는 것은 안 도는 것으로 친다 (도/초).\n" +
-             "손을 뗐는데 남은 미세한 값이 배를 계속 흔드는 것을 막는다.")]
-    [SerializeField, Min(0f)] private float rateDeadZone = 1.5f;
+    [Tooltip("이보다 느리게 미끄러지는 것은 안 움직이는 것으로 친다 (m/초).\n" +
+             "다 미끄러진 뒤 남은 미세한 값이 배를 계속 흔드는 것을 막는다.")]
+    [SerializeField, Min(0f)] private float slideDeadZone = 0.15f;
 
     // ------------------------------------------------------------
     // ⚠ **기울기는 조타 각도가 아니라 배가 실제로 튼 각도를 따라야 합니다.**
@@ -180,24 +185,16 @@ public class ShipCoopShipTurn : MonoBehaviour
 
     private float _yawSpeed;
 
-    /// <summary>지난 프레임의 조타 각도. 얼마나 빨리 바뀌는지를 여기서 낸다.</summary>
-    private float _lastHeading;
-
-    /// <summary>다듬은 조타 속도. 날것을 그대로 쓰면 배가 떨린다.</summary>
-    private float _rate;
-
-    private float _rateSpeed;
-
     private void Awake()
     {
-        if (helm == null)
+        if (sea == null)
         {
-            helm = FindAnyObjectByType<HelmTask>(FindObjectsInactive.Include);
+            sea = FindAnyObjectByType<VoyageSea>(FindObjectsInactive.Include);
         }
 
-        if (helm == null)
+        if (sea == null)
         {
-            Debug.LogWarning($"[{name}] 조타를 찾지 못했습니다. 배가 안 틀어집니다.", this);
+            Debug.LogWarning($"[{name}] 바다를 찾지 못했습니다. 배가 안 틀어집니다.", this);
             return;
         }
 
@@ -214,36 +211,24 @@ public class ShipCoopShipTurn : MonoBehaviour
             return;
         }
 
-        // 조타가 **얼마나 빨리 바뀌고 있는지.** 각도 자체가 아니다. (위 주석)
-        float raw = Time.deltaTime > 0f
-            ? (helm.Heading - _lastHeading) / Time.deltaTime
-            : 0f;
-
-        _lastHeading = helm.Heading;
-
         // ------------------------------------------------------------
-        // ⚠ **이 값을 그대로 쓰면 배가 덜덜 떨립니다.**
+        // 배가 **지금 옆으로 얼마나 빠르게 미끄러지고 있는지.** (위 주석)
         //
-        //    `변화량 / deltaTime` 은 수치 미분입니다. 조타는 초당 35도로 고르게
-        //    도는데, **deltaTime 이 프레임마다 흔들리면** 나눈 결과가 크게
-        //    출렁입니다. 60fps 에서 dt 가 15~18ms 사이로만 놀아도
-        //    rate 가 32~39 로 튀고, 그게 그대로 뱃머리 각도로 갑니다.
-        //
-        //    SmoothDamp 는 목표를 **따라가는** 것이라, 목표 자체가 떨리면
-        //    떨림이 그대로 남습니다. 그래서 목표를 만들기 전에 먼저 다듬습니다.
+        // ⚠ 이 값을 다시 미분하지 마세요. `VoyageSea` 의 SmoothDamp 가 들고 있는
+        //    속도라 이미 매끄럽습니다. `변화량 / deltaTime` 으로 다시 뽑으면
+        //    프레임 시간의 흔들림이 그대로 뱃머리로 가서 배가 덜덜 떨립니다.
         // ------------------------------------------------------------
 
-        _rate = Mathf.SmoothDamp(_rate, raw, ref _rateSpeed, rateSmoothSeconds);
+        float slide = sea.LateralSpeed;
 
-        // 손을 뗐는데 미세하게 남은 값이 계속 배를 흔드는 것을 막는다.
-        if (Mathf.Abs(_rate) < rateDeadZone)
+        // 다 미끄러진 뒤 남은 미세한 값이 계속 배를 흔드는 것을 막는다.
+        if (Mathf.Abs(slide) < slideDeadZone)
         {
-            _rate = 0f;
+            slide = 0f;
         }
 
-        // ⛔ **꺾는 순간의 쏠림만.** 조타 각도에 비례하는 성분은 넣지 않는다.
-        //    넣으면 조타륜을 잡고 있는 내내 배가 비스듬한 채로 굳는다. (위 주석)
-        float wantYaw = Mathf.Clamp(_rate * degreesPerTurnRate, -mostDegrees, mostDegrees);
+        // 미끄러지는 쪽으로 뱃머리가 나간다. 멈추면 저절로 일자가 된다.
+        float wantYaw = Mathf.Clamp(slide * degreesPerSlideSpeed, -mostDegrees, mostDegrees);
 
         if (followSeconds > 0f)
         {

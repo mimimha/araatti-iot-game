@@ -552,9 +552,13 @@ public static class ShipCoopDeckLayout
 
         SerializedObject so = new SerializedObject(turn);
 
-        // 꺾는 **순간**의 쏠림. 손을 멈추면 사라진다.
-        so.FindProperty("degreesPerTurnRate").floatValue = 0.35f;
+        // ⚠ 뱃머리는 조타를 **돌리는 속도**가 아니라 배가 **옆으로 가는 속도**를
+        //    따라 틉니다. 돌리는 속도로 하면 휠에서 손을 멈추는 순간 뱃머리만
+        //    펴지고 배는 3초를 더 미끄러져서, 그 구간이 전부 평행이 됩니다.
+        //    (`ShipCoopShipTurn` 주석에 잰 값이 있습니다)
+        so.FindProperty("degreesPerSlideSpeed").floatValue = 2.2f;
         so.FindProperty("mostDegrees").floatValue = 14f;
+        so.FindProperty("slideDeadZone").floatValue = 0.15f;
 
         // ⛔ 조타 각도에 비례하는 성분은 **없습니다.** 넣으면 조타륜을 잡고 있는
         //    내내 배가 비스듬한 채로 굳습니다. 시간이 지나면 일자여야 합니다.
@@ -573,7 +577,9 @@ public static class ShipCoopDeckLayout
         // ⚠ 기울기는 **뱃머리가 튼 만큼만** 따라갑니다. 혼자 기울 수 없습니다.
         //    조타 각도로 몰았더니 배는 일자인데 기울기만 남았습니다.
         so.FindProperty("bankDegrees").floatValue = 3f;
-        so.FindProperty("followSeconds").floatValue = 0.8f;
+
+        // ⚠ 0.8 이면 뱃머리가 옆이동보다 0.8초 늦어서 끝에 평행 구간이 남습니다.
+        so.FindProperty("followSeconds").floatValue = 0.4f;
 
         // ⚠ **같이 돌 것들을 모은다.** 배만 돌리면 갑판 · 자리 · 사람이
         //    제자리에 남아서 사람이 허공을 걷습니다.

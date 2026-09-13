@@ -145,6 +145,18 @@ public class VoyageSea : MonoBehaviour
     /// </summary>
     public float ShipLateral => _lateral;
 
+    /// <summary>
+    /// 배가 지금 옆으로 **얼마나 빠르게** 미끄러지고 있는지 (m/초). 우현이 양수.
+    ///
+    /// ⚠ **뱃머리를 트는 것이 이 값을 봅니다.** (`ShipCoopShipTurn`)
+    ///    옆으로 가는 동안에는 늘 그쪽으로 뱃머리가 나가 있고, 다 미끄러져
+    ///    멈추면 저절로 일자가 됩니다.
+    ///
+    ///    SmoothDamp 가 들고 있는 속도라 이미 매끄럽습니다. 위치를 다시
+    ///    미분해서 쓰면 프레임 시간의 흔들림이 그대로 뱃머리로 갑니다.
+    /// </summary>
+    public float LateralSpeed => _lateralSpeed;
+
     /// <summary>조타각이 가리키는 자리. <see cref="ShipLateral"/> 이 여기로 따라간다.</summary>
     private float WantLateral => helm == null ? 0f : helm.Heading * lateralPerDegree;
 
