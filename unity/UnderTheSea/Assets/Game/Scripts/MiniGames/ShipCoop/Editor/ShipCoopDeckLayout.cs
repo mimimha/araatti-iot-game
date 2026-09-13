@@ -2890,36 +2890,31 @@ public static class ShipCoopDeckLayout
 
         // ⚠ 배의 앞뒤 끝은 **재서** 넣습니다. 배 모델을 바꿔도 따라가야 합니다.
         //    (Reef 는 실행 중에도 스스로 재지만, 배를 못 찾을 때 쓸 값입니다)
-        so.FindProperty("fallbackBowZ").floatValue = MeasureBowZ();
-        so.FindProperty("fallbackSternZ").floatValue = ShipSternZ;
+        //
+        // ⚠ **선체 기준입니다.** 배 전체를 재면 z 34.3 인데 그건 앞으로 튀어나온
+        //    삭구와 이물장식 끝입니다. 선체는 27 에서 끝납니다. 그 차이만큼
+        //    바위가 뱃머리 한참 앞에서 "닿았다" 가 났습니다.
+        Vector2 ends = MeasureHullEnds();
+        so.FindProperty("fallbackBowZ").floatValue = ends.y;
+        so.FindProperty("fallbackSternZ").floatValue = ends.x;
 
         // ⚠ 암초는 배를 **다 지나가야** 판정이 끝납니다. 지속 시간이 짧으면
         //    바위가 배 옆구리에 걸친 채 사건이 끝납니다. (`VoyageSea.passDistance`)
         so.FindProperty("duration").floatValue = 10.5f;
 
-        // ⚠ 씬에 박힌 값이 코드 기본값을 이깁니다. 회피가 가능한 값으로 맞춥니다.
-        //    자세한 계산은 `Reef.Judge` 주석에 있습니다.
-        // ⚠ **옆으로 확 빼야 보입니다.** 6m 로는 삭구와 뱃머리에 계속 걸렸습니다.
-        //    12m 면 선체(반폭 5.6m) 밖으로 완전히 나와 한눈에 들어옵니다.
-        //    가만히 있으면 바위 안쪽 끝이 3.9m 라 선체를 스치고 지나갑니다.
-        so.FindProperty("laneOffset").floatValue = 12f;
-
-        // ⚠ **`VoyageSea.lateralPerDegree` 와 짝입니다. 한쪽만 바꾸지 마세요.**
+        // ⛔ **판정 범위는 보이는 범위입니다.** 고정 간격(`safeGap`)을 쓰던 것을
+        //    선체 반폭 + 바위 반폭으로 바꿨습니다. 12m 옆을 지나가는데 부딪혔다고
+        //    뜨던 것이 그 고정값 때문이었습니다. 자세한 것은 `Reef` 주석 참고.
         //
-        //    비켜서는 양을 0.08 → 0.2 로 키웠습니다 (끝까지 꺾으면 4.8m → 12m).
-        //    화면에서 배가 움직이는 것이 3.5% 밖에 안 돼서 안 보였기 때문입니다.
+        //    가만히 있을 때 바위 폭의 30% 만큼 선체를 파고들게 놓습니다.
+        //    그만큼 비키면 피합니다. **바위가 클수록 더 비켜야 합니다.**
         //
-        //    그런데 `safeGap` 을 그대로 두면 **훨씬 조금만 꺾어도 피해집니다.**
-        //    필요한 조타 각도가 28.8도에서 11.5도로 줄어듭니다.
-        //    그래서 같은 비율로 올려 **난이도를 그대로 둡니다.**
-        //
-        //      필요한 옆 이동 = safeGap + 바위폭×0.08 − laneOffset
-        //      필요한 조타각  = 그 이동 / lateralPerDegree     ← 이것이 그대로여야 한다
-        //
-        //      전     13   + 16.2×0.08 − 12 = 2.3m  ÷ 0.08 = 28.8도
-        //      지금   16.5 + 16.2×0.08 − 12 = 5.8m  ÷ 0.2  = 28.8도  ✅ 같다
-        so.FindProperty("safeGap").floatValue = 16.5f;
-        so.FindProperty("widthPenalty").floatValue = 0.08f;
+        //      바위폭   선체에 닿는 간격   놓는 자리   비켜야 하는 거리   조타각
+        //       9.6m         10.4m          7.5m          2.9m          14도
+        //      16.2m         13.7m          8.9m          4.9m          24도
+        //      19.0m         15.1m          9.4m          5.7m          29도
+        so.FindProperty("grazeShare").floatValue = 0.3f;
+        so.FindProperty("fallbackShipHalfWidth").floatValue = MeasureShipHalfWidth();
 
         so.ApplyModifiedProperties();
 
@@ -2987,6 +2982,62 @@ public static class ShipCoopDeckLayout
 
         return box.max.z;
     }
+
+    /// <summary>
+    /// 선체 반폭 (m). 암초가 여기 닿으면 부딪힌 것이다.
+    ///
+    /// ⚠ **돛대와 삭구는 뺍니다.** 배 전체를 재면 7.21m 인데 그건 돛대가 옆으로
+    ///    뻗은 것까지 센 값입니다. 그것들은 물 위 한참 높이라 바위에 안 닿습니다.
+    ///    선체·갑판만 재면 **5.60m**, 눈에 보이는 물가 폭이 이쪽입니다.
+    /// </summary>
+    private static float MeasureShipHalfWidth()
+    {
+        Bounds hull = MeasureHull(out bool any);
+
+        return any ? hull.size.x * 0.5f : 5.6f;
+    }
+
+    /// <summary>선체의 뒤끝 z(x)와 앞끝 z(y). 삭구는 뺀 진짜 배 끝이다.</summary>
+    private static Vector2 MeasureHullEnds()
+    {
+        Bounds hull = MeasureHull(out bool any);
+
+        return any ? new Vector2(hull.min.z, hull.max.z) : new Vector2(ShipSternZ, ShipBowZ);
+    }
+
+    /// <summary>선체와 갑판만 감싸는 상자. 돛대·삭구는 뺀다.</summary>
+    private static Bounds MeasureHull(out bool any)
+    {
+        GameObject ship = GameObject.Find(ShipName);
+        Bounds hull = new Bounds();
+        any = false;
+
+        if (ship == null)
+        {
+            return hull;
+        }
+
+        foreach (Renderer draw in ship.GetComponentsInChildren<Renderer>())
+        {
+            if (!draw.name.StartsWith("Hull") && !draw.name.StartsWith("Deck"))
+            {
+                continue;
+            }
+
+            if (!any)
+            {
+                hull = draw.bounds;
+                any = true;
+            }
+            else
+            {
+                hull.Encapsulate(draw.bounds);
+            }
+        }
+
+        return hull;
+    }
+
     // ------------------------------------------------------------
     // 들고 있는 표시의 **크기**만 정한다
     //

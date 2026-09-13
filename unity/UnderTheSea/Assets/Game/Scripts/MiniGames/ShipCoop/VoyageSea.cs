@@ -354,13 +354,9 @@ public class VoyageSea : MonoBehaviour
         obstacle.position = Origin + new Vector3(laneX - ShipLateral, 0f, z);
     }
 
-    /// <summary>
-    /// 그 자리의 장애물이 배에서 좌우로 얼마나 떨어져 있는지 (m).
-    ///
-    /// 판정은 이 값 하나로 합니다. 각도가 아니라 거리입니다. (5장)
-    /// </summary>
-    public float LateralGap(float laneX)
-    {
-        return Mathf.Abs(laneX - ShipLateral);
-    }
+    // ⛔ **`LateralGap(laneX)` 은 지웠습니다.**
+    //
+    //    바다의 기준점(`Origin`)에서 재는 값이었는데, 배 중심은 모델이 대칭이
+    //    아니라 거기서 조금 밀려 있습니다. 암초 판정이 그걸 쓰면 한쪽 바위만
+    //    가까워집니다. 지금은 `Reef.GapFromShip` 이 **배에서** 잽니다.
 }
