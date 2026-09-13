@@ -30,6 +30,11 @@ public class HullDamage : VoyageEvent
     /// <summary>지금 살아있는 파손 지점</summary>
     public RepairTask SpawnedPoint { get; private set; }
 
+    // ⚠ **자리를 차지하지 않습니다.** 제한 시간이 없어서, 차지하면 수리할 때까지
+    //    다른 사건이 하나도 못 뜹니다. 자세한 이유는 VoyageEvent.TakesSlot 참고.
+    /// <inheritdoc />
+    public override bool TakesSlot => false;
+
     private int _remainingToRepair;
 
     protected override void OnBegin()

@@ -152,7 +152,11 @@ public class EventScheduler : MonoBehaviour
         }
 
         // 이미 충분히 겹쳐 있으면 더 얹지 않는다. 억울하게 지는 지점이다.
-        if (VoyageEvent.Active.Count >= CurrentPlan.maxConcurrent)
+        //
+        // ⚠ **침수는 안 셉니다.** 제한 시간이 없어서 한 번 뜨면 수리할 때까지
+        //    자리를 물고 있습니다. 출항·페이즈1 은 동시최대가 1 이라, 세면
+        //    두 구간이 통째로 조용해집니다. (VoyageEvent.TakesSlot)
+        if (BusyCount() >= CurrentPlan.maxConcurrent)
         {
             // 조금 뒤에 다시 본다.
             _nextEventTime = _elapsed + 2f;
@@ -199,6 +203,22 @@ public class EventScheduler : MonoBehaviour
         Debug.Log($"[스케줄러] {plan.label} 진입 — 사건 {fired}개가 한꺼번에 시작됐다", this);
 
         ScheduleNext(plan);
+    }
+
+    /// <summary>지금 자리를 차지하고 있는 사건 수. 침수처럼 시한 없는 것은 안 센다.</summary>
+    private static int BusyCount()
+    {
+        int busy = 0;
+
+        for (int i = 0; i < VoyageEvent.Active.Count; i++)
+        {
+            if (VoyageEvent.Active[i] != null && VoyageEvent.Active[i].TakesSlot)
+            {
+                busy++;
+            }
+        }
+
+        return busy;
     }
 
     private void ScheduleNext(PhasePlan plan)

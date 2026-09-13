@@ -76,6 +76,24 @@ public abstract class VoyageEvent : MonoBehaviour
 
     private static readonly List<VoyageEvent> ActiveEvents = new List<VoyageEvent>();
 
+    /// <summary>
+    /// 동시 사건 수(`maxConcurrent`)를 셀 때 **자리를 차지하는가.**
+    ///
+    /// ⚠ **제한 시간이 없는 사건은 자리를 차지하면 안 됩니다.**
+    ///
+    ///    침수(`HullDamage`)는 `duration` 이 0, 즉 고칠 때까지 안 끝납니다.
+    ///    그런데 출항·페이즈1 은 `maxConcurrent` 가 1 입니다. 그래서 침수가
+    ///    한 번 뜨면 **수리할 때까지 아무 사건도 못 뜹니다.** 두 구간이 통째로
+    ///    조용해집니다.
+    ///
+    ///    침수는 "지금 벌어지는 위기"가 아니라 **깔려 있는 상태**입니다.
+    ///    다른 사건들이 실패해서 **도착하는 곳**이기도 합니다 (`chainOnFail`).
+    ///    자리를 차지하면 그 연쇄가 애초에 성립하지 않습니다.
+    ///
+    ///    `maxConcurrent` 는 **시한부 위기를 몇 개까지 겹칠지**를 세는 값입니다.
+    /// </summary>
+    public virtual bool TakesSlot => true;
+
     /// <summary>HUD 알림 문구. 갑판 이름은 안 붙는다. (<see cref="WarningLine"/> 참고)</summary>
     public string WarningText => warningText;
 
