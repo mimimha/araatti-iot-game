@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -157,6 +158,183 @@ public class ShipCoopCamera : MonoBehaviour
 
         Vector3 lookAt = _pivot + Vector3.up * _view.z + spin * (Vector3.forward * _view.w);
         transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+
+        HideWhatBlocksNow();
+    }
+
+    // ------------------------------------------------------------
+    // 지금 눈앞을 가리는 것만 잠깐 감춘다
+    //
+    // 층마다 미리 정해둔 목록(`ShipDeck.hideWhenHere`)은 **그 층에서 늘 가리는 것**을
+    // 맡습니다. 뒷갑판 구조물처럼 어느 각도에서든 막는 것들입니다.
+    //
+    // 그런데 난간이나 돛대처럼 **카메라를 돌리면 비켜나는 것**이 있습니다.
+    // 이런 것까지 목록에 넣으면 그 층 내내 사라져 있습니다. 실제로 뒷갑판에서
+    // 난간을 목록에 넣었더니 **사방 난간이 통째로 없어졌습니다.**
+    // (난간 한 층이 메시 하나라 앞쪽만 감출 수가 없습니다)
+    //
+    // 그래서 **매 프레임 카메라에서 사람에게 선을 그어보고**, 거기 걸리는 것만
+    // 감춥니다. 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    // ------------------------------------------------------------
+
+    [Header("눈앞을 가리는 것 (카메라를 돌리면 돌아온다)")]
+    [Tooltip("끄면 미리 정해둔 목록만 쓴다. 난간·돛대가 사람을 가려도 그대로 둔다.")]
+    [SerializeField] private bool hideWhatBlocks = true;
+
+    [Tooltip("사람 주변 이만큼(m) 안에 걸리는 것을 가린 것으로 본다.\n" +
+             "가늘게 두면 난간 살 사이로 빠져나가 깜빡인다.")]
+    [SerializeField, Min(0.1f)] private float blockRadius = 0.8f;
+
+    [Tooltip("사람의 발밑이 아니라 이만큼(m) 위를 본다. 몸통 높이.")]
+    [SerializeField, Min(0f)] private float blockAimHeight = 1.4f;
+
+    /// <summary>
+    /// 가려도 **감추면 안 되는 것.** 이름이 이걸로 시작하면 그냥 둔다.
+    ///
+    /// ⚠ 가린다고 다 감추면 **사람이 봐야 하는 것까지 사라집니다.**
+    ///
+    ///   Deck      걷는 바닥. 감추면 갑판에 구멍이 뚫린 것처럼 보인다
+    ///   Stairs    걸어다니는 경사로가 안 보이므로, **올라갈 길을 알려주는 유일한 단서**
+    ///   Wheel     🛞 조타 자리. 지금 쓰는 물건이 사라지면 안 된다
+    ///   Cannon    💣 대포 자리. 같은 이유
+    ///   Mast      ⛵ 돛 자리이자 배의 뼈대. 통째로 사라지면 배가 무너져 보인다
+    ///   Hull      선체. 감추면 갑판만 바다 위에 뜬다
+    ///
+    /// 여기 없는 것 — 난간 · 밧줄 · 돛천 · 선실 벽 — 은 가리면 감춥니다.
+    /// 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    /// </summary>
+    private static readonly string[] NeverHideLive =
+    {
+        "Deck", "Stairs", "Wheel", "Cannon", "Mast", "Hull",
+    };
+
+    /// <summary>지금 감춰둔 것들. 안 가리게 되면 도로 켠다.</summary>
+    private readonly List<Renderer> _blocking = new List<Renderer>();
+
+    private readonly HashSet<Renderer> _stillBlocking = new HashSet<Renderer>();
+
+    private void OnDisable()
+    {
+        ShowBlockersAgain();
+    }
+
+    private void HideWhatBlocksNow()
+    {
+        if (!hideWhatBlocks)
+        {
+            ShowBlockersAgain();
+            return;
+        }
+
+        TaskWorker worker = FindObjectOfTypeCached();
+
+        if (worker == null)
+        {
+            ShowBlockersAgain();
+            return;
+        }
+
+        Vector3 target = worker.transform.position + Vector3.up * blockAimHeight;
+        Vector3 toTarget = target - transform.position;
+        float far = toTarget.magnitude;
+
+        if (far < 0.5f)
+        {
+            return;
+        }
+
+        _stillBlocking.Clear();
+
+        // 사람 바로 앞에서 멈춘다. 사람 자신이나 사람이 든 물건은 안 감춘다.
+        RaycastHit[] hits = Physics.SphereCastAll(
+            transform.position, blockRadius, toTarget / far, far - blockRadius,
+            ~0, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Transform what = hits[i].collider.transform;
+
+            if (what == worker.transform || what.IsChildOf(worker.transform))
+            {
+                continue;
+            }
+
+            if (MustStayVisible(what.name))
+            {
+                continue;
+            }
+
+            Renderer draw = hits[i].collider.GetComponent<Renderer>();
+
+            if (draw != null)
+            {
+                _stillBlocking.Add(draw);
+            }
+        }
+
+        // 이제 안 가리는 것은 도로 켠다.
+        for (int i = _blocking.Count - 1; i >= 0; i--)
+        {
+            if (_blocking[i] == null || !_stillBlocking.Contains(_blocking[i]))
+            {
+                if (_blocking[i] != null)
+                {
+                    _blocking[i].enabled = true;
+                }
+
+                _blocking.RemoveAt(i);
+            }
+        }
+
+        // 새로 가리는 것은 감춘다.
+        foreach (Renderer draw in _stillBlocking)
+        {
+            if (!draw.enabled || _blocking.Contains(draw))
+            {
+                continue;
+            }
+
+            draw.enabled = false;
+            _blocking.Add(draw);
+        }
+    }
+
+    private static bool MustStayVisible(string name)
+    {
+        for (int i = 0; i < NeverHideLive.Length; i++)
+        {
+            if (name.StartsWith(NeverHideLive[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ShowBlockersAgain()
+    {
+        for (int i = 0; i < _blocking.Count; i++)
+        {
+            if (_blocking[i] != null)
+            {
+                _blocking[i].enabled = true;
+            }
+        }
+
+        _blocking.Clear();
+    }
+
+    private TaskWorker _worker;
+
+    private TaskWorker FindObjectOfTypeCached()
+    {
+        if (_worker == null || !_worker.gameObject.activeInHierarchy)
+        {
+            _worker = FindAnyObjectByType<TaskWorker>(FindObjectsInactive.Exclude);
+        }
+
+        return _worker;
     }
 
     /// <summary>
