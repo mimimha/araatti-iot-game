@@ -1793,12 +1793,29 @@ public static class ShipCoopDeckLayout
 
         so.ApplyModifiedProperties();
 
-        // ⚠ 무늬를 코드로 미는 방식은 **버렸습니다.** (`ShipCoopSeaFlow`, 지웠음)
-        //    이 셰이더에는 무늬를 밀 값이 없습니다. 대신 무늬를 판에 그리게 해서
-        //    (`WSUV_Water` 를 오브젝트 좌표로) 판이 흐르면 무늬도 같이 흐릅니다.
+        // ⚠ **물 판을 옮기는 것만으로는 배가 나아가 보이지 않습니다.**
+        //    무늬가 판이 아니라 시간과 월드 좌표로 그려져서, 판을 아무리 뒤로
+        //    밀어도 무늬는 제자리에 있습니다. 무늬 자체를 밀어야 합니다.
+        //
+        //    로비와 같은 Synty 물에는 그 값(`_Animation_Offset`)이 있습니다.
+        //    WaterWorks 에는 없어서 한참 돌아갔습니다. (5장)
+        ShipCoopSeaFlow flow = group.GetComponent<ShipCoopSeaFlow>();
 
-        log.AppendLine($"  물 판 한 장 ({SeaWidth:F0} × {SeaLength:F0}m) · 물거품 {foam}줄 을 깔고 " +
-                       $"되돌리지 않고 끝까지 흐르게 했습니다");
+        if (flow == null)
+        {
+            flow = Undo.AddComponent<ShipCoopSeaFlow>(group.gameObject);
+            log.AppendLine("  물 무늬를 배 속도로 밀도록 ShipCoopSeaFlow 를 붙였습니다");
+        }
+
+        // ⚠ 이미 붙어 있으면 기본값이 안 들어갑니다. 씬에 박힌 값을 여기서 맞춥니다.
+        //    18 로 붙어 있던 것을 3 으로 못 고쳐서 "흐르는 게 안 느껴진다" 를
+        //    한 번 더 들었습니다.
+        SerializedObject flowSo = new SerializedObject(flow);
+        flowSo.FindProperty("metersPerLoop").floatValue = 3f;
+        flowSo.FindProperty("idleFlowPerSecond").floatValue = 0.08f;
+        flowSo.ApplyModifiedProperties();
+
+        log.AppendLine($"  물 판 한 장 ({SeaWidth:F0} × {SeaLength:F0}m) · 물거품 {foam}줄 을 깔았습니다");
     }
 
     /// <summary>
@@ -1876,10 +1893,21 @@ public static class ShipCoopDeckLayout
             water.SetFloat("_Shore_Foam_Intensity", 1f);
         }
 
-        if (water.HasProperty("_Shore_Edge_Opacity"))
-        {
-            water.SetFloat("_Shore_Edge_Opacity", 0.6f);
-        }
+        SetIfHas(water, "_Shore_Edge_Opacity", 0.6f);
+
+        // ------------------------------------------------------------
+        // ⚠ **무늬가 작아야 흐르는 것이 보입니다.**
+        //
+        //    받아온 값은 0.04 — 무늬 하나가 25m 입니다. 강물용이라 그렇습니다.
+        //    배 속도가 1.25m/s 니까 무늬 한 칸 지나가는 데 **20초**입니다.
+        //    무늬를 아무리 밀어도 "흐르는 게 하나도 안 느껴진다" 가 됩니다.
+        //
+        //    0.15 면 7m 라 5~6초에 한 칸입니다. 이건 눈에 보입니다.
+        //
+        //    ⚠ 더 잘게 쪼개면 멀리서 지글거립니다. 전에 그걸로 한참 고생했습니다.
+        //      (`UseWaves` 주석) 흐르는 게 부족하면 무늬를 더 쪼개지 말고
+        //      **`ShipCoopSeaFlow.metersPerLoop` 를 낮추세요.**
+        SetIfHas(water, "_Normal_Tiling", 0.15f);
 
         EditorUtility.SetDirty(water);
         AssetDatabase.SaveAssets();
