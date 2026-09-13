@@ -26,6 +26,39 @@ public class ShipDeck : MonoBehaviour
     [Header("이 층의 이름 — 알림에 그대로 나온다")]
     [SerializeField] private string deckName = "갑판";
 
+    [Header("이 층을 어디서 볼지 (9장)")]
+    [Tooltip("끄면 카메라의 기본 구도를 쓴다.\n\n" +
+             "층마다 생김새가 다른데 같은 구도를 쓰면 가려진다.\n" +
+             "중간갑판은 뒤에 선미루가 서 있어서, 같은 높이로 보면 **카메라가 그 안에 들어간다.**")]
+    [SerializeField] private bool overrideCamera = false;
+
+    [Tooltip("배에서 뒤로 얼마나 물러날지 (m)")]
+    [SerializeField, Min(1f)] private float cameraDistance = 13f;
+
+    [Tooltip("이 갑판 면보다 얼마나 위에 있을지 (m).\n" +
+             "앞을 가리는 구조물보다 높아야 한다.")]
+    [SerializeField, Min(0f)] private float cameraHeight = 7f;
+
+    [Tooltip("갑판 면에서 이만큼 위를 본다 (m)")]
+    [SerializeField] private float cameraLookHeight = 1.5f;
+
+    [Tooltip("갑판 한가운데보다 이만큼 앞을 본다 (m)")]
+    [SerializeField] private float cameraLookAhead = 6f;
+
+    /// <summary>이 층만의 구도를 쓰는지</summary>
+    public bool OverridesCamera => overrideCamera;
+
+    /// <summary>거리 · 높이 · 보는 높이 · 보는 앞쪽. 순서대로.</summary>
+    public Vector4 CameraView =>
+        new Vector4(cameraDistance, cameraHeight, cameraLookHeight, cameraLookAhead);
+
+    [Header("이 층에 있을 때 감출 것")]
+    [Tooltip("카메라와 이 층 사이를 가로막는 배 부분들.\n\n" +
+             "중간갑판에 서면 **뒷갑판 바닥과 난간이 눈앞을 가립니다.**\n" +
+             "카메라를 아무리 높여도 그 사이에 있으니 소용이 없습니다. 아예 감춰야 합니다.\n\n" +
+             "층을 벗어나면 도로 보입니다. 돛대나 밧줄처럼 얇은 것은 넣지 않습니다.")]
+    [SerializeField] private Renderer[] hideWhenHere;
+
     [Header("범위 (비워두면 콜라이더·렌더러에서 가져온다)")]
     [Tooltip("켜면 아래 크기를 쓴다. 끄면 이 오브젝트의 실제 크기를 쓴다.")]
     [SerializeField] private bool overrideSize = false;
@@ -99,6 +132,28 @@ public class ShipDeck : MonoBehaviour
         AllDecks.Clear();
         AllDecks.AddRange(FindObjectsByType<ShipDeck>(FindObjectsInactive.Exclude, FindObjectsSortMode.None));
         AllDecks.Sort((a, b) => a.Area.center.z.CompareTo(b.Area.center.z));
+    }
+
+    /// <summary>
+    /// 이 층에 있는 동안 가로막는 것들을 감춘다. 층을 벗어나면 도로 보인다.
+    ///
+    /// 지우는 것이 아니라 **렌더러만 끕니다.** 콜라이더는 그대로라 걸어다니는 데는
+    /// 아무 영향이 없고, 위층에 올라가면 다시 나타납니다.
+    /// </summary>
+    public void HideBlockers(bool hidden)
+    {
+        if (hideWhenHere == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < hideWhenHere.Length; i++)
+        {
+            if (hideWhenHere[i] != null)
+            {
+                hideWhenHere[i].enabled = !hidden;
+            }
+        }
     }
 
     /// <summary>이 위치가 이 층의 앞뒤·좌우 범위 안인지. 높이는 보지 않는다.</summary>

@@ -105,6 +105,15 @@ public class ShipCoopCamera : MonoBehaviour
     private Vector3 _pivotSpeed;
     private bool _pivotReady;
 
+    /// <summary>
+    /// 지금 쓰고 있는 구도. 거리 · 높이 · 보는 높이 · 보는 앞쪽.
+    ///
+    /// **층마다 다릅니다.** 자리(pivot)와 함께 미끄러지듯 바뀌어야
+    /// 계단을 오를 때 카메라가 튀지 않습니다.
+    /// </summary>
+    private Vector4 _view;
+    private Vector4 _viewSpeed;
+
     private void Awake()
     {
         if (hud == null)
@@ -144,10 +153,27 @@ public class ShipCoopCamera : MonoBehaviour
 
         Quaternion spin = Quaternion.Euler(0f, Yaw, 0f);
 
-        transform.position = _pivot + spin * new Vector3(0f, height, -distance);
+        transform.position = _pivot + spin * new Vector3(0f, _view.y, -_view.x);
 
-        Vector3 lookAt = _pivot + Vector3.up * lookHeight + spin * (Vector3.forward * lookAhead);
+        Vector3 lookAt = _pivot + Vector3.up * _view.z + spin * (Vector3.forward * _view.w);
         transform.rotation = Quaternion.LookRotation(lookAt - transform.position, Vector3.up);
+    }
+
+    /// <summary>
+    /// 이 층을 어디서 볼지. 층이 따로 정해두지 않았으면 인스펙터 기본값을 쓴다.
+    ///
+    /// **층마다 생김새가 다릅니다.** 중간갑판은 뒤에 선미루(4.9m 높이)가 서 있어서,
+    /// 뒷갑판과 같은 높이로 보면 **카메라가 그 구조물 안으로 들어갑니다.**
+    /// 그러면 조타륜만 코앞에 보이고 갑판은 하나도 안 보입니다.
+    /// </summary>
+    private Vector4 WantedView()
+    {
+        if (CurrentDeck != null && CurrentDeck.OverridesCamera)
+        {
+            return CurrentDeck.CameraView;
+        }
+
+        return new Vector4(distance, height, lookHeight, lookAhead);
     }
 
     /// <summary>
@@ -160,15 +186,36 @@ public class ShipCoopCamera : MonoBehaviour
     {
         TaskWorker worker = hud != null ? hud.LocalWorker : null;
 
+        ShipDeck before = CurrentDeck;
         CurrentDeck = worker != null ? ShipDeck.At(worker.transform.position) : null;
 
+        // 층이 바뀌면 가로막던 것을 도로 보여주고, 새 층의 가로막는 것을 감춘다.
+        //
+        // 중간갑판에 서면 뒷갑판 바닥과 난간이 눈앞을 가립니다. 카메라를 높여도
+        // 그 사이에 있으니 소용이 없어서, 그 층에 있는 동안에는 아예 감춥니다.
+        if (!ReferenceEquals(before, CurrentDeck))
+        {
+            if (before != null)
+            {
+                before.HideBlockers(false);
+            }
+
+            if (CurrentDeck != null)
+            {
+                CurrentDeck.HideBlockers(true);
+            }
+        }
+
         Vector3 want = FindPivot(worker);
+        Vector4 wantView = WantedView();
 
         if (!_pivotReady)
         {
             // 첫 프레임에 멀리서 날아오지 않게 바로 자리를 잡는다.
             _pivot = want;
+            _view = wantView;
             _pivotSpeed = Vector3.zero;
+            _viewSpeed = Vector4.zero;
             _pivotReady = true;
             return;
         }
@@ -176,10 +223,15 @@ public class ShipCoopCamera : MonoBehaviour
         if (moveTime <= 0f)
         {
             _pivot = want;
+            _view = wantView;
             return;
         }
 
         _pivot = Vector3.SmoothDamp(_pivot, want, ref _pivotSpeed, moveTime);
+
+        // 구도도 함께 미끄러진다. 자리만 옮기고 구도가 튀면 계단에서 멀미가 난다.
+        _view = Vector4.MoveTowards(_view, wantView,
+                                    (wantView - _view).magnitude * Time.deltaTime / Mathf.Max(0.01f, moveTime));
     }
 
     private Vector3 FindPivot(TaskWorker worker)
