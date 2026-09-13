@@ -552,18 +552,29 @@ public static class ShipCoopDeckLayout
 
         SerializedObject so = new SerializedObject(turn);
 
-        // ⚠ **조타 각도가 아니라 바뀌는 속도**로 튼다. 각도에 비례하면
-        //    키를 끝까지 꺾어 둔 동안 배가 비스듬한 채로 멈춰 있어서,
-        //    뱃머리만 돌고 고물이 안 따라오는 것처럼 보인다.
+        // 꺾는 **순간**의 쏠림. 손을 멈추면 사라진다.
         so.FindProperty("degreesPerTurnRate").floatValue = 0.35f;
         so.FindProperty("mostDegrees").floatValue = 14f;
 
-        // ⚠ **한가운데가 아니라 뱃머리에서 1/3 지점**을 축으로 둔다.
-        //    한가운데에 두면 앞뒤가 똑같이 벌어져서 제자리에서 빙 도는 것처럼 보인다.
-        //    진짜 배는 앞쪽을 축으로 돌아서 **고물이 크게 바깥으로 쓸린다.**
+        // ⚠ 꺾어 **둔 동안**의 각. 0 이면 조타륜을 잡고 있어도 배가 저절로
+        //    일자로 돌아와서, 뱃머리가 좌우로 간다는 느낌이 안 납니다.
+        //    재본 값은 `ShipCoopShipTurn` 주석에 있습니다.
+        so.FindProperty("heldDegrees").floatValue = 18f;
+
+        // ⚠ **축은 고정이 아니라 고물에서 뱃머리 쪽으로 미끄러집니다.**
+        //
+        //    고정해두면 고물이 가장 긴 팔로 휘둘려서 **뱃머리보다 먼저, 10배 크게**
+        //    움직입니다. 고물이 따라가는 게 아니라 앞장서 버립니다.
+        //    돌기 시작할 때 축을 고물에 두면 뱃머리만 먼저 나갑니다.
+        so.FindProperty("sternPivotZ").floatValue = ShipSternZ;
         so.FindProperty("pivotZ").floatValue = ShipBowZ - (ShipBowZ - ShipSternZ) / 3f;
 
-        so.FindProperty("bankDegrees").floatValue = 4f;
+        // 고물이 따라오는 속도. 키우면 더 늦게 따라온다.
+        so.FindProperty("sternFollowSeconds").floatValue = 1.2f;
+
+        // ⚠ 기울기는 **뱃머리가 튼 만큼만** 따라갑니다. 혼자 기울 수 없습니다.
+        //    조타 각도로 몰았더니 배는 일자인데 기울기만 남았습니다.
+        so.FindProperty("bankDegrees").floatValue = 3f;
         so.FindProperty("followSeconds").floatValue = 0.8f;
 
         // ⚠ **같이 돌 것들을 모은다.** 배만 돌리면 갑판 · 자리 · 사람이
@@ -612,8 +623,9 @@ public static class ShipCoopDeckLayout
 
         so.ApplyModifiedProperties();
 
-        log.AppendLine($"  배가 조타의 0.18배로 틀어지게 했습니다 " +
-                       $"(축 z {MidCenterZ:F1}, 최대 약 11도, 같이 도는 것 {carried.Count}개)");
+        log.AppendLine($"  조타하면 뱃머리가 좌우로 틀어지게 했습니다 " +
+                       $"(꺾는 순간 최대 14도 + 꺾어둔 동안 18도, 기울기 3도, " +
+                       $"축 z {ShipBowZ - (ShipBowZ - ShipSternZ) / 3f:F1}, 같이 도는 것 {carried.Count}개)");
     }
 
     // ------------------------------------------------------------
