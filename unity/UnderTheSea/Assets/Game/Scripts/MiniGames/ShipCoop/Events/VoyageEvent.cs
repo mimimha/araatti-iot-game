@@ -130,6 +130,18 @@ public abstract class VoyageEvent : MonoBehaviour
         return null;
     }
 
+    /// <summary>
+    /// 이 안내가 **발생 중에도** 떠 있어야 하는지. 보통은 거짓. (SHIPCOOP.md 9장)
+    ///
+    /// 둘째 줄은 원래 **예고 중에만** 보여줍니다. 예고는 아무것도 안 깎이는 구간이라
+    /// 글을 읽을 여유가 있는 유일한 때이고, 발생하면 이미 몸이 움직이고 있습니다.
+    /// 거기서까지 글자를 띄우면 우당탕탕하는 중에 읽을 것만 늘어납니다. (5장)
+    ///
+    /// 다만 **"지금 이걸 안 하면 진다"** 는 신호는 다릅니다. 그건 가르치는 말이 아니라
+    /// 비상 신호라서 발생 중에 떠야 의미가 있습니다. 파도의 🆘 가 그렇습니다.
+    /// </summary>
+    public virtual bool HintIsUrgent => false;
+
     /// <summary>사건이 지금 어느 단계인지. (5장 — 예고 → 발생 → 실패)</summary>
     public enum Stage
     {

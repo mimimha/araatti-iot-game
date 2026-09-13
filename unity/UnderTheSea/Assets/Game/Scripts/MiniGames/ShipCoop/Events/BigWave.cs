@@ -278,6 +278,14 @@ public class BigWave : VoyageEvent
         _flooding.Add(amount);
     }
 
+    /// <summary>
+    /// 혼자 버티는 중이면 발생 중에도 안내를 띄운다.
+    ///
+    /// 이건 가르치는 말이 아니라 **"지금 한 명 더 안 오면 진다"** 는 신호입니다.
+    /// 예고 때만 띄우면 혼자 붙은 사람은 왜 밀리는지 모른 채로 집니다.
+    /// </summary>
+    public override bool HintIsUrgent => _helm != null && _helm.NeedsHelp;
+
     /// <summary>HUD 문구. 사건 알림 아래에 작은 글씨로 붙는다.</summary>
     public override string LiveHint()
     {
