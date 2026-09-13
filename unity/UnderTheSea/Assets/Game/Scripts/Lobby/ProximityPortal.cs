@@ -16,9 +16,8 @@ public class ProximityPortal : MonoBehaviour
     [SerializeField] GameObject closePrefab;
 
     [Header("Player")]
-    [Tooltip("Leave empty to look the player up by name on Start.")]
+    [Tooltip("Leave empty to follow this client's local NetworkPlayer once it spawns.")]
     [SerializeField] Transform player;
-    [SerializeField] string playerObjectName = "JaeYoung";
 
     [Header("Distances")]
     [Tooltip("The portal starts opening once the player is this close.")]
@@ -41,17 +40,24 @@ public class ProximityPortal : MonoBehaviour
     State state = State.Closed;
     float timer;
 
+    /// <summary>
+    /// The player this portal reacts to.
+    ///
+    /// The Inspector slot wins when it is filled, so a designer can still pin the portal to
+    /// a specific object. Otherwise it follows this client's own character.
+    ///
+    /// <b>Why not look it up on Start.</b> The character used to sit in the scene, so
+    /// <c>GameObject.Find("JaeYoung")</c> worked. With Fusion the server spawns it after the
+    /// client connects, so at Start there is nothing to find. Reading the registry every frame
+    /// costs nothing and picks the character up whenever it appears.
+    ///
+    /// This is always the <b>local</b> character. Remote players never open someone else's
+    /// portal, and a dedicated server has no local character at all, so portals stay shut there.
+    /// </summary>
+    Transform ActivePlayer => player != null ? player : UnderTheSea.Network.LocalPlayer.Transform;
+
     void Start()
     {
-        if (player == null)
-        {
-            var found = GameObject.Find(playerObjectName);
-            if (found != null)
-                player = found.transform;
-            else
-                Debug.LogWarning($"{name}: no player assigned and none named '{playerObjectName}' in the scene.", this);
-        }
-
         openInstance = Spawn(openPrefab, "open");
         idleInstance = Spawn(idlePrefab, "idle");
         closeInstance = Spawn(closePrefab, "close");
@@ -72,12 +78,16 @@ public class ProximityPortal : MonoBehaviour
 
     void Update()
     {
-        if (player == null)
+        Transform target = ActivePlayer;
+
+        // No local character yet (still connecting) or none at all (dedicated server).
+        // Leave the portal in whatever state it is; it will pick up on a later frame.
+        if (target == null)
             return;
 
         // Once open, the player has to walk past the larger radius to shut it again.
         float trigger = (state == State.Closed || state == State.Closing) ? openDistance : closeDistance;
-        bool wantOpen = SqrDistanceToPlayer() <= trigger * trigger;
+        bool wantOpen = SqrDistanceToPlayer(target) <= trigger * trigger;
 
         switch (state)
         {
@@ -103,9 +113,9 @@ public class ProximityPortal : MonoBehaviour
         }
     }
 
-    float SqrDistanceToPlayer()
+    float SqrDistanceToPlayer(Transform target)
     {
-        Vector3 delta = player.position - transform.position;
+        Vector3 delta = target.position - transform.position;
         if (ignoreHeight) delta.y = 0f;
         return delta.sqrMagnitude;
     }

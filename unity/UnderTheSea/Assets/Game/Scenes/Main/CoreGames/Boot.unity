@@ -516,7 +516,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1224485432}
-  - component: {fileID: 1224485431}
   m_Layer: 0
   m_Name: NetworkService
   m_TagString: Untagged
@@ -524,33 +523,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1224485431
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1224485430}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cbdc8cc370a1a9c408fb94e55b6b01b4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FakeNetworkService
-  servers:
-  - Id: srv-1
-    DisplayName: "\uC11C\uBC84 1"
-    CurrentPlayers: 12
-    MaxPlayers: 100
-  - Id: srv-2
-    DisplayName: "\uC11C\uBC84 2"
-    CurrentPlayers: 3
-    MaxPlayers: 100
-  serverListDelay: 0.3
-  connectDelay: 0.6
-  alwaysFailConnect: 0
-  failReason: "\uC11C\uBC84\uC5D0 \uC5F0\uACB0\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
-  requiredPlayers: 4
-  fakeJoinInterval: 1.2
 --- !u!4 &1224485432
 Transform:
   m_ObjectHideFlags: 0

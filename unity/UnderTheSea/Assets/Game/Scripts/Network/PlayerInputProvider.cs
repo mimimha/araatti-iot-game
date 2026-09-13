@@ -30,6 +30,15 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
             data.Direction = direction;
         }
 
+        // 이동을 카메라 기준으로 돌리기 위해 로컬 카메라의 Y 각도를 함께 보낸다.
+        // 서버에는 카메라가 없어서 이 값을 스스로 알 수 없다. (NetworkPlayerMover 가 쓴다)
+        // 카메라가 없는 씬(ServerTestScene 등)에서는 0 이 가고, 그러면 월드 기준 이동이 된다.
+        Camera view = Camera.main;
+        if (view != null)
+        {
+            data.LookYaw = view.transform.eulerAngles.y;
+        }
+
         // 포커스가 없으면 Direction이 zero인 채로 전달된다. 입력을 아예 보내지 않으면
         // Host가 이전 tick 입력을 재사용해 캐릭터가 계속 미끄러진다.
         input.Set(data);

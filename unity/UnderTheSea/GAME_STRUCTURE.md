@@ -26,12 +26,15 @@
    │
    ▼
 ┌──────────────┐
-│    Login     │  이메일 / 비밀번호. 인증은 하지 않는다. (11장 참고)
+│    Login     │  이메일 / 비밀번호를 서버에 보내 검증받고 **JWT 를 발급**받는다.
 └──────────────┘
    │
+   │  ← 로그인 직후 **서버에 저장된 캐릭터를 조회**한다
+   │     이때 발급받은 JWT 를 **Bearer 토큰**으로 실어 보낸다
+   │     캐릭터가 있으면 ChannelSelect 로, 없으면 CharacterCreate 로 간다
    ▼
 ┌──────────────┐
-│CharacterCreate│ 외형을 고르고 **캐릭터 이름**을 정한다.
+│CharacterCreate│ 외형을 고르고 **캐릭터 이름**을 정한다. (캐릭터가 없을 때만)
 └──────────────┘  이 이름이 게임에서 쓰는 유일한 이름이다. (6장 참고)
    │
    ▼
@@ -39,7 +42,12 @@
 │ChannelSelect │  서버(채널) 목록에서 하나 선택 + [입장]
 └──────────────┘
    │
-   │  ← 여기서 네트워크 연결이 성립한다
+   │  ← 여기서 **Fusion Dedicated Server 세션 접속**이 일어난다
+   │     ① 채널 ID → 세션 이름 변환  (srv-1 → lobby-ch1)
+   │     ② Fusion Client 로 그 세션에 접속
+   │     ③ **Fusion 이 Lobby 네트워크 씬을 로드**한다 (클라이언트가 직접 열지 않는다)
+   │     ④ 서버가 NetworkPlayer 를 스폰하고, 내 카메라가 내 캐릭터로 Snap 된다
+   │     ⑤ 그제서야 Loading Overlay 가 걷힌다
    ▼
 ┌──────────────┐
 │    Lobby     │  모두가 같은 바다에 모인다. (목표 50~100명)
@@ -70,6 +78,127 @@
 
 **`Lobby`는 게임의 허브 공간입니다.** 플레이어들이 자유롭게 돌아다니다가
 미니게임 입구에서 대기열에 등록하는 곳입니다.
+
+### 정상 게임 접속 경로 — `Lobby` 씬은 Fusion 이 로드합니다
+
+2026-09-13 기준 ChannelSelect → Lobby 는 **더 이상 로컬 씬 전환이 아닙니다.**
+채널을 고르면 Fusion Dedicated Server 세션에 붙고, **`Lobby` 씬은 Fusion 이 네트워크 씬으로 로드**합니다.
+
+```text
+Login
+  → 서버 캐릭터 조회
+  → ChannelSelect
+  → 채널 선택
+  → Fusion Dedicated Lobby 세션 접속
+  → Fusion 이 Lobby 네트워크 씬 로드
+  → NetworkPlayer 스폰 · 카메라 Snap
+  → Loading Overlay 해제
+```
+
+**Loading Overlay 는 "접속 성공" 이 아니라 "화면을 넘겨도 되는 순간" 에 걷힙니다.**
+내 캐릭터가 스폰되고 카메라가 그 뒤에 자리를 잡은 뒤에야 `TransitionStatus.SetReady()` 가 불립니다.
+접속만 성공한 시점에 걷으면 사용자가 빈 바다나 날아오는 카메라를 보게 됩니다.
+
+**씬을 누가 여는가 — 이 한 가지만 기억하면 됩니다.**
+
+| 경로 | `Lobby` 를 여는 주체 |
+| --- | --- |
+| Fusion 경로 (정상 접속 · 개발자 직접 접속) | **Fusion** (`StartGameArgs.Scene`) |
+| 그 외 씬 전환 (Title · Login · ChannelSelect · MiniGame) | 클라이언트 (`SceneFlow`) |
+
+Fusion 경로에서는 일반 `SceneFlow.LoadScene("Lobby")` 를 **실행하지 않습니다.**
+접속에 성공하면 `SceneFlow.LobbyLoadedByNetwork` 가 서고 `FromChannelSelect()` 가 스스로 비켜섭니다.
+두 곳이 같은 씬을 열면 Lobby 가 두 벌 생깁니다.
+
+> ⚠ **`PeerMode.Multiple` 에서는 Client 도 Lobby `SceneRef` 를 지정해야 합니다.**
+> `StartGameArgs.Scene` 을 빼면 세션은 붙고 캐릭터도 스폰되는데 **Lobby 가 로드되지 않습니다.**
+> 로그에 오류가 하나도 남지 않아 찾기 어렵습니다. 실제로 여기서 한 번 막혔습니다.
+
+또한 `PeerMode.Multiple` 은 씬을 **추가로(additive) 로드하고 이전 씬을 내리지 않습니다.**
+ChannelSelect 의 Canvas 는 `Screen Space - Overlay` 라 카메라와 무관하게 계속 그려지므로,
+접속에 성공하면 `SceneFlow.UnloadScreenScene()` 으로 이전 화면 씬을 직접 내립니다.
+
+### 개발자 직접 접속 경로 — 로그인 없이 같은 로비로
+
+로그인 · REST · DB 를 건너뛰고 멀티플레이만 빠르게 확인할 때 쓰는 경로입니다.
+
+- **Unity Editor**: `Lobby.unity` 를 열고 **그냥 Play**. 켜고 끌 메뉴가 없습니다
+- **Development Build**: `-devjoin -session lobby-ch1` 인자로 실행 (Release 빌드에서는 동작하지 않습니다)
+
+**둘 다 로컬 씬만 여는 방식이 아닙니다.** 같은 Dedicated Server 의 같은 세션에 Fusion `Client` 로 붙습니다.
+
+> ⚠ **그래서 Dedicated Server 를 먼저 띄워야 합니다.**
+> 서버가 없으면 혼자 Host 가 되는 대신 접속에 실패하고
+> `"Dedicated Server 를 먼저 실행하세요."` 가 화면에 뜹니다. (아래 팀 규칙 참고)
+
+| 항목 | 정상 경로 | 개발자 직접 경로 |
+| --- | --- | --- |
+| 앞단 UI (Login · 캐릭터 조회 · ChannelSelect) | 거친다 | **건너뛴다** |
+| 세션 이름을 정하는 것 | 채널 선택 결과 (`srv-1` → `lobby-ch1`) | 실행 인자 `-session` |
+| 캐릭터 외형 | (PRD 09-2 이후) 서버에 저장된 캐릭터 외형 | **기본 `NetworkPlayer` 외형** |
+| Lobby 이후 Runner · 스폰 · 카메라 · 포털 로직 | **완전히 동일** | **완전히 동일** |
+
+로비에 들어간 뒤로는 두 경로가 갈라지지 않습니다. 같은 코드가 돕니다.
+그래서 개발자 직접 경로에서 확인한 동작은 정상 경로에서도 그대로 성립합니다.
+
+> Release 빌드에는 이 우회 경로가 **아예 컴파일되지 않습니다.**
+> `FusionDevEntry.WantsClientJoin` 이 `UNITY_EDITOR` · `DEVELOPMENT_BUILD` 밖에서는 항상 `false` 입니다.
+
+### 팀 규칙 — 플레이 모드 테스트는 Dedicated Server 에 붙습니다
+
+**`Lobby` 를 Play 해서 실제로 움직여 보는 모든 경우는 Dedicated Server 접속입니다.**
+에디터에서 혼자 Host 가 되어 도는 길은 없앴습니다.
+
+| 하려는 일 | Dedicated Server 가 필요한가 |
+| --- | --- |
+| 지형 · 조명 · 프리팹 배치 등 **씬 편집** | **필요 없습니다.** Play 하지 않아도 됩니다 |
+| Play 해서 캐릭터를 움직여 보는 것 | **필요합니다** |
+| 두 명 이상이 서로 보이는지 확인 | **필요합니다** |
+
+혼자 Host 가 되는 길을 남겨 두었더니 두 가지 문제가 있었습니다.
+에디터에서 "되는" 것이 Dedicated Server 에서도 되는지 알 수 없었고,
+서버를 안 띄운 줄 모르고 혼자 놀다가 뒤늦게 발견하는 일이 있었습니다.
+
+**서버 띄우는 법** (한 줄입니다)
+
+```powershell
+.\Builds\Server\AraAtti-Server.exe -batchmode -nographics -session lobby-ch1 -port 27015
+```
+
+서버 exe 는 Unity 메뉴 `Tools > 아라아띠 > Fusion 서버 빌드 (Dedicated Server)` 로 만듭니다.
+
+### 세션 이름과 포트 — 기본값과 바꾸는 법
+
+| 값 | 기본 | 어디서 정해지나 |
+| --- | --- | --- |
+| 세션 이름 | `lobby-ch1` | `Lobby` 씬 `NetworkManager` 의 `FusionLauncher` Inspector |
+| 포트 | `27015` | 같은 Inspector (서버에서만 씁니다) |
+
+**실행 인자가 Inspector 를 이깁니다.** 서버는 창이 없어 Inspector 로 바꿀 수 없기 때문입니다.
+
+```text
+-session <이름>   세션 이름을 덮어쓴다
+-port <번호>      서버가 열 포트를 덮어쓴다
+```
+
+에디터에서 Play 할 때는 실행 인자가 없으므로 **Inspector 값(`lobby-ch1`)** 을 씁니다.
+그래서 서버도 같은 `lobby-ch1` 로 띄워야 만납니다. 다른 채널을 보려면
+서버를 `-session lobby-ch2` 로 띄우고 Inspector 도 `lobby-ch2` 로 바꿉니다.
+(채널 ID ↔ 세션 이름 표는 아래 참고)
+
+### 채널 목록 — 지금은 고정 카탈로그입니다
+
+`Assets/Game/Scripts/Network/ChannelCatalog.cs` 가 채널 ID 와 세션 이름을 고정 표로 들고 있습니다.
+
+| 채널 ID | 화면에 보이는 이름 | Fusion 세션 이름 |
+| --- | --- | --- |
+| `srv-1` | 서버 1 | `lobby-ch1` |
+| `srv-2` | 서버 2 | `lobby-ch2` |
+
+표에 없는 채널 ID 는 접속되지 않고 `"존재하지 않는 채널입니다."` 로 거부됩니다.
+서버를 늘리면 **이 표에 한 줄을 추가**합니다. 화면 코드는 고치지 않습니다.
+
+인원수는 아직 실제 값이 아닙니다. 실제 채널 인원수 · 서버 상태 조회는 남아 있습니다. (11장 참고)
 
 ---
 
@@ -316,10 +445,44 @@ FakeNetworkService     ← 민화가 만든 가짜. 버튼 누르면 무조건 �
         ↓
         ↓ 나중에 갈아끼움
         ↓
-RealNetworkService     ← 서버 담당자가 만든 진짜
+FusionNetworkService   ← 실제 Fusion Dedicated Server 접속 (2026-09-13 적용 완료)
 ```
 
 화면 코드는 둘 중 무엇이 꽂혀 있는지 몰라도 됩니다. **그래서 고칠 필요가 없습니다.**
+
+실제로 교체했을 때 `ChannelSelectController.cs` · `ChannelRowView.cs` ·
+`INetworkService.cs` · `Login.unity` 의 **diff 는 0줄**이었습니다. 경계가 제 역할을 했습니다.
+
+### 가짜 ↔ 진짜를 갈아끼우는 지점은 `NetworkServiceBootstrap` 한 곳입니다
+
+**씬에 네트워크 서비스 컴포넌트를 올리지 않습니다.** 코드 한 곳에서 고릅니다.
+
+```csharp
+// Assets/Game/Scripts/Network/NetworkServiceBootstrap.cs
+private static readonly Implementation Active = Implementation.Fusion;   // ← 이 한 줄이 전부다
+```
+
+| 값 | 동작 |
+| --- | --- |
+| `Implementation.Fusion` | 실제 Dedicated Server 세션에 접속한다 **(현재 설정)** |
+| `Implementation.Fake` | 서버 없이 이 PC 안에서 흉내낸다. 화면 흐름만 볼 때 |
+
+`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` 로 게임 시작 시 **하나만** 만들어
+`NetworkServiceLocator` 에 등록합니다. 계정 쪽 `AccountServiceBootstrap` 과 같은 구조입니다.
+(Dedicated Server 프로세스에서는 채널을 고르지도 접속하지도 않으므로 아예 만들지 않습니다.)
+
+**`NetworkServiceLocator` 에는 언제나 구현체가 정확히 하나만 등록됩니다.**
+둘이 등록되면 어느 쪽이 쓰일지가 실행 순서에 좌우됩니다. 그런 구조는 허용하지 않습니다.
+
+그래서 `Boot` 씬의 `NetworkService` 오브젝트에서 **`FakeNetworkService` 컴포넌트를 제거했습니다.**
+오브젝트 자체는 그대로 남아 있고, 씬 변경은 그 컴포넌트 한 개를 뗀 것뿐입니다.
+
+> **`FakeNetworkService.cs` 파일은 지우지 않았습니다.**
+> 서버 없이 화면 흐름만 보거나 단독 UI 테스트를 할 때 계속 씁니다.
+> 위 `Active` 한 줄만 `Fake` 로 바꾸면 **씬을 고치지 않고** 예전 동작으로 돌아갑니다.
+
+씬을 고치지 않으므로 전환할 때 **씬 파일 병합 충돌이 나지 않고**, `Boot` 을 거치지 않고
+ChannelSelect 만 단독으로 실행해도 서비스가 준비됩니다.
 
 ---
 
@@ -444,17 +607,35 @@ PlayerPrefs.GetString("PlayerNickname", string.Empty)
 
 `Lobby`는 플레이어들이 모여 미니게임 대기열에 등록하는 **허브 공간**입니다.
 
+> ⚠ **2026-09-13 부터 `Lobby` 는 Fusion 네트워크 씬입니다.**
+> 이 씬을 여는 것은 **Fusion** 이고 클라이언트가 아닙니다. (1장 "정상 게임 접속 경로" 참고)
+>
+> **Unity Editor 에서 `Lobby.unity` 를 Play 하면 Dedicated Server 에 개발용 Client 로 접속합니다.**
+> 켜고 끌 메뉴는 없습니다. 언제나 `GameMode.Client` 입니다.
+> **그래서 Play 하기 전에 서버 exe 를 먼저 띄워야 합니다.**
+> 서버가 없으면 혼자 Host 가 되지 않고 `"Dedicated Server 를 먼저 실행하세요."` 가 뜹니다.
+>
+> **맵과 조명만 손볼 때는 Play 할 필요가 없습니다.** 씬 편집은 서버 없이 그대로 하시면 됩니다.
+> (1장 "플레이 모드 테스트는 Dedicated Server 에 붙습니다" 참고)
+>
+> 차단되는 것은 **일반 Player 빌드** 쪽입니다. 개발 의도 표시(`-devjoin` · `-mode`) 없이
+> `Lobby` 만 직접 열리면 세션을 열지 않고
+> `Lobby 에 바로 들어올 수 없습니다. ChannelSelect 에서 채널을 골라 주세요.` 를 표시합니다.
+> 제품 경로에서 실수로 `Lobby` 씬만 열었을 때 검은 화면에 갇히지 않게 하려는 장치입니다.
+>
+> 씬에는 `NetworkManager` 와 `SpawnPoints` 오브젝트가 있습니다. **지우거나 이름을 바꾸지 마세요.**
+> 플레이어를 따라갈 카메라(`MainCamera`)에는 **`LobbyGameplayCamera` 표식**이 붙어 있어야 합니다.
+> 이 표식이 없거나 둘 이상이면 카메라를 임의로 고르지 않고 명확한 오류를 냅니다.
+
 ### 반드시 포함해야 할 것
 
-**1) 플레이어 시작 위치 — 방식은 추후 확정**
+**1) 플레이어 시작 위치 — PRD 08-2 에서 확정됐습니다**
 
-스폰 지점 오브젝트(`SpawnPoint_01`, `SpawnPoint_02` …)는 **만들지 않습니다.**
+씬의 `SpawnPoints` 오브젝트 아래에 자식 `Transform` 들을 두면, 접속한 사람이
+`PlayerId` 순서로 그 지점에 나눠 배치됩니다. 지점이 하나도 없으면 전부 원점에 겹쳐 생깁니다.
 
-로비에 여러 명이 동시에 들어올 때 캐릭터를 어디에 생성할지는 아직 정하지 않았습니다.
-클라이언트와 서버 담당자가 상의해서 정하고, **정해지면 본 문서에 반영합니다.**
-
-그때까지 로비에서 보장해야 할 것은 아래 3) 의 **캐릭터가 서도 되는 넓고 평평한 바닥**뿐입니다.
-어디를 스폰 영역으로 쓸지는 방식이 정해진 뒤에 고릅니다.
+지점을 늘리거나 옮기는 것은 자유입니다. **`SpawnPoints` 오브젝트 자체를 지우지만 마세요.**
+지점은 아래 3) 의 **캐릭터가 서도 되는 넓고 평평한 바닥** 위에 둡니다.
 
 **2) 미니게임 입구 3개**
 
@@ -518,7 +699,7 @@ Hierarchy
 
 | 게임 | 인원 | 근거 |
 | --- | --- | --- |
-| 무쌍 (Warriors) | 4명 고정 | 담당자가 규격 문서에서 확정 |
+| 무쌍 (Warriors) | **4명 고정** | 3라운드 전투와 촉수 4개, 협동 마무리가 4명을 전제로 설계됨 (`WARRIORS.md`) |
 | 배 협동 (ShipCoop) | **4명 고정** | 배 HP 공유와 작업 5종 배분이 4명을 전제로 설계됨 (`SHIPCOOP.md`) |
 | 광산 (Mine) | **1~4명** | 인원이 곧 난이도. 적으면 쉬운 그림, 많으면 복잡한 그림 (`MINE.md`) |
 
@@ -674,7 +855,7 @@ git status
 | 50~100명 실제 부하 감당 | **개발 목표는 10~20명.** 그 이상은 여유가 있으면 검토 |
 | Docker / Kubernetes | 핵심 기능 완성 후 여유가 있으면 검토 |
 | Prometheus / Grafana 모니터링 | 핵심 기능 완성 후 여유가 있으면 검토 |
-| 로그인 / 회원가입 | ~~제외~~ → **도입합니다.** `server/` 의 ASP.NET Core API 가 계정을 저장하고 JWT 로 인증합니다. `Login` 씬 연동은 아직 남아 있습니다 (`docs/prd/auth-character-roadmap.md` PRD 06) |
+| 로그인 / 회원가입 | ~~제외~~ → **도입했고 Unity 연동까지 끝났습니다.** `server/` 의 ASP.NET Core API 가 이메일/비밀번호를 검증하고 **JWT 를 발급**합니다 (`docs/prd/auth-character-roadmap.md` PRD 06) |
 | 사용자 닉네임 | **없습니다.** 이름은 `CharacterCreate` 에서 정하는 **캐릭터 이름 하나**뿐입니다 (6장) |
 | 캐릭터를 서버에 저장 | ~~제외~~ → **도입합니다.** DB 스키마(`users` · `characters` · `character_parts`)는 준비됐고, 지금은 `PlayerPrefs` 로 그 PC 에만 저장합니다. 서버 저장 API 와 Unity 연동이 남아 있습니다 (같은 문서 PRD 05 · 07) |
 | 플레이어가 방을 만들고 고르는 기능 | **없음.** 서버(채널)를 고르면 그 서버의 로비로 들어감 |
@@ -682,8 +863,28 @@ git status
 > **위 표의 로그인 / 회원가입 · 캐릭터 서버 저장 두 줄은 방향이 바뀌었습니다.**
 > 계정과 캐릭터를 실제로 저장하기로 팀에서 정했고, 단계별 계획은
 > `docs/prd/auth-character-roadmap.md` 에 있습니다.
-> 2026-09-09 기준 서버 쪽 회원가입 · 로그인 API 와 JWT 까지 완료됐습니다.
-> **Unity 쪽은 아직 붙지 않았습니다.** `Login` 씬은 여전히 검증 없이 통과시킵니다.
+> 2026-09-09 기준 서버 쪽 회원가입 · 로그인 API 와 JWT 발급까지 완료됐고,
+> **2026-09-13 기준 Unity 쪽도 붙었습니다.**
+> `Login` 씬은 이메일/비밀번호를 서버에 보내 검증받고 **JWT 를 발급**받습니다.
+> 그 뒤 캐릭터 조회 같은 **보호된 API 요청은 그 JWT 를 `Authorization: Bearer` 헤더로** 보냅니다.
+> 가짜를 쓸지 진짜를 쓸지는 `AccountServiceBootstrap.Active` 가 정합니다 (현재 `Http`).
+> 단, **Dedicated Server 가 접속자의 JWT 를 검증하는 것은 아직입니다.** (PRD 10)
+
+### 아직 남아 있는 것 — Fusion Lobby 후속 (2026-09-13 기준)
+
+PRD 08 계열(Dedicated Server 검증 · Lobby 네트워크 씬 전환 · 실제 세션 연결)은 끝났습니다.
+아래는 **아직 구현되지 않았고, 다음 단계로 넘어간 것들**입니다.
+
+| 항목 | 지금 상태 | 어디로 |
+| --- | --- | --- |
+| 실제 채널 인원수 · 서버 상태 조회 | 채널 목록은 `ChannelCatalog` 고정 표. 인원수는 실제 값이 아니다 | 후속 |
+| 자동 서버 증설 · 서버 디렉터리 · 매치메이커 | 없음. 서버 exe 를 사람이 직접 띄우고 채널을 표에 적는다 | 후속 |
+| 서버 캐릭터 외형 Fusion 동기화 | 모두 **기본 `NetworkPlayer` 외형**으로 보인다 | PRD 09-1 · 09-2 |
+| Dedicated Server 의 JWT · characterId 검증 | 서버가 접속자의 신원을 검증하지 않는다 | PRD 10 |
+| Lobby 에서 나가기 / 로그아웃 UX | 창을 닫는 것 말고 정식 이탈 흐름이 없다 | 후속 |
+| 미니게임 멀티플레이 전환 | 미니게임은 아직 네트워크에 붙지 않았다 | 8장 · 후속 |
+
+단계별 계획은 `docs/prd/fusion-dedicated-lobby-roadmap.md` 에 있습니다.
 
 ### 범위에 포함되는 것
 
@@ -754,5 +955,10 @@ git status
    입장하며, 끝날 때 성공/실패와 점수를 돌려줍니다.
 8. 미니게임 규격은 확정됐습니다. 게임별 상세는 각 규격 문서(`SHIPCOOP.md`, `MINE.md`)를 따릅니다.
 9. 씬 전환은 민화가 관리합니다. 각자 씬에서 직접 호출하지 않습니다.
+   **단 `Lobby` 는 예외로 Fusion 이 엽니다.** Fusion 경로에서 `SceneFlow.LoadScene("Lobby")` 를 부르지 않습니다. (1장)
 10. 에셋을 Import 하기 전에 팀에 먼저 공유합니다.
 11. **서로를 기다리지 않습니다.** 가짜 구현과 임시 오브젝트로 각자 끝까지 만든 뒤 갈아끼웁니다.
+12. 가짜 ↔ 진짜 네트워크 전환은 **`NetworkServiceBootstrap` 한 줄**로만 합니다.
+    `NetworkServiceLocator` 에는 **구현체가 정확히 하나만** 등록됩니다. (4장)
+13. **`Lobby` 를 Play 하는 모든 경우는 Dedicated Server 접속입니다.** 혼자 Host 가 되는 길은 없습니다.
+    씬 편집은 Play 없이 하시면 되고, **플레이 모드 네트워크 QA 에는 서버 exe 가 필요합니다.** (1장)
