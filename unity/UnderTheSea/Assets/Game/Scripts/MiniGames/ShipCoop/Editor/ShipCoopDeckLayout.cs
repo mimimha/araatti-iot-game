@@ -567,13 +567,30 @@ public static class ShipCoopDeckLayout
         // 쏴서** 찾습니다. 층마다 무엇이 가리는지는 배 모델에 달린 문제라,
         // 사람이 목록으로 들고 있으면 모델을 바꿀 때마다 틀립니다.
 
+        // 뒷갑판은 13 / 7 이 기본이었는데 멀어 보여서 **20% 당겼습니다.**
+        // 뒤에 걸릴 것이 선체(꼭대기 1.92)와 난간(2.93)뿐이라 여유가 많습니다.
         MakeDeck(root, "Deck_Aft", AftCenterZ, AftLength, AftSurfaceY, "뒷갑판",
-                 new Vector4(13f, 7f, 1.5f, 6f));
+                 new Vector4(10.4f, 5.6f, 1.5f, 4.8f));
 
         // 중간갑판에 서면 **뒷갑판이 통째로 눈앞을 가로막습니다.**
         // 카메라를 높여도 그 사이에 있으니 소용이 없어서, 그 층에 있는 동안 감춥니다.
+        //
+        // ⚠ 가리는 것을 피하려고 15 / 8.5 까지 멀리 올려뒀는데, 감추기 시작한
+        //    뒤로는 필요가 없어졌습니다. 멀면 **캐릭터가 작아져서** 발이 닿았는지
+        //    읽기 어렵고, 그 층만 다른 게임처럼 보입니다.
+        //
+        // 얼마나 당길 수 있나 — **뒤에 있는 것에 걸립니다.**
+        //
+        //   9 면 카메라가 z -6.9 에 선다. 뒤쪽 구조물(조타륜·선실·뒷갑판 바닥)은
+        //   이 층에서 감추므로 통과해도 된다. 뒷갑판 **난간도 감춘다** —
+        //   내가 걸어다닐 데가 아니라서 지킬 이유가 없다. (OwnRailing)
+        //
+        //   높이 6 이면 y 2.51 로, 계단(꼭대기 1.20)과 선체(1.92) 위를 지난다.
+        //   여기서 더 당기거나 낮추면 계단을 뚫는다.
+        //
+        // 15 → 9 로 당겼더니 훅 들어온 느낌이라 **10분의 1 만큼 도로 물렸습니다.**
         MakeDeck(root, "Deck_Main", MidCenterZ, MidLength, MidSurfaceY, "중간갑판",
-                 new Vector4(15f, 8.5f, 1.5f, 6f));
+                 new Vector4(9.6f, 6.25f, 1.5f, 4.2f));
 
         // 앞갑판은 **주 돛대와 주 돛**이 코앞을 막습니다. 카메라가 돛대에서 3m 뒤라
         // 기둥 하나가 화면을 반으로 가릅니다.
@@ -711,20 +728,34 @@ public static class ShipCoopDeckLayout
     ///             한 번 감췄다가 "계단이 아예 없어졌다" 는 소리를 들었습니다.
     ///             계단은 두 층에 걸쳐 있어서 자동으로는 반드시 잡힙니다.
     ///
-    ///   Railing*  난간은 **갑판이 어디서 끝나는지 알려주는 표시**입니다.
-    ///             떨어지는 것은 보이지 않는 벽이 막고 있어서, 난간이 없으면
-    ///             어디까지가 바닥인지 눈으로 읽을 수가 없습니다.
-    ///
-    ///             ⚠ 한 층의 난간이 **메시 하나**입니다. 앞쪽만 감출 수가 없어서
-    ///               감추면 그 층 난간이 **사방 통째로** 사라집니다.
-    ///               가리는 문제는 감추는 대신 **카메라를 올려서** 풉니다.
+    /// 난간은 여기에 없습니다. **자기 층 난간만** 따로 지킵니다. (OwnRailing)
     /// </summary>
     private static readonly string[] NeverHide =
     {
         "Hull",
         "StairsUpper", "StairsFore", "StairsLower",
-        "RailingAft", "RailingMid", "RailingFore",
     };
+
+    /// <summary>
+    /// 그 층에 서 있을 때 **지켜야 하는 난간.**
+    ///
+    /// 난간은 갑판이 어디서 끝나는지 알려주는 표시입니다. 떨어지는 것은 보이지 않는
+    /// 벽이 막고 있어서, 난간이 없으면 **어디까지가 바닥인지 눈으로 읽을 수가 없습니다.**
+    ///
+    /// 다만 그건 **자기가 서 있는 층** 이야기입니다. 중간갑판에 있는데 뒷갑판 난간이
+    /// 눈앞을 가리면, 그건 지킬 이유가 없습니다. 내가 걸어다닐 데가 아니니까요.
+    ///
+    /// ⚠ 한 층의 난간이 **메시 하나**라 앞쪽만 감출 수가 없습니다.
+    ///    그래서 층 단위로 "지킨다 / 감춘다" 를 정합니다.
+    /// </summary>
+    private static string OwnRailing(string deckName)
+    {
+        if (deckName == "뒷갑판") { return "RailingAft"; }
+        if (deckName == "중간갑판") { return "RailingMid"; }
+        if (deckName == "앞갑판") { return "RailingFore"; }
+
+        return null;
+    }
 
     private static void CollectBlockers(System.Collections.Generic.List<Renderer> found,
                                         GameObject ship, ShipDeck deck,
@@ -749,6 +780,12 @@ public static class ShipCoopDeckLayout
             }
 
             if (System.Array.IndexOf(NeverHide, t.name) >= 0)
+            {
+                continue;
+            }
+
+            // 자기 층 난간은 지킨다. 다른 층 난간은 가리면 감춘다.
+            if (t.name == OwnRailing(deck.DeckName))
             {
                 continue;
             }
