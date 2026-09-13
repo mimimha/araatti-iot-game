@@ -48,14 +48,20 @@ namespace FishingMiniGame.Runtime
 
         public void ConfigureV3Runtime(
             FishingV3Tuning modelTuning = null,
-            FishingV3ReelInputTuning reelInputTuning = null)
+            FishingV3ReelInputTuning reelInputTuning = null,
+            FishingV3ResistanceTuning resistanceTuning = null)
         {
-            controller.ConfigureV3Runtime(modelTuning, reelInputTuning);
+            controller.ConfigureV3Runtime(modelTuning, reelInputTuning, resistanceTuning);
         }
 
         public void SetV3FishState(FishingV3FishState fishState)
         {
             controller.SetV3FishState(fishState);
+        }
+
+        public void TriggerV3HeadShake(float intensityNormalized = 1f)
+        {
+            controller.TriggerV3HeadShake(intensityNormalized);
         }
 
         public void Initialize(FishingLaunchContext context)
