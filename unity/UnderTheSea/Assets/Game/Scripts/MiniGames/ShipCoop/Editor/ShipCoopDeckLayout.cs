@@ -146,6 +146,11 @@ public static class ShipCoopDeckLayout
 
     private const float SeaLevelY = -8.0f;
 
+    /// <summary>배가 끝나는 자리. 도는 축을 잡는 데 쓴다. (선체에서 잰 값)</summary>
+    private const float ShipBowZ = 22.8f;
+
+    private const float ShipSternZ = -19.7f;
+
     // ------------------------------------------------------------
     // 바다 판 — **뒤로 흘러야 배가 나아가 보인다**
     //
@@ -287,6 +292,7 @@ public static class ShipCoopDeckLayout
         BuildDecks(root, log);
         BuildStairs(root, log);
         BuildWalls(root, log);
+        CoverTheHold(root, log);
         MoveSea(log);
         MoveStations(log);
         MovePlayers(log);
@@ -365,6 +371,195 @@ public static class ShipCoopDeckLayout
 
         TurnOffShipParts(ship, log);
         MoveShipCannon(ship, log);
+        SpinTheWheel(ship, log);
+    }
+
+    /// <summary>
+    /// 🛞 배의 조타륜이 **조타한 만큼 돌게** 만든다.
+    ///
+    /// 배에 달린 `Wheel` 에 `ShipCoopHelmWheel` 을 붙일 뿐입니다.
+    /// 도는 규칙은 그쪽에 적혀 있습니다 — 값을 따로 계산하지 않고
+    /// `HelmTask.Heading` 을 그대로 씁니다.
+    /// </summary>
+    private static void SpinTheWheel(GameObject ship, StringBuilder log)
+    {
+        Transform wheel = null;
+
+        foreach (Transform t in ship.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == "Wheel")
+            {
+                wheel = t;
+                break;
+            }
+        }
+
+        if (wheel == null)
+        {
+            log.AppendLine("  ⚠ 배에서 조타륜(Wheel)을 못 찾았습니다.");
+            return;
+        }
+
+        ShipCoopHelmWheel spin = wheel.GetComponent<ShipCoopHelmWheel>();
+
+        if (spin == null)
+        {
+            spin = Undo.AddComponent<ShipCoopHelmWheel>(wheel.gameObject);
+        }
+
+        // ⚠ **-1 입니다.** 조타 판정은 맞는데 화면에서 보는 방향이 뒤집힙니다.
+        //    카메라가 배 뒤(-z)에서 보므로, +z 축 양의 회전이 화면에서는 반시계입니다.
+        //    우로 꺾는데 바퀴가 왼쪽으로 도는 셈이라 부호를 뒤집습니다.
+        SerializedObject so = new SerializedObject(spin);
+
+        // 3배로 돌린다. 1배(조타한 만큼 그대로)는 너무 안 돌아서 도는지 모르겠다.
+        // 진짜 배도 키를 여러 바퀴 돌리므로 이쪽이 배답기도 하다.
+        so.FindProperty("degreesPerHeading").floatValue = -3f;
+        so.FindProperty("spinAxis").vector3Value = Vector3.forward;
+        so.ApplyModifiedProperties();
+
+        log.AppendLine("  조타륜이 조타의 3배로 (화면 기준 같은 방향으로) 돌도록 했습니다");
+
+        TurnTheShip(ship, log);
+    }
+
+    /// <summary>
+    /// 조타한 만큼 **뱃머리가 틀어지게** 한다.
+    ///
+    /// 배가 옆으로 평행이동하면 안 됩니다. 제자리에서 돌아서 뱃머리와 고물이
+    /// 반대로 가야 배처럼 보입니다. 자세한 이유와 한계는 `ShipCoopShipTurn` 에 적혀 있습니다.
+    /// </summary>
+    private static void TurnTheShip(GameObject ship, StringBuilder log)
+    {
+        ShipCoopShipTurn turn = ship.GetComponent<ShipCoopShipTurn>();
+
+        if (turn == null)
+        {
+            turn = Undo.AddComponent<ShipCoopShipTurn>(ship);
+        }
+
+        SerializedObject so = new SerializedObject(turn);
+        so.FindProperty("degreesPerHeading").floatValue = 0.3f;
+
+        // ⚠ **한가운데가 아니라 뱃머리에서 1/3 지점**을 축으로 둔다.
+        //    한가운데에 두면 앞뒤가 똑같이 벌어져서 제자리에서 빙 도는 것처럼 보인다.
+        //    진짜 배는 앞쪽을 축으로 돌아서 **고물이 크게 바깥으로 쓸린다.**
+        so.FindProperty("pivotZ").floatValue = ShipBowZ - (ShipBowZ - ShipSternZ) / 3f;
+
+        so.FindProperty("bankDegrees").floatValue = 4f;
+        so.FindProperty("followSeconds").floatValue = 0.8f;
+
+        // ⚠ **같이 돌 것들을 모은다.** 배만 돌리면 갑판 · 자리 · 사람이
+        //    제자리에 남아서 사람이 허공을 걷습니다.
+        var carried = new System.Collections.Generic.List<Transform>();
+
+        carried.Add(ship.transform);
+
+        Transform decks = GameObject.Find(RootName) != null
+            ? GameObject.Find(RootName).transform
+            : null;
+
+        if (decks != null)
+        {
+            carried.Add(decks);   // 걷는 바닥 · 경사로 · 벽 · 선창 바닥
+        }
+
+        // 작업 자리와 물건들. 배 밖(씬 루트)에 놓여 있어서 따로 챙겨야 한다.
+        foreach (TaskBase t in Object.FindObjectsByType<TaskBase>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            carried.Add(t.transform);
+        }
+
+        foreach (AmmoBox t in Object.FindObjectsByType<AmmoBox>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            carried.Add(t.transform);
+        }
+
+        foreach (WaterDumpPoint t in Object.FindObjectsByType<WaterDumpPoint>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            carried.Add(t.transform);
+        }
+
+        foreach (TaskWorker t in Object.FindObjectsByType<TaskWorker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            carried.Add(t.transform);
+        }
+
+        SerializedProperty list = so.FindProperty("carried");
+        list.arraySize = carried.Count;
+
+        for (int i = 0; i < carried.Count; i++)
+        {
+            list.GetArrayElementAtIndex(i).objectReferenceValue = carried[i];
+        }
+
+        so.ApplyModifiedProperties();
+
+        log.AppendLine($"  배가 조타의 0.18배로 틀어지게 했습니다 " +
+                       $"(축 z {MidCenterZ:F1}, 최대 약 11도, 같이 도는 것 {carried.Count}개)");
+    }
+
+    // ------------------------------------------------------------
+    // 선창 바닥 — **격자창 아래로 바다가 비치는 것**을 막는다
+    //
+    // ⚠ 중간갑판 한가운데 격자창(화물칸 뚜껑)은 아래가 비칩니다.
+    //    그 아래에 아무것도 없으면 **바다 판이 그대로 보여서, 배 안에 물이
+    //    차 있는 것처럼** 보입니다. 침수 게이지가 0인데도요.
+    //
+    //    진짜 배에는 그 아래에 선창 바닥이 있습니다. 모델에는 없으니 깔아줍니다.
+    //    배 안쪽이라 밖에서는 선체에 가려 안 보입니다.
+    // ------------------------------------------------------------
+
+    private const string HoldFloorName = "Hold_Floor";
+
+    /// <summary>선창 바닥 높이. 갑판(-3.49)보다 한참 아래, 흘수선(-8.0)보다는 위.</summary>
+    private const float HoldFloorY = -6.2f;
+
+    private static void CoverTheHold(Transform root, StringBuilder log)
+    {
+        GameObject ship = GameObject.Find(ShipName);
+
+        if (ship == null)
+        {
+            return;
+        }
+
+        // 배와 같은 나무색을 쓴다. 따로 재질을 만들면 혼자 겉돈다.
+        Material wood = null;
+
+        foreach (Renderer r in ship.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r.name == "DeckMid" && r.sharedMaterial != null)
+            {
+                wood = r.sharedMaterial;
+                break;
+            }
+        }
+
+        Transform floor = FindOrCreateBox(root, HoldFloorName);
+
+        floor.localScale = new Vector3(DeckWidth, DeckThickness, AftBackZ * -1f + ForeFrontZ);
+        floor.localPosition = new Vector3(CenterX, HoldFloorY, (AftBackZ + ForeFrontZ) * 0.5f);
+        floor.localRotation = Quaternion.identity;
+
+        if (wood != null)
+        {
+            Renderer draw = floor.GetComponent<Renderer>();
+            draw.sharedMaterial = wood;
+            draw.enabled = true;
+        }
+
+        // 걸어다닐 데가 아니다. 콜라이더를 끄지 않으면 발 높이를 재는 레이가
+        // 여기에 걸릴 수 있다.
+        Collider bump = floor.GetComponent<Collider>();
+
+        if (bump != null && bump.enabled)
+        {
+            Undo.RecordObject(bump, "배 모델과 갑판 배치");
+            bump.enabled = false;
+        }
+
+        log.AppendLine($"  선창 바닥을 y {HoldFloorY:F1} 에 깔았습니다. (격자창 아래로 바다가 비치는 것을 막음)");
     }
 
     /// <summary>
@@ -1194,8 +1389,197 @@ public static class ShipCoopDeckLayout
         log.AppendLine($"  바다   {Describe(want)}   (갑판보다 {MidSurfaceY - SeaLevelY:F1}m 아래)");
 
         BuildSeaTiles(sea, log);
+        BuildWake(sea, log);
         SeeFarEnough(log);
         HideResult(log);
+    }
+
+    // ------------------------------------------------------------
+    // 🌊 뱃머리가 가르는 물살
+    //
+    // ⚠ 물결을 미는 것만으로는 **속도가 변한 것이 잘 안 읽힙니다.**
+    //    돛을 당겨 빨라졌는데 화면이 그대로면 돛을 당길 이유가 없습니다.
+    //    물살은 **빠르면 많이, 느리면 적게** 생기므로 속도가 그림의 양으로 바뀝니다.
+    //
+    // 알갱이는 **둥글고 가장자리가 흐려야** 합니다. 납작한 사각형을 얹었더니
+    // 바다 위에 흰 판때기가 둥둥 뜬 것으로 보였습니다. (ShipCoopBlobShadow)
+    // ------------------------------------------------------------
+
+    private const string WakeName = "Wake";
+
+    /// <summary>
+    /// 물살이 생기는 범위. **배 둘레 전체**입니다.
+    ///
+    /// ⚠ 처음에는 뱃머리에만 뿌렸는데 **하나도 안 보였습니다.**
+    ///    거기는 선체와 앞갑판에 가려서 갑판 카메라에서 보이지 않습니다.
+    ///    보이는 것은 **배 옆의 바다**라, 거기에 뿌려야 합니다.
+    ///    배 밑에 생기는 것은 선체에 가려 안 보이니 그냥 둡니다.
+    /// </summary>
+    private const float WakeWidth = 30f;
+
+    private const float WakeLength = 44f;
+
+    /// <summary>물 위로 살짝. 물에 묻히면 안 보인다.</summary>
+    private const float WakeLift = 0.15f;
+
+    /// <summary>
+    /// ⚠ **지금은 꺼 두었습니다.**
+    ///
+    /// 둥근 알갱이를 뿌려 물살을 흉내냈는데 **흰 점이 흩뿌려진 것**으로 보였습니다.
+    /// 크기를 줄이고 개수를 열 배로 늘려도 마찬가지였습니다.
+    ///
+    /// 물 셰이더에 **원래 거품 기능이 들어 있습니다.** (`_Enable_Shore_Foam`)
+    /// 배에 닿는 자리를 따라 저절로 생기고 물결과 같은 셰이더라 따로 놀지 않습니다.
+    /// 그쪽이 훨씬 낫습니다. (ShowHullFoam)
+    ///
+    /// ⚠ **다시 켜지 마세요.** 두 번 만들어 두 번 다 퇴짜를 맞았습니다.
+    ///    물살은 제대로 만든 이펙트 에셋으로 해결할 일입니다.
+    /// </summary>
+    private const bool UseWake = false;
+
+    private static void BuildWake(VoyageSea sea, StringBuilder log)
+    {
+        if (!UseWake)
+        {
+            Transform old = sea.transform.Find(WakeName);
+
+            if (old != null)
+            {
+                Undo.DestroyObjectImmediate(old.gameObject);
+                log.AppendLine("  알갱이 물살을 걷어냈습니다. (셰이더 거품을 씁니다)");
+            }
+
+            return;
+        }
+
+        Material foam = ShipCoopBlobShadow.GetOrCreateFoam();
+
+        if (foam == null)
+        {
+            log.AppendLine("  ⚠ 물살 재질을 못 만들었습니다.");
+            return;
+        }
+
+        Transform found = sea.transform.Find(WakeName);
+        GameObject go;
+
+        if (found == null)
+        {
+            go = new GameObject(WakeName);
+            Undo.RegisterCreatedObjectUndo(go, "배 모델과 갑판 배치");
+            go.transform.SetParent(sea.transform, false);
+        }
+        else
+        {
+            go = found.gameObject;
+        }
+
+        // ⚠ **뒤로 흘러가야 한다.** 배는 +z 를 보고 있으므로 물은 -z 로 간다.
+        //    파티클은 자기 앞쪽(+z)으로 뿌리므로, 오브젝트를 180도 돌려 둔다.
+        //    (모양을 90도 눕혀서 뿌렸더니 **물속으로 가라앉아 안 보였습니다.**)
+        go.transform.localPosition = new Vector3(0f, WakeLift, 0f);
+        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+        ParticleSystem spray = go.GetComponent<ParticleSystem>();
+
+        if (spray == null)
+        {
+            spray = Undo.AddComponent<ParticleSystem>(go);
+        }
+
+        // ⚠ **잘고 많아야 거품으로 보입니다.**
+        //
+        //    처음에는 3m 짜리를 초당 40개 뿌렸는데 **띄엄띄엄한 흰 얼룩**이 되어
+        //    인위적으로 보였습니다. 거품은 크기가 제각각인 작은 알갱이가
+        //    잔뜩 있는 것입니다. 크기를 줄이고 개수를 크게 늘립니다.
+        ParticleSystem.MainModule main = spray.main;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(2.2f, 4f);
+        main.startSpeed = 3f;
+        main.startSize = new ParticleSystem.MinMaxCurve(0.35f, 1.4f);
+
+        // 알갱이마다 돌려 둔다. 같은 그림이 나란히 있으면 무늬가 눈에 띈다.
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+
+        // 알갱이마다 돌려 둔다. 같은 그림이 나란히 있으면 무늬가 눈에 띈다.
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+
+        // 더하기로 섞으므로 하나하나는 옅어야 한다. 겹치는 데서 밝아진다.
+        main.startColor = new Color(1f, 1f, 1f, 0.22f);
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 2500;
+        main.playOnAwake = true;
+
+        // 배 둘레 넓게 뿌린다. 배 밑에 생기는 것은 선체에 가려 안 보인다.
+        ParticleSystem.ShapeModule shape = spray.shape;
+        shape.enabled = true;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = new Vector3(WakeWidth, 0.1f, WakeLength);
+        shape.rotation = Vector3.zero;
+
+        ParticleSystem.EmissionModule emission = spray.emission;
+        emission.enabled = true;
+        emission.rateOverTime = 240f;
+
+        // 알갱이마다 흐르는 속도를 조금씩 다르게. 다 같은 속도로 가면
+        // **판때기 하나가 통째로 미끄러지는 것**처럼 보인다.
+        ParticleSystem.VelocityOverLifetimeModule drift = spray.velocityOverLifetime;
+        drift.enabled = true;
+        drift.space = ParticleSystemSimulationSpace.World;
+        // ⚠ x · y · z 를 **전부 같은 방식으로** 줘야 합니다.
+        //    하나만 빼면 "Particle Velocity curves must all be in the same mode" 가 납니다.
+        drift.x = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+        drift.y = new ParticleSystem.MinMaxCurve(0f, 0f);
+        drift.z = new ParticleSystem.MinMaxCurve(-0.8f, 0.8f);
+
+        // 생겼다가 사라진다. 갑자기 툭 사라지면 눈에 걸린다.
+        ParticleSystem.ColorOverLifetimeModule fade = spray.colorOverLifetime;
+        fade.enabled = true;
+
+        Gradient gradient = new Gradient();
+        gradient.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(1f, 0.15f),
+                new GradientAlphaKey(0f, 1f),
+            });
+
+        fade.color = new ParticleSystem.MinMaxGradient(gradient);
+
+        // 퍼지면서 옅어진다. 물살이 번지는 모양이다.
+        ParticleSystem.SizeOverLifetimeModule grow = spray.sizeOverLifetime;
+        grow.enabled = true;
+        grow.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.5f, 1f, 1.8f));
+
+        ParticleSystemRenderer draw = go.GetComponent<ParticleSystemRenderer>();
+        draw.sharedMaterial = foam;
+        draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        draw.receiveShadows = false;
+
+        // ⚠ **물 위에 눕혀서 그려야 합니다.**
+        //    보통 빌보드는 카메라를 향해 **서 있어서** 안개 기둥처럼 보입니다.
+        //    HorizontalBillboard 가 바닥에 눕혀 그립니다. 물거품은 수면에 붙어 있어야 합니다.
+        draw.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+        draw.sortingFudge = -10f;   // 물 판보다 앞에 그린다
+
+        ShipCoopWake driver = go.GetComponent<ShipCoopWake>();
+
+        if (driver == null)
+        {
+            driver = Undo.AddComponent<ShipCoopWake>(go);
+        }
+
+        // ⚠ **값도 덮어씁니다.** 컴포넌트가 이미 씬에 있으면 코드의 기본값이
+        //    반영되지 않습니다. 붙일 때 한 번 정해진 값이 그대로 남습니다.
+        SerializedObject wso = new SerializedObject(driver);
+        wso.FindProperty("mostPerSecond").floatValue = 420f;
+        wso.FindProperty("leastPerSecond").floatValue = 90f;
+        wso.FindProperty("flowRatio").floatValue = 2.2f;
+        wso.FindProperty("leastFlow").floatValue = 2f;
+        wso.ApplyModifiedProperties();
+
+        log.AppendLine($"  물살을 배 둘레 {WakeWidth:F0} × {WakeLength:F0}m 에 뿌리게 했습니다");
     }
 
     /// <summary>
@@ -1278,6 +1662,8 @@ public static class ShipCoopDeckLayout
             return;
         }
 
+        ShowHullFoam(water, log);
+
         Transform group = FindOrCreateGroup(sea.transform, SeaGroupName);
 
         for (int i = group.childCount - 1; i >= 0; i--)
@@ -1359,6 +1745,59 @@ public static class ShipCoopDeckLayout
         log.AppendLine($"  로비 물을 베껴 우리 것을 만들었습니다: {WaterMaterialPath}");
 
         return AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
+    }
+
+    /// <summary>
+    /// 🌊 물이 배에 닿는 자리에 **거품**이 생기게 한다.
+    ///
+    /// ⚠ 이 셰이더에는 원래 그 기능이 있습니다. `_Enable_Shore_Foam` 이 켜져 있는데도
+    ///    안 보였던 것은 **거품 색의 알파가 0** 이었기 때문입니다. 그리긴 그리는데
+    ///    투명해서 안 보이던 것입니다.
+    ///
+    /// 파티클로 흉내낸 것보다 이쪽이 낫습니다. **선체를 따라 저절로 생기고**,
+    /// 물결과 같은 셰이더라 따로 놀지 않습니다.
+    ///
+    /// 로비 원본이 아니라 **우리 사본**만 고칩니다. (WaterMaterialPath)
+    /// </summary>
+    private static void ShowHullFoam(Material water, StringBuilder log)
+    {
+        if (water == null)
+        {
+            return;
+        }
+
+        Undo.RecordObject(water, "배 모델과 갑판 배치");
+
+        SetAlpha(water, "_Foam_Color", 1f);
+        SetAlpha(water, "_Shore_Foam_Color_Tint", 1f);
+        SetAlpha(water, "_Ocean_Wave_Foam_Color", 1f);
+
+        if (water.HasProperty("_Shore_Foam_Intensity"))
+        {
+            water.SetFloat("_Shore_Foam_Intensity", 1f);
+        }
+
+        if (water.HasProperty("_Shore_Edge_Opacity"))
+        {
+            water.SetFloat("_Shore_Edge_Opacity", 0.6f);
+        }
+
+        EditorUtility.SetDirty(water);
+        AssetDatabase.SaveAssets();
+
+        log.AppendLine("  물이 배에 닿는 자리에 거품이 보이게 했습니다 (셰이더 기능, 알파가 0 이었음)");
+    }
+
+    private static void SetAlpha(Material material, string name, float alpha)
+    {
+        if (!material.HasProperty(name))
+        {
+            return;
+        }
+
+        Color color = material.GetColor(name);
+        color.a = alpha;
+        material.SetColor(name, color);
     }
 
     /// <summary>
