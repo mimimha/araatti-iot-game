@@ -224,7 +224,62 @@ public static class ShipCoopDeckLayout
 
         log.AppendLine($"  배 모델을 놓고 콜라이더 {off}개를 껐습니다. (평평한 큐브가 바닥을 맡습니다)");
 
+        TurnOffShipParts(ship, log);
         MoveShipCannon(ship, log);
+    }
+
+    /// <summary>
+    /// 배에서 **아예 빼는 부분.**
+    ///
+    /// 층마다 감췄다 보였다 하는 것(`hideWhenHere`)과 다릅니다. 이건 **늘 꺼둡니다.**
+    /// 어느 층에서 봐도 방해만 되는 것들입니다.
+    ///
+    /// **뒷 돛대 한 벌을 통째로 뺍니다.** 뒷갑판이 조타 자리라 여기가 제일 중요한데,
+    /// 돛대가 카메라에서 9.5m 앞에 서 있어서 화면을 세로로 가릅니다.
+    ///
+    ///   MastAft     기둥. 화면을 위아래로 가로지른다
+    ///   SailAft     뒷 돛. 조타륜 바로 위를 검게 덮는다
+    ///   Flag_02     그 기둥 꼭대기의 깃발
+    ///   RiggingAft  그 기둥에 걸린 밧줄 사다리
+    ///
+    /// 넷을 같이 빼는 이유는 **하나만 빼면 나머지가 허공에 뜨기** 때문입니다.
+    /// 게임에서 쓰이지도 않습니다 — ⛵ 돛 작업은 주 돛대 하나만 씁니다.
+    ///
+    /// ⚠ **프리팹 파일은 건드리지 않습니다.** 씬에 놓인 배에서만 끕니다.
+    ///
+    ///    `P_PirateShip` 은 **로비(Lobby.unity)도 씁니다.** 프리팹에서 지우면
+    ///    로비에 서 있는 배의 돛대까지 말없이 없어집니다.
+    ///    되돌리려면 이 목록에서 이름만 빼면 됩니다.
+    /// </summary>
+    private static readonly string[] RemoveFromShip =
+    {
+        "MastAft", "SailAft", "Flag_02", "RiggingAft",
+    };
+
+    private static void TurnOffShipParts(GameObject ship, StringBuilder log)
+    {
+        int turned = 0;
+
+        foreach (Transform t in ship.GetComponentsInChildren<Transform>(true))
+        {
+            if (System.Array.IndexOf(RemoveFromShip, t.name) < 0)
+            {
+                continue;
+            }
+
+            if (t.gameObject.activeSelf)
+            {
+                Undo.RecordObject(t.gameObject, "배 모델과 갑판 배치");
+                t.gameObject.SetActive(false);
+            }
+
+            turned++;
+        }
+
+        if (turned > 0)
+        {
+            log.AppendLine($"  배에서 {turned}개를 껐습니다: {string.Join(", ", RemoveFromShip)}");
+        }
     }
 
     /// <summary>
@@ -848,6 +903,19 @@ public static class ShipCoopDeckLayout
 
         Undo.RecordObject(found[0].transform, "배 모델과 갑판 배치");
         found[0].transform.position = position;
+
+        // 자리 표시용 큐브는 끈다. **배에 있는 실물이 대신 보여줍니다.**
+        // 조타륜 · 돛대 · 대포 위에 정확히 올려 두었으므로 큐브는 그 안에 묻혀 있고,
+        // 삐져나오면 오히려 지저분합니다. 콜라이더는 살려둡니다 — 돛대와 대포는
+        // 걸어서 통과하면 안 되는 물건입니다.
+        foreach (Renderer draw in found[0].GetComponentsInChildren<Renderer>(true))
+        {
+            if (draw.enabled)
+            {
+                Undo.RecordObject(draw, "배 모델과 갑판 배치");
+                draw.enabled = false;
+            }
+        }
 
         string extra = found.Length > 1 ? $"  ⚠ {found.Length}개 중 첫 번째만" : "";
         log.AppendLine($"    {label,-14}  {Describe(position)}{extra}");
