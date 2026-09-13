@@ -213,24 +213,74 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        AmmoBox box = FindReachableBox();
-        if (box == null || !ShipCoopInput.ConsumeInteract(input))
+        // 갑판에 놓인 것이 먼저다. 상자보다 가까이 있고, 주우러 온 것이기 때문이다.
+        DroppedCargo lying = FindReachableDrop();
+        AmmoBox box = lying != null ? null : FindReachableBox();
+
+        if (lying == null && box == null)
         {
             return;
         }
 
-        if (!box.TryTake())
+        if (!ShipCoopInput.ConsumeInteract(input))
         {
             return;
         }
 
-        Carrying = box.Kind;
+        Cargo taken;
+
+        if (lying != null)
+        {
+            taken = lying.Take();
+        }
+        else
+        {
+            if (!box.TryTake())
+            {
+                return;
+            }
+
+            taken = box.Kind;
+        }
+
+        Carrying = taken;
         _worker.HandsBusy = true;
         ShowHeld(true);
 
         input.VibrateBoth(0.3f, 0.1f);
         Debug.Log($"[{name}] {NameOf(Carrying)} 을(를) 집었다. 양손이 묶였다.", this);
         PickedUp?.Invoke();
+    }
+
+    /// <summary>
+    /// 손이 닿는 곳에 **갑판에 놓인 물건** 중 가장 가까운 것. 없으면 null.
+    ///
+    /// 급할 때 던져두고 간 것을 다시 주우러 오는 길입니다. HUD 안내도 이걸 봅니다.
+    /// </summary>
+    public DroppedCargo FindReachableDrop()
+    {
+        DroppedCargo best = null;
+        float bestSqr = float.MaxValue;
+        Vector3 here = transform.position;
+
+        for (int i = 0; i < DroppedCargo.All.Count; i++)
+        {
+            DroppedCargo lying = DroppedCargo.All[i];
+
+            if (lying == null || !lying.IsInReach(here))
+            {
+                continue;
+            }
+
+            float sqr = (lying.transform.position - here).sqrMagnitude;
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = lying;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>손이 닿는 포탄 상자 중 가장 가까운 것. 없으면 null. HUD 안내가 이걸 본다.</summary>
@@ -420,7 +470,14 @@ public class CarryTask : MonoBehaviour
 
         if (notify)
         {
-            Debug.Log($"[{name}] 손을 놓아 {NameOf(dropped)} 을(를) 떨어뜨렸다.", this);
+            // **갑판에 남긴다.** 예전에는 여기서 그냥 사라졌다.
+            //
+            // 사라지면 운반을 중간에 멈출 수가 없다. 나르다 급한 일이 생겨도
+            // 끝까지 나르거나 물건을 버리거나 둘 중 하나라, 사람은 하던 일을 마친다.
+            // 그러면 "지금 누가 무엇을 해야 하는가" 를 판단할 일이 없어진다. (1장)
+            DroppedCargo.Drop(dropped, transform);
+
+            Debug.Log($"[{name}] {NameOf(dropped)} 을(를) 갑판에 내려놨다. 나중에 주우면 된다.", this);
             Dropped?.Invoke();
         }
     }
