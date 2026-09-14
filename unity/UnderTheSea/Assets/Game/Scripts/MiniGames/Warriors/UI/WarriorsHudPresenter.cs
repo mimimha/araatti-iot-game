@@ -27,6 +27,37 @@ namespace Warriors
         [SerializeField] private UnityEngine.UI.Image rewardGem;
 
         [Header("Top HUD")]
+        /// <summary>
+        /// 네트워크 매치 안내. 비어 있으면 예전처럼 라운드 이름이 뜬다.
+        ///
+        /// "두 명을 기다리는 중" . "3초 뒤 시작" 처럼 전투 밖의 상태를 보여주는 데 쓴다.
+        /// 혼자 하는 씬에서는 아무도 넣지 않으므로 하나도 안 바뀐다.
+        /// </summary>
+        public string MatchNotice { get; set; }
+
+        /// <summary>매치 안내의 둘째 줄. 시간 자리에 뜬다. (남은 목숨 등)</summary>
+        public string MatchDetail { get; set; }
+
+        /// <summary>
+        /// 네트워크 3페이즈가 돌고 있는가. 서버가 준 노트로 리듬 화면을 그린다.
+        ///
+        /// 혼자 하는 씬에서는 아무도 켜지 않으므로 예전 경로(<c>WarriorsRhythmBattle</c>)
+        /// 그대로다. 둘 중 하나만 켜진다.
+        /// </summary>
+        public bool NetworkRhythmActive { get; set; }
+
+        /// <summary>서버가 준 노트. 레인 번호가 그대로 사람 번호다.</summary>
+        public readonly List<WarriorsRhythmNoteView> NetworkRhythmNotes = new();
+
+        /// <summary>남은 목표를 0~1 로. 크라켄 막대 자리에 그린다.</summary>
+        public float NetworkRhythmProgress { get; set; }
+
+        /// <summary>"최후의 일격 3 / 15" 같은 한 줄.</summary>
+        public string NetworkRhythmDetail { get; set; }
+
+        /// <summary>"1P 목숨 3   2P DOWN". 3분 시계 자리에 대신 들어간다.</summary>
+        public string NetworkRhythmLives { get; set; }
+
         [SerializeField] private GameObject standardHud;
         [SerializeField] private TMP_Text roundText;
         [SerializeField] private TMP_Text timeText;
@@ -179,7 +210,10 @@ namespace Warriors
                 if (score == null || flow == null) return;
             }
 
-            bool isRhythm = flow.Phase == WarriorsBattlePhase.FinalKrakenPhase && rhythm != null && rhythm.IsActive;
+            // 네트워크에서는 WarriorsGameFlow 가 꺼져 있어 Phase 가 움직이지 않는다.
+            // 서버가 켜 준 값으로 같은 화면을 띄운다.
+            bool isRhythm = NetworkRhythmActive ||
+                            (flow.Phase == WarriorsBattlePhase.FinalKrakenPhase && rhythm != null && rhythm.IsActive);
             bool isFinalOverlay = flow.Phase == WarriorsBattlePhase.FinalSwingPhase ||
                                   flow.Phase == WarriorsBattlePhase.Clear ||
                                   flow.Phase == WarriorsBattlePhase.Failed;
@@ -219,8 +253,13 @@ namespace Warriors
                 ? flow.TentacleSuccesses / (float)Mathf.Max(1, flow.TentacleSuccessesRequired)
                 : score.Progress;
 
-            Set(roundText, tentacle ? "ROUND 2  ·  크라켄 등장" : "ROUND 1  ·  몬스터 습격");
-            Set(timeText, $"{secondsLeft / 60:00}:{secondsLeft % 60:00}");
+            // 매치 안내가 있으면 그쪽이 먼저다. 대기 · 카운트다운 · 결과에만 쓰인다.
+            Set(roundText, string.IsNullOrEmpty(MatchNotice)
+                ? (tentacle ? "ROUND 2  ·  크라켄 등장" : "ROUND 1  ·  몬스터 습격")
+                : MatchNotice);
+            Set(timeText, string.IsNullOrEmpty(MatchDetail)
+                ? $"{secondsLeft / 60:00}:{secondsLeft % 60:00}"
+                : MatchDetail);
             Set(hpText, $"HP  {hp}");
             SetFill(hpFill, hp / (float)Mathf.Max(1, maxHp));
             Set(phaseValueText, tentacle
@@ -480,8 +519,11 @@ namespace Warriors
         private void UpdateRhythmHud()
         {
             int secondsLeft = Mathf.CeilToInt(score.RemainingSeconds);
-            Set(rhythmRoundText, "ROUND 3  ·  최종 결전");
-            Set(rhythmTimeText, $"{secondsLeft / 60:00}:{secondsLeft % 60:00}");
+            Set(rhythmRoundText, string.IsNullOrEmpty(MatchNotice) ? "ROUND 3  ·  최종 결전" : MatchNotice);
+            // 네트워크에서는 3분 시계로 지지 않는다. 그 자리에 남은 목숨을 보여 준다.
+            Set(rhythmTimeText, NetworkRhythmActive
+                ? NetworkRhythmLives
+                : $"{secondsLeft / 60:00}:{secondsLeft % 60:00}");
             // ROUND 3 is the round that actually hits back - the counter takes ten off
             // the player - and it was the one round with no health on screen at all.
             int hp = playerHealth != null ? playerHealth.CurrentHealth : 100;
@@ -491,8 +533,18 @@ namespace Warriors
             // ROUND 1 and 2 put a number on the centre panel; the boss bar was the one
             // round that gave a colour and nothing to read. The percentage matches the
             // fill, so the line and the bar say the same thing.
-            Set(rhythmBossText, $"크라켄   {flow.FinalKrakenHealthPercent}%");
-            SetFill(rhythmBossFill, flow.FinalKrakenHealthPercent / 100f);
+            if (NetworkRhythmActive)
+            {
+                // 네트워크 3페이즈는 크라켄 HP 가 아니라 **팀 합산 목표**로 끝난다.
+                // 같은 막대에 같은 뜻(얼마나 남았나)을 그리되 분모가 다르다.
+                Set(rhythmBossText, NetworkRhythmDetail);
+                SetFill(rhythmBossFill, 1f - Mathf.Clamp01(NetworkRhythmProgress));
+            }
+            else
+            {
+                Set(rhythmBossText, $"크라켄   {flow.FinalKrakenHealthPercent}%");
+                SetFill(rhythmBossFill, flow.FinalKrakenHealthPercent / 100f);
+            }
             Set(rhythmScoreText, score.Score.ToString("N0"));
             Set(rhythmComboText, $"COMBO  {rhythm.Combo}");
             string judgement = Korean(rhythm.ActiveJudgement);
@@ -501,7 +553,15 @@ namespace Warriors
             // than sitting on the lane as an empty box.
             SetActive(rhythmJudgementChip, !string.IsNullOrEmpty(judgement));
 
-            rhythm.CopyVisibleNotes(visibleNotes);
+            if (NetworkRhythmActive)
+            {
+                visibleNotes.Clear();
+                visibleNotes.AddRange(NetworkRhythmNotes);
+            }
+            else
+            {
+                rhythm.CopyVisibleNotes(visibleNotes);
+            }
             CacheRhythmNoteFills();
 
             // One lane per player who is actually here: solo reads as a single central

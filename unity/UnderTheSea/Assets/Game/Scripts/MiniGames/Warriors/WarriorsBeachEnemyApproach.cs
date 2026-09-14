@@ -139,6 +139,14 @@ namespace Warriors
             stoppingDistance = 2.2f;
         }
 
+        /// <summary>
+        /// **쫓아갈 사람을 바꾼다.** 서버가 가장 가까운 생존자를 골라 넣는다.
+        ///
+        /// <c>Configure</c> 를 다시 부르면 스폰 지점과 지면 높이까지 덮어써서
+        /// 솟아오르는 연출이 다시 시작된다. 여기서는 대상만 바꾼다.
+        /// </summary>
+        public void RetargetPlayer(Transform playerTarget) => player = playerTarget;
+
         /// <summary>Short hit reaction. Capped so it can never become a retreat.</summary>
         public void Retreat(float duration) => retreatUntil = Time.time + Mathf.Clamp(duration, .05f, .25f);
     }

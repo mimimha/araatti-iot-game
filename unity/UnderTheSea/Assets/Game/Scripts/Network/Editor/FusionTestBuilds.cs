@@ -71,6 +71,21 @@ namespace UnderTheSea.Network.Editor
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
 
         /// <summary>
+        /// Warriors 전환용 씬. <b>순서가 중요하다.</b>
+        ///
+        /// 첫 씬이 시작 씬(<c>WarriorsBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
+        /// Fusion 이 같은 씬을 한 벌 더 열어 아레나와 HUD 가 두 개가 된다.
+        /// </summary>
+        private static readonly string[] WarriorsScenes =
+        {
+            "Assets/Game/Scenes/Main/MiniGames/WarriorsBoot.unity",
+            "Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity",
+        };
+
+        private const string WarriorsServerOutput = "Builds/WarriorsServer/AraAtti-WarriorsServer.exe";
+        private const string WarriorsClientOutput = "Builds/WarriorsClient/AraAtti-WarriorsClient.exe";
+
+        /// <summary>
         /// QA 클라이언트는 <b>반드시 Development Build</b> 로 만든다.
         ///
         /// <c>-devjoin</c> 은 <c>FusionDevEntry</c> 안에서 <c>DEVELOPMENT_BUILD</c> 로 막혀 있다.
@@ -101,6 +116,34 @@ namespace UnderTheSea.Network.Editor
         public static void BuildClientFromCommandLine()
         {
             ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions));
+        }
+
+        [MenuItem(MenuRoot + "Warriors 서버 빌드 (Dedicated Server)")]
+        public static void BuildWarriorsServer()
+        {
+            ExitIfCommandLine(Build(
+                WarriorsServerOutput, StandaloneBuildSubtarget.Server, WarriorsScenes, BuildOptions.None));
+        }
+
+        [MenuItem(MenuRoot + "Warriors 클라이언트 빌드")]
+        public static void BuildWarriorsClient()
+        {
+            ExitIfCommandLine(Build(
+                WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildWarriorsServerFromCommandLine()
+        {
+            ExitWith(Build(
+                WarriorsServerOutput, StandaloneBuildSubtarget.Server, WarriorsScenes, BuildOptions.None));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildWarriorsClientFromCommandLine()
+        {
+            ExitWith(Build(
+                WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
         }
 
         [MenuItem(MenuRoot + "정상 흐름 클라이언트 빌드 (Boot 부터)")]

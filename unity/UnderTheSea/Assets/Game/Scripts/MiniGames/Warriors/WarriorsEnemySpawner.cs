@@ -35,6 +35,15 @@ namespace Warriors
 
         public void BindPlayer(Transform target) => player = target;
 
+        /// <summary>
+        /// 몬스터를 **만드는 방법**. 비어 있으면 예전처럼 <c>Instantiate</c> 한다.
+        ///
+        /// 네트워크에서는 서버가 <c>Runner.Spawn</c> 으로 만들도록 갈아끼운다.
+        /// 그래야 두 사람이 <b>같은 몬스터</b>를 보고, 늦게 들어온 사람에게도 그대로 생긴다.
+        /// (<c>WarriorsEnemyDirector</c> 가 끼우고 뺀다)
+        /// </summary>
+        public static System.Func<WarriorsTarget, Vector3, Quaternion, Transform, WarriorsTarget> Factory;
+
         // Shorthand for the three weaknesses so the composition tables below read the
         // way the design doc writes them.
         private const WarriorsAttackDirection Fish = WarriorsAttackDirection.HorizontalSlash;
@@ -150,7 +159,11 @@ namespace Warriors
                 foreach (var existingEnemy in alive)
                     if (existingEnemy != null && Vector3.Distance(existingEnemy.transform.position, position) < minimumSpawnDistance) { clear = false; break; }
                 if (!clear) continue;
-                WarriorsTarget enemy = Instantiate(source, position, point.rotation, enemyParent);
+                WarriorsTarget enemy = Factory != null
+                    ? Factory(source, position, point.rotation, enemyParent)
+                    : Instantiate(source, position, point.rotation, enemyParent);
+
+                if (enemy == null) return false;
                 var approach = enemy.GetComponent<WarriorsBeachEnemyApproach>();
                 if (approach == null) approach = enemy.gameObject.AddComponent<WarriorsBeachEnemyApproach>();
                 approach.Configure(player, null, .65f);

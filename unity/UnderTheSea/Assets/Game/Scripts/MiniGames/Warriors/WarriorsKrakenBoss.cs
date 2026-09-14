@@ -111,6 +111,68 @@ namespace Warriors
         /// </summary>
         public void ConfigurePlayer(WarriorsHealth health) => playerHealth = health;
 
+        // ------------------------------------------------------------
+        // 네트워크 전환용 덧붙임 (Warriors 서버화 4단계)
+        // 아래 셋은 **읽기와 연출만** 한다. 위의 규칙 코드는 하나도 건드리지 않았다.
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// 촉수 목록. 왼쪽부터 오른쪽 순서다.
+        ///
+        /// 서버가 "P1 은 왼쪽, P2 는 오른쪽" 을 정하려면 어느 팔이 어느 쪽인지 알아야 한다.
+        /// 자식에서 <c>WarriorsTarget</c> 을 긁어 모으면 약점 오브젝트까지 딸려 오고
+        /// 순서도 보장되지 않아, 인스펙터에 꽂힌 이 배열을 그대로 내보낸다.
+        /// </summary>
+        public IReadOnlyList<WarriorsTarget> Tentacles => tentacles;
+
+        /// <summary>
+        /// 촉수 무대만 세운다. **패턴 코루틴은 돌리지 않는다.**
+        ///
+        /// <c>BeginBattle</c> 은 무대를 세우고 곧바로 정해진 5패턴을 순서대로 돌린다.
+        /// 네트워크에서는 <b>서버가</b> 사람마다 따로 촉수를 올리고 목표 횟수로 끝내므로
+        /// 그 코루틴이 돌면 판이 둘로 갈린다. 그래서 앞부분만 따로 뺐다.
+        ///
+        /// <c>tentaclePhaseHead</c> · <c>finalFormRoot</c> · <c>weakPoint</c> 가 모두
+        /// private 참조라 밖에서는 켜고 끌 수 없다. 그래서 이 함수가 여기에 있다.
+        /// </summary>
+        public void PrepareNetworkTentacleStage()
+        {
+            gameObject.SetActive(true);
+            if (tentaclePhaseHead != null) tentaclePhaseHead.SetActive(true);
+            if (finalFormRoot != null) finalFormRoot.SetActive(false);
+            else if (body != null) body.gameObject.SetActive(false);
+            if (weakPoint != null) weakPoint.SetActive(false);
+
+            TentacleSuccesses = 0;
+            teamGauge?.ResetGauge();
+            tentaclePhaseComplete = false;
+            RemainingTentacles = 0;
+            lastSoloSlot = -1;
+            activePattern.Clear();
+
+            for (int i = 0; i < tentacles.Length; i++)
+            {
+                if (tentacles[i] == null) continue;
+                tentacles[i].SetAttackEnabled(false);
+                tentacles[i].gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>
+        /// 촉수가 맞고 휘청이는 **모습만** 낸다. 판정도 약점 재추첨도 하지 않는다.
+        ///
+        /// 서버가 맞았다고 정하면 모든 화면이 이 함수로 같은 반응을 낸다.
+        /// 같은 촉수가 아직 흔들리는 중이면 겹쳐 재생하지 않는다.
+        /// </summary>
+        public void ShowTentacleHit(WarriorsTarget tentacle, WarriorsAttackDirection direction)
+        {
+            if (tentacle == null || !isActiveAndEnabled) return;
+            if (!reactingTentacles.Add(tentacle)) return;
+
+            tentacleDeformer?.PlayHit(tentacle);
+            StartCoroutine(TentacleHitReaction(tentacle, direction));
+        }
+
         private WarriorsHealth playerHealth;
 
         public void BeginBattle()

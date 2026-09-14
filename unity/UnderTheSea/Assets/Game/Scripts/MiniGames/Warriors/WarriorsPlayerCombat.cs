@@ -272,7 +272,7 @@ namespace Warriors
                 // ROUND 2 is a pattern puzzle rather than a sweep.  One swing may only ever
                 // take the single nearest tentacle, so two tentacles that happen to share a
                 // weakness can never fall to the same slash.
-                if (tentacle.TryReceiveAttack(direction, damage))
+                if (tentacle.TryReceiveAttack(direction, damage, gameObject))
                 {
                     acceptedCount++;
                     tentacle.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
@@ -284,7 +284,7 @@ namespace Warriors
                 // point of the round.
                 foreach (WarriorsTarget target in attackCandidates)
                 {
-                    if (!target.TryReceiveAttack(direction, damage)) continue;
+                    if (!target.TryReceiveAttack(direction, damage, gameObject)) continue;
                     acceptedCount++;
                     target.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
                 }
@@ -311,7 +311,7 @@ namespace Warriors
                 // A tentacle that was just struck is still inside its hit cooldown. Picking it
                 // again would swallow the swing and leave the other tentacle untouchable, so
                 // the nearest one that can actually take the hit wins.
-                if (candidate.CanReceiveAttack(direction))
+                if (candidate.CanReceiveAttack(direction, gameObject))
                 {
                     if (distance >= nearestDistance) continue;
                     nearestDistance = distance;
