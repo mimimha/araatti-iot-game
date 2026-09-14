@@ -11,6 +11,13 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 {
+    public bool IsMovementLocked { get; private set; }
+
+    public void SetMovementLocked(bool locked)
+    {
+        IsMovementLocked = locked;
+    }
+
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         NetworkInputData data = new NetworkInputData();
@@ -27,7 +34,7 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
             if (keyboard.dKey.isPressed) direction.x += 1f;
             if (keyboard.aKey.isPressed) direction.x -= 1f;
 
-            data.Direction = direction;
+            data.Direction = ApplyMovementLock(direction);
         }
 
         // 이동을 카메라 기준으로 돌리기 위해 로컬 카메라의 Y 각도를 함께 보낸다.
@@ -42,6 +49,11 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         // 포커스가 없으면 Direction이 zero인 채로 전달된다. 입력을 아예 보내지 않으면
         // Host가 이전 tick 입력을 재사용해 캐릭터가 계속 미끄러진다.
         input.Set(data);
+    }
+
+    private Vector2 ApplyMovementLock(Vector2 direction)
+    {
+        return IsMovementLocked ? Vector2.zero : direction;
     }
 
     #region Unused
