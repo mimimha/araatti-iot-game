@@ -11,8 +11,12 @@ using UnityEngine;
 /// MineGame 이 <see cref="ConsumeRestoreRequest"/> 로 가져간다.
 /// 그래야 화살표가 MineGame → MineDigger 한 방향으로 유지된다.
 ///
-/// 힌트 사용 여부만 여기 있다. **1인 1회라 사람에 붙는 값**이기 때문이다.
+/// 힌트 사용 여부만 여기 있다. **사람에 붙는 값**이기 때문이다.
 /// 복구 개수는 팀 공용이라 MineGame 에 있다. (MINE.md 2·4장)
+///
+/// 정확히는 **자기 턴에 1회**다. 턴 수 = 사람 수이므로 실제 게임에서는
+/// "1인 1회" 와 같은 말이지만, 혼자 테스트할 때는 한 사람이 네 턴을 다 돌기 때문에
+/// 사람에만 매어두면 첫 턴에 쓰고 끝난다. 턴이 시작될 때 MineGame 이 되돌려준다.
 ///
 /// ⚠ 키보드의 손 매핑에 주의한다. 같은 버튼이라도 손이 다르다.
 ///     스윙(F)  → **오른손** 기기
@@ -166,6 +170,14 @@ public class MineDigger : MonoBehaviour
 
     /// <summary>힌트를 썼다고 표시한다. 쓸 수 있는지는 MineGame 이 이미 확인했다.</summary>
     public void MarkHintUsed() => HintUsed = true;
+
+    /// <summary>
+    /// 새 턴이 시작될 때 힌트를 되돌려준다. MineGame 이 불러준다.
+    ///
+    /// 실제 게임에서는 한 사람이 한 턴만 돌므로 아무것도 안 바뀐다.
+    /// 혼자 테스트할 때 한 사람이 네 턴을 도는 경우에만 의미가 있다.
+    /// </summary>
+    public void ResetHintForNewTurn() => HintUsed = false;
 
     /// <summary>
     /// 발밑 칸을 되메운다. 성공했으면 true.

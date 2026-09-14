@@ -97,6 +97,10 @@ public class MineHud : MonoBehaviour
     /// <summary>지난 프레임에 그린 초. 같으면 문자열을 다시 만들지 않는다.</summary>
     private int _shownSeconds = -1;
 
+    // 힌트는 이벤트가 없다. 지난 프레임 값과 견줘서 바뀔 때만 다시 그린다.
+    private bool _shownHintReady;
+    private bool _shownHintShowing;
+
     private void Awake()
     {
         if (game == null) game = FindAnyObjectByType<MineGame>(FindObjectsInactive.Include);
@@ -150,6 +154,18 @@ public class MineHud : MonoBehaviour
                        || game.State == MineState.Turn
                        || game.State == MineState.TurnGap;
 
+        // ⚠ 힌트는 쓴 순간에 알려주는 이벤트가 없다. MineGame 이 알리는 것은
+        //   상태 전환 · 턴 시작 · 복구 변화 뿐이고, 힌트를 쓰는 것은 그 셋 중
+        //   아무것도 아니다. 그래서 여기서 값을 보고 바뀌면 다시 그린다.
+        //   (전에는 다음 턴 시작 때 얻어걸려 갱신됐는데, 턴마다 힌트를
+        //    되돌려주게 바꾸면서 영영 안 바뀌게 됐다)
+        if (game.HintAvailable != _shownHintReady || game.HintShowing != _shownHintShowing)
+        {
+            _shownHintReady = game.HintAvailable;
+            _shownHintShowing = game.HintShowing;
+            RefreshHint();
+        }
+
         int seconds = ticking ? Mathf.CeilToInt(game.TimeLeft) : 0;
         if (seconds == _shownSeconds) return;
 
@@ -201,6 +217,8 @@ public class MineHud : MonoBehaviour
         RefreshResult();
 
         _shownSeconds = -1;   // 다음 Update 에서 다시 그리게 한다
+        _shownHintReady = game.HintAvailable;
+        _shownHintShowing = game.HintShowing;
         RefreshPlayers();
         RefreshRestore();
         RefreshHint();
