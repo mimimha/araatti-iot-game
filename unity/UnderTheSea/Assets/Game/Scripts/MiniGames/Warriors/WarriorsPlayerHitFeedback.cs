@@ -19,12 +19,36 @@ namespace Warriors
         {
             flashBlock = new MaterialPropertyBlock();
             health = GetComponent<WarriorsHealth>();
-            renderers = GetComponentsInChildren<Renderer>(true);
+            renderers = CollectFlashRenderers();
             if (visualRoot != null)
             {
                 restPosition = visualRoot.localPosition;
                 restRotation = visualRoot.localRotation;
             }
+        }
+
+        /// <summary>
+        /// Everything the hit flash is allowed to repaint. It used to be every renderer on
+        /// the avatar, which flattened the face to one red shape and left the glasses
+        /// standing out as the only dark thing on it - so taking a hit looked like the
+        /// character was putting sunglasses on. The face reads as a face either way now;
+        /// the body still carries the flash.
+        /// </summary>
+        private static readonly string[] FaceParts =
+            { "Glasses", "Faces", "Face_Accessories", "Hairstyle", "Hat", "Ears" };
+
+        private Renderer[] CollectFlashRenderers()
+        {
+            var kept = new System.Collections.Generic.List<Renderer>();
+            foreach (Renderer item in GetComponentsInChildren<Renderer>(true))
+            {
+                if (item is TrailRenderer || item is ParticleSystemRenderer) continue;
+                bool isFace = false;
+                foreach (string part in FaceParts)
+                    if (item.name == part) { isFace = true; break; }
+                if (!isFace) kept.Add(item);
+            }
+            return kept.ToArray();
         }
 
         private void OnEnable()

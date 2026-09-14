@@ -16,6 +16,57 @@ namespace Warriors
         public GameObject EquippedWeapon { get; private set; }
         public WarriorsWeaponHitbox Hitbox { get; private set; }
 
+        /// <summary>
+        /// Turns the sword trail up for one swing and puts it back afterwards. The trail is
+        /// already on the weapon, so a finisher borrows it rather than spawning anything -
+        /// and because the authored values are captured on equip, repeated finishers cannot
+        /// ratchet it wider and wider.
+        /// </summary>
+        public void SetTrailBoost(bool boosted)
+        {
+            TrailRenderer trail = EquippedWeapon != null
+                ? EquippedWeapon.GetComponent<TrailRenderer>() : null;
+            if (trail == null) return;
+
+            if (!trailCaptured)
+            {
+                // Captured on the first boost rather than at equip time: the combat script
+                // rewrites this trail when the first swing happens, so anything captured
+                // earlier would be restored afterwards as the wrong values.
+                baseTrailTime = trail.time;
+                baseTrailWidth = trail.startWidth;
+                baseTrailGradient = trail.colorGradient;
+                trailCaptured = true;
+            }
+
+            trail.time = boosted ? baseTrailTime * 2.2f : baseTrailTime;
+            trail.startWidth = boosted ? baseTrailWidth * 2.4f : baseTrailWidth;
+            // The gradient is what actually colours a trail - startColor is ignored while
+            // one is assigned, which is why tinting it alone showed nothing.
+            trail.colorGradient = boosted ? BoostGradient : baseTrailGradient;
+        }
+
+        private bool trailCaptured;
+        private float baseTrailTime;
+        private float baseTrailWidth;
+        private Gradient baseTrailGradient;
+
+        private static Gradient boostGradient;
+
+        private static Gradient BoostGradient
+        {
+            get
+            {
+                if (boostGradient != null) return boostGradient;
+                boostGradient = new Gradient();
+                boostGradient.SetKeys(
+                    new[] { new GradientColorKey(new Color(1f, .95f, .7f), 0f),
+                            new GradientColorKey(new Color(1f, .72f, .2f), 1f) },
+                    new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+                return boostGradient;
+            }
+        }
+
         private void Awake() => Equip();
 
         public void Equip()

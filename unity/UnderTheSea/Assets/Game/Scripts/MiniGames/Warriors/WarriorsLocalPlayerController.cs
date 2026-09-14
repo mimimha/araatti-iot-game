@@ -10,6 +10,11 @@ namespace Warriors
         [SerializeField, Min(0f)] private float rotationSpeed = 720f;
         [SerializeField] private Transform cameraTransform;
 
+        // Anything under this is treated as no input at all, so a stick resting slightly
+        // off centre - or a single frame of leftover input - cannot flicker the blend tree
+        // between idle and running.
+        private const float InputDeadZone = .15f;
+
         private CharacterController controller;
         private Animator animator;
 
@@ -37,6 +42,7 @@ namespace Warriors
         public void ApplyMovement(Vector2 input, float deltaTime)
         {
             LastMoveInput = Vector2.ClampMagnitude(input, 1f);
+            if (LastMoveInput.sqrMagnitude < InputDeadZone * InputDeadZone) LastMoveInput = Vector2.zero;
             Vector3 forward = cameraTransform != null ? cameraTransform.forward : Vector3.forward;
             Vector3 right = cameraTransform != null ? cameraTransform.right : Vector3.right;
             forward.y = 0f; right.y = 0f; forward.Normalize(); right.Normalize();
@@ -55,8 +61,9 @@ namespace Warriors
             {
                 animator.SetFloat("Hor", LastMoveInput.x);
                 animator.SetFloat("Vert", LastMoveInput.y);
-                animator.SetFloat("State", movement.sqrMagnitude > 0f ? 1f : 0f);
-                animator.SetFloat("Speed", movement.magnitude);
+                bool moving = movement.sqrMagnitude > InputDeadZone * InputDeadZone;
+                animator.SetFloat("State", moving ? 1f : 0f);
+                animator.SetFloat("Speed", moving ? movement.magnitude : 0f);
                 animator.SetBool("IsGrounded", controller.isGrounded);
             }
         }
@@ -66,9 +73,14 @@ namespace Warriors
         public void RespawnAt(Transform point)
         {
             if (point == null) return;
+            RespawnAt(point.position, point.rotation);
+        }
+
+        public void RespawnAt(Vector3 position, Quaternion rotation)
+        {
             if (controller == null) controller = GetComponent<CharacterController>();
             controller.enabled = false;
-            transform.SetPositionAndRotation(point.position, point.rotation);
+            transform.SetPositionAndRotation(position, rotation);
             controller.enabled = true;
             LastMoveInput = Vector2.zero;
             if (animator == null) animator = GetComponent<Animator>();

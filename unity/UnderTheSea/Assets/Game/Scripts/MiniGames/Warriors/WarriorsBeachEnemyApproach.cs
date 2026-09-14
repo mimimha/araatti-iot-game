@@ -12,10 +12,21 @@ namespace Warriors
         [SerializeField, Min(0.5f)] private float stoppingDistance = 2.5f;
         [SerializeField, Min(0.1f)] private float emergeDuration = 0.7f;
         [SerializeField] private float groundHeight = 0.65f;
+        [SerializeField, Min(0f)] private float holdInsideReach = .55f;
+        [SerializeField, Min(0f)] private float seawardMargin = .45f;
 
         private float elapsed;
         private Vector3 targetOffset;
         private float retreatUntil;
+
+        /// <summary>
+        /// Where this enemy holds its line. The lane offset used to be added on top of
+        /// this, which counted the spread twice: the lane already walks each enemy to one
+        /// side, and adding it again pushed the ring out to four metres - well past the
+        /// reach these enemies strike from. A wave would surround the player and stand
+        /// there, unable to land a single hit.
+        /// </summary>
+        private float HoldDistance => stoppingDistance;
 
         private void OnEnable()
         {
@@ -62,7 +73,7 @@ namespace Warriors
 
             Vector3 offset = player.position + targetOffset - position;
             offset.y = 0f;
-            if (playerDistance > stoppingDistance && offset.magnitude > .35f)
+            if (playerDistance > HoldDistance && offset.magnitude > .35f)
             {
                 position += offset.normalized * (moveSpeed * deltaTime);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation,
@@ -92,18 +103,33 @@ namespace Warriors
             // correction so it opens readable gaps without overpowering pursuit.
             separation = Vector3.ClampMagnitude(separation, 1.4f);
 
-            // Pursuit switches off inside stoppingDistance, so an unfiltered separation
-            // push was the one force still acting near the player - a crowd shoved every
-            // member outwards and the enemies read as running away the moment the player
-            // closed in. Strip the component that points away from the player so the
-            // crowd only slides sideways around each other.
-            float retreatComponent = Vector3.Dot(separation, toPlayer);
-            if (retreatComponent < 0f) separation -= toPlayer * retreatComponent;
+            // Pursuit switches off at the hold distance, so separation is the only force
+            // still acting near the player.  Left alone it shoved the crowd outwards and
+            // the enemies read as running away; stripping only the outward half then let
+            // the inward half push members through the player.  So: outside the hold
+            // distance drop just the retreat, inside it drop the whole radial part and
+            // let the crowd slide sideways around each other.
+            float radial = Vector3.Dot(separation, toPlayer);
+            if (playerDistance <= HoldDistance || radial < 0f) separation -= toPlayer * radial;
 
             position += separation * (2.1f * deltaTime);
             position.y = groundHeight;
+
+            // Everything on this beach comes out of the sea, which is the way the camera is
+            // already looking. Letting the crowd wander round the back put attackers behind
+            // the player where they could not be seen or answered, so they hold the seaward
+            // side. Side to side they still spread as far as the lane offset takes them.
+            if (player != null) position.z = Mathf.Max(position.z, player.position.z + seawardMargin);
             transform.position = position;
         }
+
+        /// <summary>
+        /// The reach belongs to the attack, so the attack is what decides how close the
+        /// walk has to finish. Authoring a stopping distance and a strike range separately
+        /// is how the two drifted apart in the first place.
+        /// </summary>
+        public void ConfigureHoldDistance(float attackRange) =>
+            stoppingDistance = Mathf.Max(.8f, attackRange - holdInsideReach);
 
         public void Configure(Transform playerTarget, Transform point, float height)
         {

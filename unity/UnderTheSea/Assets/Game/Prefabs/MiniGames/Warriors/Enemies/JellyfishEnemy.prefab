@@ -69,6 +69,8 @@ MonoBehaviour:
   requiredDirection: 2
   health: {fileID: 6786962821444295834}
   scoreValue: 100
+  directionalHitPadding: 0.7
+  bossHitsRequired: 2
 --- !u!114 &7355034812805532133
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -102,7 +104,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.95
+  m_Radius: 1.15
   m_Center: {x: 0, y: 0.79999995, z: 0}
 --- !u!114 &4392298530835647140
 MonoBehaviour:

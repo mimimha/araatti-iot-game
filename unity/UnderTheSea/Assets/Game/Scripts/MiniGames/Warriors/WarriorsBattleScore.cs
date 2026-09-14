@@ -9,6 +9,7 @@ namespace Warriors
         [SerializeField, Min(1)] private int targetKills = 30;
         [SerializeField, Min(10f)] private float timeLimitSeconds = 180f;
         private float remainingSeconds;
+        private float totalElapsedSeconds;
         private BattleState state;
         private bool clockRunning;
         private float scoreMultiplier = 1f;
@@ -25,6 +26,13 @@ namespace Warriors
         public int TargetKills => targetKills;
         public float RemainingSeconds => remainingSeconds;
         public float ElapsedSeconds => Mathf.Max(0f, timeLimitSeconds - remainingSeconds);
+
+        /// <summary>
+        /// Every round restarts the clock with its own limit, so ElapsedSeconds only ever
+        /// measures the round in progress - it reported 00:00 on the result card for a run
+        /// that had just ended. This keeps running across all three rounds.
+        /// </summary>
+        public float TotalElapsedSeconds => totalElapsedSeconds;
         public float Progress => Mathf.Clamp01((float)Kills / targetKills);
         public bool IsRunning => state == BattleState.Playing;
         public event Action<bool, int> BattleFinished;
@@ -32,16 +40,36 @@ namespace Warriors
 
         private void OnEnable()
         {
-            Kills = 0; Score = 0; scoreMultiplier = 1f; remainingSeconds = timeLimitSeconds; state = BattleState.Playing; clockRunning = true;
+            Kills = 0; Score = 0; scoreMultiplier = 1f; remainingSeconds = timeLimitSeconds; totalElapsedSeconds = 0f; state = BattleState.Playing; clockRunning = true;
             if (rhythmBattle == null) rhythmBattle = UnityEngine.Object.FindFirstObjectByType<WarriorsRhythmBattle>(FindObjectsInactive.Include);
         }
-        private void Update() { if (!Application.isPlaying || !clockRunning) return; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
+        private void Update() { if (!Application.isPlaying || !clockRunning) return; totalElapsedSeconds += Time.deltaTime; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
         public void RegisterKill(int points) { if (!IsRunning) return; Kills++; Score += Mathf.RoundToInt(Mathf.Max(0, points) * scoreMultiplier); if (Kills >= targetKills) Finish(true); }
         public void RegisterBossHit(int points) { Score += Mathf.Max(0, points); }
         public void SetScoreMultiplier(float value) => scoreMultiplier = Mathf.Max(1f, value);
+
+        /// <summary>
+        /// Two players clear the beach about twice as fast, so a fixed goal would just end
+        /// ROUND 1 in half the time. Scaling the goal keeps the round the same length and
+        /// gives the pair more to cut, which is the part that is supposed to be fun.
+        /// </summary>
+        public void ConfigureTargetKills(int kills) => targetKills = Mathf.Max(1, kills);
         private void Finish(bool success) { if (!IsRunning) return; state = success ? BattleState.Cleared : BattleState.Failed; BattleFinished?.Invoke(success, Score); }
         public void ConfigureFlow(WarriorsGameFlow flow) => gameFlow = flow;
         public void StopClock() => clockRunning = false;
+
+        /// <summary>
+        /// Starts a fresh countdown for the round that is beginning.  Each round owns its
+        /// own clock - ROUND 1's timer used to keep running through the kraken fight, so
+        /// reaching ROUND 2 with time to spare still ended the run in TIME OVER.
+        /// </summary>
+        public void RestartClock(float seconds)
+        {
+            timeLimitSeconds = Mathf.Max(10f, seconds);
+            remainingSeconds = timeLimitSeconds;
+            state = BattleState.Playing;
+            clockRunning = true;
+        }
         public void SetLegacyHudVisible(bool visible) => drawLegacyHud = visible;
 
         private void OnGUI()
