@@ -47,6 +47,8 @@ public class ShipCoopCarryPose : MonoBehaviour
 
     private Animator _animator;
     private Transform _chest;
+    private Transform _leftHand;
+    private Transform _rightHand;
     private float _tall = 2.7f;
 
     private void Awake()
@@ -67,6 +69,10 @@ public class ShipCoopCarryPose : MonoBehaviour
 
         _chest = _animator.GetBoneTransform(HumanBodyBones.Chest)
                  ?? _animator.GetBoneTransform(HumanBodyBones.Spine);
+
+        // 물건은 IK 목표점이 아니라 **실제 손뼈 사이**에 놓는다. (BetweenHands 참고)
+        _leftHand = _animator.GetBoneTransform(HumanBodyBones.LeftHand);
+        _rightHand = _animator.GetBoneTransform(HumanBodyBones.RightHand);
 
         // 사람 키를 재서 거리들을 거기에 맞춘다. 캐릭터를 키워도 따라간다.
         Renderer[] draws = GetComponentsInChildren<Renderer>();
@@ -113,18 +119,21 @@ public class ShipCoopCarryPose : MonoBehaviour
         Vector3 middle = HoldPoint;
         Vector3 side = transform.right * (_tall * apart);
 
-        Reach(AvatarIKGoal.LeftHand, middle - side);
-        Reach(AvatarIKGoal.RightHand, middle + side);
+        // 왼손은 오른쪽(가운데)을, 오른손은 왼쪽(가운데)을 향한다.
+        Reach(AvatarIKGoal.LeftHand, middle - side, transform.right);
+        Reach(AvatarIKGoal.RightHand, middle + side, -transform.right);
     }
 
-    private void Reach(AvatarIKGoal goal, Vector3 at)
+    /// <param name="palmToward">손바닥이 향할 방향. 두 손이 물건을 양옆에서 감싸도록 서로 마주 본다.</param>
+    private void Reach(AvatarIKGoal goal, Vector3 at, Vector3 palmToward)
     {
         _animator.SetIKPositionWeight(goal, strength);
         _animator.SetIKRotationWeight(goal, strength);
         _animator.SetIKPosition(goal, at);
 
-        // 손바닥이 가운데를 향하도록. 안 돌리면 손등으로 받치는 모양이 된다.
-        _animator.SetIKRotation(goal, Quaternion.LookRotation(transform.forward, transform.up));
+        // ⚠ 두 손에 같은 회전을 주면 손바닥이 둘 다 위를 봐서 쟁반처럼 받치는 모양이 된다.
+        //    손가락은 앞으로, 손바닥은 가운데(서로)를 향하게 손마다 따로 돌린다.
+        _animator.SetIKRotation(goal, Quaternion.LookRotation(transform.forward, palmToward));
     }
 
     private void Release(AvatarIKGoal goal)
@@ -133,30 +142,70 @@ public class ShipCoopCarryPose : MonoBehaviour
         _animator.SetIKRotationWeight(goal, 0f);
     }
 
+    /// <summary>
+    /// 물건을 놓을 곳 — **실제 두 손뼈의 가운데.**
+    ///
+    /// ⚠ IK 목표점(<see cref="HoldPoint"/>)에 놓으면 안 됩니다.
+    ///    IK 는 <see cref="strength"/> 만큼만 끌어가서 손이 목표점에 딱 닿지 않고,
+    ///    팔 길이가 모자라면 더 못 갑니다. 그러면 물건이 손 아래나 앞에 떠 있게 됩니다.
+    ///    실제로 그렇게 보였습니다. 손이 어디에 멈췄든 그 사이에 놓아야 "들고 있다" 로 읽힙니다.
+    /// </summary>
+    private Vector3 BetweenHands
+    {
+        get
+        {
+            if (_leftHand != null && _rightHand != null)
+            {
+                return (_leftHand.position + _rightHand.position) * 0.5f;
+            }
+
+            return HoldPoint;
+        }
+    }
+
     // ⚠ LateUpdate 에서 옮깁니다. 애니메이터가 뼈를 다 쓴 **뒤**여야
     //    손 자리가 확정됩니다. Update 에서 옮기면 한 프레임씩 늦게 따라옵니다.
     private void LateUpdate()
     {
-        Transform show = held != null ? held : FindHeld();
+        Transform show = held != null ? held : CurrentHeld();
 
         if (show == null || !show.gameObject.activeInHierarchy)
         {
             return;
         }
 
-        show.position = HoldPoint;
+        // 물건의 **가운데**가 손 사이에 오게 한다. 모델 원점이 바닥에 있는 것(양동이)도 손에 매달리지 않는다.
         show.rotation = transform.rotation;
+
+        Renderer[] draws = show.GetComponentsInChildren<Renderer>();
+
+        if (draws.Length == 0)
+        {
+            show.position = BetweenHands;
+            return;
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        show.position += BetweenHands - box.center;
     }
 
-    // CarryTask 가 쓰는 표시를 찾아 둔다. 한 번만 찾는다.
-    private Transform FindHeld()
+    /// <summary>
+    /// CarryTask 가 지금 보여 주는 표시. **매 프레임 다시 묻는다** — 물이면 양동이, 그 밖은 캡슐로
+    /// 종류에 따라 바뀌기 때문이다. Inspector 에 <c>held</c> 를 직접 넣었으면 그것이 이긴다.
+    /// </summary>
+    private Transform CurrentHeld()
     {
-        if (carry == null)
+        if (carry == null || carry.HeldVisual == null)
         {
             return null;
         }
 
-        held = carry.HeldVisual != null ? carry.HeldVisual.transform : null;
-        return held;
+        return carry.HeldVisual.transform;
     }
 }

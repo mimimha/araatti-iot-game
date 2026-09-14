@@ -68,8 +68,40 @@ public class CarryTask : MonoBehaviour
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
     [SerializeField] private GameObject heldVisual;
 
-    /// <summary>들고 있는 표시. 드는 자세를 만드는 쪽이 자리를 잡아준다.</summary>
-    public GameObject HeldVisual => heldVisual;
+    /// <summary>
+    /// 들고 있는 표시. 드는 자세(ShipCoopCarryPose)가 자리를 잡아준다.
+    ///
+    /// **물이면 양동이 모델, 그 밖은 색 칠한 캡슐.** 종류별 모델은 <see cref="ShipCoopCargoVisuals"/> 에서 온다.
+    /// 포탄 · 자재 모델이 오면 그 설정의 슬롯을 채우고 여기 분기를 하나 늘리면 된다.
+    /// </summary>
+    public GameObject HeldVisual
+    {
+        get
+        {
+            GameObject model = ModelFor(Carrying);
+            return model != null ? model : heldVisual;
+        }
+    }
+
+    /// <summary>🪣 물을 들었을 때 보이는 양동이. Awake 에서 만든다. 설정이 없으면 캡슐로 돌아간다.</summary>
+    private GameObject _bucketVisual;
+
+    /// <summary>
+    /// 🪵 자재를 들었을 때 보이는 판자 묶음. 긴 축이 모델 x 라, 드는 자세가 사람 회전을 그대로 주면
+    /// **어깨 방향으로 눕는다.** 앞뒤로 두면 카메라와 옆 사람 쪽으로 1m 씩 튀어나온다.
+    /// </summary>
+    private GameObject _plankVisual;
+
+    /// <summary>종류별 모델. 없는 종류(포탄)는 null — 그러면 색 칠한 캡슐이 나온다.</summary>
+    private GameObject ModelFor(Cargo cargo)
+    {
+        switch (cargo)
+        {
+            case Cargo.Water: return _bucketVisual;
+            case Cargo.Plank: return _plankVisual;
+            default: return null;
+        }
+    }
 
     /// <summary>지금 무엇을 들고 있는지. 빈손이면 None.</summary>
     public Cargo Carrying { get; private set; }
@@ -91,6 +123,15 @@ public class CarryTask : MonoBehaviour
     private void Awake()
     {
         _worker = GetComponent<TaskWorker>();
+
+        // 양동이는 씬에 놓는 것이 아니라 여기서 만든다. 씬 플레이어와 네트워크 프리팹이 같은 코드를 탄다.
+        ShipCoopCargoVisuals visuals = ShipCoopCargoVisuals.Load();
+        if (visuals != null)
+        {
+            _bucketVisual = visuals.BuildBucket(transform, "HeldBucket");
+            _plankVisual = visuals.BuildPlank(transform, "HeldPlank");
+        }
+
         ShowHeld(false);
     }
 
@@ -534,14 +575,27 @@ public class CarryTask : MonoBehaviour
 
     private void ShowHeld(bool visible)
     {
+        // 종류에 맞는 모델이 있으면 그것을, 없으면(포탄) 색 칠한 캡슐을. 한 번에 하나만 켠다.
+        GameObject model = visible ? ModelFor(Carrying) : null;
+
+        if (_bucketVisual != null)
+        {
+            _bucketVisual.SetActive(model == _bucketVisual);
+        }
+
+        if (_plankVisual != null)
+        {
+            _plankVisual.SetActive(model == _plankVisual);
+        }
+
         if (heldVisual == null)
         {
             return;
         }
 
-        heldVisual.SetActive(visible);
+        heldVisual.SetActive(visible && model == null);
 
-        if (!visible)
+        if (!visible || model != null)
         {
             return;
         }
@@ -557,7 +611,11 @@ public class CarryTask : MonoBehaviour
 
             // ⚠ 사본. `sharedMaterial` 에 칠하면 재질 파일이 실제로 바뀌어서
             //    다른 것들까지 같이 물듭니다.
-            _heldPaint = draw.material;
+            // ⚠ 그리고 URP/Lit 로 새로 만든다. 기본 프리미티브 재질(Built-in Standard)은
+            //    URP 빌드에서 셰이더가 빠져 마젠타로 나온다. (DroppedCargo 와 같은 이유)
+            Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+            _heldPaint = lit != null ? new Material(lit) : draw.material;
+            draw.material = _heldPaint;
         }
 
         _heldPaint.color = ColorOf(Carrying);
