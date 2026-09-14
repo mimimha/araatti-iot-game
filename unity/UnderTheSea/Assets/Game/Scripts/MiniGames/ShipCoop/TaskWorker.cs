@@ -106,6 +106,19 @@ public class TaskWorker : MonoBehaviour
 
         UpdateNearby();
 
+        // ⚠ **쥐고 있으면 자리에 붙지 않는다.** 그 버튼은 운반이 가져간다. (SHIPCOOP.md 4장)
+        //
+        //   쥔 채로 버튼   집는다
+        //   그냥 버튼       붙는다
+        //
+        // 이 줄이 없으면 상자나 쌓인 포탄이 자리와 겹칠 때 **둘이 같은 버튼을 두고 다툽니다.**
+        // 누가 먼저 가져갈지는 스크립트 실행 순서에 달려 있어 매번 다를 수 있습니다.
+        // 특히 포탄을 대포 옆 바닥에 쌓게 되면서 집는 곳과 붙는 곳이 같은 자리가 됐습니다.
+        if (ShipCoopInput.HoldBoth(Input))
+        {
+            return;
+        }
+
         if (Nearby != null && ShipCoopInput.ConsumeInteract(Input))
         {
             Join(Nearby);

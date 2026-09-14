@@ -47,9 +47,14 @@ public class BigWave : VoyageEvent
 
     [Header("밀리는 힘")]
     [Tooltip("파도가 치는 동안 뱃머리가 초당 이만큼 밀린다 (도/초).\n\n" +
-             "조타 회전 속도(기본 35)보다 작아야 사람이 붙으면 이긴다.\n" +
+             "🤝 **조타 회전 속도(기본 35)보다 크게** 잡는다. 그래야 혼자서는 지고\n" +
+             "둘이 붙어야(70) 이긴다. 이것이 6장의 협력 작업이다.\n\n" +
+             "  아무도 없음   45°/초        → 3.9초 뒤 실패\n" +
+             "  혼자          45−35 = 10    → 5.5초 뒤 실패. 시간은 벌지만 진다\n" +
+             "  둘이서        70−45 = +25   → 버틴다\n\n" +
+             "35 보다 작게 두면 혼자서도 이기고, 협력이 사라진다.\n" +
              "0 으로 두면 아무도 조타에 안 가도 파도가 저절로 넘어간다.")]
-    [SerializeField, Min(0f)] private float pushPerSecond = 20f;
+    [SerializeField, Min(0f)] private float pushPerSecond = 45f;
 
     [Tooltip("켜면 밀리는 방향을 매번 무작위로 정한다.")]
     [SerializeField] private bool randomSide = true;
@@ -65,11 +70,17 @@ public class BigWave : VoyageEvent
              "0 으로 두면 한 순간도 벗어날 수 없어 너무 가혹하다.")]
     [SerializeField, Min(0f)] private float allowedOffTime = 1.5f;
 
-    [Header("실패했을 때")]
+    [Header("갑판에 넘어오는 물")]
     [Tooltip("옆으로 맞으면 갑판에 물이 이만큼 쏟아진다. (0 ~ 1)\n\n" +
              "배 HP 대신 이걸 씁니다. HP 는 깎이고 끝이지만 물은 퍼내야 할 일로 남습니다.\n" +
              "그래서 사건 하나가 다른 자리를 비우는 연쇄가 만들어집니다. (5장)")]
     [SerializeField, Range(0f, 1f)] private float floodOnFail = 0.35f;
+
+    [Tooltip("정면으로 잘 받아냈어도 이만큼은 넘어온다. (0 ~ 1)\n\n" +
+             "**파도가 지나가면 무조건 물이 찹니다.** 정면으로 받는 것은 피하는 것이 아니라\n" +
+             "덜 맞는 것입니다. 넘겨도 뒷정리가 남아야 배수가 상시 작업이 됩니다. (4장)\n\n" +
+             "0 으로 두면 예전처럼 실패할 때만 물이 찹니다.")]
+    [SerializeField, Range(0f, 1f)] private float floodOnSucceed = 0.15f;
 
     /// <summary>정면을 벗어나 있던 시간 (초)</summary>
     public float OffTime { get; private set; }
@@ -232,15 +243,28 @@ public class BigWave : VoyageEvent
         Succeed();
     }
 
+    /// <summary>정면으로 받아냈다. 그래도 물은 넘어온다.</summary>
     protected override void OnSucceed()
     {
         Game?.ReportObstacleAvoided();
+        Flood(floodOnSucceed);
     }
 
     /// <summary>옆으로 맞았다. 배를 깎는 대신 갑판에 물이 쏟아진다.</summary>
     protected override void OnFail()
     {
-        if (floodOnFail <= 0f)
+        Flood(floodOnFail);
+    }
+
+    /// <summary>
+    /// 갑판에 물을 붓는다.
+    ///
+    /// 성공과 실패가 같은 자리를 쓰는 이유는 **차이가 양뿐**이기 때문입니다.
+    /// 정면으로 받는 것은 피하는 것이 아니라 덜 맞는 것입니다.
+    /// </summary>
+    private void Flood(float amount)
+    {
+        if (amount <= 0f)
         {
             return;
         }
@@ -251,13 +275,32 @@ public class BigWave : VoyageEvent
             return;
         }
 
-        _flooding.Add(floodOnFail);
+        _flooding.Add(amount);
     }
+
+    /// <summary>
+    /// 혼자 버티는 중이면 발생 중에도 안내를 띄운다.
+    ///
+    /// 이건 가르치는 말이 아니라 **"지금 한 명 더 안 오면 진다"** 는 신호입니다.
+    /// 예고 때만 띄우면 혼자 붙은 사람은 왜 밀리는지 모른 채로 집니다.
+    /// </summary>
+    public override bool HintIsUrgent => _helm != null && _helm.NeedsHelp;
 
     /// <summary>HUD 문구. 사건 알림 아래에 작은 글씨로 붙는다.</summary>
     public override string LiveHint()
     {
         float heading = _helm != null ? _helm.Heading : 0f;
+
+        // 🤝 혼자서는 못 이기는 사건이다. 그 사실을 제일 먼저 말해준다. (6장)
+        //
+        // 이 줄이 없으면 혼자 붙은 사람은 자기가 왜 밀리는지 모릅니다.
+        // "조타가 고장났나?" 로 읽히고, 도움을 부를 생각을 못 합니다.
+        if (_helm != null && _helm.NeedsHelp)
+        {
+            return IsRunning
+                ? $"혼자서는 못 버틴다 — 🆘 한 명 더!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)"
+                : "혼자서는 못 버틴다 — 둘이 조타륜을 잡아라";
+        }
 
         if (IsStraight)
         {

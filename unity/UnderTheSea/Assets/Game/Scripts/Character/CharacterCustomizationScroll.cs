@@ -11,11 +11,16 @@ namespace UnderTheSea.Character
         private readonly Dictionary<Category, int> selectedOptions = new Dictionary<Category, int>();
         private readonly List<int> visiblePartIndices = new List<int>();
 
+        /// <summary>
+        /// 이 파츠를 지금 탭에 보여줄지.
+        ///
+        /// 슬롯 정보는 카탈로그 에셋에서 읽는다. 예전에는 컨트롤러의 catalogParts 배열을
+        /// 훑었지만, 그 배열은 PRD 09-1 에서 카탈로그로 옮겼다.
+        /// </summary>
         private bool IsVisibleInCurrentCategory(GameObject prefab)
         {
-            foreach (var entry in catalogParts)
+            if (catalog != null && catalog.TryFind(prefab, out CharacterPartCatalog.Entry entry))
             {
-                if (entry.prefab != prefab) continue;
                 // The face tab is for expressions only. Body and ear meshes belong to skin/model setup.
                 if (activeCategory == Category.Face) return entry.slot == WearSlot.Face;
                 // Hands/gloves are not accessories in this creator.

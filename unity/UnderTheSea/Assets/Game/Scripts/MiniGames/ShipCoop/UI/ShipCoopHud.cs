@@ -42,6 +42,42 @@ public class ShipCoopHud : MonoBehaviour
         public Image accent;
     }
 
+    /// <summary>
+    /// 팀원 초상화 한 칸. (SHIPCOOP.md 9장)
+    ///
+    /// ⚠ **층까지만 보여줍니다. 어느 자리에 붙었는지는 절대 보여주지 않습니다.**
+    ///
+    /// <code>
+    /// 층   "민화는 뒷갑판에 있다"   →  전략을 짤 재료
+    /// 자리 "돛이 비어 있다"         →  답을 그냥 준다
+    /// </code>
+    ///
+    /// 갑판이 3층이라 서로 안 보입니다. 누가 어디 있는지는 알아야 역할을 나눌 수 있지만,
+    /// **그 사람이 조타를 잡았는지 지나가는 중인지는 물어봐야** 합니다.
+    /// 자리까지 띄우면 "돛 비었어!" 라는 말이 통째로 사라집니다.
+    ///
+    /// 하트는 없습니다. 개인 HP 가 존재하지 않기 때문입니다. (2장)
+    /// </summary>
+    [System.Serializable]
+    public class PortraitSlot
+    {
+        public GameObject root;
+
+        [Tooltip("플레이어를 구분하는 색 테두리. 직업이 아니라 사람 구분용이다.")]
+        public Image frame;
+
+        [Tooltip("지금 있는 갑판 이름. 자리 이름을 넣지 않는다.")]
+        public TextMeshProUGUI deckLabel;
+
+        [Tooltip("🆘 를 눌렀을 때 켜진다. 초상화 아래쪽에 겹치는 빨간 글씨.")]
+        public GameObject helpBadge;
+
+        // ⚠ Image 가 아니라 RawImage 입니다. 사진이 스프라이트가 아니라
+        //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
+        [Tooltip("그 사람의 캐릭터를 찍은 사진. ShipCoopPortrait 가 채운다.")]
+        public RawImage face;
+    }
+
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
     [SerializeField] private ShipCoopGame game;
     [SerializeField] private ShipHealth health;
@@ -54,6 +90,12 @@ public class ShipCoopHud : MonoBehaviour
 
     [Header("남은 시간")]
     [SerializeField] private TextMeshProUGUI timeLabel;
+
+    [Header("페이즈")]
+    [Tooltip("지금 어느 구간인지. 왼쪽 위.\n\n" +
+             "페이즈가 시간이 아니라 진행도로 갈리기 때문에(3장) 언제 넘어갔는지가 안 보인다.\n" +
+             "'페이즈 3' 이 떴다는 것 자체가 '이제 겹쳐서 온다' 는 예고가 된다.")]
+    [SerializeField] private TextMeshProUGUI phaseLabel;
 
     [Tooltip("남은 시간이 이 아래로 내려가면 글자 색이 바뀐다. (초)")]
     [SerializeField] private float timeWarningSeconds = 60f;
@@ -92,6 +134,11 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("가득 찼을 때의 색. 깎이는 속도를 색으로도 읽게 한다.")]
     [SerializeField] private Color floodDeep = new Color(0.90f, 0.30f, 0.30f, 0.95f);
 
+    [Tooltip("얕음과 깊음 사이를 지나가는 색.\n\n" +
+             "하늘색에서 빨강으로 곧장 섞으면 **중간이 보라색**이 된다.\n" +
+             "위험해 보이지도 않고 물 같지도 않다. 주황을 한 번 거치면 그 구간이 사라진다.")]
+    [SerializeField] private Color floodMid = new Color(1f, 0.74f, 0.33f, 0.95f);
+
     [Header("사건 알림 (왼쪽)")]
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
     [SerializeField] private EventRow[] eventRows;
@@ -109,7 +156,23 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("암초와 파도 — 조타로 넘긴다")]
     [SerializeField] private Sprite eventIconHelm;
 
-    [Header("상호작용 안내 (아래)")]
+    [Tooltip("🪨 암초. 없으면 조타 아이콘을 쓴다.")]
+    [SerializeField] private Sprite eventIconReef;
+
+    [Tooltip("🌊 파도. 없으면 조타 아이콘을 쓴다.")]
+    [SerializeField] private Sprite eventIconWave;
+
+    [Tooltip("🏴‍☠️ 적선. 없으면 대포 아이콘을 쓴다.")]
+    [SerializeField] private Sprite eventIconEnemy;
+
+    [Header("팀원 초상화 — 층과 🆘 만 보여준다")]
+    [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 꺼진다.")]
+    [SerializeField] private PortraitSlot[] portraits;
+
+    [Tooltip("아직 어느 갑판인지 모를 때 (배 밖이거나 떨어지는 중)")]
+    [SerializeField] private string unknownDeckText = "—";
+
+    [Header("상호작용")]
     [SerializeField] private GameObject interactPanel;
     [SerializeField] private TextMeshProUGUI interactLabel;
 
@@ -153,7 +216,12 @@ public class ShipCoopHud : MonoBehaviour
         if (health == null) health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         if (voyage == null) voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
         if (flooding == null) flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+
+        _portrait = FindAnyObjectByType<ShipCoopPortrait>(FindObjectsInactive.Include);
     }
+
+    // 프로필 사진을 찍어 두는 쪽. 없으면 사진 없이 굴러간다.
+    private ShipCoopPortrait _portrait;
 
     private void Update()
     {
@@ -165,18 +233,110 @@ public class ShipCoopHud : MonoBehaviour
 
         UpdateHealth();
         UpdateTime();
+        UpdatePhase();
         UpdateProgress();
         UpdateFlooding();
         UpdateEvents();
+        UpdatePortraits();
         UpdateInteract();
+    }
+
+    /// <summary>
+    /// 지금 어느 구간인지. (SHIPCOOP.md 3장)
+    ///
+    /// 페이즈는 시간이 아니라 **진행도로** 갈립니다. 그래서 언제 넘어갔는지가
+    /// 화면 어디에도 안 보입니다. "페이즈 3" 이 떴다는 것 자체가
+    /// **"이제 셋씩 겹쳐서 온다"** 는 예고가 됩니다.
+    /// </summary>
+    private void UpdatePhase()
+    {
+        if (phaseLabel == null || game == null)
+        {
+            return;
+        }
+
+        VoyagePhase phase = game.CurrentPhase;
+        phaseLabel.text = phase != null ? phase.name : string.Empty;
+    }
+
+    /// <summary>
+    /// 팀원 초상화. **누가 어느 갑판에 있는지와 🆘 만** 보여준다.
+    ///
+    /// 갑판이 3층이 되면서 화면에 배 전체가 안 나옵니다. 그래서 여기가
+    /// "누가 어디 있나" 를 아는 **유일한 곳**이 됐습니다.
+    ///
+    /// 자리(조타 · 돛 · 대포)를 보여주지 않는 이유는 <see cref="PortraitSlot"/> 에 적어 두었습니다.
+    /// </summary>
+    private void UpdatePortraits()
+    {
+        if (portraits == null || portraits.Length == 0)
+        {
+            return;
+        }
+
+        // 사람 순서가 프레임마다 바뀌면 초상화가 자리를 바꿔 가며 깜빡인다.
+        // FindObjectsByType 의 순서는 보장되지 않으므로 이름으로 고정한다.
+        TaskWorker[] crew = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        System.Array.Sort(crew, (a, b) => string.CompareOrdinal(a.name, b.name));
+
+        // 패널 폭은 **늘 4칸 그대로**다. 이 게임은 4명 고정이라(2장) 빈 칸이 생기지 않는다.
+        // 테스트 씬에서만 사람이 모자라 비어 보인다. 그걸 맞추려고 폭을 줄이면,
+        // 정작 진짜 게임에서 누가 빠졌을 때 **빠진 것이 안 보이게** 된다.
+        for (int i = 0; i < portraits.Length; i++)
+        {
+            PortraitSlot slot = portraits[i];
+
+            if (slot == null)
+            {
+                continue;
+            }
+
+            bool has = i < crew.Length && crew[i] != null;
+
+            if (slot.root != null)
+            {
+                slot.root.SetActive(has);
+            }
+
+            if (!has)
+            {
+                continue;
+            }
+
+            if (slot.deckLabel != null)
+            {
+                ShipDeck deck = ShipDeck.At(crew[i].transform.position);
+                slot.deckLabel.text = deck != null ? deck.DeckName : unknownDeckText;
+            }
+
+            if (slot.helpBadge != null)
+            {
+                ShipCoopHelp help = crew[i].GetComponent<ShipCoopHelp>();
+                slot.helpBadge.SetActive(help != null && help.IsCalling);
+            }
+
+            // ⚠ "없을 때만 넣기" 로 두면 안 됩니다. 다시 찍으면(`Retake`) 사진이
+            //    새로 만들어지는데, 옛 사진을 든 채로 있으면 **버려진 텍스처**를
+            //    그리게 됩니다. 달라졌을 때만 넣으면 비용도 없습니다.
+            if (slot.face != null && _portrait != null)
+            {
+                Texture shot = _portrait.Of(crew[i].name);
+
+                if (shot != null && slot.face.texture != shot)
+                {
+                    slot.face.texture = shot;
+                    slot.face.color = Color.white;
+                }
+            }
+        }
     }
 
     /// <summary>
     /// 침수. **물이 있을 때만 뜬다.**
     ///
-    /// 침수는 HP 를 깎지 않고 속도를 깎습니다. 그래서 화면에 안 띄우면
-    /// **배가 왜 느려졌는지 알 방법이 아무 데도 없습니다.** 늦고 있다는 것만 보이고
-    /// 이유가 안 보이면 돛만 쳐다보게 됩니다. (4장)
+    /// 침수는 **물이 남아 있는 동안 초당 HP 를 깎습니다.** 그래서 화면에 안 띄우면
+    /// **HP 가 왜 줄어드는지 알 방법이 아무 데도 없습니다.** 사건도 안 떠 있는데
+    /// HP 만 깎이면 버그로 읽힙니다. (2장 · 4장)
     ///
     /// 물이 0 일 때 빈 게이지를 띄우지 않는 것도 같은 이유입니다.
     /// 늘 떠 있으면 "물은 원래 있는 것" 이 되고, 퍼내야 한다는 신호가 죽습니다.
@@ -201,7 +361,11 @@ public class ShipCoopHud : MonoBehaviour
             floodFill.fillAmount = flooding.Level01;
 
             // 많이 찰수록 붉어진다. 깎이는 속도를 색으로도 읽게 한다.
-            floodFill.color = Color.Lerp(floodShallow, floodDeep, flooding.Level01);
+            // 하늘색 → 주황 → 빨강. 곧장 섞으면 중간이 보라색이 된다.
+            float level = flooding.Level01;
+            floodFill.color = level < 0.5f
+                ? Color.Lerp(floodShallow, floodMid, level * 2f)
+                : Color.Lerp(floodMid, floodDeep, (level - 0.5f) * 2f);
         }
 
         if (floodLabel != null)
@@ -209,7 +373,16 @@ public class ShipCoopHud : MonoBehaviour
             // 속도가 아니라 **초당 깎이는 HP** 를 띄운다.
             // 속도가 주는 것은 아무도 못 느낀다. 진행도 바를 계속 봐야 알 수 있는데
             // 물이 찼을 때는 그럴 여유가 없다.
-            floodLabel.text = $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP";
+            //
+            // 구멍이 열려 있으면 **퍼내지 말라고 말해준다.**
+            // 구멍 하나가 초당 2.5% 를 붓고 양동이 왕복이 4초라, 막기 전에 퍼내면
+            // 물이 0 으로 안 내려가고 제자리를 돈다. 게이지만 보면 양동이로 손이 가는데
+            // 그게 바로 함정이다.
+            floodLabel.text = WithHint(
+                $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP",
+                flooding.LeakingPoints > 0
+                    ? $"구멍 {flooding.LeakingPoints}개가 새는 중 — 수리가 먼저다"
+                    : "양동이로 퍼내라");
         }
     }
 
@@ -347,9 +520,22 @@ public class ShipCoopHud : MonoBehaviour
 
             if (row.label != null)
             {
-                // 무슨 일인지(WarningText) 아래에 무엇을 해야 하는지(LiveHint)를 붙인다.
+                // 무슨 일인지(WarningLine) 아래에 무엇을 해야 하는지(LiveHint)를 붙인다.
                 // 경고만 띄우면 뭘 해야 하는지가 화면 어디에도 없다. 파도가 그랬다.
-                row.label.text = WithHint(e.WarningText, e.LiveHint());
+                //
+                // WarningLine 은 갑판이 정해지는 사건이면 층 이름까지 넣어준다.
+                // 갑판이 3층이라 화면 밖에서 벌어지는 일이 생겼기 때문이다. (9장)
+                //
+                // ⚠ **둘째 줄은 예고 중에만 띄운다.**
+                //
+                // 예고는 아무것도 안 깎이는 구간이라 글을 읽을 여유가 있는 유일한 때다.
+                // 발생하면 이미 몸이 움직이고 있고, 그때는 색과 그림이 대신 말해준다.
+                // (파도는 정면이면 흰파랑 · 벗어나면 빨강, 바위는 다가온다 — 5장)
+                //
+                // 발생 중에도 띄우면 카드가 여러 장일 때 읽을 것만 늘어난다.
+                // 다만 "지금 안 하면 진다" 는 신호(HintIsUrgent)는 예외다.
+                bool showHint = e.IsWarning || e.HintIsUrgent;
+                row.label.text = WithHint(e.WarningLine, showHint ? e.LiveHint() : null);
             }
 
             if (row.icon != null)
@@ -413,7 +599,8 @@ public class ShipCoopHud : MonoBehaviour
 
         if (current != null)
         {
-            Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current));
+            Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current),
+                 TwoSidedGauge(current));
             return;
         }
 
@@ -430,10 +617,19 @@ public class ShipCoopHud : MonoBehaviour
         // 갑판에 색깔 큐브만 놓여 있고 무슨 상자인지 알 수가 없다.
         if (carry != null)
         {
+            // 갑판에 놓인 것이 먼저다. 상자보다 가까이 있고, 주우러 온 것이다.
+            DroppedCargo lying = carry.FindReachableDrop();
+            if (lying != null)
+            {
+                Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "두고 간 것을 다시 든다"),
+                     -1f, IconOfCargo(lying.Kind));
+                return;
+            }
+
             AmmoBox box = carry.FindReachableBox();
             if (box != null)
             {
-                Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", "Shift + Space"),
+                Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", BoxHintOf(box)),
                      -1f, IconOfCargo(box.Kind));
                 return;
             }
@@ -443,6 +639,32 @@ public class ShipCoopHud : MonoBehaviour
     }
 
     private void Show(string text, float gauge01, Sprite icon)
+    {
+        Show(text, gauge01, icon, false);
+    }
+
+    // ------------------------------------------------------------
+    // ⚠ **조타 게이지는 가운데에서 좌우로 찹니다.**
+    //
+    //    전에는 절댓값(`|Heading01|`)을 한 방향으로만 채웠습니다. 그러면
+    //    **좌현 끝과 우현 끝이 둘 다 "가득 참"** 으로 보입니다. 어느 쪽으로
+    //    꺾여 있는지 게이지만 봐서는 알 수 없습니다.
+    //
+    //    거대한 파도(`BigWave`)는 초당 45도로 조타를 미는데 사람은 35도로만
+    //    돌립니다. **버텨도 밀립니다.** 그래서 꺾어둔 키가 0을 지나 반대편으로
+    //    넘어가고, 게이지가 찼다가 비었다가 다시 차는 것처럼 보입니다.
+    //    내가 꺾고 있는 것인지 밀리고 있는 것인지 구분이 안 됩니다.
+    //
+    //    링은 이미 `Radial360` · 시작점이 **위**입니다. 그래서 부호만 살려
+    //    `fillClockwise` 를 뒤집으면 위(중앙)에서 좌우로 갈라져 찹니다.
+    // ------------------------------------------------------------
+
+    /// <summary>양쪽으로 차는 게이지가 한쪽으로 최대일 때 링의 몇 할을 채우는가.</summary>
+    private const float HalfRing = 0.5f;
+
+    /// <param name="gauge01">0~1. 양쪽으로 차는 것은 -1~+1 이고 부호가 방향이다.</param>
+    /// <param name="twoSided">가운데(위)에서 좌우로 갈라져 차는가.</param>
+    private void Show(string text, float gauge01, Sprite icon, bool twoSided)
     {
         interactPanel.SetActive(true);
 
@@ -462,13 +684,32 @@ public class ShipCoopHud : MonoBehaviour
             return;
         }
 
-        bool hasGauge = gauge01 >= 0f;
+        // 양쪽으로 차는 것은 음수가 정상이다. 한쪽으로만 차는 것만 -1 이 "없음" 이다.
+        bool hasGauge = twoSided || gauge01 >= 0f;
         interactGauge.gameObject.SetActive(hasGauge);
 
-        if (hasGauge)
+        if (!hasGauge)
         {
-            interactGauge.fillAmount = Mathf.Clamp01(gauge01);
+            return;
         }
+
+        if (twoSided)
+        {
+            // 우현(양수)은 시계방향, 좌현(음수)은 반시계방향으로 찬다.
+            interactGauge.fillClockwise = gauge01 >= 0f;
+            interactGauge.fillAmount = Mathf.Clamp01(Mathf.Abs(gauge01)) * HalfRing;
+            return;
+        }
+
+        // ⚠ 되돌려 놓습니다. 조타를 보다가 다른 자리로 가면 반시계로 남습니다.
+        interactGauge.fillClockwise = true;
+        interactGauge.fillAmount = Mathf.Clamp01(gauge01);
+    }
+
+    /// <summary>이 작업의 게이지가 가운데에서 좌우로 차는가. 조타만 그렇다.</summary>
+    private static bool TwoSidedGauge(TaskBase task)
+    {
+        return task is HelmTask;
     }
 
     /// <summary>작업마다 게이지가 무엇을 뜻하는지 다르다. 없으면 -1.</summary>
@@ -476,7 +717,8 @@ public class ShipCoopHud : MonoBehaviour
     {
         switch (task)
         {
-            case HelmTask helm: return Mathf.Abs(helm.Heading01);
+            // ⚠ **절댓값을 쓰지 마세요.** 좌우 구분이 사라집니다. (위 주석)
+            case HelmTask helm: return helm.Heading01;
             case SailTask sail: return sail.SailPower01;
             case RepairTask repair: return repair.Progress01;
             case CannonTask cannon: return cannon.MaxAmmo <= 0 ? 0f : (float)cannon.Ammo / cannon.MaxAmmo;
@@ -493,13 +735,15 @@ public class ShipCoopHud : MonoBehaviour
     /// </summary>
     private Sprite IconOf(VoyageEvent e)
     {
+        // 사건마다 다른 그림이어야 한다. 암초와 파도가 같은 아이콘을 쓰면
+        // **알림 목록에서 둘이 구분되지 않는다.** 대응 동작이 정반대인데도. (5장)
         switch (e)
         {
             case HullDamage _: return eventIconHull;
             case Squall _: return eventIconSail;
-            case EnemyShip _: return eventIconCannon;
-            case Reef _: return eventIconHelm;
-            case BigWave _: return eventIconHelm;
+            case EnemyShip _: return eventIconEnemy != null ? eventIconEnemy : eventIconCannon;
+            case Reef _: return eventIconReef != null ? eventIconReef : eventIconHelm;
+            case BigWave _: return eventIconWave != null ? eventIconWave : eventIconHelm;
             default: return null;
         }
     }
@@ -514,6 +758,22 @@ public class ShipCoopHud : MonoBehaviour
     ///
     /// 대포는 포탄 수까지 함께 띄웁니다. 없으면 쏘는 게 아니라 날라야 합니다.
     /// </summary>
+    /// <summary>
+    /// 상자 앞에 섰을 때의 안내.
+    ///
+    /// 양동이는 **구멍이 열려 있으면 집지 말라고** 말해줍니다.
+    /// 손이 실제로 가는 자리가 여기라서, 게이지에만 적어두면 늦습니다.
+    /// </summary>
+    private string BoxHintOf(AmmoBox box)
+    {
+        if (box.Kind == Cargo.Water && flooding != null && flooding.LeakingPoints > 0)
+        {
+            return "구멍부터 막아라 — 퍼내도 다시 찬다";
+        }
+
+        return "Shift + Space";
+    }
+
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
     private static string CarryHintOf(CarryTask carry)
     {
