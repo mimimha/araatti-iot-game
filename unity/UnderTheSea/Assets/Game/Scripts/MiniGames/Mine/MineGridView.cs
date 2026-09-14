@@ -198,6 +198,12 @@ public class MineGridView : MonoBehaviour
                 ApplyMaterial(block, x, y);
 
                 // CellToWorld 는 평면 위 중심. 블록은 그 아래로 두께만큼 잠기게 놓는다.
+                //
+                // ⚠ 여기서는 SinkOf 를 안 쓴다. 처음에는 아무 칸도 안 파여 있고
+                //   heightJitter 와 hardRise 가 둘 다 0 이라 결과가 같기 때문이다.
+                //   **그 둘 중 하나라도 켜면 여기도 SinkOf 를 써야 한다.**
+                //   안 그러면 시작하자마자 발밑 표시(MineCursor)가 그만큼 어긋난다.
+                //   발밑 표시는 SinkOf 를 물어보기 때문이다.
                 Vector3 top = _grid.CellToWorld(x, y);
                 block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
                 block.transform.localScale = new Vector3(side, blockHeight, side);
@@ -208,6 +214,39 @@ public class MineGridView : MonoBehaviour
                 if (_cracks != null) _cracks[y * size + x] = CreateCrack(x, y);
             }
         }
+    }
+
+    /// <summary>
+    /// 칸 윗면의 월드 좌표. **파이면 내려가고 금 가면 살짝 내려간다.**
+    ///
+    /// 발밑 표시처럼 칸 위에 얹는 것들이 이걸 물어본다.
+    /// 각자 계산하면 깊이를 바꿀 때 한쪽만 고쳐서 따로 논다 —
+    /// 실제로 발밑 표시가 파인 칸 위에 붕 떠 있었다.
+    /// </summary>
+    public Vector3 CellSurface(int x, int y)
+    {
+        if (_grid == null) return Vector3.zero;
+        return _grid.CellToWorld(x, y) + Vector3.down * SinkOf(x, y);
+    }
+
+    /// <summary>
+    /// 칸이 평면에서 얼마나 내려가 있는가. 양수면 아래로.
+    ///
+    /// 단단한 돌은 살짝 솟아 있어 어두운 곳에서도 실루엣으로 구분된다.
+    /// 안 판 칸은 칸마다 조금씩 높낮이가 달라 바닥이 울퉁불퉁해 보인다.
+    /// </summary>
+    private float SinkOf(int x, int y)
+    {
+        if (_grid == null) return 0f;
+
+        bool dug = _grid.IsDug(x, y);
+        bool cracked = !dug && _grid.IsCracked(x, y);
+        bool hard = _grid.IsHard(x, y);
+
+        return dug ? digDepth
+             : cracked ? crackDepth - Jitter(x, y)
+             : hard ? -hardRise - Jitter(x, y)
+             : -Jitter(x, y);
     }
 
     /// <summary>
@@ -228,13 +267,8 @@ public class MineGridView : MonoBehaviour
         bool cracked = !dug && _grid.IsCracked(x, y);
         bool hard = _grid.IsHard(x, y);
 
-        // 단단한 돌은 살짝 솟아 있어 어두운 곳에서도 실루엣으로 구분된다.
-        // 안 판 칸은 칸마다 조금씩 높낮이가 달라 바닥이 울퉁불퉁해 보인다.
         Vector3 top = _grid.CellToWorld(x, y);
-        float sink = dug ? digDepth
-                   : cracked ? crackDepth - Jitter(x, y)
-                   : hard ? -hardRise - Jitter(x, y)
-                   : -Jitter(x, y);
+        float sink = SinkOf(x, y);
         block.position = top + Vector3.down * (blockHeight * 0.5f + sink);
 
         // 금은 돌 윗면에 얹는다. 돌이 내려가면 같이 내려간다.

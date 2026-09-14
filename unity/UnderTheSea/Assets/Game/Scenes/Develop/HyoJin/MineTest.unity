@@ -4415,6 +4415,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MineCursor
   grid: {fileID: 1014668933}
+  view: {fileID: 1014668932}
   follow: {fileID: 1398097750}
   thickness: 0.09
   lift: 0.03

@@ -11,6 +11,10 @@ using UnityEngine;
 /// 하필 제일 중요한 칸이 가려진다 — 지금 고르고 있는 칸이다.
 ///
 /// 칸 크기는 <see cref="MineGrid"/> 에서 읽는다. 격자를 바꾸면 따라간다.
+///
+/// ⚠ **높이는 <see cref="MineGridView"/> 에 물어본다.** 파인 칸은 내려가 있어서
+///   평면 높이에 그리면 구멍 위에 붕 뜬다. 깊이를 여기서 따로 계산하면
+///   나중에 깊이를 바꿀 때 한쪽만 고쳐서 또 따로 논다.
 /// </summary>
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class MineCursor : MonoBehaviour
@@ -18,6 +22,9 @@ public class MineCursor : MonoBehaviour
     [Header("연결")]
     [Tooltip("비워두면 씬에서 찾는다.")]
     [SerializeField] private MineGrid grid;
+
+    [Tooltip("칸 윗면 높이를 물어본다. 비워두면 격자에서 찾는다. 없으면 평면 높이로 그린다.")]
+    [SerializeField] private MineGridView view;
 
     [Tooltip("따라다닐 사람. 비워두면 씬의 MineDigger 를 찾는다.")]
     [SerializeField] private Transform follow;
@@ -45,6 +52,7 @@ public class MineCursor : MonoBehaviour
         _renderer = GetComponent<MeshRenderer>();
 
         if (grid == null) grid = FindAnyObjectByType<MineGrid>(FindObjectsInactive.Include);
+        if (view == null && grid != null) view = grid.GetComponent<MineGridView>();
 
         if (follow == null)
         {
@@ -123,8 +131,11 @@ public class MineCursor : MonoBehaviour
 
         _renderer.enabled = true;
 
-        // CellToWorld 는 평면 위 중심이다. 살짝 띄워야 블록과 안 겹친다.
-        transform.position = grid.CellToWorld(x, y) + Vector3.up * lift;
+        // 파인 칸은 내려가 있다. 그 높이는 MineGridView 가 안다.
+        Vector3 surface = view != null ? view.CellSurface(x, y) : grid.CellToWorld(x, y);
+
+        // 살짝 띄워야 블록 윗면과 겹쳐 지글거리지 않는다.
+        transform.position = surface + Vector3.up * lift;
     }
 
     private void OnDestroy()
