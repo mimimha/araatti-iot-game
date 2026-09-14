@@ -7,6 +7,9 @@ public enum MineState
     /// <summary>아직 시작 안 함. StartGame() 을 기다린다.</summary>
     Ready,
 
+    /// <summary>3 2 1 카운트다운. 아직 아무것도 안 보여주고 아무도 못 판다.</summary>
+    Countdown,
+
     /// <summary>목표 그림을 보여주는 중.</summary>
     Reveal,
 
@@ -71,6 +74,9 @@ public class MineGame : MonoBehaviour
     [Header("판 설정 (MINE.md 2장 — 전부 시작값이고 조정 대상)")]
     [Tooltip("인원 = 턴 수. 1~4명.")]
     [SerializeField, Range(1, 4)] private int playerCount = 4;
+
+    [Tooltip("공개 전 3 2 1 카운트다운(초). 0 이면 건너뛴다. 마음의 준비를 위한 시간이다.")]
+    [SerializeField, Min(0f)] private float countdownSeconds = 3f;
 
     [Tooltip("목표 그림을 보여주는 시간(초).")]
     [SerializeField, Min(0f)] private float revealSeconds = 7f;
@@ -235,7 +241,7 @@ public class MineGame : MonoBehaviour
         // 난이도별 도안 고르기는 나중에 여기서 grid.SetTarget() 으로 갈아끼운다.
         // (MINE.md 2장 — 인원이 곧 난이도)
 
-        EnterReveal();
+        EnterCountdown();
     }
 
     private void Update()
@@ -253,6 +259,11 @@ public class MineGame : MonoBehaviour
 
         switch (State)
         {
+            case MineState.Countdown:
+                // 셋을 다 세면 도안을 보여준다.
+                EnterReveal();
+                break;
+
             case MineState.Reveal:
                 // 공개가 끝나면 그림을 숨기고 첫 턴을 시작한다.
                 EnterTurn(1);
@@ -369,6 +380,33 @@ public class MineGame : MonoBehaviour
 
     // ------------------------------------------------------------
     // 단계 전환
+
+    /// <summary>
+    /// 3 2 1 을 세는 동안. 판은 비추되 **도안은 아직 안 보여준다.**
+    ///
+    /// 공개 7초는 그림을 외우는 시간이라 1초도 아깝다. 카메라가 올라가고
+    /// 화면이 밝아지는 동안 이미 도안이 떠 있으면 그만큼 까먹는다.
+    /// 카운트다운에 그 준비를 다 끝내두고, 0 이 되는 순간 도안만 켠다.
+    /// </summary>
+    private void EnterCountdown()
+    {
+        // 0 으로 꺼두면 예전처럼 바로 공개로 간다.
+        if (countdownSeconds <= 0f) { EnterReveal(); return; }
+
+        SetState(MineState.Countdown);
+        _timer = countdownSeconds;
+        _hintTimer = 0f;
+
+        TurnNumber = 0;
+        SetOnlyDiggerActive(-1);
+
+        // 판은 보이되 도안은 없다. 0 이 되면 EnterReveal 이 Drawing 으로 바꾼다.
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.None); }
+        if (vision != null) { vision.SetLit(true); vision.Follow(null); }
+        if (cameraRig != null) cameraRig.ShowBoard();
+
+        Debug.Log($"[MINE] 카운트다운 {countdownSeconds:0}초", this);
+    }
 
     private void EnterReveal()
     {

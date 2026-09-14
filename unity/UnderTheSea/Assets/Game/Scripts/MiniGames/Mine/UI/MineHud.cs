@@ -67,6 +67,10 @@ public class MineHud : MonoBehaviour
     [SerializeField] private TMP_Text hintText;
     [SerializeField] private Image hintIcon;
 
+    [Header("카운트다운 — 시작 직전에만")]
+    [Tooltip("3 2 1 을 띄운다. 화면 가운데 크게.")]
+    [SerializeField] private TMP_Text countdownText;
+
     [Header("결과 — 판이 끝났을 때만")]
     [Tooltip("끝났을 때만 켠다. 공통 결과 화면이 붙으면 통째로 끈다.")]
     [SerializeField] private GameObject resultPanel;
@@ -146,7 +150,27 @@ public class MineHud : MonoBehaviour
 
     private void Update()
     {
-        if (game == null || timeText == null) return;
+        if (game == null) return;
+
+        // 카운트다운은 매 프레임 본다. 남은 시간이 곧 띄울 숫자다.
+        //
+        // 올림을 쓴다 — 3초가 남았으면 "3" 이고, 1초 아래로 내려가야 "1" 이 된다.
+        // 내림을 쓰면 시작하자마자 "2" 가 뜨고 마지막 1초는 "0" 이 된다.
+        if (countdownText != null)
+        {
+            bool counting = game.State == MineState.Countdown;
+            if (countdownText.gameObject.activeSelf != counting)
+                countdownText.gameObject.SetActive(counting);
+
+            if (counting)
+            {
+                int n = Mathf.Max(1, Mathf.CeilToInt(game.TimeLeft));
+                string text = n.ToString();
+                if (countdownText.text != text) countdownText.text = text;
+            }
+        }
+
+        if (timeText == null) return;
 
         // 시간만 매 프레임 바뀐다. 나머지는 이벤트로 갱신한다.
         // 초가 그대로면 문자열을 다시 만들지 않는다 — 매 프레임 쓰레기를 만들 이유가 없다.
@@ -229,6 +253,7 @@ public class MineHud : MonoBehaviour
         switch (game.State)
         {
             case MineState.Ready:    return "곧 시작합니다";
+            case MineState.Countdown: return "준비";
             case MineState.Reveal:   return "목표를 외우세요";
             case MineState.Turn:     return NameOf(game.TurnNumber - 1) + "의 차례";
             case MineState.TurnGap:  return "다음 차례";
