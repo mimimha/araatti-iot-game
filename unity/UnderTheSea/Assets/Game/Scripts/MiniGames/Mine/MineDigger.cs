@@ -32,6 +32,9 @@ public class MineDigger : MonoBehaviour
     [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 같은 오브젝트에서 찾는다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
+    [Tooltip("돌을 깼을 때 폴짝 뛰게 한다. 비워두면 찾는다. 없어도 게임은 돈다.")]
+    [SerializeField] private MineJump jump;
+
     private IPlayerController _controller;
 
     private bool _restoreRequested;
@@ -59,6 +62,9 @@ public class MineDigger : MonoBehaviour
     private void Awake()
     {
         if (grid == null) grid = FindAnyObjectByType<MineGrid>();
+
+        if (jump == null) jump = GetComponent<MineJump>();
+        if (jump == null) jump = GetComponentInParent<MineJump>();
 
         _controller = playerControllerSource as IPlayerController
                       ?? GetComponent<IPlayerController>()
@@ -127,6 +133,10 @@ public class MineDigger : MonoBehaviour
         {
             case MineHitResult.Broke:
                 TotalDigs++;
+
+                // 발밑이 꺼졌으니 폴짝 뛴다. 손맛일 뿐 규칙은 아니다.
+                // 금만 갔을 때는 안 뛴다 — 아직 발밑이 그대로이기 때문이다.
+                if (jump != null) jump.Hop();
                 break;
 
             case MineHitResult.Cracked:
