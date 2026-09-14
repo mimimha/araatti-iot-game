@@ -9,8 +9,13 @@ using UnityEngine.Rendering;
 /// 6장의 "바닥 전체는 한눈에 안 들어온다" 가 지금 턴인 사람에게도 그대로 걸리고,
 /// 나중에 관전 카메라가 붙어도 저절로 따라온다.
 ///
-/// **안개를 쓰지 않는 이유** — 안개는 *카메라*로부터의 거리로 가린다.
+/// **시야를 가두는 것은 랜턴이지 안개가 아니다.** 안개는 *카메라*로부터의 거리로 가린다.
 /// 우리가 원하는 것은 *플레이어*로부터의 거리다. 그래서 점광원을 쓴다.
+/// 안개는 동굴 분위기를 내는 배경 효과로만 쓴다 — 멀리 있는 벽을 어둠에 묻는다.
+///
+/// ⚠ **안개는 밝을 때 반드시 꺼야 한다.** 탑뷰 카메라는 20m 위에 있어서
+///   판 귀퉁이까지가 24m 다. 안개가 켜져 있으면 공개 7초에 바깥 칸이
+///   3분의 1쯤 검게 먹혀 그림을 읽을 수 없다.
 ///
 /// ⚠ 랜턴을 캐릭터 프리팹에 붙이지 않는다. 붙이면 로비의 같은 캐릭터도
 ///   광산 랜턴을 들고 다닌다. 여기서 라이트를 하나 만들어 따라다니게 한다.
@@ -40,6 +45,23 @@ public class MineVision : MonoBehaviour
     [Tooltip("어두울 때 태양(Directional Light)을 얼마나 남길 것인가. 0 이면 완전히 끈다.")]
     [SerializeField, Range(0f, 1f)] private float darkSunIntensity = 0.03f;
 
+    [Tooltip("어두울 때 안개를 켜서 먼 동굴 벽을 묻는다. 배경 효과이지 난이도 장치가 아니다.")]
+    [SerializeField] private bool darkFog = true;
+
+    [Tooltip("안개가 시작하는 거리(m). 판 반대편 끝이 20m 쯤이므로 그보다 멀어야 판이 안 흐려진다.")]
+    [SerializeField, Min(0f)] private float darkFogStart = 20f;
+
+    [Tooltip("안개가 완전히 덮는 거리(m). 동굴 벽이 20m 에 있으므로 그 너머를 덮는다.")]
+    [SerializeField, Min(0f)] private float darkFogEnd = 70f;
+
+    [SerializeField] private Color darkFogColor = new Color(0.025f, 0.025f, 0.035f);
+
+    [Header("밝을 때 (공개 · 힌트 · 결과)")]
+    [Tooltip("밝을 때의 환경광.\n" +
+             "⚠ 광산은 하늘이 없어서(카메라 배경이 단색) 스카이박스 환경광을 쓸 수 없다.\n" +
+             "  그래서 밝기를 씬에 맡기지 않고 여기서 직접 정한다.")]
+    [SerializeField] private Color litAmbient = new Color(0.34f, 0.34f, 0.36f);
+
     [Header("연결")]
     [Tooltip("비워두면 씬의 Directional Light 를 찾는다.")]
     [SerializeField] private Light sun;
@@ -57,6 +79,11 @@ public class MineVision : MonoBehaviour
     private Color _savedAmbient;
     private AmbientMode _savedAmbientMode;
     private float _savedSunIntensity;
+    private bool _savedFog;
+    private Color _savedFogColor;
+    private FogMode _savedFogMode;
+    private float _savedFogStart;
+    private float _savedFogEnd;
     private bool _saved;
 
     private void Awake()
@@ -93,6 +120,13 @@ public class MineVision : MonoBehaviour
         _savedAmbient = RenderSettings.ambientLight;
         _savedAmbientMode = RenderSettings.ambientMode;
         _savedSunIntensity = sun != null ? sun.intensity : 0f;
+
+        _savedFog = RenderSettings.fog;
+        _savedFogColor = RenderSettings.fogColor;
+        _savedFogMode = RenderSettings.fogMode;
+        _savedFogStart = RenderSettings.fogStartDistance;
+        _savedFogEnd = RenderSettings.fogEndDistance;
+
         _saved = true;
     }
 
@@ -102,6 +136,13 @@ public class MineVision : MonoBehaviour
 
         RenderSettings.ambientMode = _savedAmbientMode;
         RenderSettings.ambientLight = _savedAmbient;
+
+        RenderSettings.fog = _savedFog;
+        RenderSettings.fogColor = _savedFogColor;
+        RenderSettings.fogMode = _savedFogMode;
+        RenderSettings.fogStartDistance = _savedFogStart;
+        RenderSettings.fogEndDistance = _savedFogEnd;
+
         if (sun != null) sun.intensity = _savedSunIntensity;
     }
 
@@ -141,17 +182,26 @@ public class MineVision : MonoBehaviour
         Lit = lit;
         SaveOriginal();
 
-        if (lit)
+        // 밝을 때도 어두울 때도 Flat 으로 간다. 색만 바꾼다.
+        //
+        // ⚠ 예전에는 밝힐 때 씬의 원래 설정(Skybox)으로 되돌렸는데, 광산은 하늘이 없어서
+        //   (카메라 배경이 단색) 스카이박스 환경광이 0 에 가깝습니다. 그러면 공개 7초와
+        //   결과 화면이 캄캄해집니다. 밝기를 씬에 맡기지 않고 여기서 정합니다.
+        RenderSettings.ambientMode = AmbientMode.Flat;
+        RenderSettings.ambientLight = lit ? litAmbient : darkAmbient;
+
+        // 안개는 어두울 때만. 밝을 때 켜두면 탑뷰에서 판 바깥 칸이 먹힌다.
+        RenderSettings.fog = darkFog && !lit;
+        if (RenderSettings.fog)
         {
-            RestoreOriginal();
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = darkFogColor;
+            RenderSettings.fogStartDistance = darkFogStart;
+            RenderSettings.fogEndDistance = darkFogEnd;
         }
-        else
-        {
-            // Skybox 환경광은 색을 직접 못 내리므로 Flat 으로 바꿔서 어둡게 만든다.
-            RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = darkAmbient;
-            if (sun != null) sun.intensity = _savedSunIntensity * darkSunIntensity;
-        }
+
+        if (sun != null)
+            sun.intensity = lit ? _savedSunIntensity : _savedSunIntensity * darkSunIntensity;
 
         if (_lantern != null) _lantern.enabled = !lit && _follow != null;
     }
