@@ -510,7 +510,7 @@ MonoBehaviour:
   successThreshold: 60
   judge: 0
   shapeTolerance: 2
-  maxAlign: 4
+  maxAlign: 0
   restoresPerPlayer: 1
   hintSeconds: 3
   autoStart: 1
