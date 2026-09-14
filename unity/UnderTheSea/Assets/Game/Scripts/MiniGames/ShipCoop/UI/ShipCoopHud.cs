@@ -203,12 +203,30 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Color timeWarning = new Color(0.95f, 0.55f, 0.45f);
 
     /// <summary>
-    /// 화면을 볼 사람. 상호작용 안내가 이 사람 기준으로 뜬다.
+    /// 화면을 볼 사람. 상호작용 안내와 카메라가 비출 갑판이 이 사람 기준으로 정해진다.
     ///
-    /// 지금은 씬에서 살아있는 첫 TaskWorker 를 쓴다.
-    /// 네트워크가 붙으면 자기 컴퓨터의 로컬 플레이어가 들어온다.
+    /// <code>
+    /// 싱글 테스트 씬   씬에서 살아있는 첫 TaskWorker 를 스스로 찾는다 (예전 그대로)
+    /// 네트워크 씬      ShipCoopLocalView 가 자기 캐릭터를 SetLocalWorker 로 넣어 준다
+    /// </code>
     /// </summary>
     public TaskWorker LocalWorker { get; private set; }
+
+    /// <summary>밖에서 넣어 준 적이 있는가. 있으면 스스로 찾지 않는다.</summary>
+    private bool _localWorkerInjected;
+
+    /// <summary>
+    /// "화면을 보는 사람은 이 사람이다" 라고 알려준다.
+    ///
+    /// ⚠ 네트워크에서는 <b>반드시</b> 이걸 불러야 한다. 안 부르면 HUD 가 스스로 찾다가
+    ///    <b>남의 캐릭터</b>를 집을 수 있고, 그러면 카메라가 남이 선 갑판을 비춘다.
+    ///    한 번 넣은 뒤에는 스스로 찾는 길이 막히므로 다른 사람으로 바뀌지 않는다.
+    /// </summary>
+    public void SetLocalWorker(TaskWorker worker)
+    {
+        LocalWorker = worker;
+        _localWorkerInjected = true;
+    }
 
     private void Awake()
     {
@@ -226,7 +244,8 @@ public class ShipCoopHud : MonoBehaviour
     private void Update()
     {
         // 사람은 도중에 들어오거나 나갈 수 있다. 매 프레임 확인이 부담될 정도는 아니다.
-        if (LocalWorker == null)
+        // 밖에서 넣어 준 적이 있으면 찾지 않는다 — 남의 캐릭터를 집게 된다.
+        if (LocalWorker == null && !_localWorkerInjected)
         {
             LocalWorker = FindAnyObjectByType<TaskWorker>(FindObjectsInactive.Exclude);
         }

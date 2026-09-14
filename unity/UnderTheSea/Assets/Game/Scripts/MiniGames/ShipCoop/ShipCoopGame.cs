@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>게임의 진행 상태</summary>
 public enum ShipCoopState
@@ -116,8 +117,6 @@ public class ShipCoopGame : MonoBehaviour
     /// <summary>
     /// **이 컴퓨터가 게임을 계산하는 쪽인가.** (SHIPCOOP.md 11장)
     ///
-    /// 지금은 혼자 하므로 늘 참입니다. 네트워크가 붙으면 **호스트에서만 참**이 됩니다.
-    ///
     /// 판정을 4대가 각자 하면 서로 다른 답이 나옵니다. 내 화면에선 물을 다 퍼냈는데
     /// 옆 사람 화면에선 아직 차 있고, 둘 다 자기가 맞다고 믿습니다.
     /// **그래서 계산은 한 대만 하고 나머지는 결과를 받아 그립니다.**
@@ -126,10 +125,12 @@ public class ShipCoopGame : MonoBehaviour
     /// 보는 것은 **공유 상태를 바꾸는 쪽**뿐입니다.
     ///
     /// <code>
-    /// 붙일 때   =&gt; Runner.IsServer
+    /// Runner 없음 (ShipCoopTest.unity)  =&gt; 참    — 예전 그대로 혼자 다 계산한다
+    /// Dedicated Server                  =&gt; 참
+    /// Client                            =&gt; 거짓
     /// </code>
     /// </summary>
-    public bool IsAuthority => true;
+    public bool IsAuthority => ShipCoopNet.IsAuthorityHere;
 
     /// <summary>출항 후 지난 시간 (초)</summary>
     public float Elapsed => _elapsed;
