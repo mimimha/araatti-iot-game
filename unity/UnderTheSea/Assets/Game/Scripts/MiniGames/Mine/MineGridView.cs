@@ -70,6 +70,16 @@ public class MineGridView : MonoBehaviour
     [Tooltip("파인 바닥. 비우면 무른 돌 것을 쓴다.")]
     [SerializeField] private Material dugMaterial;
 
+    [Tooltip("도안과 결과를 보여주는 동안 쓸 무늬 없는 돌. 비우면 안 바꾼다.")]
+    [SerializeField] private Material flatMaterial;
+
+    [Tooltip("무늬 없는 돌을 쓸 때 칸 색에 곱할 값. 색은 MaterialPropertyBlock 으로 " +
+             "가는데 그것이 머티리얼의 밑색을 덮어쓰므로, 머티리얼을 고쳐서는 밝기를 못 바꾼다.")]
+    [SerializeField, Range(0.05f, 1f)] private float flatColorScale = 0.4f;
+
+    [Tooltip("무늬 없는 돌을 쓸 때 색조를 얼마나 지울 것인가. 1 이면 완전한 회색.")]
+    [SerializeField, Range(0f, 1f)] private float flatDesaturate = 1f;
+
     [Tooltip("칸마다 90도씩 무작위로 돌려 텍스처 반복을 깬다.\n" +
              "끄면 400칸이 똑같이 보여 격자무늬가 도드라진다.")]
     [SerializeField] private bool varyRotation = true;
@@ -282,6 +292,18 @@ public class MineGridView : MonoBehaviour
 
         Color c = ColorFor(x, y, dug);
         if (cracked) c *= crackTint;
+
+        // ⚠ 무늬 없는 돌을 쓸 때는 색을 낮춰야 한다.
+        //
+        // 칸 색은 MaterialPropertyBlock 으로 가는데 그것은 머티리얼의 `_BaseColor` 를
+        // **덮어쓴다.** 텍스처가 있을 때는 `텍스처 × 칸 색` 이라 칸 색이 1 을 넘어도
+        // 괜찮았지만(intactColor 는 1.09, 1.27, 1.83 이다), 텍스처를 떼면 칸 색만
+        // 남아서 그대로 1 을 넘고 **판이 하얗게 잘린다.**
+        //
+        // 머티리얼의 밑색을 낮춰도 소용없다 — 블록이 그 칸을 이긴다.
+        // 낮출 곳은 보내는 색이다.
+        if (_overlay != MineOverlay.None && flatMaterial != null) c = Flatten(c);
+
         SetColor(block.gameObject, c);
     }
 
@@ -360,9 +382,18 @@ public class MineGridView : MonoBehaviour
     {
         if (!go.TryGetComponent(out Renderer r)) return;
 
-        // 그림을 보여주는 동안에는 바탕을 무른 돌 하나로 통일한다.
+        // 그림을 보여주는 동안에는 바탕을 하나로 통일한다.
         // 돌 종류가 섞여 보이면 그림을 읽기 어렵다. 도안이든 결과든 마찬가지다.
         bool uniform = _overlay != MineOverlay.None;
+
+        // 그때는 **무늬도 지운다.** 탑뷰에서 내려다보면 돌결이 도안 위에
+        // 겹쳐 보여서, 어느 칸이 파였는지 읽는 데 방해가 된다.
+        // 칸 색은 아래 SetColor 가 블록마다 따로 칠하므로 그대로 나온다.
+        if (uniform && flatMaterial != null)
+        {
+            if (r.sharedMaterial != flatMaterial) r.sharedMaterial = flatMaterial;
+            return;
+        }
 
         Material m = _grid.IsDug(x, y)
             ? (dugMaterial != null ? dugMaterial : softMaterial)
@@ -433,6 +464,23 @@ public class MineGridView : MonoBehaviour
                 HandleCellChanged(x, y);
             }
         }
+    }
+
+    // 무늬 없는 돌을 쓸 때 칸 색을 손본다. 밝기를 낮추고 색조를 지운다.
+    //
+    // ⚠ 색조를 지우는 이유 — intactColor 는 따뜻한 텍스처와 주황 랜턴을 상쇄하려고
+    //   파랗게 만든 값이다 (1.09, 1.27, 1.83). 그런데 탑뷰에서는 텍스처를 떼고
+    //   랜턴도 끈다. 상쇄할 대상이 없으니 파란 보정만 남아 판이 파래진다.
+    //
+    // 밝기는 사람이 느끼는 대로 뽑는다. 초록이 가장 밝게 보이고 파랑이 가장 어둡다.
+    private Color Flatten(Color c)
+    {
+        float gray = c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
+
+        return new Color(Mathf.Lerp(c.r, gray, flatDesaturate) * flatColorScale,
+                         Mathf.Lerp(c.g, gray, flatDesaturate) * flatColorScale,
+                         Mathf.Lerp(c.b, gray, flatDesaturate) * flatColorScale,
+                         c.a);
     }
 
     private void SetColor(GameObject go, Color color)

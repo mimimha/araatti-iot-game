@@ -43981,6 +43981,9 @@ MonoBehaviour:
   softMaterial: {fileID: 2100000, guid: 3be6222bc3f7e7942bdc0f50d94e8f09, type: 2}
   hardMaterial: {fileID: 2100000, guid: e81cea7354172044199946222871020e, type: 2}
   dugMaterial: {fileID: 2100000, guid: 154887ad2099ab34790a1a4c7bb1145b, type: 2}
+  flatMaterial: {fileID: 2100000, guid: bc24b8a7f758ee44391e5cc3722aa0e2, type: 2}
+  flatColorScale: 0.4
+  flatDesaturate: 1
   varyRotation: 1
   hardRise: 0
   heightJitter: 0
