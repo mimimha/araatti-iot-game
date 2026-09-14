@@ -26,7 +26,7 @@
 | Meshy Warriors 몬스터/보스 5종 | Meshy에서 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/MiniGames/Warriors/Models/` | Warriors의 Crab, Fish, Jellyfish, Kraken Phase 2/Final 모델 | 서연 | 2026-09-12 |
 | Toony Tiny People RTS 검 리소스 | 출처 확인 필요 | 라이선스 확인 전 업로드 보류 | `Assets/ToonyTinyPeople/` | Warriors 테스트용 검 메시와 재질 | 서연 | 2026-09-12 |
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
-| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처만 `Assets/Game/Art/Textures/Mine/` | 광산 바닥 돌 텍스처 (흙 · 바위) | 효진 | 2026-09-14 |
+| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 | 효진 | 2026-09-15 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
@@ -77,9 +77,19 @@
 
 > **Modular Dungeon Catacombs 가 그 예입니다.** 팩이 **2.9GB** 인데 저장소 전체가
 > 787MB 입니다. 그대로 담으면 네 배가 되고 팀원 전원의 클론이 무거워집니다.
-> 실제로 쓰는 텍스처는 5장뿐이라 **1024 로 줄여 11MB** 로 옮겼습니다.
+> 실제로 쓰는 것만 뽑아 두 번에 나눠 옮겼습니다.
+>
+> | 언제 | 무엇 | 원본 | 옮긴 뒤 |
+> | --- | --- | --- | --- |
+> | 바닥 돌 | 텍스처 5장 | 126MB | **11.1MB** |
+> | 동굴 배경 | 텍스처 2장 + 메시 4개 | 87MB | **4.9MB** |
 >
 > 줄이는 작업은 Unity 안에서 했습니다. 1m 짜리 칸에 4096 텍스처는 과합니다.
+>
+> **메시는 줄일 것이 없습니다.** 파이프라인을 안 타기 때문에 URP 에서도 그대로
+> 쓰이고, 넷을 합쳐 0.27MB 입니다. 비싼 것은 언제나 텍스처입니다.
+> 팩의 머티리얼은 Built-in 이라 URP 에서 자홍색으로 뜹니다. **우리 머티리얼을
+> 새로 만들어 씌웁니다.**
 
 이렇게 옮긴 에셋은 표의 폴더 칸에 **옮긴 위치**를 적고, 팩 본체가 저장소에
 없다는 것을 함께 적습니다. 나중에 그 팩에서 무언가를 더 쓰려면 다시 받아야 합니다.
