@@ -112,6 +112,9 @@ public class MineVision : MonoBehaviour
     private MaterialPropertyBlock _caveBlock;
     private bool _caveDimmed;
 
+    // 광물은 제 색을 들고 있다. 덮어쓰면 안 되고 곱해야 한다.
+    private MineCrystalTint[] _caveTints;
+
     // 원래 값. 어둡게 했다가 반드시 되돌려야 한다.
     private Color _savedAmbient;
     private AmbientMode _savedAmbientMode;
@@ -137,7 +140,12 @@ public class MineVision : MonoBehaviour
             if (cave != null) caveRoot = cave.transform;
         }
 
-        if (caveRoot != null) _caveRenderers = caveRoot.GetComponentsInChildren<Renderer>(true);
+        if (caveRoot != null)
+        {
+            _caveRenderers = caveRoot.GetComponentsInChildren<Renderer>(true);
+            _caveTints = caveRoot.GetComponentsInChildren<MineCrystalTint>(true);
+        }
+
         _caveBlock = new MaterialPropertyBlock();
 
         SaveOriginal();
@@ -296,9 +304,23 @@ public class MineVision : MonoBehaviour
             Renderer r = _caveRenderers[i];
             if (r == null) continue;
 
+            // ⚠ 광물은 건너뛴다. 제 색을 들고 있어서 덮어쓰면 흰 돌이 된다.
+            //   재생 전에는 멀쩡하고 재생하면 색이 사라지는 증상이 이것이었다.
+            if (r.GetComponent<MineCrystalTint>() != null) continue;
+
             r.GetPropertyBlock(_caveBlock);
             _caveBlock.SetColor("_BaseColor", tint);
             r.SetPropertyBlock(_caveBlock);
+        }
+
+        // 광물은 덮어쓰는 대신 제 색에 곱하게 한다.
+        if (_caveTints != null)
+        {
+            float dim = lit ? (litCaveTint.r + litCaveTint.g + litCaveTint.b) / 3f : 1f;
+            for (int i = 0; i < _caveTints.Length; i++)
+            {
+                if (_caveTints[i] != null) _caveTints[i].SetDim(dim);
+            }
         }
 
         _caveDimmed = lit;
