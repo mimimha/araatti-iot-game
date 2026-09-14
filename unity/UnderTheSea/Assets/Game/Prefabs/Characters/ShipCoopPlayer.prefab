@@ -1321,6 +1321,7 @@ GameObject:
   - component: {fileID: 8205238816377000420}
   - component: {fileID: 7203737780330714472}
   - component: {fileID: 2061641660322509996}
+  - component: {fileID: 5731928460017753412}
   - component: {fileID: 7276708486594036018}
   m_Layer: 0
   m_Name: ShipCoopPlayer
@@ -1665,6 +1666,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3dc60ee1acfb064c87e36056560855b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopRider
+--- !u!114 &5731928460017753412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6fb50aa1ce3e0564787f9184c1461015, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopCarryPose
+  carry: {fileID: 0}
+  held: {fileID: 0}
+  reach: 0.16
+  drop: 0.04
+  apart: 0.09
+  strength: 0.85
 --- !u!114 &7276708486594036018
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -352,6 +352,16 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
             carryData.FindProperty("heldVisual").objectReferenceValue = CreateHeldItem(root);
             carryData.ApplyModifiedPropertiesWithoutUndo();
 
+            // 🙌 두 팔로 안는 자세. 이게 없으면 들고 있는 표시가 머리 위에 떠 있는다.
+            // 싱글 씬은 ShipCoopDeckLayout 이 붙여 주지만 이 프리팹은 여기서 만들므로 직접 붙인다.
+            // Animator 가 붙은 오브젝트에 있어야 OnAnimatorIK 가 불린다. (IK Pass 는 컨트롤러에 이미 켜져 있다)
+            Animator animator = root.GetComponentInChildren<Animator>(true);
+
+            if (animator != null && animator.GetComponent<ShipCoopCarryPose>() == null)
+            {
+                animator.gameObject.AddComponent<ShipCoopCarryPose>();
+            }
+
             // 외형이 끝내 안 오면 기본 외형으로 정하는 안전망. **이 프리팹에만 붙는다.**
             // Lobby 의 NetworkPlayer 에는 없으므로 거기서는 기본 외형 확정을 부르는 코드가 없다.
             root.AddComponent<ShipCoopDefaultAppearance>();
