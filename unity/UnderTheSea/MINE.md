@@ -716,24 +716,46 @@ Assets/Game/
 
 | 상대 | 내용 |
 | --- | --- |
-| **민화** | 씬 전환, 미니게임 대기 UI, **[지금 시작] 버튼** (합의 완료) |
-| **건희** (서버) | **[지금 시작] 요청**, **AI 한 줄 평 요청**. 둘 다 `INetworkService` 확장.<br>**결과 보고는 서버 구현 대기** — 아래 참고 |
-| **서연** | 캐릭터 프리팹. IoT 스윙은 `IHandDevice.ConsumeSwing()` 로 **이미 해결됨** (확장 불필요) |
+| **서연** | **공통 매칭·결과 흐름** (`CommonMatchIntegration.md`). 광산이 여기 붙습니다 — 아래 참고.<br>캐릭터 프리팹. IoT 스윙은 `IHandDevice.ConsumeSwing()` 로 **이미 해결됨** (확장 불필요) |
+| **민화** | 씬 전환(`SceneFlow`). 공통 흐름이 **로비로 가는 public 함수를 필요로 하는데 아직 없습니다** |
+| **건희** (서버) | **AI 한 줄 평 요청** (`INetworkService` 확장). 보상 저장(`RewardService` 안쪽) |
 
-경계에 새로 추가되는 요청이 둘입니다. `GAME_STRUCTURE.md` 4장은 클라이언트가 네트워크를
+경계에 새로 추가되는 요청이 있습니다. `GAME_STRUCTURE.md` 4장은 클라이언트가 네트워크를
 직접 부르지 못하게 하므로, **인터페이스에 추가한 뒤 가짜 구현으로 개발**합니다.
 
-### 결과 보고 — 광산 쪽은 끝났고 서버 대기입니다
+### 결과 보고 — 경계가 공통 흐름으로 바뀌었습니다
 
-판이 끝나면 `ReportMiniGameResult(성공여부, 점수)` 를 부릅니다. `develop` 에 Fusion 로비가
-들어온 뒤로 이 요청이 **실제 서비스까지 닿는 것을 확인했습니다.**
+처음에는 `ReportMiniGameResult(성공여부, 점수)` 를 직접 불렀습니다. 지금도 그렇게 돌아가고,
+Fusion 로비가 들어온 뒤 요청이 실제 서비스까지 닿는 것도 확인했습니다.
 
 ```text
 [FusionNetworkService] 미니게임 결과 보고는 아직 구현되지 않았습니다. (False, 57)
 ```
 
-**광산이 할 일은 여기까지입니다.** 서버 쪽 구현이 붙으면 광산은 고칠 것이 없습니다.
-이 경고가 뜨는 동안에도 개발은 막히지 않습니다.
+그런데 서연이 **세 미니게임 공통 매칭·결과 흐름**을 만들면서 경계가 그쪽으로 옮겨갔습니다.
+앞으로 광산은 이 함수 하나만 부릅니다.
+
+```csharp
+controller.CompleteMiniGame(isClear: true, score: 5200, playTime: 82f, extraStatValue: "14");
+```
+
+`extraStatValue` 는 **채굴량**입니다. `MineGrid.DugCount` 를 그대로 넘기면 됩니다.
+
+**`MiniGame_Mining.asset` 은 이미 이 문서와 맞습니다** — 1~4명, `RequireFullParty: false`.
+인원 규칙을 광산 코드에 적지 않습니다. 설정 에셋이 주인입니다.
+
+> **바꾸는 시점은 10단계(네트워크)입니다.** 지금 공통 흐름은 `stubOnly = true` 라
+> 씬 전환이 아직 안 붙어 있고, 광산도 7단계 밸런싱 차례입니다.
+> 지금 옮기면 양쪽이 다 흔들리는 중이라 두 번 고치게 됩니다.
+
+10단계에서 할 일 셋 (`CommonMatchIntegration.md` 0장)
+
+1. `CommonMatchCanvas.prefab` 을 광산 씬에 놓고 `MatchFlow.config` 에 `MiniGame_Mining` 연결
+2. 씬에 `PlayerSpawnPoint` 를 4개 놓고 `index` 를 **0~3** 으로
+3. 판이 끝나는 곳(`MineGame.EnterFinished`)에서 `CompleteMiniGame` 한 번
+
+`MiniGame_Mining.asset` 의 `SceneName` 은 **비워둡니다.** 최종 씬 `Mine.unity` 를 만들고
+Build Profiles 에 등록한 뒤에 채웁니다. 없는 이름을 미리 적어두면 더 위험합니다.
 
 ---
 
