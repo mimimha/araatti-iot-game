@@ -97,6 +97,9 @@ public class MineGame : MonoBehaviour
              "크게 잡을수록 '어디에 그렸는가' 를 안 보게 된다.")]
     [SerializeField, Min(0)] private int maxAlign = 4;
 
+    [Tooltip("진단용. 점수는 안 바꾸고 원점이 몇 칸 밀렸는지만 따로 재서 로그에 남긴다. 0 이면 재지 않는다. 모양을 못 그린 것과 자리를 잘못 잡은 것을 가르는 데 쓴다.")]
+    [SerializeField, Min(0)] private int diagnosticAlign = 4;
+
     [Header("복구와 힌트 (MINE.md 2·4장)")]
     [Tooltip("사람 한 명당 복구 블록 몇 개. 1 이면 4명에 4개.\n" +
              "블록은 팀 공용이다. 7번 밸런싱에서 조정할 값이다.")]
@@ -114,6 +117,17 @@ public class MineGame : MonoBehaviour
     [SerializeField] private int boardSeed = 0;
 
     private IMineSimilarity _similarity;
+
+    // 턴이 시작할 때의 누적값. 끝날 때 빼면 그 턴에 한 일이 나온다.
+    // 혼자 테스트할 때는 한 사람이 네 턴을 다 도므로 누적값만으로는 턴별을 못 본다.
+    private int _turnStartDigs;
+    private int _turnStartSwings;
+    private int _turnStartCracks;
+    private int _turnStartRestores;
+
+    /// <summary>턴별 요약. 판이 끝날 때 한꺼번에 다시 찍는다.</summary>
+    private readonly System.Collections.Generic.List<string> _turnLog =
+        new System.Collections.Generic.List<string>();
     private float _timer;
     private float _hintTimer;
 
@@ -175,6 +189,8 @@ public class MineGame : MonoBehaviour
         if (cameraRig == null) cameraRig = FindAnyObjectByType<MineCamera>();
 
         // 판정 방식은 인스펙터에서 고른다. (MINE.md 7장)
+        _turnLog.Clear();
+
         _similarity = judge == MineJudge.Shape
             ? new MineShapeSimilarity(shapeTolerance, maxAlign)
             : (IMineSimilarity)new MineIoUSimilarity();
@@ -243,6 +259,9 @@ public class MineGame : MonoBehaviour
                 break;
 
             case MineState.Turn:
+                // 턴이 넘어가기 *전에* 적는다. 넘어간 뒤에는 CurrentDigger 가 바뀐다.
+                LogTurnSummary();
+
                 // 마지막 턴이었으면 끝, 아니면 빈 시간을 거쳐 다음 턴.
                 if (TurnNumber >= TotalTurns) EnterFinished();
                 else EnterTurnGap();
@@ -303,7 +322,7 @@ public class MineGame : MonoBehaviour
     {
         if (digger.HintUsed)
         {
-            Debug.Log("[MINE] 힌트를 이미 썼습니다. 한 사람당 1회입니다.", this);
+            Debug.Log("[MINE] 힌트를 이미 썼습니다. 자기 턴에 1회입니다.", this);
             return;
         }
 
@@ -386,6 +405,11 @@ public class MineGame : MonoBehaviour
         int index = (turnNumber - 1) % Mathf.Max(1, diggers.Length);
         SetOnlyDiggerActive(index);
 
+        // 힌트는 **자기 턴에 1회**다. 턴 수 = 사람 수라 실제 게임에서는 1인 1회와
+        // 같은 말이지만, 혼자 테스트할 때는 한 사람이 네 턴을 다 돌기 때문에
+        // 되돌려주지 않으면 첫 턴에 쓰고 끝난다. (MINE.md 2장)
+        if (CurrentDigger != null) CurrentDigger.ResetHintForNewTurn();
+
         // 어둠 + 지금 턴인 사람을 따라가는 랜턴. (MINE.md 6장)
         // Follow 는 SetOnlyDiggerActive 뒤에 불러야 CurrentDigger 가 정해져 있다.
         if (vision != null)
@@ -397,6 +421,12 @@ public class MineGame : MonoBehaviour
         // 광산 안으로 내려간다. 여기부터 전체가 안 보인다.
         if (cameraRig != null && CurrentDigger != null)
             cameraRig.FollowPlayer(CurrentDigger.transform);
+
+        // 이 턴에 무엇을 했는지 재려고 눈금을 찍어둔다.
+        _turnStartDigs = CurrentDigger != null ? CurrentDigger.TotalDigs : 0;
+        _turnStartSwings = CurrentDigger != null ? CurrentDigger.TotalSwings : 0;
+        _turnStartCracks = CurrentDigger != null ? CurrentDigger.TotalCracks : 0;
+        _turnStartRestores = RestoresLeft;
 
         Debug.Log($"[MINE] {turnNumber}/{TotalTurns} 턴 시작 — {turnSeconds:0}초 · " +
                   $"복구 {RestoresLeft}개 · 힌트 {(HintAvailable ? "가능" : "사용함")}", this);
@@ -458,10 +488,108 @@ public class MineGame : MonoBehaviour
         Debug.Log($"[MINE] 끝 — {label} · {(Success ? "성공" : "실패")} · {Result} · " +
                   $"복구 {TotalRestores - RestoresLeft}개 씀", this);
 
+        LogAlignmentDiagnosis();
+
+        if (_turnLog.Count > 0)
+        {
+            string sep = System.Environment.NewLine + "  ";
+            Debug.Log("[MINE] 턴별 정리" + sep + string.Join(sep, _turnLog), this);
+        }
+
         Finished?.Invoke(Success, score);
         // 판정이 위치를 맞춰 채점했으니 화면도 같은 기준으로 칠한다. (MINE.md 7장)
         if (view != null) view.SetTargetOffset(Result.Alignment);
         Report(Success, score);
+    }
+
+    /// <summary>
+    /// 이 턴에 한 일을 한 줄로 적는다. **턴이 넘어가기 전에** 불러야 한다.
+    ///
+    /// 누적값의 차이로 잰다. 혼자 테스트할 때는 한 사람이 네 턴을 다 돌기 때문에
+    /// <see cref="MineDigger.TotalDigs"/> 같은 누적값만으로는 턴별을 볼 수 없다.
+    /// </summary>
+    private void LogTurnSummary()
+    {
+        if (CurrentDigger == null) return;
+
+        int digs = CurrentDigger.TotalDigs - _turnStartDigs;
+        int swings = CurrentDigger.TotalSwings - _turnStartSwings;
+        int cracks = CurrentDigger.TotalCracks - _turnStartCracks;
+        int restores = _turnStartRestores - RestoresLeft;
+
+        // 헛스윙 = 휘둘렀는데 아무 일도 안 일어난 것. 조준이 답답한지를 본다.
+        int missed = Mathf.Max(0, swings - digs - cracks);
+
+        string line = $"P{TurnNumber}  판 것 {digs}칸 · 스윙 {swings}회 · 금 {cracks} · " +
+                      $"헛스윙 {missed} · 복구 {restores}개";
+
+        _turnLog.Add(line);
+        Debug.Log($"[MINE] 턴 끝 — {line}", this);
+    }
+
+    /// <summary>
+    /// **점수는 그대로 두고** 원점이 몇 칸 밀렸는지만 따로 잰다.
+    ///
+    /// 낮은 점수가 "모양을 못 그려서" 인지 "자리를 잘못 잡아서" 인지 구분하려는 것이다.
+    /// 원인이 다르면 고칠 것도 다르다 — 앞쪽이면 턴 시간이나 도안 복잡도이고,
+    /// 뒤쪽이면 공개 시간이나 첫 사람의 역할(3장)이다.
+    ///
+    /// ⚠ **채점기의 Alignment 를 그대로 쓰면 안 된다.** 그 값은 두 그림의
+    ///   *무게중심 차이*지 최고점을 주는 자리가 아니다. 실제로 그 값만큼 밀었더니
+    ///   점수가 71.5%에서 70.9%로 **떨어지는** 판이 나왔다.
+    ///   여기서는 한도 안의 모든 자리를 직접 밀어보고 제일 높은 곳을 찾는다.
+    /// </summary>
+    private void LogAlignmentDiagnosis()
+    {
+        if (diagnosticAlign <= 0 || grid == null || grid.TargetCells == null) return;
+
+        // 보정을 끈 채점기로 잰다. 안 끄면 채점기가 또 제 나름대로 밀어버린다.
+        var probe = new MineShapeSimilarity(shapeTolerance, 0);
+
+        int size = grid.Size;
+        var dug = grid.Cells;
+        var shifted = new bool[size * size];
+
+        float best = -1f;
+        Vector2Int bestShift = Vector2Int.zero;
+
+        for (int dy = -diagnosticAlign; dy <= diagnosticAlign; dy++)
+        {
+            for (int dx = -diagnosticAlign; dx <= diagnosticAlign; dx++)
+            {
+                System.Array.Clear(shifted, 0, shifted.Length);
+
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        if (!dug[y * size + x]) continue;
+
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx < 0 || nx >= size || ny < 0 || ny >= size) continue;
+
+                        shifted[ny * size + nx] = true;
+                    }
+                }
+
+                float p = probe.Evaluate(shifted, grid.TargetCells, size).Percent;
+                if (p <= best) continue;
+
+                best = p;
+                bestShift = new Vector2Int(dx, dy);
+            }
+        }
+
+        if (bestShift == Vector2Int.zero)
+        {
+            Debug.Log($"[MINE] 진단 — 원점은 맞았다. 어디로 밀어도 더 안 오른다. " +
+                      $"점수가 낮다면 모양 문제다. (최대 {diagnosticAlign}칸까지 밀어봄)", this);
+            return;
+        }
+
+        Debug.Log($"[MINE] 진단 — 원점이 ({bestShift.x}, {bestShift.y}) 밀렸다. " +
+                  $"맞추면 {best:0.0}% (지금 {Result.Percent:0.0}% · {best - Result.Percent:+0.0;-0.0}%p)", this);
     }
 
     private void SetState(MineState next)
