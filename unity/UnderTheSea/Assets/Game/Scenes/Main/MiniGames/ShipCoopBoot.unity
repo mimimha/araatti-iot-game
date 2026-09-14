@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &514870493
+--- !u!1 &515959441
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,9 +127,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 514870496}
-  - component: {fileID: 514870495}
-  - component: {fileID: 514870494}
+  - component: {fileID: 515959444}
+  - component: {fileID: 515959443}
+  - component: {fileID: 515959442}
   m_Layer: 0
   m_Name: Boot Camera
   m_TagString: MainCamera
@@ -137,21 +137,21 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!81 &514870494
+--- !u!81 &515959442
 AudioListener:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 514870493}
+  m_GameObject: {fileID: 515959441}
   m_Enabled: 1
---- !u!20 &514870495
+--- !u!20 &515959443
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 514870493}
+  m_GameObject: {fileID: 515959441}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
@@ -196,13 +196,13 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &514870496
+--- !u!4 &515959444
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 514870493}
+  m_GameObject: {fileID: 515959441}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -211,7 +211,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1823603064
+--- !u!1 &1599674796
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -219,13 +219,13 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1823603071}
-  - component: {fileID: 1823603070}
-  - component: {fileID: 1823603069}
-  - component: {fileID: 1823603068}
-  - component: {fileID: 1823603067}
-  - component: {fileID: 1823603066}
-  - component: {fileID: 1823603065}
+  - component: {fileID: 1599674803}
+  - component: {fileID: 1599674802}
+  - component: {fileID: 1599674801}
+  - component: {fileID: 1599674800}
+  - component: {fileID: 1599674799}
+  - component: {fileID: 1599674798}
+  - component: {fileID: 1599674797}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -233,40 +233,39 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1823603065
+--- !u!114 &1599674797
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 311cc14ca4bc4f746ae3126a1124116a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopPlayerSpawner
-  playerPrefab: {fileID: 8155606567354477710, guid: 6e3cdd8da10073e4b83465f8862eb205, type: 3}
+  playerPrefab: {fileID: 5099921492456117917, guid: 6e3cdd8da10073e4b83465f8862eb205, type: 3}
   fallbackSpacing: 3
-  startVoyageOnFirstPlayer: 1
---- !u!114 &1823603066
+--- !u!114 &1599674798
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f9ed9f969b45b2d4b873535c3f781a7d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopInputProvider
---- !u!114 &1823603067
+--- !u!114 &1599674799
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
@@ -275,26 +274,26 @@ MonoBehaviour:
   axisSpeed: 4
   twoDevices: 1
   logDeviceOutput: 0
---- !u!114 &1823603068
+--- !u!114 &1599674800
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3637e636234277b4894c96c7758e2577, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopLauncher
   serverPort: 27015
---- !u!114 &1823603069
+--- !u!114 &1599674801
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 90a93abf1a391964a94e5c139605105b, type: 3}
@@ -302,25 +301,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fusion.Unity::Fusion.NetworkSceneManagerDefault
   IsSceneTakeOverEnabled: 1
   LogSceneLoadErrors: 1
---- !u!114 &1823603070
+--- !u!114 &1599674802
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1199893898, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkRunner
---- !u!4 &1823603071
+--- !u!4 &1599674803
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1823603064}
+  m_GameObject: {fileID: 1599674796}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -333,5 +332,5 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1823603071}
-  - {fileID: 514870496}
+  - {fileID: 1599674803}
+  - {fileID: 515959444}

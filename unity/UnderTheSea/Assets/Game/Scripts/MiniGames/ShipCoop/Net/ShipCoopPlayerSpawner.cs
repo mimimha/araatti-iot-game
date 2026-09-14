@@ -32,10 +32,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Tooltip("스폰 자리를 하나도 못 찾았을 때 사람끼리 벌릴 간격(m).")]
         [SerializeField, Min(0.5f)] private float fallbackSpacing = 3f;
 
-        [Header("항해 시작")]
-        [Tooltip("첫 사람이 들어올 때까지 출항을 미룬다. 빈 배가 혼자 가다 침몰하는 것을 막는다.")]
-        [SerializeField] private bool startVoyageOnFirstPlayer = true;
-
         /// <summary>
         /// 갑판 위 스폰 자리. 처음 쓸 때 찾아 둔다.
         ///
@@ -43,8 +39,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         /// 유니티는 씬을 넘는 참조를 저장하지 못한다. (<see cref="ShipCoopSpawnPoint"/>)
         /// </summary>
         private Transform[] spawnPoints;
-
-        private bool voyageStarted;
 
         public void PlayerJoined(PlayerRef player)
         {
@@ -69,8 +63,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             Runner.SetPlayerObject(player, spawned);
 
             Debug.Log($"[ShipCoopSpawner] {player} 스폰 완료 — {position}, Id {spawned.Id}");
-
-            StartVoyageOnce();
         }
 
         public void PlayerLeft(PlayerRef player)
@@ -90,38 +82,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 // TaskWorker.OnDisable 이 붙어 있던 자리를 스스로 반납한다.
                 Runner.Despawn(spawned);
             }
-        }
-
-        /// <summary>
-        /// 첫 사람이 들어오면 출항시킨다.
-        ///
-        /// <b>왜 필요한가.</b> 씬의 <c>ShipCoopGame</c> 은 원래 켜지자마자 출항한다.
-        /// 혼자 테스트할 때는 그게 맞지만, Dedicated Server 는 <b>아무도 없는 채로 먼저 뜬다.</b>
-        /// 그대로 두면 빈 배가 혼자 항해하다 암초에 부딪혀 침몰한다.
-        /// 실측했다 — 접속하기도 전에 40초 만에 가라앉아 있었다.
-        ///
-        /// 그래서 새 씬에서는 <c>autoStart</c> 를 꺼 두고 여기서 출항시킨다.
-        /// 민화님의 <c>ShipCoopTest</c> 씬은 <c>autoStart</c> 가 켜진 채라 예전 그대로 굴러간다.
-        /// </summary>
-        private void StartVoyageOnce()
-        {
-            if (!startVoyageOnFirstPlayer || voyageStarted)
-            {
-                return;
-            }
-
-            ShipCoopGame game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
-
-            if (game == null)
-            {
-                Debug.LogWarning("[ShipCoopSpawner] ShipCoopGame 을 찾지 못해 출항시키지 못했습니다.", this);
-                return;
-            }
-
-            voyageStarted = true;
-            game.StartVoyage();
-
-            Debug.Log("[ShipCoopSpawner] 첫 사람이 들어와 출항합니다.");
         }
 
         /// <summary>

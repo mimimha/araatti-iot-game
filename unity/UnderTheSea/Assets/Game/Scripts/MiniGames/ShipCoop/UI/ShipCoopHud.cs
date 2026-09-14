@@ -216,6 +216,14 @@ public class ShipCoopHud : MonoBehaviour
     private bool _localWorkerInjected;
 
     /// <summary>
+    /// 출항 전에 페이즈 자리에 띄울 안내. 비어 있으면 예전처럼 페이즈 이름이 뜬다.
+    ///
+    /// 네트워크에서 "두 명을 기다리는 중" · "3초 뒤 출항" 을 보여주는 데 쓴다.
+    /// 혼자 하는 씬에서는 아무도 넣지 않으므로 하나도 바뀌지 않는다.
+    /// </summary>
+    public string StartNotice { get; set; }
+
+    /// <summary>
     /// "화면을 보는 사람은 이 사람이다" 라고 알려준다.
     ///
     /// ⚠ 네트워크에서는 <b>반드시</b> 이걸 불러야 한다. 안 부르면 HUD 가 스스로 찾다가
@@ -271,6 +279,13 @@ public class ShipCoopHud : MonoBehaviour
     {
         if (phaseLabel == null || game == null)
         {
+            return;
+        }
+
+        // 출항 전 안내가 있으면 그쪽이 먼저다. 아직 페이즈가 없는 동안만 쓰인다.
+        if (!string.IsNullOrEmpty(StartNotice))
+        {
+            phaseLabel.text = StartNotice;
             return;
         }
 

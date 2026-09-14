@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &7083881362295477718
+--- !u!1 &6200402629351048345
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,15 +8,15 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1215641119016254660}
-  - component: {fileID: 3135554238296671796}
-  - component: {fileID: 7315256447994164947}
-  - component: {fileID: 8172260736254959272}
-  - component: {fileID: 1803159496830960799}
-  - component: {fileID: 9056932898933972348}
-  - component: {fileID: 5390240316408824184}
-  - component: {fileID: 3009223023050389980}
-  - component: {fileID: 9180742248276906170}
+  - component: {fileID: 3700888506774328026}
+  - component: {fileID: 3111686657242222007}
+  - component: {fileID: 1379174847373249099}
+  - component: {fileID: 3481435893958753096}
+  - component: {fileID: 764329774406678187}
+  - component: {fileID: 7132359824678298260}
+  - component: {fileID: 1257303687602068833}
+  - component: {fileID: 7049432674985488391}
+  - component: {fileID: 1965819157429816391}
   m_Layer: 0
   m_Name: ShipCoopHullDamagePoint
   m_TagString: Untagged
@@ -24,13 +24,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1215641119016254660
+--- !u!4 &3700888506774328026
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -39,21 +39,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &3135554238296671796
+--- !u!33 &3111686657242222007
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!65 &7315256447994164947
+--- !u!65 &1379174847373249099
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -68,13 +68,13 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!23 &8172260736254959272
+--- !u!23 &3481435893958753096
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -117,13 +117,13 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &1803159496830960799
+--- !u!114 &764329774406678187
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: adaece4aa01d1094987faa8b73405089, type: 3}
@@ -137,35 +137,35 @@ MonoBehaviour:
   leakDamagePerSecond: 2
   health: {fileID: 0}
   game: {fileID: 0}
---- !u!114 &9056932898933972348
+--- !u!114 &7132359824678298260
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 3372811159
+  SortKey: 3662902997
   SendPriority: 1
   EnableInterpolation: 1
   Flags: 262402
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 5390240316408824184}
-  - {fileID: 3009223023050389980}
-  - {fileID: 9180742248276906170}
+  - {fileID: 1257303687602068833}
+  - {fileID: 7049432674985488391}
+  - {fileID: 1965819157429816391}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &5390240316408824184
+--- !u!114 &1257303687602068833
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
@@ -199,25 +199,25 @@ MonoBehaviour:
     MinImpactfulCollisionAlignment: 0.3
     ImpactStartCorrectionTime: 0.1
     ImpactCorrectionTimeComplete: 0.3
---- !u!114 &3009223023050389980
+--- !u!114 &7049432674985488391
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 623db66633e2ddb40b86bdef87cf642b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopHoleSync
---- !u!114 &9180742248276906170
+--- !u!114 &1965819157429816391
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7083881362295477718}
+  m_GameObject: {fileID: 6200402629351048345}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d3dc60ee1acfb064c87e36056560855b, type: 3}

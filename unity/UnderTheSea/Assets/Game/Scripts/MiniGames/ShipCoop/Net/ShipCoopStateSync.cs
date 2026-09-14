@@ -1,3 +1,4 @@
+using System.Linq;
 using Fusion;
 using UnityEngine;
 
@@ -27,6 +28,28 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     [DisallowMultipleComponent]
     public sealed class ShipCoopStateSync : NetworkBehaviour
     {
+        [Header("테스트용 시작 대기")]
+        [Tooltip("이 인원이 모여야 카운트다운을 시작한다.")]
+        [SerializeField, Min(1)] private int crewToStart = 2;
+
+        [Tooltip("인원이 모인 뒤 출항까지 세는 시간(초).")]
+        [SerializeField, Min(1f)] private float countdownSeconds = 10f;
+
+        /// <summary>지금 접속해 있는 인원. 대기 안내에 쓴다.</summary>
+        [Networked] private int Crew { get; set; }
+
+        /// <summary>출항까지 남은 초. 0 이면 세는 중이 아니다.</summary>
+        [Networked] private float Countdown { get; set; }
+
+        /// <summary>
+        /// 이미 출항했는가.
+        ///
+        /// ⚠ <b>늦게 들어온 사람이 게임을 다시 시작시키면 안 된다.</b>
+        ///    이 값이 켜진 뒤에는 인원이 몇이 되든 카운트다운을 다시 세지 않는다.
+        ///    <c>[Networked]</c> 라 늦게 들어온 사람도 "이미 시작했다" 를 그대로 받는다.
+        /// </summary>
+        [Networked] private NetworkBool Sailed { get; set; }
+
         [Networked] private int Phase { get; set; }
         [Networked] private float Elapsed { get; set; }
         [Networked] private int PhaseIndex { get; set; }
@@ -40,6 +63,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         private ShipHealth health;
         private ShipVoyage voyage;
         private ShipFlooding flooding;
+        private ShipCoopHud hud;
 
         public override void Spawned()
         {
@@ -47,6 +71,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
             voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
             flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+            hud = FindAnyObjectByType<ShipCoopHud>(FindObjectsInactive.Include);
 
             if (game == null)
             {
@@ -60,6 +85,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             {
                 return;
             }
+
+            UpdateStartGate();
 
             if (game != null)
             {
@@ -86,8 +113,88 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             }
         }
 
+        /// <summary>
+        /// **언제 출항할지 정한다.** 서버에서만 돈다. (테스트용 대기 규칙)
+        ///
+        /// <code>
+        ///   인원 부족       기다린다
+        ///   인원이 모임     10초를 센다
+        ///   세는 중에 이탈  센 것을 버리고 다시 기다린다
+        ///   다 셈           딱 한 번 출항한다
+        /// </code>
+        ///
+        /// 출항한 뒤에는 아무것도 하지 않는다. 늦게 들어온 사람이 게임을 다시 시작시키면
+        /// 이미 반쯤 진행된 항해가 처음으로 돌아간다.
+        /// </summary>
+        private void UpdateStartGate()
+        {
+            Crew = Runner.ActivePlayers.Count();
+
+            if (Sailed || game == null)
+            {
+                return;
+            }
+
+            if (Crew < crewToStart)
+            {
+                if (Countdown > 0f)
+                {
+                    Debug.Log($"[ShipCoopStart] 인원이 {Crew}명으로 줄어 카운트다운을 취소합니다.");
+                    Countdown = 0f;
+                }
+
+                return;
+            }
+
+            if (Countdown <= 0f)
+            {
+                Countdown = countdownSeconds;
+                Debug.Log($"[ShipCoopStart] {Crew}명이 모였습니다. {countdownSeconds:F0}초 뒤 출항합니다.");
+                return;
+            }
+
+            Countdown -= Runner.DeltaTime;
+
+            if (Countdown > 0f)
+            {
+                return;
+            }
+
+            Countdown = 0f;
+            Sailed = true;
+
+            Debug.Log($"[ShipCoopStart] 카운트다운이 끝났습니다. 출항합니다. (인원 {Crew}명)");
+            game.StartVoyage();
+        }
+
+        /// <summary>
+        /// 출항 전 안내. 두 화면이 <b>같은 복제 값</b>을 보므로 같은 글이 뜬다.
+        ///
+        /// 서버에서도 불리지만 <c>ShipCoopServerCleanup</c> 이 HUD 를 꺼 두어 헛돌지 않는다.
+        /// </summary>
+        private void UpdateStartNotice()
+        {
+            if (hud == null)
+            {
+                return;
+            }
+
+            if (Sailed)
+            {
+                // 출항했으면 페이즈 이름이 다시 나와야 한다.
+                hud.StartNotice = null;
+                return;
+            }
+
+            hud.StartNotice = Countdown > 0f
+                ? $"{Mathf.CeilToInt(Countdown)}초 뒤 출항"
+                : $"{crewToStart}명을 기다리는 중 ({Crew}/{crewToStart})";
+        }
+
         public override void Render()
         {
+            UpdateStartNotice();
+
             // 서버는 자기가 적은 값을 도로 읽을 필요가 없다.
             if (HasStateAuthority)
             {
