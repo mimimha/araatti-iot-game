@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using Fusion;
 using UnityEngine;
 
 namespace UnderTheSea.MiniGames.ShipCoop.Net
@@ -17,6 +18,13 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     ///
     /// 그래서 <b>계층 경로</b>로 번호를 만든다. 모두 같은 씬 파일을 열므로
     /// "Ship/Deck_Main/HelmWheel" 같은 경로는 어디서나 같다.
+    ///
+    /// <b>⚠ 도중에 스폰되는 자리(수리 지점)는 경로를 쓰지 않는다.</b>
+    /// 서버는 <c>HullDamage.Spawn</c> 이 <c>HullDamagePoint_(프레임)_(번호)</c> 로 이름을 바꾸는데
+    /// 클라이언트의 복제본은 프리팹 이름 그대로라 경로가 서로 다르다. 그러면 서버가 "이 사람은
+    /// 구멍에 붙었다" 고 보내도 클라이언트가 그 구멍을 못 찾아 <b>수리 게이지가 뜨지 않았다.</b>
+    /// 이런 자리는 <c>NetworkObject</c> 라 Fusion 이 모든 컴퓨터에 같은 <c>NetworkId</c> 를 주므로
+    /// 그 번호를 그대로 쓴다.
     ///
     /// 0 은 "자리 없음" 이다.
     /// </summary>
@@ -81,7 +89,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                     continue;
                 }
 
-                int id = Hash(PathOf(task.transform));
+                int id = NetworkIdOf(task) ?? Hash(PathOf(task.transform));
 
                 if (Places.TryGetValue(id, out TaskBase already) && already != null && already != task)
                 {
@@ -96,6 +104,23 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 Numbers[task] = id;
                 Places[id] = task;
             }
+        }
+
+        /// <summary>
+        /// 스폰된 자리면 Fusion 의 <c>NetworkId</c> 를, 씬에 놓인 자리면 null 을 돌려준다.
+        /// 스폰되지 않은(아직 살아나지 않은) NetworkObject 는 번호가 없으니 경로로 넘긴다.
+        /// </summary>
+        private static int? NetworkIdOf(TaskBase task)
+        {
+            NetworkObject spawned = task.GetComponentInParent<NetworkObject>();
+
+            if (spawned == null || !spawned.Id.IsValid)
+            {
+                return null;
+            }
+
+            // Raw 는 1 부터 시작하는 작은 수라 경로 해시와 겹칠 일이 사실상 없고, 0 도 되지 않는다.
+            return unchecked((int)spawned.Id.Raw);
         }
 
         /// <summary>루트부터의 이름 경로. 씬 이름은 넣지 않는다 — Fusion 이 씬 이름을 바꾼다.</summary>

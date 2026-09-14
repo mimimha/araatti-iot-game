@@ -46,7 +46,7 @@ public class WaterDumpPoint : MonoBehaviour
 
         if (showOnlyWhenFlooded)
         {
-            _renderers = GetComponentsInChildren<Renderer>(includeInactive: true);
+            _renderers = VisibleRenderers();
             ShowRail(false);
         }
 
@@ -77,15 +77,76 @@ public class WaterDumpPoint : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 켜고 끌 렌더러. **씬에서 이미 꺼진 것은 넣지 않는다.**
+    ///
+    /// 배치 도구가 부모 큐브의 겉을 감추고 자식으로 상자 모델을 얹는다. 큐브 렌더러까지 목록에
+    /// 넣으면 물이 찰 때 회색 큐브가 모델과 함께 다시 나타난다. 자식 모델의 렌더러는 켜져 있어 들어간다.
+    /// </summary>
+    private Renderer[] VisibleRenderers()
+    {
+        Renderer[] all = GetComponentsInChildren<Renderer>(includeInactive: true);
+        System.Collections.Generic.List<Renderer> kept = new System.Collections.Generic.List<Renderer>(all.Length);
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i] != null && all[i].enabled)
+            {
+                kept.Add(all[i]);
+            }
+        }
+
+        return kept.ToArray();
+    }
+
     /// <summary>주어진 위치에서 손이 닿는지</summary>
     public bool IsInReach(Vector3 worldPosition)
     {
         return (worldPosition - transform.position).sqrMagnitude <= reachRange * reachRange;
     }
 
-    /// <summary>들고 온 물을 버린다. 실제로 줄어들었으면 true.</summary>
+    /// <summary>
+    /// 여기에 물을 버린 횟수. 연출(💦 스플래시)을 네트워크로 옮길 때 쓴다 — 서버가 이 값을 복제하고
+    /// 클라이언트는 값이 늘어난 만큼 <see cref="ShowDumped"/> 로 같은 연출을 낸다. (11장)
+    /// </summary>
+    public int DumpCount { get; private set; }
+
+    private int _shownCount;
+
+    /// <summary>들고 온 물을 버린다. 실제로 줄어들었으면 true 이고, 그때만 물이 튄다.</summary>
     public bool Dump()
     {
-        return flooding != null && flooding.Dump();
+        bool dumped = flooding != null && flooding.Dump();
+
+        if (dumped)
+        {
+            DumpCount++;
+            _shownCount = DumpCount;
+            Splash();
+        }
+
+        return dumped;
+    }
+
+    /// <summary>클라이언트: 서버가 버린 횟수를 받아, 늘어난 만큼 튀긴다.</summary>
+    public void ShowDumped(int count)
+    {
+        if (count > _shownCount)
+        {
+            Splash();
+        }
+
+        _shownCount = count;
+        DumpCount = count;
+    }
+
+    private void Splash()
+    {
+        WaterDumpSplash fx = GetComponent<WaterDumpSplash>();
+
+        if (fx != null)
+        {
+            fx.Play();
+        }
     }
 }
