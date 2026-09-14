@@ -37,6 +37,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         private const string SourcePlayerPrefab = "Assets/Game/Prefabs/Characters/NetworkPlayer.prefab";
         private const string PlayerPrefabPath = "Assets/Game/Prefabs/Characters/ShipCoopPlayer.prefab";
 
+        private const string SourceHolePrefab = "Assets/Game/Prefabs/MiniGames/ShipCoop/HullDamagePoint.prefab";
+        private const string HolePrefabPath = "Assets/Game/Prefabs/MiniGames/ShipCoop/ShipCoopHullDamagePoint.prefab";
+
         /// <summary>
         /// 캐릭터 모델을 키우는 배율.
         ///
@@ -67,7 +70,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
                 return;
             }
 
-            BuildScene();
+            GameObject hole = BuildHolePrefab();
+
+            BuildScene(hole);
             BuildBootScene(prefab);
 
             RegisterScene(ShipCoopNet.BootScenePath);
@@ -116,14 +121,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         ///   ShipCoopPlayerMover       갑판 보행. 서버가 확정한다
         ///   ShipCoopLocalView         내 카메라 확정 + HUD 에 나를 알린다
         ///   ShipCoopCharacter         걷는 애니메이션 + 보이는 갑판에 발 붙이기
-        ///   TaskWorker                (꺼둔 채로) 카메라가 볼 "내 위치" 를 준다
-        ///   KeyboardPlayerController  (꺼둔 채로) TaskWorker 가 Awake 에서 찾는 상대
-        ///   ShipCoopDefaultAppearance 외형이 끝내 안 오면 기본 외형으로 — ShipCoop 전용
+        ///   ShipCoopNetworkedController  네트워크 입력을 IPlayerController 로 내놓는다
+        ///   TaskWorker                   작업 자리에 붙고 떨어진다
+        ///   CarryTask · ShipCoopHelp     집고 나르기 · 도움 요청 (서버에서만 판정)
+        ///   ShipCoopWorkerSync           서버가 정한 자리 · 손 상태를 모두에게 알린다
+        ///   ShipCoopRider                배가 틀 때 같이 돈다 (서버에서만)
+        ///   ShipCoopDefaultAppearance    외형이 끝내 안 오면 기본 외형으로 — ShipCoop 전용
         /// </code>
         ///
-        /// ⚠ <c>TaskWorker</c> 를 <b>꺼서</b> 넣는다. 1단계에는 작업 입력이 서버로 가지 않아,
-        ///    켜 두면 각자 자기 화면에서만 자리에 붙는다. 내 화면에선 조타륜을 잡았는데
-        ///    서버는 모르는 상태가 된다. 자리 붙기는 2단계다.
+        /// ⚠ 이 오브젝트의 <c>IPlayerController</c> 는 <b>하나뿐이어야 한다.</b>
+        ///    <c>TaskWorker.Awake</c> 가 <c>GetComponent</c> 로 찾기 때문에 둘이면 어느 쪽이
+        ///    잡힐지 순서에 달린다. 키보드 기기는 캐릭터가 아니라 러너에 붙는다.
         /// </summary>
         private static GameObject BuildPlayerPrefab()
         {
@@ -263,6 +271,33 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         }
 
         /// <summary>
+        /// 들고 있는 물건이 보일 자리. 가슴 높이에 공 하나.
+        ///
+        /// <c>ShipCoopTest</c> 의 <c>HeldAmmo</c> 와 같은 크기 · 높이다.
+        /// 무엇을 들었는지는 <c>CarryTask</c> 가 색으로 구분한다. (에셋이 오면 모델로 바뀐다)
+        ///
+        /// 콜라이더는 뗀다. 들고 있는 물건이 갑판이나 자기 몸에 걸리면 안 된다.
+        /// </summary>
+        private static GameObject CreateHeldItem(GameObject root)
+        {
+            GameObject held = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            held.name = "HeldItem";
+            held.transform.SetParent(root.transform, false);
+            held.transform.localPosition = new Vector3(0f, 3.5f, 0f);
+            held.transform.localScale = Vector3.one * 0.6f;
+
+            Collider bump = held.GetComponent<Collider>();
+
+            if (bump != null)
+            {
+                Object.DestroyImmediate(bump);
+            }
+
+            held.SetActive(false);
+            return held;
+        }
+
+        /// <summary>
         /// 부딪히는 몸을 배 치수에 맞춘다.
         ///
         /// <c>ShipCoopPlayerMover</c> 가 <c>Spawned</c> 에서 다시 한 번 맞추지만,
@@ -299,10 +334,23 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
             lookData.FindProperty("animator").objectReferenceValue = root.GetComponentInChildren<Animator>(true);
             lookData.ApplyModifiedPropertiesWithoutUndo();
 
-            // 1단계에서는 둘 다 꺼 둔다. 위 문단 참고.
-            // KeyboardPlayerController 는 ShipCoopLocalView 가 **내 캐릭터에서만** 켠다.
-            root.AddComponent<KeyboardPlayerController>().enabled = false;
-            root.AddComponent<TaskWorker>().enabled = false;
+            // 네트워크로 온 입력을 IPlayerController 인 척 내놓는다.
+            // TaskWorker 가 Awake 에서 찾는 상대이고, 이 오브젝트의 유일한 컨트롤러여야 한다.
+            root.AddComponent<ShipCoopNetworkedController>();
+            root.AddComponent<TaskWorker>();
+
+            // 집고 나르기 · 도움 요청. 판정은 서버에서만 돌고,
+            // 클라이언트에서는 ShipCoopWorkerSync 가 꺼 둔 뒤 복제받은 결과만 화면에 옮긴다.
+            CarryTask carry = root.AddComponent<CarryTask>();
+            root.AddComponent<ShipCoopHelp>();
+            root.AddComponent<ShipCoopWorkerSync>();
+
+            // 배가 트는 만큼 같이 돈다. 서버에서만 태운다.
+            root.AddComponent<ShipCoopRider>();
+
+            SerializedObject carryData = new SerializedObject(carry);
+            carryData.FindProperty("heldVisual").objectReferenceValue = CreateHeldItem(root);
+            carryData.ApplyModifiedPropertiesWithoutUndo();
 
             // 외형이 끝내 안 오면 기본 외형으로 정하는 안전망. **이 프리팹에만 붙는다.**
             // Lobby 의 NetworkPlayer 에는 없으므로 거기서는 기본 외형 확정을 부르는 코드가 없다.
@@ -313,7 +361,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         // 2. 네트워크 씬
         // ------------------------------------------------------------
 
-        private static void BuildScene()
+        private static void BuildScene(GameObject holePrefab)
         {
             Scene scene = EditorSceneManager.OpenScene(SourceScenePath, OpenSceneMode.Single);
 
@@ -330,7 +378,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
 
             RemoveSinglePlayerCharacters(scene);
             Transform[] spawnPoints = CreateSpawnPoints(scene);
-            CreateNetworkParts(scene);
+            CreateNetworkParts(scene, holePrefab);
             HoldVoyageUntilSomeoneJoins(scene);
             CarrySpawnPointsWithShip(scene, spawnPoints);
 
@@ -433,14 +481,14 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         }
 
         /// <summary>
-        /// 게임 씬 쪽 네트워크 부품. <b>서버 정리뿐이다.</b>
+        /// 게임 씬 쪽 네트워크 부품. 서버 정리와 <b>배 상태 복제</b>.
         ///
         /// 스포너는 여기 두지 않는다. Fusion 은 <b>러너와 같은 오브젝트에 붙은</b>
         /// <c>SimulationBehaviour</c> 만 등록하므로, 여기 두면 <c>PlayerJoined</c> 가 오지 않는다.
         /// 스포너는 시작 씬의 NetworkManager 에 있고, 스폰 자리는 실행 중에
         /// <see cref="ShipCoopSpawnPoint"/> 표식으로 찾는다.
         /// </summary>
-        private static void CreateNetworkParts(Scene scene)
+        private static void CreateNetworkParts(Scene scene, GameObject holePrefab)
         {
             foreach (string stale in new[] { "NetworkManager", "ShipCoopNetwork" })
             {
@@ -455,6 +503,65 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
             GameObject manager = new GameObject("ShipCoopNetwork");
             SceneManager.MoveGameObjectToScene(manager, scene);
             manager.AddComponent<ShipCoopServerCleanup>();
+
+            // 배 한 척의 공유 상태(HP · 침수 · 진행도 · 페이즈)를 복제한다.
+            // 씬에 미리 놓인 NetworkObject 라, Fusion 이 이 씬을 열 때 함께 등록한다.
+            manager.AddComponent<NetworkObject>();
+            manager.AddComponent<ShipCoopStateSync>();
+            manager.AddComponent<ShipCoopEventSync>();
+
+            // 구멍을 서버가 만들고 치우도록 경로를 갈아끼운다.
+            ShipCoopHoleSpawner holes = manager.AddComponent<ShipCoopHoleSpawner>();
+
+            if (holePrefab != null)
+            {
+                SerializedObject holeData = new SerializedObject(holes);
+                holeData.FindProperty("holePrefab").objectReferenceValue =
+                    holePrefab.GetComponent<NetworkObject>();
+                holeData.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        /// <summary>
+        /// 네트워크 전용 파손 지점을 만든다.
+        ///
+        /// ⚠ 민화님의 <c>HullDamagePoint.prefab</c> 을 <b>고치지 않는다.</b>
+        ///    원본에 <c>NetworkObject</c> 를 달면 <c>ShipCoopTest</c> 혼자 플레이에서
+        ///    스폰되지 않은 네트워크 오브젝트가 생긴다. 그래서 사본을 만든다.
+        ///
+        /// <c>ShipCoopRider</c> 를 붙이는 이유: 스폰된 오브젝트는 씬의 <c>carried</c> 에
+        /// 없어서 배가 틀어도 따라 돌지 않는다. 구멍만 갑판 밖으로 밀려난다.
+        /// </summary>
+        private static GameObject BuildHolePrefab()
+        {
+            GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(SourceHolePrefab);
+
+            if (source == null)
+            {
+                Debug.LogError($"[ShipCoopSceneSetup] '{SourceHolePrefab}' 를 찾지 못했습니다.");
+                return null;
+            }
+
+            GameObject root = (GameObject)PrefabUtility.InstantiatePrefab(source);
+            PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            root.name = "ShipCoopHullDamagePoint";
+
+            root.AddComponent<NetworkObject>();
+            root.AddComponent<NetworkTransform>();
+            root.AddComponent<ShipCoopHoleSync>();
+            root.AddComponent<ShipCoopRider>();
+
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, HolePrefabPath, out bool ok);
+            Object.DestroyImmediate(root);
+
+            if (!ok || saved == null)
+            {
+                Debug.LogError($"[ShipCoopSceneSetup] '{HolePrefabPath}' 저장에 실패했습니다.");
+                return null;
+            }
+
+            Debug.Log($"[ShipCoopSceneSetup] 네트워크용 파손 지점을 만들었습니다 — {HolePrefabPath}");
+            return saved;
         }
 
         /// <summary>
@@ -507,6 +614,10 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
             manager.AddComponent<NetworkRunner>();
             manager.AddComponent<NetworkSceneManagerDefault>();
             manager.AddComponent<ShipCoopLauncher>();
+
+            // 이 컴퓨터의 기기. 사람마다 하나이므로 캐릭터가 아니라 여기 붙는다.
+            manager.AddComponent<KeyboardPlayerController>();
+            manager.AddComponent<ShipCoopInputProvider>();
 
             // ⚠ 스포너는 반드시 러너와 **같은 오브젝트**에 있어야 한다.
             //    Fusion 이 자동으로 등록하는 SimulationBehaviour 는 그것뿐이다.

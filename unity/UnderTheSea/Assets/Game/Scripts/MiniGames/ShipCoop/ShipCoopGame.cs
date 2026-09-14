@@ -114,6 +114,9 @@ public class ShipCoopGame : MonoBehaviour
     /// <summary>지금 상태</summary>
     public ShipCoopState State { get; private set; } = ShipCoopState.Ready;
 
+    /// <summary>끝났을 때의 점수. 끝나기 전에는 0. 네트워크에서 이 값을 복제한다.</summary>
+    public int FinalScore { get; private set; }
+
     /// <summary>
     /// **이 컴퓨터가 게임을 계산하는 쪽인가.** (SHIPCOOP.md 11장)
     ///
@@ -288,6 +291,44 @@ public class ShipCoopGame : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// **진행 상태를 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// 판정은 하지 않는다. 시간을 세지도, 승패를 가리지도 않는다.
+    /// 다만 <b>바뀐 것을 알리는 일</b>은 한다 — HUD 와 결과 화면이 그 알림을 듣고 있어서
+    /// 조용히 값만 바꾸면 페이즈 표시와 결과창이 뜨지 않는다.
+    /// </summary>
+    public void ShowState(ShipCoopState state, float elapsed, int phaseIndex, int score)
+    {
+        _elapsed = elapsed;
+
+        if (phaseIndex != _phaseIndex)
+        {
+            _phaseIndex = phaseIndex;
+            PhaseChanged?.Invoke(CurrentPhase, _phaseIndex);
+        }
+
+        if (state == State)
+        {
+            return;
+        }
+
+        State = state;
+        FinalScore = score;
+
+        bool ended = state == ShipCoopState.Cleared
+                     || state == ShipCoopState.Sunk
+                     || state == ShipCoopState.TimeOver;
+
+        // ⚠ "항해 중이었다가 끝났을 때" 로 좁히지 않는다.
+        //    이미 끝난 판에 뒤늦게 들어온 사람은 항해 중인 적이 없다.
+        //    그 사람도 결과를 봐야 무슨 일이 있었는지 안다.
+        if (ended)
+        {
+            Finished?.Invoke(state == ShipCoopState.Cleared, score);
+        }
+    }
+
     private void Finish(ShipCoopState result)
     {
         State = result;
@@ -305,6 +346,7 @@ public class ShipCoopGame : MonoBehaviour
 
         Debug.Log($"[ShipCoopGame] 종료 — {reason} / 성공: {success} / 점수: {score}", this);
 
+        FinalScore = score;
         Finished?.Invoke(success, score);
         Report(success, score);
     }

@@ -201,50 +201,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 3204067219854728203, guid: 7ece8030f0e2d584d852940ab5d88427, type: 3}
   m_PrefabInstance: {fileID: 16512247}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &19393216
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 19393217}
-  - component: {fileID: 19393218}
-  m_Layer: 0
-  m_Name: Spawn_2
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &19393217
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 19393216}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.35, y: -3.39, z: 0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1418475650}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &19393218
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 19393216}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &45087132 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4155864645765361310, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
@@ -415,6 +371,113 @@ Transform:
   m_LocalRotation: {x: -4.7118198e-11, y: 0.0000000024504665, z: 0.0000000011802077, w: 1}
   m_LocalPosition: {x: 1.05, y: -3.04, z: -0.7}
   m_LocalScale: {x: 0.7, y: 0.6, z: 0.7}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &140864109
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 140864115}
+  - component: {fileID: 140864114}
+  - component: {fileID: 140864113}
+  - component: {fileID: 140864112}
+  - component: {fileID: 140864111}
+  - component: {fileID: 140864110}
+  m_Layer: 0
+  m_Name: ShipCoopNetwork
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &140864110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69a5ce02a6a40074fabc72a490277337, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopHoleSpawner
+  holePrefab: {fileID: 9056932898933972348, guid: b877b3c6e0795e34ea74410498436785, type: 3}
+--- !u!114 &140864111
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddb842981ce5dd941af169ecce19c32f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopEventSync
+--- !u!114 &140864112
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae4304993b074614b9722c46837842cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopStateSync
+--- !u!114 &140864113
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
+  SortKey: 3332972703
+  SendPriority: 1
+  EnableInterpolation: 1
+  Flags: 262146
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 140864112}
+  - {fileID: 140864111}
+  - {fileID: 140864110}
+  ForceRemoteRenderTimeframe: 0
+--- !u!114 &140864114
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b184e051f112a248af957763cda8768, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopServerCleanup
+--- !u!4 &140864115
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 140864109}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -1176,10 +1239,10 @@ MonoBehaviour:
   - {fileID: 1768793437}
   - {fileID: 631680797}
   - {fileID: 1485332601}
-  - {fileID: 886735446}
-  - {fileID: 19393217}
-  - {fileID: 1179176970}
-  - {fileID: 502843783}
+  - {fileID: 870896052}
+  - {fileID: 1300176196}
+  - {fileID: 1852450018}
+  - {fileID: 641175025}
   degreesPerSlideSpeed: 2.2
   mostDegrees: 14
   pivotZ: 8.633332
@@ -1271,50 +1334,6 @@ MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 8726923653149605062, guid: 3e8b8abcb523c1943a465a1f1e629f9d, type: 3}
   m_PrefabInstance: {fileID: 756480259}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &502843782
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 502843783}
-  - component: {fileID: 502843784}
-  m_Layer: 0
-  m_Name: Spawn_4
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &502843783
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 502843782}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.95, y: -3.39, z: 0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1418475650}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &502843784
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 502843782}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &513921454
 GameObject:
   m_ObjectHideFlags: 0
@@ -1829,7 +1848,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &637291162
+--- !u!1 &641175024
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1837,42 +1856,42 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 637291164}
-  - component: {fileID: 637291163}
+  - component: {fileID: 641175025}
+  - component: {fileID: 641175026}
   m_Layer: 0
-  m_Name: ShipCoopNetwork
+  m_Name: Spawn_4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &637291163
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 637291162}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0b184e051f112a248af957763cda8768, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopServerCleanup
---- !u!4 &637291164
+--- !u!4 &641175025
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 637291162}
+  m_GameObject: {fileID: 641175024}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -2.95, y: -3.39, z: 0.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 726316148}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &641175026
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 641175024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &688707127
 GameObject:
   m_ObjectHideFlags: 0
@@ -2016,6 +2035,41 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 703492431}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &726316147
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 726316148}
+  m_Layer: 0
+  m_Name: SpawnPoints
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &726316148
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 726316147}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 870896052}
+  - {fileID: 1300176196}
+  - {fileID: 1852450018}
+  - {fileID: 641175025}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &756480259
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2619,6 +2673,50 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 861676369}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &870896051
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 870896052}
+  - component: {fileID: 870896053}
+  m_Layer: 0
+  m_Name: Spawn_1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &870896052
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 870896051}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.25, y: -3.39, z: 0.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 726316148}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &870896053
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 870896051}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1001 &874837762
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2701,50 +2799,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1010392774561955998, guid: 095869ae7a3059e4bacccc852cb82962, type: 3}
   m_PrefabInstance: {fileID: 874837762}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &886735445
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 886735446}
-  - component: {fileID: 886735447}
-  m_Layer: 0
-  m_Name: Spawn_1
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &886735446
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 886735445}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.25, y: -3.39, z: 0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1418475650}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &886735447
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 886735445}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1001 &887969421
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3619,50 +3673,6 @@ Transform:
   - {fileID: 1641522091}
   m_Father: {fileID: 784785274}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1179176969
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1179176970}
-  - component: {fileID: 1179176971}
-  m_Layer: 0
-  m_Name: Spawn_3
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1179176970
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1179176969}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.85, y: -3.39, z: 0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1418475650}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1179176971
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1179176969}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &1193496854
 GameObject:
   m_ObjectHideFlags: 0
@@ -4027,7 +4037,7 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1250022909}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1 &1418475649
+--- !u!1 &1300176195
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -4035,33 +4045,42 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1418475650}
+  - component: {fileID: 1300176196}
+  - component: {fileID: 1300176197}
   m_Layer: 0
-  m_Name: SpawnPoints
+  m_Name: Spawn_2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1418475650
+--- !u!4 &1300176196
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1418475649}
+  m_GameObject: {fileID: 1300176195}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -1.35, y: -3.39, z: 0.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 886735446}
-  - {fileID: 19393217}
-  - {fileID: 1179176970}
-  - {fileID: 502843783}
-  m_Father: {fileID: 0}
+  m_Children: []
+  m_Father: {fileID: 726316148}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1300176197
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1300176195}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &1448395559
 GameObject:
   m_ObjectHideFlags: 0
@@ -5436,6 +5455,50 @@ Transform:
   - {fileID: 1045737260}
   m_Father: {fileID: 784785274}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1852450017
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1852450018}
+  - component: {fileID: 1852450019}
+  m_Layer: 0
+  m_Name: Spawn_3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1852450018
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1852450017}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.85, y: -3.39, z: 0.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 726316148}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1852450019
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1852450017}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 897d8d8e063bb7848b5bdba6957cde08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopSpawnPoint
 --- !u!1 &1855686419
 GameObject:
   m_ObjectHideFlags: 0
@@ -6142,5 +6205,5 @@ SceneRoots:
   - {fileID: 756480259}
   - {fileID: 2101420229}
   - {fileID: 1603449122}
-  - {fileID: 1418475650}
-  - {fileID: 637291164}
+  - {fileID: 726316148}
+  - {fileID: 140864115}

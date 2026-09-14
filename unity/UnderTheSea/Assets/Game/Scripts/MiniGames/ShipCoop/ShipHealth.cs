@@ -51,6 +51,32 @@ public class ShipHealth : MonoBehaviour
     /// </summary>
     public bool Invincible { get; set; }
 
+    /// <summary>
+    /// **남은 체력을 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// <c>TakeDamage</c> 로 맞추지 않는 이유: 그쪽은 피해량을 받아 스스로 빼고 연출까지 낸다.
+    /// 복제는 <b>결과만</b> 옮겨야 한다. 안 그러면 같은 피해가 두 번 계산된다.
+    /// </summary>
+    public void ShowHp(float current)
+    {
+        float clamped = Mathf.Clamp(current, 0f, maxHp);
+
+        if (Mathf.Approximately(clamped, CurrentHp))
+        {
+            return;
+        }
+
+        bool wasAlive = !IsSunk;
+        CurrentHp = clamped;
+
+        Changed?.Invoke(CurrentHp, maxHp);
+
+        if (wasAlive && IsSunk)
+        {
+            Sunk?.Invoke();
+        }
+    }
+
     public void TakeDamage(float amount, string reason = null)
     {
         if (IsSunk || Invincible || amount <= 0f)

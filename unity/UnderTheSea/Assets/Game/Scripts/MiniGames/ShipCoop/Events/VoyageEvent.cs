@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>
 /// 항해 중에 벌어지는 사건 하나. (SHIPCOOP.md 5장)
@@ -316,6 +317,34 @@ public abstract class VoyageEvent : MonoBehaviour
         OnBegin();
     }
 
+    /// <summary>
+    /// **서버가 정한 단계를 이 화면에도 만든다.** 복제 전용이다.
+    ///
+    /// 판정하지 않는다. 예고를 끝낼지 말지는 서버가 이미 정했고, 여기서는
+    /// 같은 단계로 맞추기만 한다. 그래야 늦게 들어온 사람도 <b>지금 벌어지고 있는 일</b>을
+    /// 처음부터 본 것처럼 이어서 볼 수 있다.
+    /// </summary>
+    public void ShowStage(Stage stage, float elapsed)
+    {
+        if (stage == Stage.None)
+        {
+            Cancel();
+            return;
+        }
+
+        if (!IsActive)
+        {
+            Begin();
+        }
+
+        if (stage == Stage.Running && CurrentStage == Stage.Warning)
+        {
+            StartRunning();
+        }
+
+        Elapsed = elapsed;
+    }
+
     /// <summary>판정 없이 그냥 끝낸다. 게임이 끝날 때 쓴다.</summary>
     public void Cancel()
     {
@@ -353,13 +382,25 @@ public abstract class VoyageEvent : MonoBehaviour
             return;
         }
 
+        // ⚠ 여기부터는 **판정**이다. 예고가 끝났는지, 넘겼는지, 실패했는지.
+        //    4대가 각자 정하면 내 화면에선 넘겼는데 옆 사람 화면에선 배가 깎인다.
+        //    보여주는 것(OnShow)은 위에서 이미 모두가 했다. (SHIPCOOP.md 11장)
+        //
+        //    혼자 하는 씬에는 Runner 가 없어 늘 참이므로 예전 그대로 돈다.
+        bool decides = ShipCoopNet.IsAuthorityHere;
+
         if (CurrentStage == Stage.Warning)
         {
-            if (Elapsed >= warnSeconds)
+            if (decides && Elapsed >= warnSeconds)
             {
                 StartRunning();
             }
 
+            return;
+        }
+
+        if (!decides)
+        {
             return;
         }
 

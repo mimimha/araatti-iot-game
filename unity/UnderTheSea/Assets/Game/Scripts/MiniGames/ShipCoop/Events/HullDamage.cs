@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>
 /// 💥 선체 파손 · 침수. 직접 수리한다. (SHIPCOOP.md 5장)
@@ -37,8 +39,25 @@ public class HullDamage : VoyageEvent
 
     private int _remainingToRepair;
 
+    /// <summary>
+    /// 파손 지점을 **만드는 방법**. 비어 있으면 예전처럼 <c>Instantiate</c> 한다.
+    ///
+    /// 네트워크에서는 서버가 <c>Runner.Spawn</c> 으로 만들도록 갈아끼운다.
+    /// 그래야 모두가 <b>같은 자리</b>의 같은 구멍을 보고, 늦게 들어온 사람도 받는다.
+    /// (<c>ShipCoopHoleSpawner</c> 가 끼우고 뺀다)
+    /// </summary>
+    public static Func<RepairTask, Vector3, Quaternion, Transform, RepairTask> Factory;
+
     protected override void OnBegin()
     {
+        // ⚠ 구멍은 **계산하는 쪽만** 만든다.
+        //    각자 만들면 자리가 제각각이 되고, 남의 화면에는 없는 구멍을 수리하게 된다.
+        //    만들어진 구멍은 네트워크가 알아서 모두에게 보낸다.
+        if (!ShipCoopNet.IsAuthorityHere)
+        {
+            return;
+        }
+
         if (damagePointPrefab == null)
         {
             Debug.LogError($"[{name}] 파손 지점 프리팹이 비어 있습니다. 아무 일도 일어나지 않습니다.", this);
@@ -63,11 +82,18 @@ public class HullDamage : VoyageEvent
     {
         Transform where = PickSpawnPoint();
 
-        RepairTask point = Instantiate(
-            damagePointPrefab,
-            where != null ? where.position : transform.position,
-            where != null ? where.rotation : transform.rotation,
-            where != null ? where.parent : transform.parent);
+        Vector3 position = where != null ? where.position : transform.position;
+        Quaternion rotation = where != null ? where.rotation : transform.rotation;
+        Transform parent = where != null ? where.parent : transform.parent;
+
+        RepairTask point = Factory != null
+            ? Factory(damagePointPrefab, position, rotation, parent)
+            : Instantiate(damagePointPrefab, position, rotation, parent);
+
+        if (point == null)
+        {
+            return;
+        }
 
         point.name = $"{damagePointPrefab.name}_{Time.frameCount}_{_remainingToRepair}";
         point.Repaired += HandleRepaired;
@@ -84,7 +110,7 @@ public class HullDamage : VoyageEvent
         }
 
         // 매번 다른 곳이 터지게 한다. 자리를 외우면 압박이 사라진다.
-        return spawnPoints[Random.Range(0, spawnPoints.Length)];
+        return spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
     }
 
     private void HandleRepaired(RepairTask point)

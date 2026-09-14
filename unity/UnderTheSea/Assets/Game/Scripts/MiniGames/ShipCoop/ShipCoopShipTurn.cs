@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -185,6 +186,39 @@ public class ShipCoopShipTurn : MonoBehaviour
 
     private float _yawSpeed;
 
+    /// <summary>
+    /// 게임 도중에 태운 것들. 접속해서 생긴 사람이 여기 들어온다.
+    ///
+    /// 인스펙터의 <c>carried</c> 는 씬에 처음부터 있는 것만 담을 수 있다.
+    /// 스폰되는 플레이어는 씬 파일에 없으므로 실행 중에 등록해야 한다.
+    /// </summary>
+    private readonly List<Transform> _riders = new List<Transform>();
+
+    /// <summary>
+    /// **배에 태운다.** 이 뒤로 배가 트는 만큼 같이 돈다.
+    ///
+    /// 네트워크에서는 <b>서버에서만</b> 부른다. 클라이언트의 사람은 자리를
+    /// <c>NetworkTransform</c> 으로 받으므로, 거기서 또 돌리면 두 번 돌아간다.
+    /// </summary>
+    public void Carry(Transform rider)
+    {
+        if (rider == null || _riders.Contains(rider))
+        {
+            return;
+        }
+
+        _riders.Add(rider);
+    }
+
+    /// <summary>배에서 내린다. 사라진 것을 계속 들고 있지 않게 한다.</summary>
+    public void StopCarrying(Transform rider)
+    {
+        if (rider != null)
+        {
+            _riders.Remove(rider);
+        }
+    }
+
     private void Awake()
     {
         if (sea == null)
@@ -270,15 +304,19 @@ public class ShipCoopShipTurn : MonoBehaviour
 
         for (int i = 0; i < carried.Length; i++)
         {
-            Transform t = carried[i];
+            Turn(carried[i], step, spin);
+        }
 
-            if (t == null)
+        // 게임 도중에 태운 것들. 사라진 것은 여기서 걸러낸다.
+        for (int i = _riders.Count - 1; i >= 0; i--)
+        {
+            if (_riders[i] == null)
             {
+                _riders.RemoveAt(i);
                 continue;
             }
 
-            t.position = step.MultiplyPoint3x4(t.position);
-            t.rotation = spin * t.rotation;
+            Turn(_riders[i], step, spin);
         }
 
         _applied = whole;
@@ -286,5 +324,17 @@ public class ShipCoopShipTurn : MonoBehaviour
         // 콜라이더를 손으로 옮겼으니 물리에 알려준다.
         // 안 하면 사람이 갑판을 뚫거나 벽에 끼인다.
         Physics.SyncTransforms();
+    }
+
+    /// <summary>한 물건을 배가 튼 만큼 옮기고 돌린다.</summary>
+    private static void Turn(Transform t, Matrix4x4 step, Quaternion spin)
+    {
+        if (t == null)
+        {
+            return;
+        }
+
+        t.position = step.MultiplyPoint3x4(t.position);
+        t.rotation = spin * t.rotation;
     }
 }

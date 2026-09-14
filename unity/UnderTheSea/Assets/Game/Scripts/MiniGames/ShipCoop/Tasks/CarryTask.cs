@@ -103,6 +103,23 @@ public class CarryTask : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// **들고 있는 것을 밖에서 정해 준다.** 네트워크에서 서버가 정한 결과를 화면에 옮길 때 쓴다.
+    ///
+    /// 집고 놓는 판정은 서버에서만 일어난다. 클라이언트는 이 컴포넌트를 꺼 두고
+    /// 복제받은 값을 이 함수로 넣는다. 그래야 네 화면과 내 화면에서 같은 것을 들고 있다.
+    /// </summary>
+    public void ShowCarrying(Cargo cargo)
+    {
+        if (Carrying == cargo)
+        {
+            return;
+        }
+
+        Carrying = cargo;
+        ShowHeld(cargo != Cargo.None);
+    }
+
     private void Update()
     {
         IPlayerController input = _worker.Input;

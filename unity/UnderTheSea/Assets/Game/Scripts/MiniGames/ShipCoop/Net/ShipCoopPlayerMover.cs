@@ -22,7 +22,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     /// ⚠ <b>화면 기준 이동은 각자 자기 쪽 카메라 각도로 돌려야 한다.</b> (11장)
     ///    카메라는 사람마다 다르게 돌아가 있어 서버가 알 수 없다.
     ///    그래서 클라이언트가 <c>LookYaw</c> 를 입력에 실어 보내고 서버가 그 각도로 돌린다.
-    ///    (<c>PlayerInputProvider</c> 가 <c>Camera.main</c> 의 y 각도를 넣는다)
+    ///    (<c>ShipCoopInputProvider</c> 가 <c>Camera.main</c> 의 y 각도를 넣는다)
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public sealed class ShipCoopPlayerMover : NetworkBehaviour
@@ -30,7 +30,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Header("속도 (m/s) — DebugPlayerMover 와 같은 값")]
         [SerializeField, Min(0.1f)] private float walkSpeed = 4f;
 
-        [Tooltip("1단계에는 달리기 입력이 없다. 2단계에서 ShipCoopInputData 가 오면 쓴다.")]
+        [Tooltip("달리기. 빈손일 때만 낼 수 있다 — 물건을 들면 걷는다. (SHIPCOOP.md 4장)")]
         [SerializeField, Min(0.1f)] private float sprintSpeed = 7f;
 
         [Header("돌아보는 속도 (도/초)")]
@@ -67,6 +67,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
         private CharacterController body;
         private ShipCoopCharacter look;
+        private ShipCoopNetworkedController controller;
+        private TaskWorker worker;
         private float fallSpeed;
         private bool logMotion;
 
@@ -77,6 +79,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         {
             body = GetComponent<CharacterController>();
             look = GetComponent<ShipCoopCharacter>();
+            controller = GetComponent<ShipCoopNetworkedController>();
+            worker = GetComponent<TaskWorker>();
             logMotion = FusionLaunchArguments.HasFlag(FusionLaunchArguments.LogMovesKey);
 
             body.height = bodyHeight;
@@ -125,10 +129,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             }
 
             Vector3 direction = Vector3.zero;
+            float speed = walkSpeed;
 
-            if (GetInput(out NetworkInputData input))
+            if (GetInput(out ShipCoopInputData input))
             {
-                Vector2 axis = input.Direction;
+                Vector2 axis = input.Move;
 
                 if (axis.sqrMagnitude > 1f)
                 {
@@ -143,11 +148,20 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 {
                     direction.Normalize();
                 }
+
+                // ⚠ 물건을 들고 있으면 못 달린다. 양손으로 포탄을 안고 뛸 수는 없고,
+                //    그래야 운반이 진짜 대가를 치른다. (SHIPCOOP.md 4장)
+                bool carrying = worker != null && worker.HandsBusy;
+
+                if (!carrying && ShipCoopInput.Sprint(controller))
+                {
+                    speed = sprintSpeed;
+                }
             }
 
             float deltaTime = Runner.DeltaTime;
 
-            Fall(direction * walkSpeed, deltaTime);
+            Fall(direction * speed, deltaTime);
             FaceMoveDirection(direction, deltaTime);
 
             // 실제로 움직인 만큼을 보낸다. 벽에 막혔으면 입력이 있어도 0 이다.

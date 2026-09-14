@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>
 /// 🆘 도움 요청. 플레이어마다 하나씩 붙는다. (SHIPCOOP.md 7장)
@@ -105,6 +106,14 @@ public class ShipCoopHelp : MonoBehaviour
         }
 
         if (_worker == null || _worker.Input == null)
+        {
+            return;
+        }
+
+        // 부를지 말지는 계산하는 쪽이 정한다. 각자 정하면 내 화면에서만 손이 올라간다.
+        // 이 컴포넌트를 통째로 끄지 않는 이유: 꺼지면 정적 목록(Calling)에서 빠져
+        // HUD 가 "누가 부르고 있는지" 를 못 본다. (SHIPCOOP.md 11장)
+        if (!ShipCoopNet.IsAuthorityHere)
         {
             return;
         }

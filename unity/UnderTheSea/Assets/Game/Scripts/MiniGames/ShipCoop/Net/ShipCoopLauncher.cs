@@ -95,12 +95,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             if (!isServer)
             {
-                // 로컬 입력 제공자. Lobby 것을 그대로 쓴다.
-                // 1단계는 Direction + LookYaw 만 필요해서 새 입력 구조체를 만들지 않았다.
-                PlayerInputProvider provider = GetComponent<PlayerInputProvider>();
+                // 배 협동 게임 전용 입력 제공자.
+                // Lobby 것(WASD + 카메라 각도)으로는 손 두 개의 IMU · 압력 · 버튼을 못 보낸다.
+                ShipCoopInputProvider provider = GetComponent<ShipCoopInputProvider>();
                 if (provider == null)
                 {
-                    provider = gameObject.AddComponent<PlayerInputProvider>();
+                    provider = gameObject.AddComponent<ShipCoopInputProvider>();
                 }
 
                 runner.AddCallbacks(provider);

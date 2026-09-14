@@ -135,6 +135,28 @@ public class RepairTask : TaskBase
         health.TakeDamage(leakDamagePerSecond * deltaTime);
     }
 
+    /// <summary>
+    /// 수리가 끝난 구멍을 **치우는 방법**. 비어 있으면 예전처럼 스스로 꺼진다.
+    ///
+    /// 네트워크에서는 서버가 <c>Runner.Despawn</c> 하도록 갈아끼운다.
+    /// 스스로 꺼지면 그 화면에서만 사라지고 남의 화면에는 구멍이 남는다.
+    /// </summary>
+    public static Action<RepairTask> Remover;
+
+    /// <summary>
+    /// **수리 상태를 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// 완료 판정은 하지 않는다. 다 고쳤는지는 서버가 정하고, 다 고쳐진 구멍은
+    /// 서버가 치운다. 여기서 <c>Complete</c> 를 부르면 클라이언트가 혼자
+    /// "다 고쳤다" 고 판단하게 되어 남의 화면과 어긋난다.
+    /// </summary>
+    public void ShowRepair(int hits, bool hasPlank, bool repaired)
+    {
+        Hits = hits;
+        HasPlank = hasPlank;
+        IsRepaired = repaired;
+    }
+
     private void Complete()
     {
         IsRepaired = true;
@@ -149,6 +171,14 @@ public class RepairTask : TaskBase
         Repaired?.Invoke(this);
 
         // 스스로 꺼진다. TaskBase.OnDisable 이 붙어 있던 사람을 놓아주고 목록에서도 빠진다.
-        gameObject.SetActive(false);
+        // 네트워크에서는 서버가 치워 모두의 화면에서 함께 사라지게 한다.
+        if (Remover != null)
+        {
+            Remover(this);
+        }
+        else
+        {
+            gameObject.SetActive(false);
+        }
     }
 }

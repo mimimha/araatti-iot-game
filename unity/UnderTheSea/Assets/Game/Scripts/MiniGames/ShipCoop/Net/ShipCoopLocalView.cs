@@ -14,7 +14,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     /// <b>하는 일</b>
     ///   1. 화면에 그려지는 카메라를 하나로 만든다
     ///   2. 내 <c>TaskWorker</c> 를 HUD 에 알린다 — 카메라가 비출 갑판이 여기서 정해진다
-    ///   3. <b>내 컨트롤러만</b> 켠다 — 카메라 Q/E 회전이 여기서 나온다
+    ///
+    /// 기기 입력은 여기서 다루지 않는다. 컨트롤러는 <b>사람마다</b> 하나라서
+    /// 캐릭터가 아니라 러너에 붙어 있다. (<c>ShipCoopInputProvider</c>)
     ///
     /// <b>왜 카메라를 하나로 만들어야 하는가.</b>
     /// <c>PeerMode.Multiple</c> 에서 Fusion 은 씬을 러너 전용 씬으로 인수하면서
@@ -51,38 +53,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             }
 
             KeepOnlyThisViewer(boundCamera.GetComponent<Camera>());
-            EnableMyController();
             BindLocalWorker();
-        }
-
-        /// <summary>
-        /// 내 캐릭터의 컨트롤러를 켠다. **이 컴퓨터의 키보드는 내 캐릭터 것만 읽는다.**
-        ///
-        /// <b>왜 프리팹에는 꺼서 넣는가.</b> 켜서 넣으면 같은 화면에 있는
-        /// <b>남의 캐릭터 복사본</b>도 내 키보드를 읽는다. 컨트롤러는 사람마다 하나씩이지
-        /// 컴퓨터마다 하나가 아니다.
-        ///
-        /// <b>왜 켜야 하는가.</b> <c>ShipCoopCamera</c> 의 좌우 회전(Q/E)은
-        /// <c>hud.LocalWorker.Input.Look.x</c> 에서 온다. 그 값은
-        /// <c>KeyboardPlayerController.Update</c> 가 채우므로, 꺼 두면 Q/E 가 통째로 죽는다.
-        /// 1단계 QA 에서 실제로 카메라가 전혀 돌지 않았다.
-        ///
-        /// ⚠ <c>TaskWorker</c> 는 여전히 꺼 둔다. 작업 입력은 아직 서버로 가지 않아,
-        ///    켜면 자기 화면에서만 자리에 붙는다. 자리 붙기는 2단계다.
-        /// </summary>
-        private void EnableMyController()
-        {
-            MonoBehaviour controller = GetComponent<IPlayerController>() as MonoBehaviour;
-
-            if (controller == null)
-            {
-                Debug.LogWarning(
-                    "[ShipCoopLocalView] 내 IPlayerController 가 없습니다. 카메라 Q/E 가 동작하지 않습니다.", this);
-                return;
-            }
-
-            controller.enabled = true;
-            Debug.Log($"[ShipCoopLocalView] 내 컨트롤러 '{controller.GetType().Name}' 를 켰습니다. (Q/E 카메라 회전)");
         }
 
         /// <summary>
