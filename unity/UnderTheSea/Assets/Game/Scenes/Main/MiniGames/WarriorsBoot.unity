@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &766399120
+--- !u!1 &846432133
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,9 +127,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 766399123}
-  - component: {fileID: 766399122}
-  - component: {fileID: 766399121}
+  - component: {fileID: 846432136}
+  - component: {fileID: 846432135}
+  - component: {fileID: 846432134}
   m_Layer: 0
   m_Name: Boot Camera
   m_TagString: MainCamera
@@ -137,21 +137,21 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!81 &766399121
+--- !u!81 &846432134
 AudioListener:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 766399120}
+  m_GameObject: {fileID: 846432133}
   m_Enabled: 1
---- !u!20 &766399122
+--- !u!20 &846432135
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 766399120}
+  m_GameObject: {fileID: 846432133}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
@@ -196,13 +196,13 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &766399123
+--- !u!4 &846432136
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 766399120}
+  m_GameObject: {fileID: 846432133}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -211,7 +211,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1668582893
+--- !u!1 &1613964180
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -219,11 +219,11 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1668582898}
-  - component: {fileID: 1668582897}
-  - component: {fileID: 1668582896}
-  - component: {fileID: 1668582895}
-  - component: {fileID: 1668582894}
+  - component: {fileID: 1613964185}
+  - component: {fileID: 1613964184}
+  - component: {fileID: 1613964183}
+  - component: {fileID: 1613964182}
+  - component: {fileID: 1613964181}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -231,13 +231,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1668582894
+--- !u!114 &1613964181
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1668582893}
+  m_GameObject: {fileID: 1613964180}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 310b1b34b21f6274ebd2a27063180408, type: 3}
@@ -245,26 +245,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsPlayerSpawner
   playerPrefab: {fileID: 7855278443646980384, guid: 3bf66ee291ef7d24e88b8147d755bfce, type: 3}
   fallbackSpacing: 3
---- !u!114 &1668582895
+--- !u!114 &1613964182
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1668582893}
+  m_GameObject: {fileID: 1613964180}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a5442d095248d3241a7fb0b80af0e3ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsLauncher
   serverPort: 27031
---- !u!114 &1668582896
+--- !u!114 &1613964183
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1668582893}
+  m_GameObject: {fileID: 1613964180}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 90a93abf1a391964a94e5c139605105b, type: 3}
@@ -272,25 +272,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fusion.Unity::Fusion.NetworkSceneManagerDefault
   IsSceneTakeOverEnabled: 1
   LogSceneLoadErrors: 1
---- !u!114 &1668582897
+--- !u!114 &1613964184
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1668582893}
+  m_GameObject: {fileID: 1613964180}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1199893898, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkRunner
---- !u!4 &1668582898
+--- !u!4 &1613964185
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1668582893}
+  m_GameObject: {fileID: 1613964180}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -303,5 +303,5 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1668582898}
-  - {fileID: 766399123}
+  - {fileID: 1613964185}
+  - {fileID: 846432136}

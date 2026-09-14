@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -49,6 +50,9 @@ namespace Warriors.Net
         private WarriorsMatchState match;
         private bool spawningOpened;
 
+        /// <summary>서버가 만들어 둔 몬스터들. 라운드가 끝나면 이 목록대로 치운다.</summary>
+        private readonly List<NetworkObject> spawned = new List<NetworkObject>();
+
         public override void Spawned()
         {
             spawner = FindFirstObjectByType<WarriorsEnemySpawner>(FindObjectsInactive.Include);
@@ -86,6 +90,38 @@ namespace Warriors.Net
             spawner.enabled = wantSpawning;
 
             Debug.Log($"[WarriorsEnemyDirector] 몬스터 스폰을 {(wantSpawning ? "켰습니다" : "껐습니다")}.");
+
+            // 1페이즈가 끝났다. 해변에 남은 몬스터를 치운다.
+            if (!wantSpawning) ClearBeach();
+        }
+
+        /// <summary>
+        /// **해변을 비운다. 서버만 한다.**
+        ///
+        /// <c>Runner.Despawn</c> 이라야 두 화면에서 같은 순간에 사라진다.
+        /// 클라이언트가 <c>Destroy</c> 하거나 꺼 버리면 그 컴퓨터에서만 없어지고,
+        /// 서버에는 그대로 살아 있어 계속 때리고 맞는다.
+        ///
+        /// 치운 몬스터는 <c>Defeated</c> 를 내지 않으므로 처치 수도 점수도 오르지 않는다.
+        /// </summary>
+        private void ClearBeach()
+        {
+            int cleared = 0;
+
+            foreach (NetworkObject one in spawned)
+            {
+                if (one == null || !one.IsValid) continue;
+
+                Runner.Despawn(one);
+                cleared++;
+            }
+
+            spawned.Clear();
+
+            // 서연님 스포너의 추적 목록에도 파괴된 참조가 남아 있다. 같이 비운다.
+            if (spawner != null) spawner.ForgetAliveEnemies();
+
+            Debug.Log($"[WarriorsEnemyDirector] 해변에 남은 몬스터 {cleared}마리를 치웠습니다.");
         }
 
         /// <summary>몬스터 하나를 서버에서 만든다. 이름으로 네트워크 사본을 찾는다.</summary>
@@ -93,6 +129,10 @@ namespace Warriors.Net
             WarriorsTarget source, Vector3 position, Quaternion rotation, Transform parent)
         {
             if (source == null) return null;
+
+            // 1페이즈가 아니면 만들지 않는다. 스포너 코루틴이 기다리다 깨어나
+            // 라운드가 넘어간 뒤 한 마리를 더 떨구는 일이 있다.
+            if (match != null && match.Phase != WarriorsMatchPhase.Phase1) return null;
 
             NetworkObject prefab = FindNetworked(source.name);
 
@@ -106,9 +146,15 @@ namespace Warriors.Net
 
             // parent 는 쓰지 않는다. Fusion 이 스폰한 것을 다른 것의 자식으로 넣으면
             // 자리 복제가 부모 기준으로 꼬인다.
-            NetworkObject spawned = Runner.Spawn(prefab, position, rotation);
+            NetworkObject made = Runner.Spawn(prefab, position, rotation);
 
-            return spawned != null ? spawned.GetComponent<WarriorsTarget>() : null;
+            if (made == null) return null;
+
+            // 죽어서 스스로 사라진 것들을 먼저 걷어낸다. 목록이 무한히 자라지 않게.
+            spawned.RemoveAll(one => one == null || !one.IsValid);
+            spawned.Add(made);
+
+            return made.GetComponent<WarriorsTarget>();
         }
 
         private NetworkObject FindNetworked(string sourceName)

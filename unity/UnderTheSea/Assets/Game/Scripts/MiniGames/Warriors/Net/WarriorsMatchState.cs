@@ -280,7 +280,7 @@ namespace Warriors.Net
             if (crew.Length == 0) return false;
 
             foreach (WarriorsPlayerLife one in crew)
-                if (one != null && !one.IsDown) return false;
+                if (one != null && one.IsLive && !one.IsDown) return false;
 
             return true;
         }
@@ -349,6 +349,7 @@ namespace Warriors.Net
         {
             WarriorsPlayerLife[] crew = FindObjectsByType<WarriorsPlayerLife>(
                     FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .Where(one => one != null && one.IsLive)
                 .OrderBy(one => one.PlayerIndex)
                 .ToArray();
 

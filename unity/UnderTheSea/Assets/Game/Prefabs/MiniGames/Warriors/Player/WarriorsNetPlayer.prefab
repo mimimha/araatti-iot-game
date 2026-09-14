@@ -481,6 +481,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3d1615e42ff54f42985d823d445ca0c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsNetPlayerCombat
+  _AttackSeq: 0
+  _AttackKind: 0
 --- !u!1 &443834245626656415
 GameObject:
   m_ObjectHideFlags: 0

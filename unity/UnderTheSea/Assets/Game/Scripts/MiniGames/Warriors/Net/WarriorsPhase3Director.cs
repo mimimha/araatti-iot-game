@@ -237,7 +237,7 @@ namespace Warriors.Net
                 WarriorsPlayerLife life = FindLife(lane);
 
                 // 쓰러진 사람 레인에는 노트가 나오지 않는다. 남은 사람이 목표를 채운다.
-                if (life == null || life.IsDown)
+                if (life == null || !life.IsLive || life.IsDown)
                 {
                     nextSpawnTick[lane] = Runner.Tick + intervalTicks;
                     continue;
@@ -321,7 +321,7 @@ namespace Warriors.Net
         private void Punish(int lane)
         {
             WarriorsPlayerLife life = FindLife(lane);
-            if (life == null || life.IsDown) return;
+            if (life == null || !life.IsLive || life.IsDown) return;
 
             WarriorsHealth health = life.GetComponent<WarriorsHealth>();
             if (health != null) health.TryApplyDamage(missDamage);
@@ -333,7 +333,7 @@ namespace Warriors.Net
             foreach (WarriorsPlayerLife life in FindObjectsByType<WarriorsPlayerLife>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (life == null) continue;
+                if (life == null || !life.IsLive) continue;
 
                 Transform stand = StandFor(life.PlayerIndex);
                 if (stand == null) continue;
@@ -371,7 +371,7 @@ namespace Warriors.Net
             foreach (WarriorsPlayerLife life in FindObjectsByType<WarriorsPlayerLife>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (life != null && life.PlayerIndex == index) return life;
+                if (life != null && life.IsLive && life.PlayerIndex == index) return life;
             }
 
             return null;

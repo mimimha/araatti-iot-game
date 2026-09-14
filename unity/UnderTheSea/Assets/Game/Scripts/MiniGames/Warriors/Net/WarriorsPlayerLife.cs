@@ -39,6 +39,17 @@ namespace Warriors.Net
         [Networked]
         public int PlayerIndex { get; private set; }
 
+        /// <summary>
+        /// 이 목숨을 **읽어도 되는가.**
+        ///
+        /// ⚠ 세션에서 빠진 캐릭터는 스폰이 풀린 뒤에도 잠깐 씬에 남는다.
+        ///    그동안 <c>FindObjectsByType</c> 에 잡히는데, 그 상태에서 <c>[Networked]</c> 값을
+        ///    읽으면 <c>"Networked properties can only be accessed when Spawned() has been
+        ///    called"</c> 예외가 난다. 실측으로 확인했다 — 두 사람이 나가는 순간
+        ///    <c>EveryoneDown()</c> 이 매 틱 예외를 던졌다.
+        /// </summary>
+        public bool IsLive => Object != null && Object.IsValid;
+
         private WarriorsHealth health;
 
         public override void Spawned()

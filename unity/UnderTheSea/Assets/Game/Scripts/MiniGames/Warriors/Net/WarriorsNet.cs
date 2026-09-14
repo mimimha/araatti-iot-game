@@ -98,6 +98,40 @@ namespace Warriors.Net
             return IsAuthorityHere && OwnsAttack(target, attacker);
         }
 
+        /// <summary>
+        /// **공격 범위 안의 콜라이더를 찾는다.** 세션 안에서는 러너의 물리 씬에 물어본다.
+        ///
+        /// <b>왜 <c>Physics.OverlapSphere</c> 를 그대로 쓰면 안 되는가.</b>
+        /// Fusion 의 <c>PeerMode</c> 가 <c>Multiple</c> 이라, 러너는 게임 씬을
+        /// <b>자기 전용 물리 씬</b>으로 연다. <c>Physics.*</c> 의 정적 함수들은 늘
+        /// <b>기본 물리 씬</b>에 묻기 때문에, 바로 앞에 몬스터가 서 있어도
+        /// <b>콜라이더를 하나도 찾지 못한다.</b> 자기 캡슐조차 안 잡힌다.
+        ///
+        /// 실측: 서버·클라이언트 모두 <c>OverlapSphereNonAlloc</c> 결과가 0 이었다.
+        /// 입력도 도착했고 공격 코루틴도 돌았는데, 벨 대상이 없어서 조용히 아무 일도
+        /// 일어나지 않았다.
+        ///
+        /// ⚠ <c>WarriorsTest</c> 처럼 러너가 없는 씬에서는 예전 그대로 기본 물리 씬에 묻는다.
+        /// </summary>
+        public static int OverlapSphere(
+            Vector3 center, float radius, Collider[] results,
+            int layerMask, QueryTriggerInteraction queryTriggers)
+        {
+            NetworkRunner runner = FindLiveRunner();
+
+            if (runner != null)
+            {
+                PhysicsScene scene = runner.GetPhysicsScene();
+
+                if (scene.IsValid())
+                {
+                    return scene.OverlapSphere(center, radius, results, layerMask, queryTriggers);
+                }
+            }
+
+            return Physics.OverlapSphereNonAlloc(center, radius, results, layerMask, queryTriggers);
+        }
+
         private static NetworkRunner FindLiveRunner()
         {
             foreach (NetworkRunner candidate in NetworkRunner.Instances)

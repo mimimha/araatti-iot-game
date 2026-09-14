@@ -192,7 +192,7 @@ namespace Warriors.Net
             if (attacker == null) return true;
 
             WarriorsPlayerLife life = attacker.GetComponentInParent<WarriorsPlayerLife>();
-            if (life == null) return true;
+            if (life == null || !life.IsLive) return true;
 
             return life.PlayerIndex == state.Owner;
         }
@@ -258,7 +258,12 @@ namespace Warriors.Net
             StageOpen = true;
             PlaceEveryone();
 
-            Debug.Log("[WarriorsPhase2] 크라켄 촉수 단계를 열었습니다. 1P 는 왼쪽, 2P 는 오른쪽입니다.");
+            int leftovers = FindObjectsByType<WarriorsNetEnemy>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
+
+            Debug.Log(
+                "[WarriorsPhase2] 크라켄 촉수 단계를 열었습니다. 1P 는 왼쪽, 2P 는 오른쪽입니다. " +
+                $"(해변에 남은 몬스터 {leftovers}마리)");
         }
 
         /// <summary>3페이즈로 넘어갔거나 판이 끝났다. 서 있는 촉수를 모두 내린다.</summary>
@@ -290,7 +295,7 @@ namespace Warriors.Net
             foreach (WarriorsPlayerLife life in FindObjectsByType<WarriorsPlayerLife>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (life == null) continue;
+                if (life == null || !life.IsLive) continue;
 
                 Transform stand = StandFor(life.PlayerIndex);
                 if (stand == null) continue;
@@ -328,7 +333,7 @@ namespace Warriors.Net
         private void DriveDuty(int index)
         {
             WarriorsPlayerLife life = FindLife(index);
-            bool away = life == null || life.IsDown;
+            bool away = life == null || !life.IsLive || life.IsDown;
 
             if (away)
             {
@@ -518,7 +523,7 @@ namespace Warriors.Net
             foreach (WarriorsPlayerLife life in FindObjectsByType<WarriorsPlayerLife>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (life != null && life.PlayerIndex == index) return life;
+                if (life != null && life.IsLive && life.PlayerIndex == index) return life;
             }
 
             return null;

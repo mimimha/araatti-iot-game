@@ -119,6 +119,74 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &84342029 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8883133340076734390, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
+  m_PrefabInstance: {fileID: 965323480}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &84342030 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 570598888130780701, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
+  m_PrefabInstance: {fileID: 965323480}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &84342031 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 859648330802253476, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
+  m_PrefabInstance: {fileID: 965323480}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &84342032 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5314010730795531256, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
+  m_PrefabInstance: {fileID: 965323480}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &84342033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 84342029}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
+--- !u!114 &84342034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 84342030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
+--- !u!114 &84342035
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 84342031}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
+--- !u!114 &84342036
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 84342032}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
 --- !u!1001 &151234891
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -224,7 +292,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6cca907d2a1524b41aa06879f04868b5, type: 3}
---- !u!1 &538791571
+--- !u!1 &459745490
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -232,13 +300,44 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 538791578}
-  - component: {fileID: 538791577}
-  - component: {fileID: 538791576}
-  - component: {fileID: 538791575}
-  - component: {fileID: 538791574}
-  - component: {fileID: 538791573}
-  - component: {fileID: 538791572}
+  - component: {fileID: 459745491}
+  m_Layer: 0
+  m_Name: TentacleStand_01
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &459745491
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 459745490}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -2.8, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 664164399}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &664164392
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 664164399}
+  - component: {fileID: 664164398}
+  - component: {fileID: 664164397}
+  - component: {fileID: 664164396}
+  - component: {fileID: 664164395}
+  - component: {fileID: 664164394}
+  - component: {fileID: 664164393}
   m_Layer: 0
   m_Name: WarriorsNetwork
   m_TagString: Untagged
@@ -246,13 +345,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &538791572
+--- !u!114 &664164393
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 95418c7657d4e654f98a8c426ad1b8e0, type: 3}
@@ -260,8 +359,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsPhase3Director
   kraken: {fileID: 890356077}
   stands:
-  - {fileID: 2105333217}
-  - {fileID: 1998829140}
+  - {fileID: 459745491}
+  - {fileID: 1952705951}
   noteTravelSeconds: 2.2
   noteInterval: 0.9
   goodWindow: 0.2
@@ -269,13 +368,13 @@ MonoBehaviour:
   clearSeconds: 0.35
   _Running:
     RawValue: 0
---- !u!114 &538791573
+--- !u!114 &664164394
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 464a6a2c96b5d69428186f121593743e, type: 3}
@@ -283,8 +382,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsPhase2Director
   kraken: {fileID: 890356077}
   stands:
-  - {fileID: 2105333217}
-  - {fileID: 1998829140}
+  - {fileID: 459745491}
+  - {fileID: 1952705951}
   hitsPerTentacle: 1
   answerSeconds: 4.5
   gapSeconds: 0.6
@@ -292,13 +391,13 @@ MonoBehaviour:
   missDamage: 9
   _StageOpen:
     RawValue: 0
---- !u!114 &538791574
+--- !u!114 &664164395
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f48375af2ac25874cb9cf90fe9415581, type: 3}
@@ -311,13 +410,13 @@ MonoBehaviour:
     networked: {fileID: 7637725656013723917, guid: 23a9f0de4a70faa47b3c654db4bc71e2, type: 3}
   - sourceName: JellyfishEnemy
     networked: {fileID: 6334942326480440908, guid: 565ff6f0608f12e47aa87879204c0e31, type: 3}
---- !u!114 &538791575
+--- !u!114 &664164396
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5405e768403664647ae8a8b5d935e34e, type: 3}
@@ -337,56 +436,56 @@ MonoBehaviour:
   _Phase1Target: 0
   _Phase2Target: 0
   _Phase3Target: 0
---- !u!114 &538791576
+--- !u!114 &664164397
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 2266607392
+  SortKey: 152933155
   SendPriority: 1
   EnableInterpolation: 1
   Flags: 262146
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 538791575}
-  - {fileID: 538791574}
-  - {fileID: 538791573}
-  - {fileID: 538791572}
+  - {fileID: 664164396}
+  - {fileID: 664164395}
+  - {fileID: 664164394}
+  - {fileID: 664164393}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &538791577
+--- !u!114 &664164398
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 74c95934715124c4a8f95eba0d5c2254, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsServerCleanup
---- !u!4 &538791578
+--- !u!4 &664164399
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 538791571}
+  m_GameObject: {fileID: 664164392}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2105333217}
-  - {fileID: 1998829140}
+  - {fileID: 459745491}
+  - {fileID: 1952705951}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &773893324
@@ -554,74 +653,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c00c7e80ae8754f8d20942a744c45d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsKrakenBoss
---- !u!1 &922441104 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8883133340076734390, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
-  m_PrefabInstance: {fileID: 965323480}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &922441105 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 570598888130780701, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
-  m_PrefabInstance: {fileID: 965323480}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &922441106 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 859648330802253476, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
-  m_PrefabInstance: {fileID: 965323480}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &922441107 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5314010730795531256, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
-  m_PrefabInstance: {fileID: 965323480}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &922441108
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 922441104}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
---- !u!114 &922441109
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 922441105}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
---- !u!114 &922441110
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 922441106}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
---- !u!114 &922441111
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 922441107}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
 --- !u!1001 &965323480
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -680,16 +711,16 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 5314010730795531256, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 922441111}
+      addedObject: {fileID: 84342036}
     - targetCorrespondingSourceObject: {fileID: 859648330802253476, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 922441110}
+      addedObject: {fileID: 84342035}
     - targetCorrespondingSourceObject: {fileID: 570598888130780701, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 922441109}
+      addedObject: {fileID: 84342034}
     - targetCorrespondingSourceObject: {fileID: 8883133340076734390, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 922441108}
+      addedObject: {fileID: 84342033}
   m_SourcePrefab: {fileID: 100100000, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
 --- !u!4 &965323481 stripped
 Transform:
@@ -721,7 +752,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 6695172731708273703, guid: 12d318c373dd67a4390dd4089ee6ecc8, type: 3}
   m_PrefabInstance: {fileID: 965323480}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1998829139
+--- !u!1 &1952705950
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -729,7 +760,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1998829140}
+  - component: {fileID: 1952705951}
   m_Layer: 0
   m_Name: TentacleStand_02
   m_TagString: Untagged
@@ -737,51 +768,20 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1998829140
+--- !u!4 &1952705951
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1998829139}
+  m_GameObject: {fileID: 1952705950}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 2.8, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 538791578}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &2105333216
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2105333217}
-  m_Layer: 0
-  m_Name: TentacleStand_01
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2105333217
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2105333216}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -2.8, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 538791578}
+  m_Father: {fileID: 664164399}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
@@ -791,4 +791,4 @@ SceneRoots:
   - {fileID: 151234891}
   - {fileID: 890356076}
   - {fileID: 773893324}
-  - {fileID: 538791578}
+  - {fileID: 664164399}

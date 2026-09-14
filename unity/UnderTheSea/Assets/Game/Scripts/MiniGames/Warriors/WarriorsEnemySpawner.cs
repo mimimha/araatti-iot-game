@@ -36,6 +36,15 @@ namespace Warriors
         public void BindPlayer(Transform target) => player = target;
 
         /// <summary>
+        /// 살아 있는 몬스터 추적 목록을 비운다.
+        ///
+        /// 네트워크에서는 서버가 라운드를 넘길 때 몬스터를 <c>Runner.Despawn</c> 으로
+        /// 치운다. 그 경로는 <c>Defeated</c> 를 발생시키지 않으므로 이 목록에
+        /// 파괴된 참조가 남는다. 그대로 두면 다음 라운드의 마릿수 계산이 어긋난다.
+        /// </summary>
+        public void ForgetAliveEnemies() => alive.Clear();
+
+        /// <summary>
         /// 몬스터를 **만드는 방법**. 비어 있으면 예전처럼 <c>Instantiate</c> 한다.
         ///
         /// 네트워크에서는 서버가 <c>Runner.Spawn</c> 으로 만들도록 갈아끼운다.

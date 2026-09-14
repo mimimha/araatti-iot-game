@@ -100,7 +100,7 @@ namespace Warriors.Net
 
             foreach (WarriorsPlayerLife one in crew)
             {
-                if (one == null || one.IsDown) continue;
+                if (one == null || !one.IsLive || one.IsDown) continue;
 
                 float sqr = (one.transform.position - here).sqrMagnitude;
                 if (sqr >= bestSqr) continue;

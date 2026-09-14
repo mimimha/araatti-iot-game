@@ -240,7 +240,11 @@ namespace Warriors
             bool thrust = direction == WarriorsAttackDirection.Thrust;
             Vector3 center = transform.position + Vector3.up + transform.forward * (thrust ? thrustLength * .5f : 2.25f);
             float queryRadius = thrust ? thrustLength * .55f : attackRadius;
-            int count = Physics.OverlapSphereNonAlloc(center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
+            // ⚠ 정적 Physics.* 는 **기본 물리 씬**에만 묻는다. 네트워크 세션에서는 게임 씬이
+            //    러너 전용 물리 씬에 있어 결과가 늘 0 이 된다. (Warriors 네트워크 전환)
+            //    러너가 없는 싱글 씬에서는 안에서 예전 함수를 그대로 부른다.
+            int count = Warriors.Net.WarriorsNet.OverlapSphere(
+                center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
             float attackAngle = direction == WarriorsAttackDirection.HorizontalSlash ? horizontalAttackAngle
                 : direction == WarriorsAttackDirection.Thrust ? thrustAttackAngle : verticalAttackAngle;
             float halfAngle = attackAngle * .5f;
