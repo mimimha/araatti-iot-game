@@ -1,24 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// <see cref="MineGrid"/> 를 화면에 그린다. 칸마다 큐브 하나.
-///
-/// 20×20 이면 400개, 40×40 이어도 1600개라 그냥 생성해도 감당된다.
-/// 느려지면 그때 메시를 합친다. 먼저 만들고 나중에 최적화한다.
-///
-/// **파인 칸은 지우지 않고 살짝 내린다.**
-/// 지워버리면 그 자리에 바닥이 없어져 캐릭터가 빠진다.
-/// 홈처럼 파인 것으로 보이면서 계속 걸어다닐 수 있어야 한다.
-///
-/// 도안은 <see cref="MineGrid"/> 가 들고 있다. 여기서는 읽어서 색으로만 쓴다.
-/// <see cref="showTarget"/> 이 켜져 있으면 **도안을 겹쳐 보여준다.** 개발 중에 좌표가
-/// 맞는지 눈으로 확인하기 위한 것이고, 실제 플레이에서는 꺼야 한다.
-/// (MINE.md 2장 — 목표 그림은 시작에 7초만 보여준다)
-///
-/// 다만 이 4색 구분은 **결과 화면에서 그대로 재사용된다.**
-/// MINE.md 7장이 "맞은 칸과 틀린 칸을 색으로 구분해 보여준다"고 요구한다.
-/// </summary>
 /// <summary>격자 위에 무엇을 겹쳐 보여줄 것인가.</summary>
 public enum MineOverlay
 {
@@ -34,10 +16,31 @@ public enum MineOverlay
     Drawing,
 
     /// <summary>
-    /// 채점 결과. 맞은 칸 · 틀린 칸 · 못 판 칸을 색으로 구분한다. (MINE.md 7장)
+    /// 채점 결과. **내가 판 그림**을 보여준다. 도안 보기와 같은 방식이라
+    /// 방금 본 목표와 나란히 비교된다.
+    ///
+    /// 맞은 칸·틀린 칸을 초록·빨강으로 칠해봤으나 되돌렸다. 그림을 보는 자리인데
+    /// 색이 얼룩덜룩하면 무엇을 그렸는지가 안 보인다. 맞고 틀림은 점수와
+    /// AI 한 줄 평이 말해준다. (MINE.md 7장)
     /// </summary>
     Result,
 }
+
+/// <summary>
+/// <see cref="MineGrid"/> 를 화면에 그린다. 칸마다 큐브 하나.
+///
+/// 20×20 이면 400개, 40×40 이어도 1600개라 그냥 생성해도 감당된다.
+/// 느려지면 그때 메시를 합친다. 먼저 만들고 나중에 최적화한다.
+///
+/// **파인 칸은 지우지 않고 살짝 내린다.**
+/// 지워버리면 그 자리에 바닥이 없어져 캐릭터가 빠진다.
+/// 홈처럼 파인 것으로 보이면서 계속 걸어다닐 수 있어야 한다.
+///
+/// 겹쳐 보여주는 방식은 <see cref="MineOverlay"/> 가 정하고,
+/// <see cref="MineGame"/> 이 단계마다 <see cref="SetOverlay"/> 로 바꾼다.
+/// 도안이든 결과든 **바탕은 무른 돌 하나로 통일**한다. 돌 종류가 섞여 보이면
+/// 그림을 읽기 어렵다.
+/// </summary>
 
 [RequireComponent(typeof(MineGrid))]
 public class MineGridView : MonoBehaviour
@@ -105,17 +108,8 @@ public class MineGridView : MonoBehaviour
              "머티리얼이 무엇이든 색이 다르면 구분된다. 어두운 곳에서는 특히.")]
     [SerializeField] private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
 
-    [Tooltip("도안 없이 그냥 판 칸 (showTarget 이 꺼졌을 때)")]
+    [Tooltip("판 칸. 채굴 중에도 결과 화면에도 이 색이다.")]
     [SerializeField] private Color dugColor = new Color(0.15f, 0.13f, 0.12f);
-
-    [Tooltip("파야 하는데 아직 안 판 칸")]
-    [SerializeField] private Color targetColor = new Color(0.34f, 0.46f, 0.62f);
-
-    [Tooltip("맞게 판 칸")]
-    [SerializeField] private Color correctColor = new Color(0.11f, 0.34f, 0.17f);
-
-    [Tooltip("잘못 판 칸")]
-    [SerializeField] private Color wrongColor = new Color(0.42f, 0.12f, 0.12f);
 
     [Tooltip("금 간 칸에 곱할 색. 1보다 작으면 어두워진다.")]
     [SerializeField] private Color crackTint = new Color(0.75f, 0.72f, 0.7f);
@@ -332,9 +326,9 @@ public class MineGridView : MonoBehaviour
     {
         if (!go.TryGetComponent(out Renderer r)) return;
 
-        // 도안을 보여주는 동안에는 바탕을 무른 돌 하나로 통일한다.
-        // 돌 종류가 섞여 보이면 그림을 읽기 어렵다.
-        bool uniform = _overlay == MineOverlay.Drawing;
+        // 그림을 보여주는 동안에는 바탕을 무른 돌 하나로 통일한다.
+        // 돌 종류가 섞여 보이면 그림을 읽기 어렵다. 도안이든 결과든 마찬가지다.
+        bool uniform = _overlay != MineOverlay.None;
 
         Material m = _grid.IsDug(x, y)
             ? (dugMaterial != null ? dugMaterial : softMaterial)
@@ -362,18 +356,21 @@ public class MineGridView : MonoBehaviour
         if (!showTarget || _overlay == MineOverlay.None || _grid.TargetCells == null)
             return dug ? dugColor : intact;
 
-        bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
-
-        // 도안 보기 — 무른 돌 바탕에 검은 돌로 그림만. 돌 종류는 감춘다.
-        if (_overlay == MineOverlay.Drawing)
+        // 결과 — **내가 판 그림만** 보여준다. 도안 보기와 같은 방식이다.
+        //
+        // 맞은 칸·틀린 칸을 초록·빨강으로 칠해봤으나 되돌렸다. 그림을 보는 자리인데
+        // 색이 얼룩덜룩하면 무엇을 그렸는지가 안 보인다. 맞고 틀림은 점수와
+        // AI 한 줄 평이 말해준다. (MINE.md 7장)
+        if (_overlay == MineOverlay.Result)
         {
-            if (dug) return dugColor;
-            return isTarget ? drawingColor : intactColor;
+            return dug ? dugColor : intactColor;
         }
 
-        // 결과 — 맞은 칸 · 못 판 칸 · 잘못 판 칸을 구분한다.
-        if (isTarget) return dug ? correctColor : targetColor;
-        return dug ? wrongColor : intact;
+        // 도안 보기 — 무른 돌 바탕에 검은 돌로 그림만. 돌 종류는 감춘다.
+        bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
+
+        if (dug) return dugColor;
+        return isTarget ? drawingColor : intactColor;
     }
 
     /// <summary>
