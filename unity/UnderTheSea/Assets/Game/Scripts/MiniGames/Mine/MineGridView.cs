@@ -80,6 +80,9 @@ public class MineGridView : MonoBehaviour
     [Tooltip("무늬 없는 돌을 쓸 때 색조를 얼마나 지울 것인가. 1 이면 완전한 회색.")]
     [SerializeField, Range(0f, 1f)] private float flatDesaturate = 1f;
 
+    [Tooltip("채굴 중에도 무늬 없는 돌을 쓴다. 끄면 도안과 결과에서만 쓴다.")]
+    [SerializeField] private bool flatAlways;
+
     [Tooltip("칸마다 90도씩 무작위로 돌려 텍스처 반복을 깬다.\n" +
              "끄면 400칸이 똑같이 보여 격자무늬가 도드라진다.")]
     [SerializeField] private bool varyRotation = true;
@@ -302,7 +305,7 @@ public class MineGridView : MonoBehaviour
         //
         // 머티리얼의 밑색을 낮춰도 소용없다 — 블록이 그 칸을 이긴다.
         // 낮출 곳은 보내는 색이다.
-        if (_overlay != MineOverlay.None && flatMaterial != null) c = Flatten(c);
+        if (UseFlat && flatMaterial != null) c = Flatten(c);
 
         SetColor(block.gameObject, c);
     }
@@ -389,7 +392,7 @@ public class MineGridView : MonoBehaviour
         // 그때는 **무늬도 지운다.** 탑뷰에서 내려다보면 돌결이 도안 위에
         // 겹쳐 보여서, 어느 칸이 파였는지 읽는 데 방해가 된다.
         // 칸 색은 아래 SetColor 가 블록마다 따로 칠하므로 그대로 나온다.
-        if (uniform && flatMaterial != null)
+        if (UseFlat && flatMaterial != null)
         {
             if (r.sharedMaterial != flatMaterial) r.sharedMaterial = flatMaterial;
             return;
@@ -465,6 +468,12 @@ public class MineGridView : MonoBehaviour
             }
         }
     }
+
+    // 지금 무늬 없는 돌을 쓰는가.
+    //
+    // 원래는 도안과 결과를 보여주는 동안만 썼다. 탑뷰로 그림을 읽는 시간이라
+    // 돌결이 방해가 되기 때문이다. flatAlways 를 켜면 채굴 중에도 쓴다.
+    private bool UseFlat => flatAlways || _overlay != MineOverlay.None;
 
     // 무늬 없는 돌을 쓸 때 칸 색을 손본다. 밝기를 낮추고 색조를 지운다.
     //
