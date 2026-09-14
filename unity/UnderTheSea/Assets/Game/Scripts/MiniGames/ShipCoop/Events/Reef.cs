@@ -511,6 +511,10 @@ public class Reef : VoyageEvent
         for (int p = 0; p < hulls.Count; p++)
         {
             Transform at = hulls[p].transform;
+
+            // ⚠ 빌드에서 정점을 읽으려면 그 FBX 의 Read/Write 가 켜져 있어야 한다. 꺼져 있으면 에디터에서는
+            //    멀쩡하다가 빌드에서만 **빈 배열**이 오고 반폭이 전부 0 이 된다 — 그래서 빌드에서 암초가 쉬웠다.
+            //    배치 도구(ShipCoopDeckLayout.MakeShipMeshesReadable)가 배 FBX 의 Read/Write 를 켠다.
             Vector3[] points = hulls[p].sharedMesh.vertices;
 
             for (int v = 0; v < points.Length; v++)
@@ -529,6 +533,15 @@ public class Reef : VoyageEvent
         for (int i = 0; i < slices; i++)
         {
             _hullWidest = Mathf.Max(_hullWidest, _hullHalves[i]);
+        }
+
+        // 정점을 하나도 못 읽었으면(Read/Write 꺼진 빌드) 반폭이 0 이다. 그대로 두면 바위가 배를 뚫고 지나가도
+        // "안 닿음" 이 되니, 적어둔 직사각형으로라도 판정한다. 조용히 쉬워지는 것보다 소리 내고 폴백하는 게 낫다.
+        if (_hullWidest < 0.5f)
+        {
+            Debug.LogError($"[{name}] 선체 메시의 정점을 읽지 못했습니다 (FBX Read/Write 꺼짐?). " +
+                           $"반폭 {fallbackShipHalfWidth:F1}m 직사각형으로 판정합니다. 배치 도구를 한 번 돌리면 켜집니다.");
+            UseFallbackShape();
         }
     }
 
