@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using UnderTheSea.Account;
 
@@ -8,7 +9,7 @@ using UnderTheSea.Account;
 ///
 /// 담당하는 것
 ///   - 로그인 / 회원가입 탭 전환 (겉모습만)
-///   - 이메일 · 비밀번호 입력
+///   - 이메일 · 비밀번호 입력 (Tab 으로 다음 칸, Shift+Tab 으로 이전 칸)
 ///   - 보내기 전 입력 검사와 칸별 경고 표시 (아래 "칸별 경고" 참고)
 ///   - 다음 화면으로 이동
 ///   - 뒤로가기
@@ -81,8 +82,8 @@ public class LoginScreenController : MonoBehaviour
     [Tooltip("입력창 아래 가장자리에서 경고까지의 간격 (px)")]
     [SerializeField] private float errorLabelGap = 4f;
 
-    [Tooltip("경고 글자의 좌우 여백 (px). 입력창 안 글자 시작 위치와 맞추는 용도")]
-    [SerializeField] private float errorLabelSidePadding = 12f;
+    [Tooltip("입력창 왼쪽 가장자리에서 경고 글자 시작점까지의 거리 (px)")]
+    [SerializeField] private float errorLabelLeftPadding = 32f;
 
     private bool _isLoginMode = true;
 
@@ -152,6 +153,53 @@ public class LoginScreenController : MonoBehaviour
             passwordField.contentType = TMP_InputField.ContentType.Password;
             passwordField.ForceLabelUpdate();
         }
+    }
+
+    private void Update()
+    {
+        MoveFocusOnTab();
+    }
+
+    // ------------------------------------------------------------
+    // 키보드 — Tab 으로 칸 이동
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 입력창에 초점이 있을 때 Tab 을 누르면 다음 칸으로, Shift+Tab 이면 이전 칸으로 옮긴다.
+    ///
+    /// uGUI 의 기본 Navigation 은 방향키만 다루고 Tab 은 아무 일도 하지 않아 직접 처리한다.
+    /// 두 칸을 순환하므로 마지막 칸에서 Tab 을 눌러도 초점이 사라지지 않는다.
+    /// 입력은 StartMenuController 와 같이 새 Input System(Keyboard.current)을 쓴다.
+    /// </summary>
+    private void MoveFocusOnTab()
+    {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null || !keyboard.tabKey.wasPressedThisFrame)
+        {
+            return;
+        }
+
+        if (emailField == null || passwordField == null)
+        {
+            return;
+        }
+
+        // 두 칸뿐이라 방향과 상관없이 "지금 아닌 쪽" 이 목적지다. 어느 칸에도 초점이 없으면 아무 일도 하지 않는다.
+        if (emailField.isFocused)
+        {
+            FocusField(passwordField);
+        }
+        else if (passwordField.isFocused)
+        {
+            FocusField(emailField);
+        }
+    }
+
+    /// <summary>초점과 커서를 함께 옮긴다. Select 만 하면 커서가 깜빡이지 않는다.</summary>
+    private static void FocusField(TMP_InputField field)
+    {
+        field.Select();
+        field.ActivateInputField();
     }
 
     // ------------------------------------------------------------
@@ -424,8 +472,9 @@ public class LoginScreenController : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 1f);
 
         float height = errorFontSize * 1.4f;
-        rect.offsetMin = new Vector2(errorLabelSidePadding, -(errorLabelGap + height));
-        rect.offsetMax = new Vector2(-errorLabelSidePadding, -errorLabelGap);
+        // 글자는 왼쪽 정렬이고 줄바꿈 없이 넘치게 두므로 오른쪽 여백은 두지 않는다.
+        rect.offsetMin = new Vector2(errorLabelLeftPadding, -(errorLabelGap + height));
+        rect.offsetMax = new Vector2(0f, -errorLabelGap);
 
         var label = go.AddComponent<TextMeshProUGUI>();
         if (field.textComponent != null)
