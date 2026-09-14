@@ -26,7 +26,7 @@
 | Meshy Warriors 몬스터/보스 5종 | Meshy에서 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/MiniGames/Warriors/Models/` | Warriors의 Crab, Fish, Jellyfish, Kraken Phase 2/Final 모델 | 서연 | 2026-09-12 |
 | Toony Tiny People RTS 검 리소스 | 출처 확인 필요 | 라이선스 확인 전 업로드 보류 | `Assets/ToonyTinyPeople/` | Warriors 테스트용 검 메시와 재질 | 서연 | 2026-09-12 |
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
-| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | **확인 필요** | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처만 `Assets/Game/Art/Textures/Mine/` | 광산 바닥 돌 텍스처 (흙 · 바위) | 효진 | 2026-09-14 |
+| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처만 `Assets/Game/Art/Textures/Mine/` | 광산 바닥 돌 텍스처 (흙 · 바위) | 효진 | 2026-09-14 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
