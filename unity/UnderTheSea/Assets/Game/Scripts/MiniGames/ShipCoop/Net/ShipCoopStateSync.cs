@@ -161,38 +161,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             {
                 Debug.LogError("[ShipCoopStateSync] ShipCoopGame 을 찾지 못했습니다. 상태가 복제되지 않습니다.", this);
             }
-
-            ApplyCrewOverride();
-        }
-
-        // ⚠ 임시 — 혼자 테스트용. 푸시 전에 되돌린다.
-        //    서버 실행 인자 -crew N 이 있으면 출항에 필요한 인원을 그 값으로 바꾼다.
-        //    인자가 없으면 Inspector 값(기본 2) 그대로다.
-        private const string CrewKey = "-crew";
-
-        private void ApplyCrewOverride()
-        {
-            if (!HasStateAuthority)
-            {
-                return;
-            }
-
-            string raw = FusionLaunchArguments.GetString(CrewKey, null);
-
-            if (string.IsNullOrEmpty(raw))
-            {
-                return;
-            }
-
-            if (int.TryParse(raw, out int crew) && crew >= 1)
-            {
-                crewToStart = crew;
-                Debug.Log($"[ShipCoopStart] 실행 인자 {CrewKey} {crew} — 출항에 필요한 인원을 {crew}명으로 바꿉니다.");
-            }
-            else
-            {
-                Debug.LogWarning($"[ShipCoopStart] {CrewKey} 값 \"{raw}\" 을 인원으로 읽지 못했습니다. 기본값 {crewToStart} 을 씁니다.");
-            }
         }
 
         public override void FixedUpdateNetwork()
