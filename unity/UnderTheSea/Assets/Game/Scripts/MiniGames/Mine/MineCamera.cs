@@ -183,6 +183,15 @@ public class MineCamera : MonoBehaviour
     /// </summary>
     private float CalcBoardHeight()
     {
+        // ⚠ Awake 를 기다리지 않는다. 여기 오는 길이 둘이다.
+        //   하나는 Awake 를 거친 재생 중이고, 다른 하나는 아직 Awake 가 안 돈
+        //   **다른 컴포넌트의 Awake** 다. MineVision 이 그 경우인데, 순서가 밀리면
+        //   최소 높이(5m)로 안개 거리를 잡아 판 바깥 칸이 먹힌다.
+        //   에디터에서 값을 확인할 때도 같은 이유로 여기서 찾는다.
+        if (cam == null) cam = GetComponent<Camera>();
+        if (cam == null) cam = Camera.main;
+        if (grid == null) grid = FindAnyObjectByType<MineGrid>();
+
         if (grid == null || cam == null) return minBoardHeight;
 
         float half = grid.Size * grid.CellSize * 0.5f;

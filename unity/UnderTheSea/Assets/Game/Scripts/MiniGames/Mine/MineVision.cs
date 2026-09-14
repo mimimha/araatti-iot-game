@@ -22,6 +22,17 @@ using UnityEngine.Rendering;
 ///
 /// 밝기 전환은 <see cref="MineGame"/> 이 단계마다 불러준다.
 /// 공개와 결과는 밝게, 턴 중에는 어둡게.
+///
+/// ⚠ **밝힌다고 동굴까지 밝히면 안 된다.** 환경광은 전역이라 판만 골라 밝힐 수가 없다.
+///   그대로 두면 탑뷰에서 판보다 둘레 바닥이 더 밝아 눈이 그쪽으로 간다.
+///
+///   **안개만으로는 못 자른다.** 탑뷰에서 판 귀퉁이까지가 24.4m 인데 바로 옆
+///   둘레 바닥은 22.8m 다. 둘레가 판보다 카메라에 **더 가깝다.** 거리로 자르면
+///   둘레보다 판이 먼저 먹힌다.
+///
+///   그래서 두 가지를 같이 쓴다.
+///     먼 곳 — 안개. 판 귀퉁이 너머부터 덮는다 (벽, 바깥 바닥)
+///     가까운 곳 — 동굴 쪽 색을 직접 낮춘다 (둘레 바닥, 소품)
 /// </summary>
 public class MineVision : MonoBehaviour
 {
@@ -62,9 +73,30 @@ public class MineVision : MonoBehaviour
              "  그래서 밝기를 씬에 맡기지 않고 여기서 직접 정한다.")]
     [SerializeField] private Color litAmbient = new Color(0.34f, 0.34f, 0.36f);
 
+    [Tooltip("밝을 때도 판 바깥은 안개로 덮는다. 끄면 동굴 전체가 환하게 보인다.")]
+    [SerializeField] private bool litFog = true;
+
+    [Tooltip("밝을 때 동굴에 곱할 색. 어두울수록 판만 도드라진다. 흰색이면 안 낮춘다.")]
+    [SerializeField] private Color litCaveTint = new Color(0.3f, 0.3f, 0.34f);
+
+    [Tooltip("판 귀퉁이에서 이 배율만큼 떨어진 곳부터 안개가 시작한다. 1 보다 커야 판이 안 흐려진다.")]
+    [SerializeField, Min(1f)] private float litFogNear = 1.02f;
+
+    [Tooltip("안개가 완전히 덮는 지점. 위 값의 몇 배인가.")]
+    [SerializeField, Min(1.05f)] private float litFogFar = 1.35f;
+
     [Header("연결")]
     [Tooltip("비워두면 씬의 Directional Light 를 찾는다.")]
     [SerializeField] private Light sun;
+
+    [Tooltip("탑뷰 높이를 읽는다. 비워두면 씬에서 찾는다. 없으면 안개 거리를 못 재서 밝을 때 안개를 끈다.")]
+    [SerializeField] private MineCamera boardCamera;
+
+    [Tooltip("판 크기를 읽는다. 비워두면 씬에서 찾는다.")]
+    [SerializeField] private MineGrid grid;
+
+    [Tooltip("동굴 배경. 밝을 때 이 아래 것들의 색을 낮춘다. 비워두면 MineCave 를 찾는다.")]
+    [SerializeField] private Transform caveRoot;
 
     /// <summary>빛이 닿는 거리. 밸런싱할 때 화면에 띄운다.</summary>
     public float LanternRange => lanternRange;
@@ -74,6 +106,11 @@ public class MineVision : MonoBehaviour
 
     private Light _lantern;
     private Transform _follow;
+
+    // 동굴 색을 낮출 때 쓴다. 매번 모으면 낭비라 한 번만 모은다.
+    private Renderer[] _caveRenderers;
+    private MaterialPropertyBlock _caveBlock;
+    private bool _caveDimmed;
 
     // 원래 값. 어둡게 했다가 반드시 되돌려야 한다.
     private Color _savedAmbient;
@@ -90,6 +127,18 @@ public class MineVision : MonoBehaviour
     {
         // 랜턴을 만들기 *전에* 태양을 찾는다. 안 그러면 랜턴을 태양으로 착각한다.
         if (sun == null) sun = FindSun();
+
+        if (boardCamera == null) boardCamera = FindAnyObjectByType<MineCamera>(FindObjectsInactive.Include);
+        if (grid == null) grid = FindAnyObjectByType<MineGrid>(FindObjectsInactive.Include);
+
+        if (caveRoot == null)
+        {
+            var cave = GameObject.Find("MineCave");
+            if (cave != null) caveRoot = cave.transform;
+        }
+
+        if (caveRoot != null) _caveRenderers = caveRoot.GetComponentsInChildren<Renderer>(true);
+        _caveBlock = new MaterialPropertyBlock();
 
         SaveOriginal();
         CreateLantern();
@@ -190,20 +239,87 @@ public class MineVision : MonoBehaviour
         RenderSettings.ambientMode = AmbientMode.Flat;
         RenderSettings.ambientLight = lit ? litAmbient : darkAmbient;
 
-        // 안개는 어두울 때만. 밝을 때 켜두면 탑뷰에서 판 바깥 칸이 먹힌다.
-        RenderSettings.fog = darkFog && !lit;
-        if (RenderSettings.fog)
+        // 안개. 밝을 때와 어두울 때 거리가 다르다.
+        //
+        // 밝을 때는 **판이 안 먹히는 선까지** 당겨서 판 바깥만 덮는다.
+        // 어두울 때는 멀리 밀어서 먼 동굴 벽만 묻는다.
+        float near = darkFogStart;
+        float far = darkFogEnd;
+        bool wantFog = darkFog;
+
+        if (lit)
+        {
+            // ⚠ 거리 재기를 && 뒤에 두면 안 된다. 앞이 false 면 아예 안 불리는데,
+            //   그러면 corner 에 값이 안 들어가는 길이 생겨 컴파일이 막힌다.
+            float corner;
+            bool measured = TryBoardCornerDistance(out corner);
+
+            wantFog = litFog && measured;
+            if (wantFog)
+            {
+                near = corner * litFogNear;
+                far = near * litFogFar;
+            }
+        }
+
+        RenderSettings.fog = wantFog;
+        if (wantFog)
         {
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = darkFogColor;
-            RenderSettings.fogStartDistance = darkFogStart;
-            RenderSettings.fogEndDistance = darkFogEnd;
+            RenderSettings.fogStartDistance = near;
+            RenderSettings.fogEndDistance = far;
         }
+
+        // 가까운 둘레는 안개가 못 잡는다. 동굴 쪽 색을 직접 낮춘다.
+        DimCave(lit);
 
         if (sun != null)
             sun.intensity = lit ? _savedSunIntensity : _savedSunIntensity * darkSunIntensity;
 
         if (_lantern != null) _lantern.enabled = !lit && _follow != null;
+    }
+
+    // 동굴 쪽만 색을 낮춘다. 판은 MineGridView 가 따로 칠하므로 건드리지 않는다.
+    //
+    // 머티리얼을 고치지 않고 MaterialPropertyBlock 으로 덮는다. 머티리얼은 여러
+    // 오브젝트가 같이 쓰는 에셋이라, 고치면 재생을 멈춰도 그 색이 남는다.
+    private void DimCave(bool lit)
+    {
+        if (_caveRenderers == null || _caveBlock == null) return;
+        if (_caveDimmed == lit) return;
+
+        Color tint = lit ? litCaveTint : Color.white;
+
+        for (int i = 0; i < _caveRenderers.Length; i++)
+        {
+            Renderer r = _caveRenderers[i];
+            if (r == null) continue;
+
+            r.GetPropertyBlock(_caveBlock);
+            _caveBlock.SetColor("_BaseColor", tint);
+            r.SetPropertyBlock(_caveBlock);
+        }
+
+        _caveDimmed = lit;
+    }
+
+    // 탑뷰 카메라에서 판 귀퉁이까지의 거리.
+    //
+    // 카메라는 판 한가운데 위 h 에 있고, 귀퉁이는 수평으로 half*sqrt(2) 떨어져 있다.
+    // **숫자를 박아두지 않는 이유** — 판 크기를 바꾸면 카메라 높이가 따라 바뀌고,
+    // 그러면 이 거리도 바뀐다. 박아두면 판을 키운 날 판 바깥 칸이 안개에 먹힌다.
+    private bool TryBoardCornerDistance(out float distance)
+    {
+        distance = 0f;
+        if (boardCamera == null || grid == null) return false;
+
+        float half = grid.Size * grid.CellSize * 0.5f;
+        float h = boardCamera.BoardHeight;
+        if (half <= 0f || h <= 0f) return false;
+
+        distance = Mathf.Sqrt(2f * half * half + h * h);
+        return true;
     }
 
     private void LateUpdate()
