@@ -19,8 +19,12 @@ using UnityEngine.UI;
 /// **조각을 런타임에 만들지 않는다.** 칸을 코드로 찍어내면 인스펙터에서 손볼 수가 없다.
 /// 계층은 프리팹으로 두고, 이 스크립트는 거기 꽂힌 글자와 색만 바꾼다.
 ///
-/// **결과 화면은 여기 없다.** 판이 끝나면 숨는다. 결과와 보상은 공통 매칭 흐름이
-/// 맡는다. (MINE.md 13장)
+/// **결과 화면은 여기 없다.** 결과와 보상은 공통 매칭 흐름이 맡는다. (MINE.md 13장)
+///
+/// ⚠ 다만 **끝났다는 사실 한 줄은 남긴다.** 공통 흐름은 10단계에나 붙는데,
+///   그때까지 판이 끝나면 화면에 아무것도 안 남아서 멈춘 것과 구분이 안 된다.
+///   실제로 마지막 턴에 힌트를 누른 사람이 "힌트가 안 꺼진다"고 읽었다.
+///   공통 결과 화면이 붙으면 <see cref="hideOnFinish"/> 를 켠다.
 /// </summary>
 public class MineHud : MonoBehaviour
 {
@@ -38,6 +42,9 @@ public class MineHud : MonoBehaviour
 
     [Tooltip("판이 끝나면 이걸로 숨긴다. 끄는 게 아니라 투명하게 만든다.")]
     [SerializeField] private CanvasGroup group;
+
+    [Tooltip("판이 끝나면 HUD 를 감출 것인가. 공통 결과 화면이 붙기 전에는 꺼둔다 — 켜면 끝났다는 표시가 아무 데도 안 남는다.")]
+    [SerializeField] private bool hideOnFinish;
 
     [Header("위")]
     [Tooltip("남은 시간. mm:ss")]
@@ -60,6 +67,16 @@ public class MineHud : MonoBehaviour
     [SerializeField] private TMP_Text hintText;
     [SerializeField] private Image hintIcon;
 
+    [Header("결과 — 판이 끝났을 때만")]
+    [Tooltip("끝났을 때만 켠다. 공통 결과 화면이 붙으면 통째로 끈다.")]
+    [SerializeField] private GameObject resultPanel;
+
+    [Tooltip("\"실패 53.7%\" 처럼 크게 띄운다.")]
+    [SerializeField] private TMP_Text resultText;
+
+    [Tooltip("결과 아래 한 줄. 목표와 판 것을 적는다.")]
+    [SerializeField] private TMP_Text resultDetailText;
+
     [Header("색")]
     [SerializeField] private Color activeFrame = new Color(1f, 0.78f, 0.33f);
     [SerializeField] private Color idleFrame = new Color(1f, 1f, 1f, 0.15f);
@@ -68,6 +85,8 @@ public class MineHud : MonoBehaviour
     [SerializeField] private Color waitLabel = new Color(0.65f, 0.65f, 0.7f);
     [SerializeField] private Color hintReady = new Color(1f, 0.82f, 0.35f);
     [SerializeField] private Color hintUsed = new Color(0.45f, 0.45f, 0.5f);
+    [SerializeField] private Color successColor = new Color(0.55f, 0.92f, 0.62f);
+    [SerializeField] private Color failColor = new Color(0.95f, 0.55f, 0.5f);
 
     /// <summary>
     /// 참가자 이름. 아직 로스터가 없어서 P1~P4 로 둔다.
@@ -94,6 +113,12 @@ public class MineHud : MonoBehaviour
         game.TurnStarted += OnTurnStarted;
         game.RestoresChanged += OnRestoresChanged;
 
+        // ⚠ StateChanged 만으로는 점수를 못 읽는다.
+        //   EnterFinished 는 **첫 줄에서** 상태를 Finished 로 바꾸고, 채점은 그 뒤에 한다.
+        //   그래서 StateChanged 시점의 Result 는 아직 비어 있어 0.0% 로 보인다.
+        //   채점이 끝난 뒤 오는 Finished 를 받아 한 번 더 그린다.
+        game.Finished += OnGameFinished;
+
         RefreshAll();
     }
 
@@ -104,6 +129,7 @@ public class MineHud : MonoBehaviour
         game.StateChanged -= OnStateChanged;
         game.TurnStarted -= OnTurnStarted;
         game.RestoresChanged -= OnRestoresChanged;
+        game.Finished -= OnGameFinished;
     }
 
     /// <summary>10단계에서 진짜 참가자 이름을 넣는다.</summary>
@@ -146,14 +172,19 @@ public class MineHud : MonoBehaviour
         RefreshRestore();
     }
 
+    private void OnGameFinished(bool success, int score)
+    {
+        RefreshAll();
+    }
+
     private void RefreshAll()
     {
         if (game == null) return;
 
-        // 판이 끝나면 숨는다. 결과 화면은 공통 매칭 흐름이 맡는다. (MINE.md 13장)
+        // 공통 결과 화면이 붙으면 숨긴다. 그 전에는 남겨야 끝난 줄 안다.
         if (group != null)
         {
-            bool show = game.State != MineState.Finished;
+            bool show = !hideOnFinish || game.State != MineState.Finished;
             group.alpha = show ? 1f : 0f;
             group.blocksRaycasts = show;
         }
@@ -166,6 +197,8 @@ public class MineHud : MonoBehaviour
         }
 
         if (phaseText != null) phaseText.text = PhaseLabel();
+
+        RefreshResult();
 
         _shownSeconds = -1;   // 다음 Update 에서 다시 그리게 한다
         RefreshPlayers();
@@ -183,6 +216,31 @@ public class MineHud : MonoBehaviour
             case MineState.TurnGap:  return "다음 차례";
             case MineState.Finished: return "채굴 종료";
             default:                 return string.Empty;
+        }
+    }
+
+    // 판이 끝났을 때만 가운데에 크게 띄운다.
+    //
+    // ⚠ 이 칸은 임시다. 결과와 보상은 공통 매칭 흐름 몫이다 (MINE.md 13장).
+    //   그것이 붙기 전까지 끝났다는 표시가 아무 데도 안 남는 것을 막으려고 둔다.
+    private void RefreshResult()
+    {
+        bool done = game.State == MineState.Finished;
+
+        if (resultPanel != null) resultPanel.SetActive(done);
+        if (!done) return;
+
+        if (resultText != null)
+        {
+            resultText.text = (game.Success ? "성공" : "실패")
+                              + "  " + game.Result.Percent.ToString("0.0") + "%";
+            resultText.color = game.Success ? successColor : failColor;
+        }
+
+        if (resultDetailText != null)
+        {
+            resultDetailText.text = "목표 " + game.Result.TargetCount + "칸"
+                                    + "   ·   판 것 " + game.Result.DugCount + "칸";
         }
     }
 
@@ -231,7 +289,13 @@ public class MineHud : MonoBehaviour
 
         if (hintText != null)
         {
-            hintText.text = game.HintShowing ? "보는 중" : ready ? "V · 1회" : "사용함";
+            // ⚠ HintAvailable 은 "지금 쓸 수 있는가" 라서 내 턴이 아니면 false 다.
+            //   그걸 그대로 "사용함" 으로 적으면, 공개 7초에 쓰지도 않은 힌트가
+            //   이미 쓴 것처럼 보인다. 쓸 수 없는 때와 써버린 때를 갈라야 한다.
+            if (game.HintShowing) hintText.text = "보는 중";
+            else if (game.State != MineState.Turn) hintText.text = "대기";
+            else hintText.text = ready ? "V · 1회" : "사용함";
+
             hintText.color = lit ? hintReady : hintUsed;
         }
 
