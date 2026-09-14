@@ -110,6 +110,9 @@ public class MineGame : MonoBehaviour
     [Tooltip("켜면 재생하자마자 판이 시작된다. 실제로는 로비가 불러준다.")]
     [SerializeField] private bool autoStart = true;
 
+    [Tooltip("돌 배치 시드. 0 이면 매판 다르게. 값을 넣으면 같은 판이 반복돼 비교하기 좋다.")]
+    [SerializeField] private int boardSeed = 0;
+
     private IMineSimilarity _similarity;
     private float _timer;
     private float _hintTimer;
@@ -197,7 +200,9 @@ public class MineGame : MonoBehaviour
     {
         if (grid == null) return;
 
-        grid.ResetAll();
+        // 돌 배치는 무작위지만 시드로 만든다. 네트워크가 붙으면 이 값을 나눠 갖는다.
+        // 그래야 4명이 같은 판을 본다. (MineGrid.Seed)
+        grid.ResetAll(boardSeed != 0 ? boardSeed : Environment.TickCount);
 
         foreach (MineDigger d in diggers)
         {
@@ -311,7 +316,7 @@ public class MineGame : MonoBehaviour
         digger.MarkHintUsed();
 
         _hintTimer = hintSeconds;
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetShowTarget(true); }
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
 
         // 어두우면 색을 바꿔봐야 안 보인다. 힌트 동안에는 판을 밝힌다. (MINE.md 6장)
         if (vision != null) vision.SetLit(true);
@@ -336,7 +341,7 @@ public class MineGame : MonoBehaviour
         // 턴 중일 때만 되돌린다. 다른 단계는 각자 알아서 표시를 정한다.
         if (State != MineState.Turn) return;
 
-        if (view != null) view.SetShowTarget(false);
+        if (view != null) view.SetOverlay(MineOverlay.None);
         if (vision != null) vision.SetLit(false);   // 다시 어두워지고 랜턴이 켜진다
 
         if (cameraRig != null && CurrentDigger != null)
@@ -354,7 +359,7 @@ public class MineGame : MonoBehaviour
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);          // 보는 시간이지 파는 시간이 아니다
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetShowTarget(true); }
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
         // 그림을 봐야 하는 시간이므로 밝게. 랜턴은 필요 없다.
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
 
@@ -363,7 +368,7 @@ public class MineGame : MonoBehaviour
 
         Debug.Log($"[MINE] 목표 공개 {revealSeconds:0}초 — " +
                   $"{(string.IsNullOrEmpty(TargetName) ? "(도안 없음)" : TargetName)} · " +
-                  $"복구 {RestoresLeft}개", this);
+                  $"복구 {RestoresLeft}개 · 돌 시드 {grid.Seed}", this);
     }
 
     private void EnterTurn(int turnNumber)
@@ -375,7 +380,7 @@ public class MineGame : MonoBehaviour
         TurnNumber = turnNumber;
 
         // 공개가 끝났으니 그림을 감춘다. 여기부터는 기억으로 그린다. (MINE.md 2장)
-        if (view != null) view.SetShowTarget(false);
+        if (view != null) view.SetOverlay(MineOverlay.None);
 
         // 사람이 모자라면 같은 사람이 여러 턴을 돈다. 혼자 테스트할 때가 그렇다.
         int index = (turnNumber - 1) % Mathf.Max(1, diggers.Length);
@@ -428,8 +433,8 @@ public class MineGame : MonoBehaviour
         SetOnlyDiggerActive(-1);
 
         // 결과는 맞은 칸과 틀린 칸을 색으로 구분해 보여준다. (MINE.md 7장)
-        // MineGridView 가 이미 4색으로 칠하므로 켜기만 하면 된다.
-        if (view != null) view.SetShowTarget(true);
+        // 도안 보기와 다른 방식으로 칠한다.
+        if (view != null) view.SetOverlay(MineOverlay.Result);
 
         // 판이 끝났으니 전체를 밝힌다. 여기가 이 게임의 하이라이트다. (MINE.md 3장 7번)
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }

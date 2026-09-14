@@ -53,6 +53,9 @@ public class MineDigger : MonoBehaviour
     /// <summary>이번 판에서 이 플레이어가 실제로 판 칸 수. (헛스윙 제외)</summary>
     public int TotalDigs { get; private set; }
 
+    /// <summary>이번 판에서 이 플레이어가 단단한 돌에 금을 낸 횟수.</summary>
+    public int TotalCracks { get; private set; }
+
     private void Awake()
     {
         if (grid == null) grid = FindAnyObjectByType<MineGrid>();
@@ -74,6 +77,7 @@ public class MineDigger : MonoBehaviour
     {
         TotalSwings = 0;
         TotalDigs = 0;
+        TotalCracks = 0;
         HintUsed = false;
         _restoreRequested = false;
         _hintRequested = false;
@@ -116,9 +120,19 @@ public class MineDigger : MonoBehaviour
         TotalSwings++;
 
         if (!grid.WorldToCell(transform.position, out int x, out int y)) return;   // 격자 밖
-        if (!grid.Dig(x, y)) return;                                               // 이미 파인 칸
 
-        TotalDigs++;
+        // 무른 돌은 한 번에 깨지고, 단단한 돌은 처음엔 금만 간다.
+        // 키보드로는 F 를 두 번 누르는 것이 곧 두 번 치는 것이다. (MINE.md 4장)
+        switch (grid.Hit(x, y))
+        {
+            case MineHitResult.Broke:
+                TotalDigs++;
+                break;
+
+            case MineHitResult.Cracked:
+                TotalCracks++;
+                break;
+        }
     }
 
     // ------------------------------------------------------------
