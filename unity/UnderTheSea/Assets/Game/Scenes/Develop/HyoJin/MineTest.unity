@@ -11101,7 +11101,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MineGrid
   size: 20
   cellSize: 1
-  target: {fileID: 11400000, guid: 17f040fd4b8ea174eb47b10b5de3ec0b, type: 2}
+  target: {fileID: 11400000, guid: 0f0f09ced8f8d4f449716ccb3210df4c, type: 2}
   hardRatio: 0.25
 --- !u!4 &1014668934
 Transform:
