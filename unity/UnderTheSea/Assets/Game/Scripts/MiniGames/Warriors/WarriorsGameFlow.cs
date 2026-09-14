@@ -31,6 +31,9 @@ namespace Warriors
         private bool resultSent;
         private bool normalTransitionStarted;
         private CooperativeSwingKind swingKind;
+        private Vector3 stageStartPosition;
+        private Quaternion stageStartRotation;
+        private bool hasStageStartPose;
 
         private enum CooperativeSwingKind { None, Ultimate, Finish }
 
@@ -46,8 +49,17 @@ namespace Warriors
         public bool IsTransitioning => transitioning;
         public string TransitionLabel => transitionLabel;
         public string FailureLabel { get; private set; } = "GAME OVER";
-        [SerializeField, Range(1, 4)] private int configuredPlayerCount = 4;
-        public int ActivePlayerCount { get; private set; } = 4;
+        // Warriors is a 1-2 player game.  The four fixed tentacles that once justified a
+        // 4P lobby are gone, so nothing in the battle assumes more than two swords.
+        // One run is meant to land around three to four minutes, split across the rounds.
+        [SerializeField, Min(20f)] private float round1Seconds = 75f;
+        [SerializeField, Min(20f)] private float round2Seconds = 60f;
+        [SerializeField, Min(20f)] private float round3Seconds = 90f;
+        [SerializeField, Min(0)] private int patternScore = 200;
+        [SerializeField, Min(0)] private int coopBonusScore = 500;
+        [SerializeField, Min(0)] private int roundClearHeal = 25;
+        [SerializeField, Range(1, 2)] private int configuredPlayerCount = 1;
+        public int ActivePlayerCount { get; private set; } = 1;
         public int SuccessfulSwingPlayerCount => successfulSwingPlayers.Count;
         public event Action<WarriorsResult> Completed;
 
@@ -74,10 +86,24 @@ namespace Warriors
             if (rhythmBattle == null)
                 rhythmBattle = UnityEngine.Object.FindFirstObjectByType<WarriorsRhythmBattle>(FindObjectsInactive.Include);
             rhythmBattle?.Configure(inputSource, score, kraken);
+            CacheStageStartPose();
             ResetStagePosition();
+            WarriorsPlayers.Changed -= RefreshActivePlayerCount;
+            WarriorsPlayers.Changed += RefreshActivePlayerCount;
             RefreshActivePlayerCount();
+            // Scaled from whatever the scene authored rather than from a number in here, so
+            // a test scene that wants a short round keeps its short round.
+            if (baseTargetKills <= 0 && score != null) baseTargetKills = score.TargetKills;
+            score?.ConfigureTargetKills(baseTargetKills * ActivePlayerCount);
+            spawner?.ConfigureForPlayers(ActivePlayerCount);
+            score?.RestartClock(round1Seconds);
             if (score != null) score.BattleFinished += HandleNormalBattleFinished;
+            // Neither the boss prefab nor the rhythm round can reference a scene player
+            // on its own, and both need one now that they can hurt it.
+            if (kraken != null) kraken.ConfigurePlayer(playerHealth);
+            if (rhythmBattle != null) rhythmBattle.ConfigurePlayer(playerHealth);
             if (kraken != null) kraken.AllTentaclesDefeated += HandleTentaclesDefeated;
+            if (kraken != null) kraken.PatternCleared += HandlePatternCleared;
             if (kraken != null) kraken.FinalFormDefeated += HandleFinalKrakenDefeated;
             if (InputSource != null) InputSource.AttackRequested += HandleAttack;
             if (PlayerInputSource != null) PlayerInputSource.PlayerAttackRequested += HandlePlayerAttack;
@@ -86,8 +112,10 @@ namespace Warriors
 
         private void OnDisable()
         {
+            WarriorsPlayers.Changed -= RefreshActivePlayerCount;
             if (score != null) score.BattleFinished -= HandleNormalBattleFinished;
             if (kraken != null) kraken.AllTentaclesDefeated -= HandleTentaclesDefeated;
+            if (kraken != null) kraken.PatternCleared -= HandlePatternCleared;
             if (kraken != null) kraken.FinalFormDefeated -= HandleFinalKrakenDefeated;
             if (InputSource != null) InputSource.AttackRequested -= HandleAttack;
             if (PlayerInputSource != null) PlayerInputSource.PlayerAttackRequested -= HandlePlayerAttack;
@@ -129,31 +157,63 @@ namespace Warriors
 
         private IEnumerator BeginKrakenRoutine()
         {
+            RefreshActivePlayerCount();
+            // ROUND 1 owns its own clock.  It used to keep running into the tentacle and
+            // rhythm rounds, so reaching ROUND 2 with time left still ended the whole run
+            // in TIME OVER once that first countdown hit zero.
+            score?.StopClock();
+            playerHealth?.Heal(roundClearHeal);
             transitioning = true;
-            transitionLabel = "일반 전투 완료";
+            transitionLabel = "해변의 몬스터를 막아냈습니다!";
             if (spawner != null) spawner.enabled = false;
-            if (normalEnemyRoot != null)
-                foreach (Transform child in normalEnemyRoot) Destroy(child.gameObject);
-            yield return new WaitForSeconds(1.5f);
+            ClearBeachEnemies();
+            yield return new WaitForSeconds(.85f);
+            transitionLabel = "하지만 바다에서 거대한 기척이 느껴집니다...";
+            yield return new WaitForSeconds(.9f);
+            // Swept once more right before the kraken takes the stage: anything that landed
+            // during the transition has no business being in the boss fight.
+            ClearBeachEnemies();
             ResetStagePosition();
             transitioning = false;
             transitionLabel = string.Empty;
             Phase = WarriorsBattlePhase.KrakenTentaclePhase;
+            score?.RestartClock(round2Seconds);
             kraken?.BeginBattle();
+        }
+
+        private void ClearBeachEnemies()
+        {
+            if (normalEnemyRoot == null) return;
+            foreach (Transform child in normalEnemyRoot) Destroy(child.gameObject);
         }
 
         private void HandleTentaclesDefeated() => StartCoroutine(BeginRhythmRoundRoutine());
 
+        /// <summary>
+        /// Co-op is never required, so clearing a two tentacle pattern together pays extra
+        /// rather than being the only way through it.
+        /// </summary>
+        private void HandlePatternCleared(bool coop)
+        {
+            score?.RegisterBossHit(coop ? coopBonusScore : patternScore);
+            if (!coop) return;
+            transitionLabel = "CO-OP BONUS";
+            iotFeedback?.Request(0, WarriorsIoTFeedbackType.CorrectAttack, 1f);
+        }
+
         private IEnumerator BeginRhythmRoundRoutine()
         {
+            RefreshActivePlayerCount();
+            playerHealth?.Heal(roundClearHeal);
             transitioning = true;
-            transitionLabel = "BREAK!";
-            yield return new WaitForSeconds(1f);
+            transitionLabel = "모든 촉수를 무력화했습니다!\n크라켄의 방어가 무너집니다!";
+            yield return new WaitForSeconds(1.2f);
             ResetStagePosition();
             kraken?.ShowFinalForm();
             Phase = WarriorsBattlePhase.FinalKrakenPhase;
             transitioning = false;
             transitionLabel = string.Empty;
+            score?.RestartClock(round3Seconds);
             rhythmBattle?.Begin();
         }
         private IEnumerator FinalSwingRoutine(CooperativeSwingKind kind)
@@ -222,7 +282,9 @@ namespace Warriors
         private IEnumerator ResolveCooperativeSwing()
         {
             yield return new WaitForSeconds(.65f);
-            float bonus = ActivePlayerCount switch { 2 => 1.3f, 3 => 1.6f, 4 => 2f, _ => 1f };
+            // Co-op is "faster and louder together", never "required": a solo run still
+            // resolves the swing, a pair simply scores more for it.
+            float bonus = ActivePlayerCount == 2 ? 1.3f : 1f;
             bool finish = swingKind == CooperativeSwingKind.Finish;
             // FinalFormDefeated is guarded by the active battle phase. Restore it
             // before applying cooperative damage so a finishing swing can clear.
@@ -252,34 +314,44 @@ namespace Warriors
 
         public void SetActivePlayerCount(int count)
         {
-            ActivePlayerCount = Mathf.Clamp(count, 1, 4);
+            ActivePlayerCount = Mathf.Clamp(count, 1, WarriorsPlayers.Max);
             successfulSwingPlayers.RemoveWhere(index => index >= ActivePlayerCount);
         }
 
         public void BindPlayersRoot(Transform root)
         {
             playersRoot = root;
+            if (localPlayer == null && playersRoot != null)
+                localPlayer = playersRoot.GetComponentInChildren<WarriorsLocalPlayerController>(true);
+            CacheStageStartPose();
+            ResetStagePosition();
             RefreshActivePlayerCount();
         }
 
+        /// <summary>
+        /// Taken from the live roster, so a player joining or leaving is picked up at once
+        /// rather than leaving the rest of the run on the number that was true at startup.
+        /// The players root is only a fallback for a scene that has registered nobody.
+        /// </summary>
         private void RefreshActivePlayerCount()
         {
+            if (WarriorsPlayers.Count > 0) { SetActivePlayerCount(WarriorsPlayers.Count); return; }
             if (playersRoot == null) { SetActivePlayerCount(configuredPlayerCount); return; }
-            int count = 0;
-            foreach (Transform player in playersRoot)
-                if (player.gameObject.activeInHierarchy) count++;
-            SetActivePlayerCount(Mathf.Max(configuredPlayerCount, count));
+            int count = playersRoot.GetComponentsInChildren<WarriorsPlayerCombat>(false).Length;
+            SetActivePlayerCount(Mathf.Max(1, count));
         }
 
         private void HandleFinalKrakenDefeated()
         {
-            if (Phase != WarriorsBattlePhase.FinalKrakenPhase) return;
+            if (Phase != WarriorsBattlePhase.FinalKrakenPhase || clearStarted) return;
+            clearStarted = true;
             StartCoroutine(ClearRoutine());
         }
 
         private void HandleRhythmCompleted()
         {
-            if (Phase != WarriorsBattlePhase.FinalKrakenPhase) return;
+            if (Phase != WarriorsBattlePhase.FinalKrakenPhase || clearStarted) return;
+            clearStarted = true;
             StartCoroutine(ClearRoutine());
         }
 
@@ -301,10 +373,15 @@ namespace Warriors
             iotFeedback?.Request(0, WarriorsIoTFeedbackType.PlayerDamaged, Mathf.Clamp01(amount / 15f));
         }
 
+        // The kraken can now be finished from either the pattern damage or the cooperative
+        // swing, so the clear has to be one-shot.
+        private bool clearStarted;
+        private int baseTargetKills;
+
         private IEnumerator ClearRoutine()
         {
             transitioning = true;
-            transitionLabel = "크라켄 격파";
+            transitionLabel = "크라켄 격퇴 성공!\n바다의 심장 조각을 되찾았습니다!";
             score?.StopClock();
             kraken?.Defeat();
             yield return new WaitForSeconds(1.25f);
@@ -324,13 +401,43 @@ namespace Warriors
 
         private void ResetStagePosition()
         {
-            if (stageStartPoint == null) return;
             if (localPlayer == null && playersRoot != null)
                 localPlayer = playersRoot.GetComponentInChildren<WarriorsLocalPlayerController>(true);
-            localPlayer?.RespawnAt(stageStartPoint);
+            CacheStageStartPose();
+            if (!hasStageStartPose || localPlayer == null) return;
+            localPlayer.RespawnAt(stageStartPosition, stageStartRotation);
             if (followCamera == null)
                 followCamera = UnityEngine.Object.FindFirstObjectByType<WarriorsThirdPersonCamera>(FindObjectsInactive.Include);
-            followCamera?.SnapToTarget(stageStartPoint.eulerAngles.y);
+            followCamera?.SnapToTarget(stageStartRotation.eulerAngles.y);
+        }
+
+        private void CacheStageStartPose()
+        {
+            if (hasStageStartPose) return;
+            if (stageStartPoint == null)
+            {
+                Transform[] transforms = UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                foreach (Transform candidate in transforms)
+                    if (candidate.name == "StageStartPoint") { stageStartPoint = candidate; break; }
+                if (stageStartPoint == null)
+                    foreach (Transform candidate in transforms)
+                        if (candidate.name == "PlayerSpawn_01") { stageStartPoint = candidate; break; }
+            }
+
+            if (stageStartPoint != null)
+            {
+                stageStartPosition = stageStartPoint.position;
+                stageStartRotation = stageStartPoint.rotation;
+                hasStageStartPose = true;
+            }
+            else if (localPlayer != null)
+            {
+                // Prefab-only/dev scenes may not author a marker. Capture the player's
+                // initial spawn once, never their later ROUND 1 position.
+                stageStartPosition = localPlayer.transform.position;
+                stageStartRotation = localPlayer.transform.rotation;
+                hasStageStartPose = true;
+            }
         }
     }
 }

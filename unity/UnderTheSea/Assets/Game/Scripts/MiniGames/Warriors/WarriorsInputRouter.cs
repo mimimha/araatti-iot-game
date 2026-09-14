@@ -14,31 +14,17 @@ namespace Warriors
 
         private void OnEnable()
         {
-            foreach (MonoBehaviour source in inputSources)
-            {
-                if (source is not IWarriorsInputSource input || ReferenceEquals(input, this)) continue;
-                input.AttackRequested += ForwardAttack;
-                input.DodgeRequested += ForwardDodge;
-                if (source is IWarriorsPlayerInputSource playerInput)
-                    playerInput.PlayerAttackRequested += ForwardPlayerAttack;
-            }
+            Subscribe(inputSources ?? Array.Empty<MonoBehaviour>());
         }
 
         private void OnDisable()
         {
-            foreach (MonoBehaviour source in inputSources)
-            {
-                if (source is not IWarriorsInputSource input || ReferenceEquals(input, this)) continue;
-                input.AttackRequested -= ForwardAttack;
-                input.DodgeRequested -= ForwardDodge;
-                if (source is IWarriorsPlayerInputSource playerInput)
-                    playerInput.PlayerAttackRequested -= ForwardPlayerAttack;
-            }
+            Unsubscribe(inputSources ?? Array.Empty<MonoBehaviour>());
         }
 
         public void Configure(params MonoBehaviour[] sources)
         {
-            if (isActiveAndEnabled) Unsubscribe(inputSources);
+            if (isActiveAndEnabled) Unsubscribe(inputSources ?? Array.Empty<MonoBehaviour>());
             inputSources = sources ?? Array.Empty<MonoBehaviour>();
             if (isActiveAndEnabled) Subscribe(inputSources);
         }

@@ -12,13 +12,18 @@ namespace Warriors
         private Vector3 restScale;
         private Quaternion restRotation;
         private Coroutine routine;
-        private float rejectedUntil;
         private bool defeating;
+        private bool bossPart;
         private Renderer[] renderers;
         private MaterialPropertyBlock flashBlock;
+        private bool initialized;
 
-        private void Awake()
+        private void Awake() => EnsureInitialized();
+
+        private void EnsureInitialized()
         {
+            if (initialized) return;
+            initialized = true;
             flashBlock = new MaterialPropertyBlock();
             if (visualRoot == null) visualRoot = transform;
             restPosition = visualRoot.localPosition;
@@ -31,28 +36,31 @@ namespace Warriors
 
         public void PlayHit()
         {
-            if (defeating) return;
+            EnsureInitialized();
+            if (defeating || bossPart) return;
             if (routine != null) StopCoroutine(routine);
             routine = StartCoroutine(Shake());
         }
 
         public void PlayDefeat()
         {
+            EnsureInitialized();
+            if (bossPart) return;
             defeating = true;
-            rejectedUntil = 0f;
             if (routine != null) StopCoroutine(routine);
             routine = StartCoroutine(DefeatAnimation());
         }
 
-        /// <summary>
-        /// A swing that does not match this monster's weakness.
-        /// Every monster caught in the arc used to shout "WRONG" over its head, so a clean
-        /// kill on one type spammed the screen with warnings from its neighbours. The
-        /// rejection still registers for the IoT feedback hub; it just no longer draws text.
-        /// </summary>
-        public void PlayRejected()
+        public void ConfigureAsBossPart()
         {
-            rejectedUntil = Time.time + .35f;
+            EnsureInitialized();
+            bossPart = true;
+            if (routine != null) StopCoroutine(routine);
+            routine = null;
+            defeating = false;
+            visualRoot.localPosition = restPosition;
+            visualRoot.localScale = restScale;
+            visualRoot.localRotation = restRotation;
         }
 
         private IEnumerator Shake()
@@ -69,9 +77,12 @@ namespace Warriors
         private IEnumerator DefeatAnimation()
         {
             SetFlash(true);
-            for (float t = 0f; t < .55f; t += Time.deltaTime)
+            // Short on purpose: the death has to read as part of the swing, not as an
+            // animation the player waits through.
+            const float duration = .35f;
+            for (float t = 0f; t < duration; t += Time.deltaTime)
             {
-                float normalized = t / .55f;
+                float normalized = t / duration;
                 float impact = 1f - Mathf.Clamp01(normalized / .18f);
                 float punch = 1f + Mathf.Sin(Mathf.Min(normalized * 2f, 1f) * Mathf.PI) * .28f;
                 visualRoot.localScale = Vector3.Lerp(restScale * punch, restScale * .08f, Mathf.InverseLerp(.28f, 1f, normalized));
@@ -83,6 +94,12 @@ namespace Warriors
                 yield return null;
             }
             SetFlash(false);
+            // The corpse used to sit at 8% scale until the delayed Destroy caught up, which
+            // read as the monster hanging around after it was killed. Hide it the moment the
+            // animation is over so the kill lands exactly when it looks like it does.
+            if (renderers != null)
+                foreach (Renderer renderer in renderers)
+                    if (renderer != null) renderer.enabled = false;
             routine = null;
         }
 
@@ -100,7 +117,7 @@ namespace Warriors
 
         private void OnDisable()
         {
-            rejectedUntil = 0f;
+            if (!initialized) return;
             defeating = false;
             SetFlash(false);
             if (visualRoot != null)

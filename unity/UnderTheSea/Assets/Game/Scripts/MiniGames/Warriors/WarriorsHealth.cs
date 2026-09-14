@@ -59,6 +59,18 @@ namespace Warriors
             return true;
         }
 
+        /// <summary>
+        /// Health is one pool for the whole run, so damage taken while learning ROUND 1
+        /// used to follow the player all the way to the kraken with no way back. Clearing
+        /// a round hands some of it back.
+        /// </summary>
+        public void Heal(int amount)
+        {
+            if (amount <= 0 || IsDead || CurrentHealth >= maxHealth) return;
+            CurrentHealth = Mathf.Min(maxHealth, CurrentHealth + amount);
+            HealthChanged?.Invoke(CurrentHealth, maxHealth);
+        }
+
         public void ResetHealth()
         {
             CurrentHealth = maxHealth;

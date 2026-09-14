@@ -14,6 +14,22 @@ namespace Warriors
         private float warningEndsAt;
         private bool warning;
 
+        /// <summary>
+        /// When the wave is allowed to wind up its next swing. Every enemy used to run
+        /// its own cooldown, so a ring of twelve emptied a full health bar in about five
+        /// seconds and none of it could be read. Sharing one cadence keeps the crowd as
+        /// big as it ever was while the threat arrives one telegraphed swing at a time -
+        /// which is the part the player is meant to answer.
+        /// </summary>
+        private static float nextWaveWindUpTime;
+        private static float waveInterval = 1.35f;
+
+        public static void ConfigureWaveCadence(float seconds)
+        {
+            waveInterval = Mathf.Max(.15f, seconds);
+            nextWaveWindUpTime = 0f;
+        }
+
         public bool IsWarning => warning;
 
         private void Update()
@@ -22,10 +38,14 @@ namespace Warriors
             float distance = Vector3.Distance(transform.position, playerHealth.transform.position);
             if (!warning)
             {
-                if (distance <= attackRange && Time.time >= nextAttackTime)
+                if (distance <= attackRange && Time.time >= nextAttackTime
+                    && Time.time >= nextWaveWindUpTime)
                 {
                     warning = true;
                     warningEndsAt = Time.time + warningSeconds;
+                    // Claimed for the whole wave, not just for this enemy. Cutting it down
+                    // mid wind up spends the turn without taking the hit.
+                    nextWaveWindUpTime = Time.time + waveInterval;
                 }
                 return;
             }
@@ -44,6 +64,8 @@ namespace Warriors
             playerHealth = target;
             approach = movement;
             damage = Mathf.Max(1, attackDamage);
+            // Close to somewhere this enemy can actually swing from.
+            approach?.ConfigureHoldDistance(attackRange);
         }
 
         private void OnDisable() => warning = false;

@@ -243,10 +243,14 @@ MonoBehaviour:
   player: {fileID: 0}
   enemyParent: {fileID: 8760614537544927266}
   score: {fileID: 4190643600361713413}
-  spawnInterval: {x: 1.8, y: 2.6}
-  spawnCount: {x: 2, y: 3}
-  maxAliveEnemies: 9
-  minimumSpawnDistance: 2.2
+  spawnInterval: {x: 0.8, y: 1.25}
+  spawnCount: {x: 2, y: 5}
+  maxAliveEnemies: 12
+  minimumSpawnDistance: 1.65
+  midProgress: 0.35
+  rushProgress: 0.75
+  rushIntervalScale: 0.55
+  waveAttackInterval: 1.8
 --- !u!1 &6046136798592478129
 GameObject:
   m_ObjectHideFlags: 0
@@ -367,6 +371,12 @@ MonoBehaviour:
   inputSource: {fileID: 4891104960845813073}
   iotFeedback: {fileID: 0}
   iotInput: {fileID: 0}
+  round1Seconds: 75
+  round2Seconds: 60
+  round3Seconds: 90
+  patternScore: 200
+  coopBonusScore: 500
+  roundClearHeal: 25
   configuredPlayerCount: 4
 --- !u!114 &4575159974201224617
 MonoBehaviour:
@@ -386,8 +396,13 @@ MonoBehaviour:
   gameFlow: {fileID: 0}
   playerCombat: {fileID: 0}
   combatCamera: {fileID: 0}
-  noteCount: 18
+  patternLength: 3
   noteInterval: 0.72
+  finisherDamage: 22
+  partialDamage: 9
+  counterSeconds: 1.5
+  counterDamage: 10
+  lastChancePercent: 25
   noteTravelSeconds: 2.2
   perfectWindow: 0.12
   goodWindow: 0.3

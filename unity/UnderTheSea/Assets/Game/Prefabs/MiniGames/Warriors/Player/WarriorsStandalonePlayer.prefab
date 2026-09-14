@@ -1187,8 +1187,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsHealth
   maxHealth: 100
-  immortalForTesting: 1
-  incomingDamageMultiplier: 0.35
+  immortalForTesting: 0
+  incomingDamageMultiplier: 1
 --- !u!114 &8163830848327341035
 MonoBehaviour:
   m_ObjectHideFlags: 0
