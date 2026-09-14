@@ -1,0 +1,171 @@
+using UnityEngine;
+using UnityEngine.Rendering;
+
+/// <summary>
+/// 광산의 어둠과 랜턴. (MINE.md 6장 — 관전은 시야 제한입니다)
+///
+/// **어둠은 모두에게 적용된다.** 관전자만 어둡게 하면 같은 광산인데 사람마다
+/// 밝기가 다른 셈이 되고, 조명을 두 벌 만들어야 한다. 모두 어두우면
+/// 6장의 "바닥 전체는 한눈에 안 들어온다" 가 지금 턴인 사람에게도 그대로 걸리고,
+/// 나중에 관전 카메라가 붙어도 저절로 따라온다.
+///
+/// **안개를 쓰지 않는 이유** — 안개는 *카메라*로부터의 거리로 가린다.
+/// 우리가 원하는 것은 *플레이어*로부터의 거리다. 그래서 점광원을 쓴다.
+///
+/// ⚠ 랜턴을 캐릭터 프리팹에 붙이지 않는다. 붙이면 로비의 같은 캐릭터도
+///   광산 랜턴을 들고 다닌다. 여기서 라이트를 하나 만들어 따라다니게 한다.
+///
+/// 밝기 전환은 <see cref="MineGame"/> 이 단계마다 불러준다.
+/// 공개와 결과는 밝게, 턴 중에는 어둡게.
+/// </summary>
+public class MineVision : MonoBehaviour
+{
+    [Header("랜턴")]
+    [Tooltip("빛이 닿는 거리(m). 칸 크기가 1이면 곧 몇 칸까지 보이는지다.\n" +
+             "MINE.md 12장의 조정 항목이다.")]
+    [SerializeField, Min(1f)] private float lanternRange = 6f;
+
+    [Tooltip("랜턴 밝기. 어두우면 올린다.")]
+    [SerializeField, Min(0f)] private float lanternIntensity = 8f;
+
+    [Tooltip("랜턴이 떠 있는 높이(m). 바닥에 두면 빛이 퍼지지 않는다.")]
+    [SerializeField, Min(0f)] private float lanternHeight = 2f;
+
+    [SerializeField] private Color lanternColor = new Color(1f, 0.85f, 0.6f);
+
+    [Header("어두울 때")]
+    [Tooltip("어두울 때의 환경광. 완전히 0 이면 랜턴 밖이 새까매서 방향 감각이 사라진다.")]
+    [SerializeField] private Color darkAmbient = new Color(0.03f, 0.03f, 0.04f);
+
+    [Tooltip("어두울 때 태양(Directional Light)을 얼마나 남길 것인가. 0 이면 완전히 끈다.")]
+    [SerializeField, Range(0f, 1f)] private float darkSunIntensity = 0.03f;
+
+    [Header("연결")]
+    [Tooltip("비워두면 씬의 Directional Light 를 찾는다.")]
+    [SerializeField] private Light sun;
+
+    /// <summary>빛이 닿는 거리. 밸런싱할 때 화면에 띄운다.</summary>
+    public float LanternRange => lanternRange;
+
+    /// <summary>지금 밝은 상태인가.</summary>
+    public bool Lit { get; private set; } = true;
+
+    private Light _lantern;
+    private Transform _follow;
+
+    // 원래 값. 어둡게 했다가 반드시 되돌려야 한다.
+    private Color _savedAmbient;
+    private AmbientMode _savedAmbientMode;
+    private float _savedSunIntensity;
+    private bool _saved;
+
+    private void Awake()
+    {
+        // 랜턴을 만들기 *전에* 태양을 찾는다. 안 그러면 랜턴을 태양으로 착각한다.
+        if (sun == null) sun = FindSun();
+
+        SaveOriginal();
+        CreateLantern();
+
+        SetLit(true);
+    }
+
+    private void OnDisable()
+    {
+        // 씬의 조명 설정은 전역이다. 꺼질 때 반드시 원래대로 돌려놓는다.
+        RestoreOriginal();
+    }
+
+    private static Light FindSun()
+    {
+        foreach (Light light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+        {
+            if (light.type == LightType.Directional) return light;
+        }
+
+        return null;
+    }
+
+    private void SaveOriginal()
+    {
+        if (_saved) return;
+
+        _savedAmbient = RenderSettings.ambientLight;
+        _savedAmbientMode = RenderSettings.ambientMode;
+        _savedSunIntensity = sun != null ? sun.intensity : 0f;
+        _saved = true;
+    }
+
+    private void RestoreOriginal()
+    {
+        if (!_saved) return;
+
+        RenderSettings.ambientMode = _savedAmbientMode;
+        RenderSettings.ambientLight = _savedAmbient;
+        if (sun != null) sun.intensity = _savedSunIntensity;
+    }
+
+    private void CreateLantern()
+    {
+        var go = new GameObject("MineLantern");
+        go.transform.SetParent(transform, false);
+
+        _lantern = go.AddComponent<Light>();
+        _lantern.type = LightType.Point;
+        _lantern.color = lanternColor;
+        _lantern.range = lanternRange;
+        _lantern.intensity = lanternIntensity;
+
+        // 그림자는 끈다. 칸이 400개라 켜면 무거운데, 시야를 가리는 데는 필요 없다.
+        _lantern.shadows = LightShadows.None;
+
+        _lantern.enabled = false;
+    }
+
+    /// <summary>
+    /// 랜턴이 따라다닐 대상. **null 이면 랜턴을 끈다.**
+    /// 턴이 시작될 때 MineGame 이 지금 턴인 사람을 넘겨준다.
+    /// </summary>
+    public void Follow(Transform target)
+    {
+        _follow = target;
+        if (_lantern != null) _lantern.enabled = target != null && !Lit;
+    }
+
+    /// <summary>
+    /// 밝게 / 어둡게. 공개와 결과는 밝게, 턴 중에는 어둡게.
+    /// 밝을 때는 랜턴이 필요 없으므로 끈다.
+    /// </summary>
+    public void SetLit(bool lit)
+    {
+        Lit = lit;
+        SaveOriginal();
+
+        if (lit)
+        {
+            RestoreOriginal();
+        }
+        else
+        {
+            // Skybox 환경광은 색을 직접 못 내리므로 Flat 으로 바꿔서 어둡게 만든다.
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = darkAmbient;
+            if (sun != null) sun.intensity = _savedSunIntensity * darkSunIntensity;
+        }
+
+        if (_lantern != null) _lantern.enabled = !lit && _follow != null;
+    }
+
+    private void LateUpdate()
+    {
+        if (_lantern == null || _follow == null) return;
+
+        // 캐릭터는 Update 에서 움직인다. LateUpdate 에서 따라가야 한 프레임 안 밀린다.
+        _lantern.transform.position = _follow.position + Vector3.up * lanternHeight;
+
+        // 인스펙터에서 값을 바꿔가며 맞출 수 있게 매 프레임 반영한다. (밸런싱용)
+        _lantern.range = lanternRange;
+        _lantern.intensity = lanternIntensity;
+        _lantern.color = lanternColor;
+    }
+}

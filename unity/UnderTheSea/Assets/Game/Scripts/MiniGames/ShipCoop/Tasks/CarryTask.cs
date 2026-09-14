@@ -68,6 +68,9 @@ public class CarryTask : MonoBehaviour
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
     [SerializeField] private GameObject heldVisual;
 
+    /// <summary>들고 있는 표시. 드는 자세를 만드는 쪽이 자리를 잡아준다.</summary>
+    public GameObject HeldVisual => heldVisual;
+
     /// <summary>지금 무엇을 들고 있는지. 빈손이면 None.</summary>
     public Cargo Carrying { get; private set; }
 
@@ -213,24 +216,74 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        AmmoBox box = FindReachableBox();
-        if (box == null || !ShipCoopInput.ConsumeInteract(input))
+        // 갑판에 놓인 것이 먼저다. 상자보다 가까이 있고, 주우러 온 것이기 때문이다.
+        DroppedCargo lying = FindReachableDrop();
+        AmmoBox box = lying != null ? null : FindReachableBox();
+
+        if (lying == null && box == null)
         {
             return;
         }
 
-        if (!box.TryTake())
+        if (!ShipCoopInput.ConsumeInteract(input))
         {
             return;
         }
 
-        Carrying = box.Kind;
+        Cargo taken;
+
+        if (lying != null)
+        {
+            taken = lying.Take();
+        }
+        else
+        {
+            if (!box.TryTake())
+            {
+                return;
+            }
+
+            taken = box.Kind;
+        }
+
+        Carrying = taken;
         _worker.HandsBusy = true;
         ShowHeld(true);
 
         input.VibrateBoth(0.3f, 0.1f);
         Debug.Log($"[{name}] {NameOf(Carrying)} 을(를) 집었다. 양손이 묶였다.", this);
         PickedUp?.Invoke();
+    }
+
+    /// <summary>
+    /// 손이 닿는 곳에 **갑판에 놓인 물건** 중 가장 가까운 것. 없으면 null.
+    ///
+    /// 급할 때 던져두고 간 것을 다시 주우러 오는 길입니다. HUD 안내도 이걸 봅니다.
+    /// </summary>
+    public DroppedCargo FindReachableDrop()
+    {
+        DroppedCargo best = null;
+        float bestSqr = float.MaxValue;
+        Vector3 here = transform.position;
+
+        for (int i = 0; i < DroppedCargo.All.Count; i++)
+        {
+            DroppedCargo lying = DroppedCargo.All[i];
+
+            if (lying == null || !lying.IsInReach(here))
+            {
+                continue;
+            }
+
+            float sqr = (lying.transform.position - here).sqrMagnitude;
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = lying;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>손이 닿는 포탄 상자 중 가장 가까운 것. 없으면 null. HUD 안내가 이걸 본다.</summary>
@@ -420,7 +473,14 @@ public class CarryTask : MonoBehaviour
 
         if (notify)
         {
-            Debug.Log($"[{name}] 손을 놓아 {NameOf(dropped)} 을(를) 떨어뜨렸다.", this);
+            // **갑판에 남긴다.** 예전에는 여기서 그냥 사라졌다.
+            //
+            // 사라지면 운반을 중간에 멈출 수가 없다. 나르다 급한 일이 생겨도
+            // 끝까지 나르거나 물건을 버리거나 둘 중 하나라, 사람은 하던 일을 마친다.
+            // 그러면 "지금 누가 무엇을 해야 하는가" 를 판단할 일이 없어진다. (1장)
+            DroppedCargo.Drop(dropped, transform);
+
+            Debug.Log($"[{name}] {NameOf(dropped)} 을(를) 갑판에 내려놨다. 나중에 주우면 된다.", this);
             Dropped?.Invoke();
         }
     }
@@ -437,11 +497,63 @@ public class CarryTask : MonoBehaviour
         }
     }
 
+    // ------------------------------------------------------------
+    // 들고 있는 것을 **색으로 구분합니다.**
+    //
+    // ⚠ 큐브 하나를 켜고 끄기만 하면 **무엇을 들었는지 알 수가 없습니다.**
+    //    포탄을 들고 파손 지점으로 뛰어가는 사고가 그래서 납니다.
+    //
+    //    지금은 에셋이 없어서 큐브입니다. 모델이 오면 색 대신 모델을 바꿉니다.
+    //    색은 HUD 와 상자 색을 따라갑니다.
+    // ------------------------------------------------------------
+
+    [Header("들고 있는 것의 색 (에셋 오기 전까지)")]
+    [SerializeField] private Color ammoColor = new Color(0.16f, 0.17f, 0.20f);
+    [SerializeField] private Color plankColor = new Color(0.72f, 0.48f, 0.24f);
+    [SerializeField] private Color waterColor = new Color(0.25f, 0.60f, 0.85f);
+
+    /// <summary>색을 칠할 사본. 공용 재질에 칠하면 파일이 바뀐다.</summary>
+    private Material _heldPaint;
+
     private void ShowHeld(bool visible)
     {
-        if (heldVisual != null)
+        if (heldVisual == null)
         {
-            heldVisual.SetActive(visible);
+            return;
+        }
+
+        heldVisual.SetActive(visible);
+
+        if (!visible)
+        {
+            return;
+        }
+
+        if (_heldPaint == null)
+        {
+            Renderer draw = heldVisual.GetComponentInChildren<Renderer>();
+
+            if (draw == null)
+            {
+                return;
+            }
+
+            // ⚠ 사본. `sharedMaterial` 에 칠하면 재질 파일이 실제로 바뀌어서
+            //    다른 것들까지 같이 물듭니다.
+            _heldPaint = draw.material;
+        }
+
+        _heldPaint.color = ColorOf(Carrying);
+    }
+
+    private Color ColorOf(Cargo what)
+    {
+        switch (what)
+        {
+            case Cargo.Ammo: return ammoColor;
+            case Cargo.Plank: return plankColor;
+            case Cargo.Water: return waterColor;
+            default: return Color.white;
         }
     }
 }

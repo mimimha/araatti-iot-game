@@ -45,11 +45,22 @@ public abstract class TaskBase : MonoBehaviour
     public IReadOnlyList<TaskWorker> Workers => _workers;
 
     public string DisplayName => displayName;
-    public int Capacity => capacity;
     public float InteractRange => interactRange;
 
+    /// <summary>
+    /// 지금 이 자리에 몇 명까지 붙을 수 있는지.
+    ///
+    /// **상황에 따라 달라질 수 있습니다.** 조타륜은 평소 1명이지만
+    /// 파도가 치는 동안에는 2명이 됩니다. (SHIPCOOP.md 6장)
+    /// 그래서 필드가 아니라 이 속성을 봅니다.
+    /// </summary>
+    public virtual int Capacity => capacity;
+
+    /// <summary>인스펙터에 적어둔 평소 정원. 늘어난 정원과 구분할 때 쓴다.</summary>
+    protected int BaseCapacity => capacity;
+
     /// <summary>자리가 다 찼는지. 찼으면 상호작용 아이콘을 회색으로 표시한다.</summary>
-    public bool IsFull => _workers.Count >= capacity;
+    public bool IsFull => _workers.Count >= Capacity;
 
     /// <summary>아무도 없는지. 비어 있으면 그 방향의 위협이 쌓인다.</summary>
     public bool IsEmpty => _workers.Count == 0;

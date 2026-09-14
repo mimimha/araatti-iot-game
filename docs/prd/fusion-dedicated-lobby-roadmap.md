@@ -217,14 +217,17 @@ SceneManager = GetComponent<NetworkSceneManagerDefault>()
 
 ## 2. 단계 개요와 의존 관계
 
-| PRD | 제목 | 범위 | 서버 exe 필요 | 브랜치(권장) |
-| --- | --- | --- | --- | --- |
-| **08-1** | Dedicated Server 기반 검증 | Unity(테스트 씬) + Build Profile | ✓ | `feature/gh-fusion-dedicated-server` |
-| **08-2** | Lobby 네트워크 씬 전환 | Unity(Lobby 씬 · 프리팹) | ✓ | `feature/gh-lobby-network-scene` |
-| **08-3** | ChannelSelect 실제 세션 연결 | Unity(Network 경계) | ✓ | `feature/gh-real-network-service` |
-| **09-1** | 외형 카탈로그 분리 · 안정 ID | Unity(Character 폴더) | ✗ | `feature/sy-appearance-catalog` |
-| **09-2** | NetworkPlayer 외형 복제 | Unity(NetworkPlayer) | ✓ | `feature/gh-appearance-replication` |
-| **10** | 서버의 JWT · characterId 검증 | Unity 서버 빌드 + ASP.NET | ✓ | `feature/gh-server-appearance-authority` |
+| PRD | 제목 | 범위 | 서버 exe 필요 | 상태 | 브랜치(권장) |
+| --- | --- | --- | --- | --- | --- |
+| **08-1** | Dedicated Server 기반 검증 | Unity(테스트 씬) + Build Profile | ✓ | **완료** | `feature/gh-fusion-dedicated-server` |
+| **08-2** | Lobby 네트워크 씬 전환 | Unity(Lobby 씬 · 프리팹) | ✓ | **완료** (`36e77fe`) | `feature/fusion-lobby` |
+| **08-3** | ChannelSelect 실제 세션 연결 | Unity(Network 경계) | ✓ | **완료** (2026-09-13) | `feature/fusion-lobby` |
+| **09-1** | 외형 카탈로그 분리 · 안정 ID | Unity(Character 폴더) | ✗ | 미착수 | `feature/sy-appearance-catalog` |
+| **09-2** | NetworkPlayer 외형 복제 | Unity(NetworkPlayer) | ✓ | 미착수 | `feature/gh-appearance-replication` |
+| **10** | 서버의 JWT · characterId 검증 | Unity 서버 빌드 + ASP.NET | ✓ | 미착수 | `feature/gh-server-appearance-authority` |
+
+> 08-2 · 08-3 은 계획과 달리 **브랜치를 나누지 않고 `feature/fusion-lobby` 한 곳에서** 진행했습니다.
+> 08-2 의 Lobby 네트워크 씬 위에서 곧바로 08-3 을 붙이는 편이 검증이 쉬웠기 때문입니다.
 
 ```text
 08-1 ──▶ 08-2 ──▶ 08-3 ──────────────▶ 09-2 ──▶ 10
@@ -417,6 +420,81 @@ Dedicated Server 가 **`Lobby` 씬을 로드해 유지**하고, 접속한 클라
 7. 서버 종료 → A 도 끊기는지, 에러 로그로 원인이 보이는지
 8. **지형 확인**: 캐릭터가 물 위/지형 아래로 빠지지 않는지 (스폰 포인트 y 값 검증)
 
+### 실행 방법 — 서버 1개 + 클라이언트 2개
+
+**1) 빌드.** 두 빌드는 서브타깃이 다르므로 각각 따로 만든다.
+`-standaloneBuildSubtarget` 을 반드시 붙인다. 서브타깃을 실행 도중에 바꾸면
+스크립팅 정의가 달라져 도메인 리로드가 `-executeMethod` 를 끊는다.
+
+```powershell
+$unity = "C:\Program Files\Unity\Hub\Editor\6000.5.9f1\Editor\Unity.exe"
+$proj  = "C:\geonhee\UnderTheSea\unity\UnderTheSea"
+
+& $unity -batchmode -quit -nographics -projectPath $proj -standaloneBuildSubtarget Server `
+  -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildServerFromCommandLine
+& $unity -batchmode -quit -nographics -projectPath $proj -standaloneBuildSubtarget Player `
+  -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildClientFromCommandLine
+```
+
+에디터에서는 메뉴로도 된다.
+`Tools > 아라아띠 > Fusion 서버 빌드 (Dedicated Server)` / `Fusion 클라이언트 테스트 빌드`
+
+> ⚠ 사전 조건: Unity Hub 에서 **Windows Dedicated Server Build Support** 모듈이 깔려 있어야 한다.
+> 없으면 Unity 가 **경고 없이** 일반 플레이어로 대체 빌드하고 `UNITY_SERVER` 분기가 죽는다.
+
+> ⚠ 빌드 대상 씬은 `FusionTestBuilds.cs` 의 `TestScenePath` 상수 하나가 정한다.
+> `Assets/Settings/Build Profiles/*.asset` 의 Scene List 는 이 스크립트가 읽지 않는다.
+> 그 프로필들은 사람이 Build Profiles 창에서 직접 빌드할 때만 쓰인다.
+> (`Windows Server Test.asset` 은 이름과 달리 Dedicated Server 프로필이 아니다.
+> `m_Subtarget: 2` 가 붙어 있지만 `m_PlatformId` 가 일반 Windows Player 와 같다)
+
+**2) 실행.** 서버를 먼저 띄우고 클라이언트를 붙인다.
+
+```powershell
+$b = "C:\geonhee\UnderTheSea\unity\UnderTheSea\Builds"
+
+# 서버 1개 — -mode 를 주지 않는다. UNITY_SERVER 로 자동으로 Server 가 된다.
+& "$b\Server\AraAtti-Server.exe" -batchmode -nographics -session lobby-ch1 -port 27015 -logFile server.log
+
+# 클라이언트 2개 — 같은 -session 으로 붙는다.
+& "$b\Client\AraAtti-Client.exe" -mode client -session lobby-ch1 -screen-width 900 -screen-height 520 -screen-fullscreen 0 -logFile c1.log
+& "$b\Client\AraAtti-Client.exe" -mode client -session lobby-ch1 -screen-width 900 -screen-height 520 -screen-fullscreen 0 -logFile c2.log
+```
+
+인자는 `FusionLaunchArguments` 가 읽는다.
+
+| 인자 | 뜻 | 기본값 |
+| --- | --- | --- |
+| `-session <이름>` | 붙을 방 이름. 채널 하나가 세션 하나 | FusionLauncher 의 Inspector 값 |
+| `-port <번호>` | 서버가 열 포트 | 27015 |
+| `-mode server\|client\|autohostorclient` | 기동 모드 강제. 빌드 종류를 이긴다 | 빌드 종류로 자동 판정 |
+| `-devjoin` | 개발용 직접 접속 (Development Build 전용) | 꺼짐 |
+| `-logmoves` | 위치를 0.5초마다 로그로 남긴다. 동기화 확인용 | 꺼짐 |
+
+### 개발용 직접 Lobby 실행 경로
+
+로그인 · REST · DB 를 건너뛰고 멀티플레이만 빠르게 보고 싶을 때 쓴다.
+**로컬 씬만 여는 방식이 아니다.** 이 경로도 Fusion `Client` 로 Dedicated Server 에 붙고
+캐릭터는 서버가 스폰한다. 일반 사용자 경로와 네트워크 구조가 같고 앞단 UI 만 건너뛴다.
+
+**에디터에서**
+1. 서버 exe 를 먼저 띄운다 (위 실행 명령)
+2. `Lobby.unity` 를 열고 Play
+
+> 2026-09-13 갱신: 예전에는 `Tools > 아라아띠 > 개발용 Lobby 접속` 메뉴를 켜야 했다.
+> **그 메뉴는 없앴다.** 에디터 Play 는 언제나 `GameMode.Client` 다. 아래 08-3 "구현 결과" 참고.
+
+**Development Build 에서**
+```powershell
+& "$b\Client\AraAtti-Client.exe" -devjoin -session lobby-ch1
+```
+
+끄고 켤 것이 없다. 에디터는 언제나 Dedicated Server 에 붙는다.
+
+> Release 빌드에는 이 우회 경로가 **아예 컴파일되지 않는다.**
+> `FusionDevEntry.WantsClientJoin` 이 `UNITY_EDITOR` · `DEVELOPMENT_BUILD` 밖에서는 항상 `false` 다.
+> 임시 신원이나 기본 외형을 PlayerPrefs · REST · MySQL 에 쓰지도 읽지도 않는다.
+
 ### 권장 커밋 단위
 
 ```text
@@ -451,6 +529,10 @@ Dedicated Server 가 **`Lobby` 씬을 로드해 유지**하고, 접속한 클라
 | `Assets/Game/Scenes/Main/CoreGames/Boot.unity` | `FakeNetworkService` 컴포넌트를 실제 구현으로 교체 |
 | `Assets/Game/Scripts/Network/INetworkService.cs` | **가능하면 변경하지 않는다.** 아래 판단 참고 |
 
+> 위는 **착수 시점의 계획**입니다. 실제로 손댄 파일은 이보다 많습니다.
+> 확정된 목록은 아래 **"구현 결과"** 를 보세요.
+> 특히 `Boot.unity` 는 "컴포넌트 교체" 가 아니라 **"컴포넌트 제거"** 로 끝났습니다.
+
 ### `INetworkService` 공동 계약을 바꿔야 하는가 — 판단
 
 **결론: 이번 단계에서는 바꾸지 않아도 된다.** 현재 시그니처로 충분하다.
@@ -474,7 +556,10 @@ Dedicated Server 가 **`Lobby` 씬을 로드해 유지**하고, 접속한 클라
 
 - **`ChannelSelectController.cs` · `ChannelRowView.cs` — 한 줄도 고치지 않는다.**
   고쳐야 한다면 경계 설계가 틀린 것이다. PRD 06 에서 계정 서비스를 교체할 때 UI diff 가 0줄이었던 것과 같아야 한다.
-- `SceneFlow.cs` — 씬 전환 책임은 그대로.
+- ~~`SceneFlow.cs` — 씬 전환 책임은 그대로.~~
+  → **실제로는 추가가 필요했습니다.** `Lobby` 만은 Fusion 이 열기 때문에,
+  `SceneFlow` 가 그 사실을 알고 스스로 비켜서야 합니다. 아래 "구현 결과" 참고.
+  **씬 전환 책임 자체는 그대로** 입니다. 다른 씬은 전부 예전처럼 `SceneFlow` 가 엽니다.
 - `FakeNetworkService.cs` — **삭제하지 않고 남긴다.** 서버 없이 화면 흐름을 볼 때 필요하다.
 - `Lobby.unity` — 08-2 에서 끝났다.
 - `Account/` 폴더, `server/` 전체.
@@ -489,21 +574,310 @@ Dedicated Server 가 **`Lobby` 씬을 로드해 유지**하고, 접속한 클라
 
 ### 완료 조건
 
-- [ ] ChannelSelect 의 채널 목록이 **실제 Fusion 세션 목록**에서 온다. 하드코딩이 아니다.
-- [ ] 채널을 고르고 입장하면 **그 채널의 세션**에 붙는다. 다른 채널을 고른 클라이언트와 서로 보이지 않는다.
-- [ ] `ChannelSelectController.cs` · `ChannelRowView.cs` **diff 가 0줄**이다.
-- [ ] 서버가 없는 채널을 고르면 실패 사유가 화면에 표시되고 **씬이 넘어가지 않는다.**
-- [ ] `Boot` 의 컴포넌트를 `FakeNetworkService` 로 되돌리면 예전처럼 로컬 흐름으로 동작한다.
-- [ ] 로비 인원수가 화면에 실제 값으로 표시된다.
+- [x] 채널을 고르고 입장하면 **그 채널의 세션**에 붙는다. 세션 이름이 다르면 서로 보이지 않는다.
+- [x] `ChannelSelectController.cs` · `ChannelRowView.cs` **diff 가 0줄**이다.
+      (`INetworkService.cs` · `FakeNetworkService.cs` · `Login.unity` 도 0줄)
+- [x] 서버가 없는 채널을 고르면 실패 사유가 화면에 표시되고 **씬이 넘어가지 않는다.**
+- [x] `NetworkServiceBootstrap.Active` 를 `Fake` 로 되돌리면 예전처럼 로컬 흐름으로 동작한다.
+      (계획에서는 `Boot` 씬의 컴포넌트를 되돌리는 방식이었으나, **코드 한 줄로 바뀌었습니다.**)
+- [x] 정상 Login 경로와 개발자 직접 경로가 **같은 세션**에 붙고, Lobby 이후 로직이 동일하다.
+
+**이번 범위에서 뺀 것 — 후속으로 넘깁니다.**
+
+- [ ] ChannelSelect 의 채널 목록이 **실제 Fusion 세션 목록**에서 온다.
+      → 지금은 `ChannelCatalog` 고정 표입니다. 세션 목록 조회(`JoinSessionLobby`)는 붙이지 않았습니다.
+- [ ] 로비 인원수가 화면에 **실제 값**으로 표시된다.
+      → 실제 채널 인원수 · 서버 상태 조회와 함께 후속으로 넘깁니다.
 
 ### Unity / Fusion QA 절차
 
 1. 서버 exe 를 **2개** 실행: `-session lobby-ch1`, `-session lobby-ch2`
 2. 클라이언트 A · B 를 **채널 1** 로 입장 → 서로 보이는지
 3. 클라이언트 C 를 **채널 2** 로 입장 → **A · B 에게 보이지 않는지** ★핵심
-4. ChannelSelect 의 인원수가 채널 1 = 2명, 채널 2 = 1명으로 보이는지
+4. ~~ChannelSelect 의 인원수가 채널 1 = 2명, 채널 2 = 1명으로 보이는지~~
+   → **후속으로 넘겼습니다.** 인원수는 아직 실제 값이 아닙니다
 5. 서버를 하나 끄고 그 채널 입장 시도 → 실패 문구, 씬 유지
-6. `Boot` 컴포넌트를 Fake 로 되돌려 회귀 확인
+6. ~~`Boot` 컴포넌트를 Fake 로 되돌려 회귀 확인~~
+   → **`NetworkServiceBootstrap.Active` 를 `Fake` 로 되돌려** 회귀 확인 (씬을 고치지 않습니다)
+
+**실제로 돌린 QA 와 그 결과**는 아래 "구현 결과 → QA 결과" 에 정상 경로 / 개발자 직접 경로로
+나누어 적어 두었습니다.
+
+### 구현 결과 (2026-09-13 완료)
+
+#### 1) 정상 게임 접속 경로
+
+```text
+Login
+  → 서버 캐릭터 조회
+  → ChannelSelect
+  → 채널 선택
+  → Fusion Dedicated Lobby 세션 접속
+  → Fusion 이 Lobby 네트워크 씬 로드
+  → NetworkPlayer 스폰 · 카메라 Snap
+  → Loading Overlay 해제
+```
+
+각 단계를 누가 하는지:
+
+| 단계 | 주체 | 근거 |
+| --- | --- | --- |
+| 로그인 | `HttpAuthService` | 이메일/비밀번호를 서버에 보내 검증받고 **JWT 를 발급**받는다 |
+| 서버 캐릭터 조회 | `HttpCharacterService` | 발급받은 JWT 를 **`Authorization: Bearer`** 헤더로 실어 `GET /api/characters` |
+| 채널 ID → 세션 이름 | `ChannelCatalog.TryGetSessionName` | 표에 없으면 `존재하지 않는 채널입니다.` 로 거부 |
+| 세션 접속 | `FusionNetworkService.Connect` | `GameMode.Client` + `SessionName` + `Scene` |
+| Lobby 씬 로드 | **Fusion** | `StartGameArgs.Scene = SceneRef.FromPath(Lobby.unity)` |
+| 이전 화면 씬 내리기 | `SceneFlow.UnloadScreenScene` | `PeerMode.Multiple` 은 additive 로드라 이전 씬이 남는다 |
+| NetworkPlayer 스폰 | 서버 (`PlayerSpawner`) | `IPlayerJoined` |
+| 카메라 연결 · Snap | `LocalPlayerView.Spawned` | `HasInputAuthority` 인 피어에서만 |
+| Loading Overlay 해제 | `TransitionStatus.SetReady` | **카메라 Snap 까지 끝난 뒤에만** 부른다 |
+
+**인증은 REST 쪽 경계입니다.** Login 에서 받은 JWT 는 보호된 REST API 를 부를 때
+`Authorization: Bearer` 헤더로 쓰입니다. **Fusion 세션 접속은 이 JWT 를 쓰지 않습니다.**
+Dedicated Server 가 접속자의 JWT 를 검증하는 것은 **PRD 10** 입니다.
+이번 단계에서 서버는 접속자의 신원을 확인하지 않습니다.
+
+**Overlay 는 접속 성공이 아니라 화면을 넘겨도 되는 순간에 걷습니다.**
+접속 성공 시점에 걷으면 사용자가 빈 바다나 날아오는 카메라를 봅니다.
+
+접속에 실패하면 러너를 정리하고 `TransitionStatus.SetReady()` 로 되돌린 뒤
+`OnConnectResult(false, 사유)` 를 보냅니다. **씬은 넘어가지 않습니다.**
+`GameNotFound` 는 `서버 1 이(가) 열려 있지 않습니다.` 로 번역됩니다.
+
+#### 2) 개발자 직접 접속 경로
+
+로그인 · REST · DB 를 건너뛰고 **같은 Dedicated Lobby 에 붙습니다.**
+
+- **Unity Editor**: `Lobby.unity` 를 열고 **그냥 Play**. 켜고 끌 메뉴가 없다
+- **Development Build**: `-devjoin -session lobby-ch1` (Release 빌드에서는 동작하지 않는다)
+
+| 항목 | 정상 경로 | 개발자 직접 경로 |
+| --- | --- | --- |
+| 앞단 UI | 거친다 | **건너뛴다** |
+| 세션 이름 | 채널 선택 결과 | 실행 인자 `-session`, 없으면 Inspector 기본값 `lobby-ch1` |
+| 캐릭터 외형 | (09-2 이후) 서버 캐릭터 외형 | **기본 `NetworkPlayer` 외형** |
+| Lobby 이후 Runner · 플레이어 · 카메라 · 포털 로직 | **완전히 동일** | **완전히 동일** |
+
+Lobby 진입 이후로는 두 경로가 갈라지지 않습니다. 같은 코드가 돕니다.
+**그래서 개발자 직접 경로에서 확인한 동작은 정상 경로에서도 그대로 성립합니다.**
+
+두 경로가 만나는 지점은 `FusionLauncher.Start()` 입니다.
+
+| 상황 | `FusionLauncher` 가 하는 일 |
+| --- | --- |
+| 이미 도는 Runner 가 있다 (정상 경로) | 세션을 새로 열지 않고, 씬의 `PlayerSpawner` 를 **`runner.AddGlobal()`** 로 등록만 한다 |
+| 도는 Runner 가 없다 (개발자 직접 · 서버) | 이 씬이 직접 세션을 연다 |
+| 세션을 열 근거가 없다 (**일반 Player 빌드 한정**) | 열지 않고 `Lobby 에 바로 들어올 수 없습니다. ChannelSelect 에서 채널을 골라 주세요.` 를 띄운다 |
+
+`AddGlobal` 이 필요한 이유: `NetworkSceneManagerDefault` 는 씬을 인수할 때
+**`NetworkObject` 만** Runner 에 등록합니다. `PlayerSpawner` 는 평범한 `SimulationBehaviour` 라
+자동으로 등록되지 않습니다. 그래서 Lobby 씬에 배치된 스폰 지점 배선을 살린 채
+Runner 에 손수 붙여 줍니다.
+
+**세션을 열 근거(`IsStandaloneSceneLoad`) — 에디터와 Player 빌드가 다릅니다.**
+
+| 실행 환경 | Lobby 만 직접 열었을 때 |
+| --- | --- |
+| **Unity Editor** (`UNITY_EDITOR`) | **차단하지 않는다.** 개발 의도가 있는 실행으로 본다 |
+| 서버 빌드 (`UNITY_SERVER`) | 차단하지 않는다. 서버는 언제나 자기가 세션을 열어야 한다 |
+| Development Build + `-devjoin` | 차단하지 않는다. 개발 의도를 밝혔다 |
+| 실행 인자 `-mode` 가 있다 | 차단하지 않는다. QA 실행이다 |
+| **일반 Player 빌드, 위 표시 없음** | **차단하고** ChannelSelect 에서 채널을 고르라고 안내한다 |
+
+즉 **차단은 제품 경로를 위한 안전장치이지, 개발 작업을 막는 장치가 아닙니다.**
+에디터에서는 `Lobby.unity` 를 언제든 Play 할 수 있습니다.
+
+#### 에디터 Play = Dedicated Server 개발용 Client (2026-09-13 통일)
+
+**`GameMode` 를 고르는 분기가 하나로 줄었습니다.**
+
+```csharp
+// FusionLauncher.DetectFromBuild()
+#if UNITY_SERVER
+        return LaunchMode.Server;      // Dedicated Server 빌드
+#else
+        return LaunchMode.Client;      // 에디터 · 개발 빌드 · 일반 클라이언트 빌드 전부
+#endif
+```
+
+| 실행 | `GameMode` |
+| --- | --- |
+| Dedicated Server 빌드 (`UNITY_SERVER`) 또는 `-mode server` | `Server` |
+| **그 밖 전부 — 에디터 Play 포함** | **`Client`** |
+
+**혼자 Host 가 되는 길은 없앴습니다.**
+`LaunchMode.AutoHostOrClient` 열거값 자체를 지워 Inspector 에서 고를 수도 없습니다.
+남겨 두었을 때 두 가지 문제가 있었습니다.
+
+- 에디터에서 "되는" 것이 Dedicated Server 에서도 되는지 알 수 없었다
+- 서버를 안 띄운 줄 모르고 혼자 놀다가 뒤늦게 발견했다
+
+**서버가 없으면** Host 를 만들지 않고 접속에 실패합니다.
+`FusionLauncher.DescribeClientFailure()` 가 사유를 문장으로 바꿔 `TransitionStatus.SetFailed()` 로 알립니다.
+
+| `ShutdownReason` | 화면 문구 |
+| --- | --- |
+| `GameNotFound` | `Dedicated Server 를 먼저 실행하세요. "lobby-ch1" 세션이 열려 있지 않습니다.` |
+| `ConnectionTimeout` · `ConnectionRefused` | `Dedicated Server 를 먼저 실행하세요. "lobby-ch1" 세션에 연결하지 못했습니다.` |
+| 그 밖 | `Lobby 접속에 실패했습니다. (사유) Dedicated Server 가 실행 중인지 확인해 주세요.` |
+
+**세션 이름 · 포트의 기본값과 바꾸는 법**
+
+| 값 | 기본 | 정해지는 곳 |
+| --- | --- | --- |
+| 세션 이름 | `lobby-ch1` | `Lobby` 씬 `NetworkManager` 의 `FusionLauncher` Inspector |
+| 포트 | `27015` | 같은 Inspector (서버만 사용) |
+
+실행 인자 `-session` · `-port` 가 Inspector 를 이깁니다. 서버는 창이 없어 Inspector 로 못 바꾸기 때문입니다.
+에디터 Play 에는 인자가 없으므로 **Inspector 값** 을 씁니다. 그래서 서버도 같은 이름으로 띄워야 만납니다.
+
+> ⚠ Inspector 기본값은 원래 `AraAtti-Test` 였습니다. 채널 카탈로그(`srv-1` → `lobby-ch1`)와
+> 서버 실행 명령이 쓰는 이름과 달라, 에디터 Play 가 없는 세션을 찾아 항상 실패했습니다.
+> 이번에 `lobby-ch1` 로 맞췄습니다.
+
+**팀 규칙**: `Lobby` 를 Play 해서 움직여 보는 모든 경우는 Dedicated Server 접속입니다.
+씬 편집은 Play 없이 하면 되고, **플레이 모드 네트워크 QA 에는 서버 exe 가 필요합니다.**
+
+#### 3) Network 서비스 전환
+
+```csharp
+// Assets/Game/Scripts/Network/NetworkServiceBootstrap.cs
+private static readonly Implementation Active = Implementation.Fusion;   // ← 유일한 전환 지점
+```
+
+- `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` 로 **하나만** 만들어 `NetworkServiceLocator` 에 등록한다
+- **`NetworkServiceLocator` 에는 구현체가 정확히 하나만 등록된다.**
+  등록 순서에 따라 우연히 선택되는 구조를 만들지 않는다
+- Dedicated Server 프로세스에서는 채널을 고르지도 접속하지도 않으므로 **아예 만들지 않는다**
+- `Boot` 씬의 `NetworkService` 오브젝트에서 **`FakeNetworkService` 컴포넌트를 제거**했다
+  (오브젝트는 남아 있다. 씬 변경은 컴포넌트 한 개를 뗀 것뿐이다)
+- **`FakeNetworkService.cs` 파일은 남겨 두었다.** 서버 없이 화면 흐름을 보거나
+  단독 UI 테스트를 할 때 쓴다. 위 한 줄만 `Fake` 로 바꾸면 **씬을 고치지 않고** 되돌아간다
+
+씬이 아니라 코드에 둔 이유는 두 가지입니다. 씬 파일은 병합 충돌이 가장 심하고,
+`Boot` 을 거치지 않고 ChannelSelect 만 단독 실행해도 서비스가 준비되어야 하기 때문입니다.
+
+#### 4) 채널과 씬 소유권
+
+**채널 — 지금은 고정 카탈로그입니다.**
+
+| 채널 ID | 화면 이름 | Fusion 세션 이름 |
+| --- | --- | --- |
+| `srv-1` | 서버 1 | `lobby-ch1` |
+| `srv-2` | 서버 2 | `lobby-ch2` |
+
+서버를 늘리면 `ChannelCatalog` 에 한 줄을 추가합니다. 화면 코드는 고치지 않습니다.
+
+**씬 소유권 — `Lobby` 만 예외입니다.**
+
+| 씬 | 여는 주체 |
+| --- | --- |
+| `Lobby` (Fusion 경로) | **Fusion** — `StartGameArgs.Scene` |
+| 그 외 전부 | 클라이언트 — `SceneFlow` |
+
+Fusion 경로에서 일반 `SceneFlow.LoadScene("Lobby")` 는 **실행하지 않습니다.**
+접속에 성공하면 `SceneFlow.LobbyLoadedByNetwork` 가 서고 `FromChannelSelect()` 가 스스로 비켜섭니다.
+두 곳이 같은 씬을 열면 Lobby 가 두 벌 생깁니다.
+로그아웃 · 타이틀 복귀 시에는 이 표시를 해제해, 다음에 Fusion 없이 들어올 때 정상 동작합니다.
+
+> ⚠ **`PeerMode.Multiple` 에서는 Client 도 Lobby `SceneRef` 를 지정해야 합니다.**
+> `StartGameArgs.Scene` 을 빼면 세션은 붙고 캐릭터도 스폰되는데 **Lobby 가 로드되지 않습니다.**
+> 로그에 오류가 하나도 남지 않아 찾기 어렵습니다. 실제로 여기서 한 번 막혔습니다.
+> `FusionBootstrap.StartClient()` 는 Scene 을 넘기지 않지만, 그쪽은 **Single peer mode** 기준입니다.
+> 우리 `NetworkProjectConfig.fusion` 은 `PeerMode: Multiple` 이라 규칙이 다릅니다.
+
+`PeerMode.Multiple` 은 씬을 **additive 로 로드하고 이전 씬을 내리지 않습니다.**
+ChannelSelect 의 Canvas 는 `Screen Space - Overlay` 라 카메라와 무관하게 계속 그려지므로,
+`SceneFlow.UnloadScreenScene()` 으로 이전 화면 씬을 직접 내립니다.
+
+**카메라 선택 — 표식으로만 고릅니다.**
+
+`PeerMode.Multiple` 은 오브젝트를 러너 전용 씬으로 옮기므로 `scene.name` 이 경로마다 다릅니다.
+(개발자 직접 실행은 `Lobby`, 정상 경로는 `FusionRunner (Client)_[Player:2]`)
+그래서 **씬 이름 · `FindFirstObjectByType` 의 탐색 순서 · 루트 오브젝트 수 같은 추측 기준을 쓰지 않습니다.**
+`Lobby` 의 `MainCamera` 에 붙은 `LobbyGameplayCamera` 표식이 유일한 근거입니다.
+**표식이 없거나 중복이면 명확한 오류를 내고, 조용히 임의 카메라를 고르지 않습니다.**
+
+#### 5) 이번 범위에서 하지 않은 것 — 후속
+
+| 항목 | 지금 상태 | 어디로 |
+| --- | --- | --- |
+| 실제 채널 인원수 · 서버 상태 조회 | 고정 카탈로그. 인원수는 실제 값이 아니다 | 후속 |
+| 자동 서버 증설 · 서버 디렉터리 · 매치메이커 | 없음. 서버 exe 를 사람이 띄우고 채널을 표에 적는다 | 후속 |
+| 서버 캐릭터 외형 Fusion 동기화 | 전원 기본 `NetworkPlayer` 외형 | PRD 09-1 · 09-2 |
+| Dedicated Server 의 JWT 검증 | 서버가 접속자 신원을 검증하지 않는다 | PRD 10 |
+| Lobby 에서 나가기 / 로그아웃 UX | 창을 닫는 것 말고 정식 이탈 흐름이 없다 | 후속 |
+| 미니게임 멀티플레이 전환 | 미니게임은 아직 네트워크에 붙지 않았다 | 후속 |
+
+#### 실제로 손댄 파일
+
+**신규 4개**
+
+| 파일 | 역할 |
+| --- | --- |
+| `Network/NetworkServiceBootstrap.cs` | Fake ↔ Fusion 전환의 **유일한 지점** |
+| `Network/FusionNetworkService.cs` | `INetworkService` 실제 구현. 접속 · 실패 사유 번역 · 이전 화면 정리 |
+| `Network/ChannelCatalog.cs` | 채널 ID ↔ 세션 이름 고정 표 |
+| `Network/LobbyGameplayCamera.cs` | 게임플레이 카메라 **표식 + 등록부** |
+
+**수정 4개 + 씬 2개**
+
+| 파일 | 변경 |
+| --- | --- |
+| `Core/SceneFlow.cs` | `LobbyLoadedByNetwork`, `FromChannelSelect` 분기, `UnloadScreenScene`, 복귀 시 상태 해제 |
+| `Network/FusionLauncher.cs` | 실행 중 Runner 양보 · `AddGlobal` 등록 · Player 빌드의 근거 없는 단독 진입 차단 (에디터는 해당 없음) |
+| `Network/LocalPlayerView.cs` | 씬 이름 기준 카메라 선택을 **표식 기준으로 교체** |
+| `Network/Editor/FusionTestBuilds.cs` | Boot 부터 시작하는 정상 흐름 클라이언트 빌드 메뉴 추가 |
+| `Scenes/.../Boot.unity` | `FakeNetworkService` 컴포넌트 제거 (28줄 삭제, 추가 0줄) |
+| `Scenes/.../Lobby.unity` | `MainCamera` 에 `LobbyGameplayCamera` 추가 (13줄 추가, 삭제 0줄) |
+
+**diff 0줄로 지켜진 파일**: `ChannelSelectController.cs` · `ChannelRowView.cs` ·
+`INetworkService.cs` · `FakeNetworkService.cs` · `Login.unity`
+
+**개발용 실행 규칙 통일로 추가된 변경 (2026-09-13)**
+
+| 파일 | 변경 |
+| --- | --- |
+| `Network/FusionLauncher.cs` | `AutoHostOrClient` 열거값 제거 · 에디터도 `Client` · `DescribeClientFailure` 추가 |
+| `Network/FusionDevEntry.cs` | 에디터 토글 제거. `-devjoin`(Development Build) 전용이 됐고, 이제 **`GameMode` 가 아니라 "Lobby 만 직접 열어도 되는가" 만** 정한다 |
+| `Network/Editor/FusionDevMenu.cs` | **삭제.** 에디터가 언제나 Client 라 토글할 것이 없다 |
+| `Network/Editor/FusionTestBuilds.cs` | QA 클라이언트를 **Development Build** 로 만든다. Release 로 만들면 `-devjoin` 이 조용히 무시됐다 |
+| `Scenes/.../Lobby.unity` | `FusionLauncher` 의 `sessionName` 을 `AraAtti-Test` → **`lobby-ch1`** (1줄) |
+
+#### QA 결과 — 경로별
+
+**정상 Login 경로** (서버 1개 + 정상 흐름 클라이언트 2개, 서로 다른 계정)
+
+| 확인 항목 | 결과 |
+| --- | --- |
+| Login → 캐릭터 조회 → ChannelSelect → 채널 선택 → Lobby 진입 | 두 클라이언트 모두 통과 |
+| 상대 캐릭터 표시 · 이동 동기화 | 서로의 얼굴과 움직임 확인 |
+| `AddGlobal` 호출 | 클라이언트 각 1회 / 서버 0회 |
+| 일반 `LoadScene("Lobby")` 호출 | **0회** (네트워크가 단독 소유) |
+| 카메라 경고 · 예외 | 0건 |
+| 서버 미기동 시 | `서버 1 이(가) 열려 있지 않습니다.`, 씬 전환 없음 |
+| 서버 프로세스의 `FusionNetworkService` 생성 | 0건 |
+
+**개발자 직접 경로** (서버 1개 + `-mode client -devjoin` 클라이언트 2개)
+
+| 확인 항목 | 결과 |
+| --- | --- |
+| 스폰 | 2/2 |
+| 카메라 거리 | 5.70 m (첫 샘플부터 정상. 원점에서 날아오지 않음) |
+| 화면 표시 | 캐릭터 정상 |
+| `AddGlobal` 호출 | 0회 — 씬과 Runner 가 같아 Fusion 이 자동 등록 |
+| 예외 | 0건 |
+
+#### 겪은 함정 — 같은 실수를 막기 위해
+
+| 증상 | 원인 | 대응 |
+| --- | --- | --- |
+| 접속 · 스폰 로그는 전부 정상인데 **Lobby 가 안 보인다** | `PeerMode.Multiple` 인데 Client 에 `StartGameArgs.Scene` 을 안 줬다 | Client 도 Lobby `SceneRef` 지정 |
+| Lobby 는 로드됐는데 **ChannelSelect UI 가 계속 덮는다** | additive 로드 + `Screen Space - Overlay` Canvas | `UnloadScreenScene()` 으로 이전 씬 내리기 |
+| 카메라가 **바다 한가운데에서 날아온다** | `ThirdPersonCamera` 목표 위치가 첫 입력 전까지 원점 | `SnapToPlayer()` + 대상 없을 때 정지 |
+| 경로마다 **다른 카메라가 잡힌다** | 씬 이름 · 탐색 순서에 의존 | `LobbyGameplayCamera` 표식 + 등록부 |
+| 옆 사람이 나가면 **내 화면이 검게 덮인다** | `Despawned` 가 남의 캐릭터에서도 불린다 | `Spawned` 에서 확정한 `isLocalPlayer` 로 가드 |
+| `GameIdAlreadyExists (32766)` | `StartGameArgs.Scene` 이 현재 씬을 가리켜 재로드 → `StartGame` 중복 호출 | 세션 보유 여부 가드 |
 
 ### 권장 커밋 단위
 
@@ -1061,7 +1435,9 @@ REST 왕복이 사라지고, 개인키는 ASP.NET 서버에만 남는다.
 3. **`NetAddress.Any(port)` 로 포트를 지정한다.** 공식 샘플 `FusionBootstrap.cs:535` 패턴을 따른다.
 4. **클라이언트 코드는 이 단계에서 고치지 않는다.** `ChannelSelect` 는 08-3 의 일이다.
    검증은 `ServerTestScene` 을 직접 Play 하는 방식으로 한다.
-5. `FusionLauncher` 의 기존 동작(에디터에서 `AutoHostOrClient`)을 **선택지로 남긴다.**
+5. ~~`FusionLauncher` 의 기존 동작(에디터에서 `AutoHostOrClient`)을 **선택지로 남긴다.**~~
+   → **2026-09-13 에 뒤집혔다.** 선택지로 남겼더니 서버를 안 띄운 줄 모르고 혼자 Host 로 도는 일이
+   반복됐다. `AutoHostOrClient` 는 열거값째 제거했다. 08-3 "구현 결과" 참고.
    서버 없이 혼자 테스트하던 흐름을 깨지 않는다.
 
 ### 10-4. PRD 08-1 완료 판정

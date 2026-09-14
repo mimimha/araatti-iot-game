@@ -53,8 +53,10 @@ public class EventScheduler : MonoBehaviour
 
     [Header("출항 직후")]
     [Tooltip("출항하고 이 시간이 지난 뒤부터 사건을 뿌린다.\n" +
-             "시작하자마자 터지면 자리를 나누기도 전에 진다.")]
-    [SerializeField, Min(0f)] private float graceSeconds = 10f;
+             "시작하자마자 터지면 자리를 나누기도 전에 진다.\n\n" +
+             "제한시간보다 짧게가 아니라 **출항 구간보다 짧게** 잡아야 한다.\n" +
+             "이 값이 출항 구간보다 길면 출항 계획이 한 번도 돌지 않는다.")]
+    [SerializeField, Min(0f)] private float graceSeconds = 6f;
 
     [Header("무작위 고정 (선택)")]
     [Tooltip("0 이 아니면 이 값으로 무작위를 고정한다. 같은 순서를 다시 보고 싶을 때 쓴다.")]
@@ -62,6 +64,15 @@ public class EventScheduler : MonoBehaviour
 
     /// <summary>지금 구간의 계획. 없으면 null.</summary>
     public PhasePlan CurrentPlan { get; private set; }
+
+    /// <summary>
+    /// 참이면 새 사건을 뿌리지 않는다. **개발용입니다.**
+    ///
+    /// 사건 하나를 들여다보는 동안 다른 사건이 끼어들면 무엇 때문에 그렇게 된 것인지
+    /// 알 수가 없습니다. 이미 뜬 사건은 그대로 굴러갑니다.
+    /// (ShipCoopDevMode 가 켜고 끕니다)
+    /// </summary>
+    public bool Paused { get; set; }
 
     /// <summary>다음 사건까지 남은 시간 (초)</summary>
     public float NextEventIn => Mathf.Max(0f, _nextEventTime - _elapsed);
@@ -110,6 +121,14 @@ public class EventScheduler : MonoBehaviour
             return;
         }
 
+        // 사건을 고르는 것은 계산하는 쪽만 한다. (SHIPCOOP.md 11장)
+        // 4대가 각자 추첨하면 서로 다른 사건이 뜬다. 같은 씨앗을 줘도
+        // 프레임 타이밍이 달라 결국 어긋난다.
+        if (!game.IsAuthority)
+        {
+            return;
+        }
+
         _elapsed += Time.deltaTime;
         CurrentPlan = PlanFor(game.CurrentPhaseIndex);
 
@@ -117,16 +136,27 @@ public class EventScheduler : MonoBehaviour
         if (game.CurrentPhaseIndex != _lastPhaseIndex)
         {
             _lastPhaseIndex = game.CurrentPhaseIndex;
-            OpeningBurst(CurrentPlan);
+
+            // 멈춰 있으면 개막 폭발도 건너뛴다. 개발 중에 진행도를 건너뛰면
+            // 구간이 순식간에 바뀌는데, 그때마다 3개가 터지면 볼 수가 없다.
+            if (!Paused)
+            {
+                OpeningBurst(CurrentPlan);
+            }
         }
 
-        if (CurrentPlan == null || _elapsed < _nextEventTime)
+        // 멈춰 있으면 새로 뿌리지 않는다. 이미 뜬 사건은 그대로 굴러간다.
+        if (Paused || CurrentPlan == null || _elapsed < _nextEventTime)
         {
             return;
         }
 
         // 이미 충분히 겹쳐 있으면 더 얹지 않는다. 억울하게 지는 지점이다.
-        if (VoyageEvent.Active.Count >= CurrentPlan.maxConcurrent)
+        //
+        // ⚠ **침수는 안 셉니다.** 제한 시간이 없어서 한 번 뜨면 수리할 때까지
+        //    자리를 물고 있습니다. 출항·페이즈1 은 동시최대가 1 이라, 세면
+        //    두 구간이 통째로 조용해집니다. (VoyageEvent.TakesSlot)
+        if (BusyCount() >= CurrentPlan.maxConcurrent)
         {
             // 조금 뒤에 다시 본다.
             _nextEventTime = _elapsed + 2f;
@@ -173,6 +203,22 @@ public class EventScheduler : MonoBehaviour
         Debug.Log($"[스케줄러] {plan.label} 진입 — 사건 {fired}개가 한꺼번에 시작됐다", this);
 
         ScheduleNext(plan);
+    }
+
+    /// <summary>지금 자리를 차지하고 있는 사건 수. 침수처럼 시한 없는 것은 안 센다.</summary>
+    private static int BusyCount()
+    {
+        int busy = 0;
+
+        for (int i = 0; i < VoyageEvent.Active.Count; i++)
+        {
+            if (VoyageEvent.Active[i] != null && VoyageEvent.Active[i].TakesSlot)
+            {
+                busy++;
+            }
+        }
+
+        return busy;
     }
 
     private void ScheduleNext(PhasePlan plan)

@@ -76,6 +76,36 @@ public static class ShipCoopInput
         return controller != null && (controller.Left.Grip || controller.Right.Grip);
     }
 
+    // ------------------------------------------------------------
+    // 달리기
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 🏃 달리기. 누르고 있는 동안 빨라진다. 왼손 버튼 2. 키보드는 V.
+    ///
+    /// **새 부품을 쓰지 않습니다.** 7장 표에서 왼손 버튼 2 는 "(여유)" 로 비어 있었고,
+    /// 갑판이 3층으로 넓어지면서 그 자리가 채워졌습니다. 조작 개수는 그대로입니다.
+    ///
+    /// ⚠ **물건을 들고 있으면 달릴 수 없습니다.** (DebugPlayerMover 가 막습니다)
+    /// 양손으로 포탄을 안고 뛸 수는 없고, 그래야 운반이 진짜 대가를 치릅니다. (4장)
+    ///
+    /// <code>
+    /// 빈손     →  달린다   →  빠르다
+    /// 들고 감  →  못 달린다 →  느리다
+    /// </code>
+    /// </summary>
+    public static bool Sprint(IPlayerController controller)
+    {
+        if (controller == null)
+        {
+            return false;
+        }
+
+        // 기기를 1대만 들면 왼손이 곧 오른손이라, 발사 버튼과 겹친다.
+        // 그 경우에는 달리기를 빼고 늘 걷는다. 겹쳐서 오발하는 것보다 낫다.
+        return controller.HasTwoDevices && controller.Left.Button2;
+    }
+
     /// <summary>
     /// ⚫ 양손으로 들기. 무거운 포탄을 나를 때.
     /// 한 손이라도 놓으면 떨어뜨립니다. 그래서 나르는 동안 다른 일을 못 합니다.

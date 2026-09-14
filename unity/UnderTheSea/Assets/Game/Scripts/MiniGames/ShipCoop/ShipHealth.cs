@@ -43,9 +43,17 @@ public class ShipHealth : MonoBehaviour
     /// 피해를 입는다. reason 은 콘솔에서 원인을 추적하기 위한 것이다.
     /// (예: "암초 충돌", "적선 포격", "침수")
     /// </summary>
+    /// <summary>
+    /// 참이면 아무리 맞아도 HP 가 줄지 않는다. **개발용입니다.**
+    ///
+    /// 한 가지 장치만 들여다보려면 침몰하지 않아야 합니다. 침수를 보다가 죽으면
+    /// 침수를 볼 수가 없습니다. (ShipCoopDevMode 가 켜고 끕니다)
+    /// </summary>
+    public bool Invincible { get; set; }
+
     public void TakeDamage(float amount, string reason = null)
     {
-        if (IsSunk || amount <= 0f)
+        if (IsSunk || Invincible || amount <= 0f)
         {
             return;
         }

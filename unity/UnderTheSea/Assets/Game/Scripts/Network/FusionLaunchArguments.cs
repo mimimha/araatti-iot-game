@@ -73,6 +73,50 @@ public static class FusionLaunchArguments
         return port;
     }
 
+    /// <summary>이동 위치를 로그로 남길지. 창이 없는 서버의 동기화를 확인할 때 쓴다.</summary>
+    public const string LogMovesKey = "-logmoves";
+
+    /// <summary>값 없이 있기만 하면 되는 인자인지 본다. (예: <c>-logmoves</c>)</summary>
+    public static bool HasFlag(string key)
+    {
+        string[] args = Environment.GetCommandLineArgs();
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 이 프로세스가 Dedicated Server 인가.
+    ///
+    /// 카메라·오디오처럼 <b>씬에 이미 들어 있는</b> 것들을 서버에서만 꺼야 할 때 쓴다.
+    /// <see cref="FusionLauncher"/> 의 모드 결정과 같은 기준이다.
+    ///   1. 커맨드라인 <c>-mode server</c>
+    ///   2. Dedicated Server 빌드(UNITY_SERVER)
+    /// </summary>
+    public static bool IsDedicatedServerProcess()
+    {
+        string raw = GetString(ModeKey, null);
+
+        if (!string.IsNullOrEmpty(raw))
+        {
+            // -mode 를 명시했으면 그 값이 빌드 종류를 이긴다. client 로 강제한 서버 빌드도 있을 수 있다.
+            return string.Equals(raw, "server", StringComparison.OrdinalIgnoreCase);
+        }
+
+#if UNITY_SERVER
+        return true;
+#else
+        return false;
+#endif
+    }
+
     /// <summary>지금 실행에 붙은 인자를 한 줄로 남긴다. 서버 로그 맨 앞에 찍어두면 원인 추적이 쉽다.</summary>
     public static string Describe()
     {

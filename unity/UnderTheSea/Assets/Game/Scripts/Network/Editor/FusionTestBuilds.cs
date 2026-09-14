@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -50,13 +51,33 @@ namespace UnderTheSea.Network.Editor
         /// <summary>
         /// QA 용 씬. 서버·클라 빌드 모두 이 씬 하나만 담는다.
         ///
-        /// `Fusion Client Test.asset` / `Windows Server Test.asset` 프로필의 Scene List 와 같은 값이다.
-        /// 그 프로필들은 사람이 Build Profiles 창에서 직접 빌드할 때 쓰라고 남겨 둔다.
+        /// PRD 08-2 부터 대상이 <b>Lobby</b> 다. 서버가 이 씬을 로드해 유지하고
+        /// 클라이언트도 이 씬으로 바로 뜬다.
+        ///
+        /// ⚠ 이 상수가 <b>실제 빌드의 유일한 기준</b>이다.
+        ///    `Assets/Settings/Build Profiles/*.asset` 의 Scene List 는 이 스크립트가 읽지 않는다.
+        ///    사람이 Build Profiles 창에서 직접 빌드할 때만 쓰인다.
+        ///    (`Windows Server Test.asset` 은 이름과 달리 Dedicated Server 프로필이 아니다. 아래 설명 참고)
+        ///
+        /// 일반 제품 Scene List(`ProjectSettings/EditorBuildSettings.asset`)에는 Lobby 가 이미 들어 있어
+        /// 이 변경 때문에 제품 빌드가 달라지지 않는다.
         /// </summary>
-        private const string TestScenePath = "Assets/Game/Scenes/Develop/GeonHee/ServerTestScene.unity";
+        private const string TestScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
 
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
+
+        /// <summary>정상 흐름(Boot → Title → Login → ChannelSelect → Lobby) 확인용 빌드.</summary>
+        private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
+
+        /// <summary>
+        /// QA 클라이언트는 <b>반드시 Development Build</b> 로 만든다.
+        ///
+        /// <c>-devjoin</c> 은 <c>FusionDevEntry</c> 안에서 <c>DEVELOPMENT_BUILD</c> 로 막혀 있다.
+        /// Release 로 만들면 그 인자가 조용히 무시되고, Lobby 만 연 것으로 취급되어
+        /// "Lobby 에 바로 들어올 수 없습니다" 로 떨어진다. 실제로 그렇게 되어 있었다.
+        /// </summary>
+        private const BuildOptions ClientOptions = BuildOptions.Development;
 
         [MenuItem(MenuRoot + "Fusion 서버 빌드 (Dedicated Server)")]
         public static void BuildServer()
@@ -67,7 +88,7 @@ namespace UnderTheSea.Network.Editor
         [MenuItem(MenuRoot + "Fusion 클라이언트 테스트 빌드")]
         public static void BuildClient()
         {
-            Build(ClientOutput, StandaloneBuildSubtarget.Player);
+            Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions);
         }
 
         /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
@@ -79,10 +100,62 @@ namespace UnderTheSea.Network.Editor
         /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
         public static void BuildClientFromCommandLine()
         {
-            ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player));
+            ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions));
+        }
+
+        [MenuItem(MenuRoot + "정상 흐름 클라이언트 빌드 (Boot 부터)")]
+        public static void BuildNormalFlowClient()
+        {
+            ExitIfCommandLine(BuildNormalFlow());
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildNormalFlowClientFromCommandLine()
+        {
+            ExitWith(BuildNormalFlow());
+        }
+
+        /// <summary>
+        /// 정상 게임 흐름을 처음부터 확인하기 위한 빌드.
+        ///
+        /// Lobby 만 담은 QA 빌드로는 Login · ChannelSelect 를 지나갈 수 없다.
+        /// 그래서 <b>제품 Scene List 를 그대로 읽어</b> Boot 부터 시작하는 빌드를 따로 만든다.
+        ///
+        /// ⚠ 제품 설정을 <b>읽기만 한다.</b>
+        ///    <c>EditorBuildSettings.scenes</c> 나 Build Profile 을 고치지 않는다.
+        ///    씬 목록은 <see cref="BuildPlayerOptions.scenes"/> 로만 넘긴다.
+        /// </summary>
+        private static BuildReport BuildNormalFlow()
+        {
+            string[] scenes = EditorBuildSettings.scenes
+                .Where(s => s.enabled)
+                .Select(s => s.path)
+                .ToArray();
+
+            if (scenes.Length == 0)
+            {
+                Debug.LogError(
+                    "[FusionTestBuilds] 제품 Scene List 가 비어 있습니다. " +
+                    "File > Build Profiles 의 Scene List 를 확인해 주세요.");
+                return null;
+            }
+
+            Debug.Log(
+                $"[FusionTestBuilds] 정상 흐름 빌드 — 제품 Scene List {scenes.Length}개를 그대로 씁니다.\n  " +
+                string.Join("\n  ", scenes));
+
+            // Development Build 로 만든다. -devjoin 같은 개발용 경로가 살아 있어야
+            // 같은 빌드로 개발자 직접 접속도 확인할 수 있다.
+            return Build(FlowOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.Development);
         }
 
         private static BuildReport Build(string relativeOutput, StandaloneBuildSubtarget subtarget)
+        {
+            return Build(relativeOutput, subtarget, new[] { TestScenePath }, BuildOptions.None);
+        }
+
+        private static BuildReport Build(
+            string relativeOutput, StandaloneBuildSubtarget subtarget, string[] scenes, BuildOptions options)
         {
             // 프로젝트 폴더 기준 상대 경로를 절대 경로로 바꾼다.
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
@@ -96,17 +169,17 @@ namespace UnderTheSea.Network.Editor
 
             Debug.Log(
                 $"[FusionTestBuilds] 빌드 시작 — 서브타깃 {subtarget}\n" +
-                $"  씬: {TestScenePath}\n" +
+                $"  씬 {scenes.Length}개, 첫 씬: {scenes[0]}\n" +
                 $"  출력: {output}");
 
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { TestScenePath },
+                scenes = scenes,
                 locationPathName = output,
                 target = BuildTarget.StandaloneWindows64,
                 targetGroup = BuildTargetGroup.Standalone,
                 subtarget = (int)subtarget,
-                options = BuildOptions.None
+                options = options
             });
 
             BuildSummary summary = report.summary;
@@ -125,6 +198,15 @@ namespace UnderTheSea.Network.Editor
             }
 
             return report;
+        }
+
+        /// <summary>메뉴에서 부른 경우에는 에디터를 닫지 않는다.</summary>
+        private static void ExitIfCommandLine(BuildReport report)
+        {
+            if (Application.isBatchMode)
+            {
+                ExitWith(report);
+            }
         }
 
         private static void ExitWith(BuildReport report)

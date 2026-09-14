@@ -1,0 +1,145 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace Warriors
+{
+    public sealed class WarriorsBeachEnemyApproach : MonoBehaviour
+    {
+        private static readonly HashSet<WarriorsBeachEnemyApproach> ActiveEnemies = new();
+        [SerializeField] private Transform player;
+        [SerializeField] private Transform spawnPoint;
+        [SerializeField, Min(0.1f)] private float moveSpeed = 1.8f;
+        [SerializeField, Min(0.5f)] private float stoppingDistance = 2.5f;
+        [SerializeField, Min(0.1f)] private float emergeDuration = 0.7f;
+        [SerializeField] private float groundHeight = 0.65f;
+        [SerializeField, Min(0f)] private float holdInsideReach = .55f;
+        [SerializeField, Min(0f)] private float seawardMargin = .45f;
+
+        private float elapsed;
+        private Vector3 targetOffset;
+        private float retreatUntil;
+
+        /// <summary>
+        /// Where this enemy holds its line. The lane offset used to be added on top of
+        /// this, which counted the spread twice: the lane already walks each enemy to one
+        /// side, and adding it again pushed the ring out to four metres - well past the
+        /// reach these enemies strike from. A wave would surround the player and stand
+        /// there, unable to land a single hit.
+        /// </summary>
+        private float HoldDistance => stoppingDistance;
+
+        private void OnEnable()
+        {
+            ActiveEnemies.Add(this);
+            elapsed = 0f;
+            // Give each enemy its own lane around the player instead of converging
+            // on the exact same point.  Keeping the offset in front also prevents
+            // a fresh wave from immediately surrounding the player's feet.
+            // A tight ring around the player. The old spread reached 5.5m to the side,
+            // so enemies slid past instead of closing in; spacing is separation's job.
+            targetOffset = new Vector3(WarriorsRun.Range(-2.2f, 2.2f), 0f, WarriorsRun.Range(-0.9f, 0.9f));
+            if (spawnPoint != null) transform.position = spawnPoint.position;
+        }
+
+        private void OnDisable() => ActiveEnemies.Remove(this);
+
+        private void Update()
+        {
+            Advance(Time.deltaTime);
+        }
+
+        public void Advance(float deltaTime)
+        {
+            if (player == null) return;
+
+            elapsed += deltaTime;
+            Vector3 position = transform.position;
+            position.y = Mathf.Lerp(spawnPoint != null ? spawnPoint.position.y : position.y, groundHeight,
+                Mathf.Clamp01(elapsed / emergeDuration));
+
+            Vector3 playerOffset = player.position - position;
+            playerOffset.y = 0f;
+            float playerDistance = playerOffset.magnitude;
+            Vector3 toPlayer = playerDistance > .001f ? playerOffset / playerDistance : transform.forward;
+
+            // Brief knockback after a hit, never a sustained retreat.
+            if (Time.time < retreatUntil)
+            {
+                position -= toPlayer * (moveSpeed * 1.2f * deltaTime);
+                position.y = groundHeight;
+                transform.position = position;
+                return;
+            }
+
+            Vector3 offset = player.position + targetOffset - position;
+            offset.y = 0f;
+            if (playerDistance > HoldDistance && offset.magnitude > .35f)
+            {
+                position += offset.normalized * (moveSpeed * deltaTime);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation,
+                    Quaternion.LookRotation(offset.normalized), 360f * deltaTime);
+            }
+            else
+            {
+                // In range: hold the line facing the player instead of drifting off.
+                transform.rotation = Quaternion.RotateTowards(transform.rotation,
+                    Quaternion.LookRotation(toPlayer), 360f * deltaTime);
+            }
+
+            transform.position = position;
+
+            const float separationRadius = 2.25f;
+            Vector3 separation = Vector3.zero;
+            foreach (WarriorsBeachEnemyApproach neighbour in ActiveEnemies)
+            {
+                if (neighbour == null || neighbour == this || !neighbour.isActiveAndEnabled) continue;
+                Vector3 away = position - neighbour.transform.position;
+                away.y = 0f;
+                float distance = away.magnitude;
+                if (distance > .001f)
+                    separation += away.normalized * Mathf.Clamp01((separationRadius - distance) / separationRadius);
+            }
+            // Separation applies only to other WarriorsTarget roots.  Clamp the
+            // correction so it opens readable gaps without overpowering pursuit.
+            separation = Vector3.ClampMagnitude(separation, 1.4f);
+
+            // Pursuit switches off at the hold distance, so separation is the only force
+            // still acting near the player.  Left alone it shoved the crowd outwards and
+            // the enemies read as running away; stripping only the outward half then let
+            // the inward half push members through the player.  So: outside the hold
+            // distance drop just the retreat, inside it drop the whole radial part and
+            // let the crowd slide sideways around each other.
+            float radial = Vector3.Dot(separation, toPlayer);
+            if (playerDistance <= HoldDistance || radial < 0f) separation -= toPlayer * radial;
+
+            position += separation * (2.1f * deltaTime);
+            position.y = groundHeight;
+
+            // Everything on this beach comes out of the sea, which is the way the camera is
+            // already looking. Letting the crowd wander round the back put attackers behind
+            // the player where they could not be seen or answered, so they hold the seaward
+            // side. Side to side they still spread as far as the lane offset takes them.
+            if (player != null) position.z = Mathf.Max(position.z, player.position.z + seawardMargin);
+            transform.position = position;
+        }
+
+        /// <summary>
+        /// The reach belongs to the attack, so the attack is what decides how close the
+        /// walk has to finish. Authoring a stopping distance and a strike range separately
+        /// is how the two drifted apart in the first place.
+        /// </summary>
+        public void ConfigureHoldDistance(float attackRange) =>
+            stoppingDistance = Mathf.Max(.8f, attackRange - holdInsideReach);
+
+        public void Configure(Transform playerTarget, Transform point, float height)
+        {
+            player = playerTarget;
+            spawnPoint = point;
+            groundHeight = height;
+            stoppingDistance = 2.2f;
+        }
+
+        /// <summary>Short hit reaction. Capped so it can never become a retreat.</summary>
+        public void Retreat(float duration) => retreatUntil = Time.time + Mathf.Clamp(duration, .05f, .25f);
+    }
+}
