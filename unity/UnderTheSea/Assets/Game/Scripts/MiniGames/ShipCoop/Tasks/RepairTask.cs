@@ -46,6 +46,13 @@ public class RepairTask : TaskBase
     /// <summary>수리 진행도 0 ~ 1. HUD 의 게이지가 이 값을 본다.</summary>
     public float Progress01 => Mathf.Clamp01((float)Hits / hitsToRepair);
 
+    /// <summary>
+    /// 수리가 끝나는 망치질 횟수. 읽기만 한다.
+    /// 시각(<c>HullDamageVisual</c>)이 "판자 몇 장 보일지" 를 이 값과 <see cref="Hits"/> 로 정한다 —
+    /// 이벤트로 그리지 않고 값으로 그린다. (SHIPCOOP.md 11장: event Action 은 클라이언트에서 안 터진다)
+    /// </summary>
+    public int HitsToRepair => hitsToRepair;
+
     /// <summary>수리가 끝났는지</summary>
     public bool IsRepaired { get; private set; }
 

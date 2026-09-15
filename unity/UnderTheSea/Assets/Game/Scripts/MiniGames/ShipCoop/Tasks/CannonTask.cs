@@ -96,6 +96,26 @@ public class CannonTask : TaskBase
         return loaded;
     }
 
+    /// <summary>
+    /// **포탄 수를 밖에서 정해 준다.** 네트워크에서 서버가 정한 결과를 화면에 옮길 때 쓴다.
+    ///
+    /// 싣고 쏘는 판정은 서버에서만 돈다. 클라이언트는 이 값을 복제받아 여기로 넣는다.
+    /// 그래야 "포탄 1/3" 안내와 게이지가 나른 사람 화면에도 같이 바뀐다.
+    /// 값이 같으면 아무 일도 하지 않으므로 매 프레임 불러도 된다.
+    /// </summary>
+    public void ShowAmmo(int ammo)
+    {
+        int clamped = Mathf.Clamp(ammo, 0, maxAmmo);
+
+        if (clamped == Ammo)
+        {
+            return;
+        }
+
+        Ammo = clamped;
+        AmmoChanged?.Invoke(Ammo, maxAmmo);
+    }
+
     protected override void Work(float deltaTime)
     {
         for (int i = 0; i < Workers.Count; i++)

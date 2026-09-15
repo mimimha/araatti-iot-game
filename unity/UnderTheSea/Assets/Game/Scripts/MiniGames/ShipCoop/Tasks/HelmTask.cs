@@ -62,6 +62,24 @@ public class HelmTask : TaskBase
     public float Steer { get; private set; }
 
     /// <summary>
+    /// **뱃머리 각도를 밖에서 정해 준다.** 네트워크에서 서버가 정한 결과를 화면에 옮길 때 쓴다.
+    ///
+    /// 클라이언트의 <see cref="TaskBase.Update"/> 는 권위 가드로 막혀 <see cref="Work"/> 가 돌지 않는다.
+    /// 그대로 두면 조타 게이지 · 조타륜 · 배의 기울기가 클라이언트 화면에서 0 에 멈춰 있다.
+    /// <c>ShipCoopStateSync</c> 가 서버 값을 받아 이 함수로 넣는다.
+    /// </summary>
+    public void ShowHeading(float heading, float steer)
+    {
+        Heading = Mathf.Clamp(heading, -maxHeading, maxHeading);
+        Steer = steer;
+
+        if (shipToRotate != null)
+        {
+            shipToRotate.rotation = Quaternion.Euler(0f, _baseYaw + Heading, 0f);
+        }
+    }
+
+    /// <summary>
     /// 바깥에서 뱃머리를 미는 힘 (도/초). 양수면 우현으로 밀린다. 0 이면 없다.
     ///
     /// **파도가 이 값을 켭니다.** 파도가 치는 동안 뱃머리가 계속 한쪽으로 밀리고,

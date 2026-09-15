@@ -35,6 +35,38 @@ public class AmmoBox : MonoBehaviour
     /// <summary>여기서 나오는 물건</summary>
     public Cargo Kind => kind;
 
+    /// <summary>
+    /// 🧰 뚜껑이 열려 있는가. **이 값이 진실이다.** 뚜껑 표현(<c>SupplyChestLid</c>)은 이것을 읽기만 한다.
+    ///
+    /// <code>
+    ///   열림   TryTake 가 true 를 돌려준 순간 — 쥔 채로 상호작용해 실제로 집은 순간이다.
+    ///          키를 누른 것이 기준이 아니다. 쥐지 않고 눌렀거나 재고가 없어 못 집었으면 안 열린다.
+    ///   닫힘   열린 상태에서 어느 TaskWorker 도 사거리(reachRange) 안에 없을 때. 지연 없음.
+    ///          한 사람이 집고 다른 사람이 다가오면 열린 채 유지된다. 마지막 사람이 나가면 닫힌다.
+    /// </code>
+    ///
+    /// 왜 다가가면 열리는 것이 아니라 집을 때 열리나 — 지나가기만 해도 열리면 앞계단 사이를 오가는
+    /// 동안 계속 덜컹거린다. 집기 성공에 묶으면 "여기서 뭔가 가져갔다" 가 화면에 남고,
+    /// 나갈 때 닫히는 것은 "자리에서 걸어나가면 떨어진다" 와 같은 문법이다. (SHIPCOOP.md 4장)
+    ///
+    /// ⚠ event Action 으로 알리지 않는다. 클라이언트에서 안 터진다. (11장) 값 하나만 복제하면 된다.
+    /// </summary>
+    public bool IsOpen { get; private set; }
+
+    /// <summary>
+    /// **열림 상태를 밖에서 정해 준다.** 네트워크에서 서버가 정한 값을 클라이언트 화면에 옮길 때 쓴다.
+    /// 클라이언트는 집기 판정이 없어 스스로 열 수 없다. (<c>ShipCoopStateSync</c>)
+    /// </summary>
+    public void ShowOpen(bool open)
+    {
+        IsOpen = open;
+    }
+
+    // 사거리 안에 사람이 있는지 볼 때 쓰는 목록. 매 프레임 찾으면 아까우니 잠깐 들고 있는다.
+    private TaskWorker[] _workers;
+    private float _workersRefreshedAt = -1f;
+    private const float WorkersRefreshSeconds = 1f;
+
     /// <summary>집을 수 있는 거리</summary>
     public float ReachRange => reachRange;
 
@@ -53,18 +85,67 @@ public class AmmoBox : MonoBehaviour
         }
 
         _flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
-        _renderers = GetComponentsInChildren<Renderer>(includeInactive: true);
+        _renderers = VisibleRenderers();
         ShowBox(false);
+    }
+
+    /// <summary>
+    /// 켜고 끌 렌더러. **씬에서 이미 꺼진 것은 넣지 않는다.**
+    ///
+    /// 배치 도구가 부모 큐브의 겉을 감추고 자식으로 웅덩이(물 Quad)를 얹는다. 큐브 렌더러까지 목록에
+    /// 넣으면 물이 찰 때 회색 큐브가 웅덩이와 함께 다시 나타난다.
+    /// </summary>
+    private Renderer[] VisibleRenderers()
+    {
+        Renderer[] all = GetComponentsInChildren<Renderer>(includeInactive: true);
+        System.Collections.Generic.List<Renderer> kept = new System.Collections.Generic.List<Renderer>(all.Length);
+
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (all[i] != null && all[i].enabled)
+            {
+                kept.Add(all[i]);
+            }
+        }
+
+        return kept.ToArray();
     }
 
     private void Update()
     {
+        CloseWhenEveryoneLeft();
+
         if (_renderers == null)
         {
             return;
         }
 
         ShowBox(IsUsable);
+    }
+
+    /// <summary>열려 있는데 사거리 안에 아무도 없으면 닫는다. 판정하는 쪽(서버 · 혼자 하는 씬)에서만 돈다.</summary>
+    private void CloseWhenEveryoneLeft()
+    {
+        if (!IsOpen || !UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopNet.IsAuthorityHere)
+        {
+            return;
+        }
+
+        if (_workers == null || Time.time - _workersRefreshedAt > WorkersRefreshSeconds)
+        {
+            _workers = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            _workersRefreshedAt = Time.time;
+        }
+
+        for (int i = 0; i < _workers.Length; i++)
+        {
+            if (_workers[i] != null && IsInReach(_workers[i].transform.position))
+            {
+                return;
+            }
+        }
+
+        IsOpen = false;
     }
 
     private void ShowBox(bool visible)
@@ -96,6 +177,10 @@ public class AmmoBox : MonoBehaviour
         {
             stock--;
         }
+
+        // 실제로 집었다. 뚜껑을 연다. (키를 누른 것이 아니라 집기 성공이 기준)
+        IsOpen = true;
+        _workersRefreshedAt = -1f;
 
         return true;
     }
