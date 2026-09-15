@@ -17,10 +17,10 @@
 
 | 에셋 이름 | 출처 | 라이선스 | 폴더 | 용도 | 추가한 사람 | 날짜 |
 | --- | --- | --- | --- | --- | --- | --- |
-| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 | 효진 | 2026-09-07 |
+| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 · 목적지 섬 | 효진 | 2026-09-07 |
 | Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
 | ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
-| Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 | 효진 | 2026-09-08 |
+| Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 · 배 협동 게임 적선 | 효진 | 2026-09-08 |
 | Quaternius Pirate Kit | https://quaternius.com/packs/piratekit.html | 무료 (CC0-1.0) | `Assets/QuaterniusPirateKit/` | 낚시 캐릭터·부두·소품 · 배 협동 게임 양동이 | 용주 | 2026-09-08 |
 | Quaternius Animated Fish | https://quaternius.com/packs/animatedfish.html | 무료 (CC0-1.0) | `Assets/QuaterniusAnimatedFish/` | 낚시 물고기 모델·애니메이션 | 용주 | 2026-09-08 |
 | Meshy Warriors 몬스터/보스 5종 | Meshy에서 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/MiniGames/Warriors/Models/` | Warriors의 Crab, Fish, Jellyfish, Kraken Phase 2/Final 모델 | 서연 | 2026-09-12 |
