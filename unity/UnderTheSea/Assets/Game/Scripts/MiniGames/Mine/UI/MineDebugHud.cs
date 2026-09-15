@@ -8,8 +8,13 @@ using UnityEngine.InputSystem;
 /// MINE.md 4장이 **"남은 복구 수는 항상 보인다"** 고 요구한다. 이건 꾸미기가 아니라
 /// 규칙의 일부다. 몇 개 남았는지 안 보이면 "지금 쓸까 남길까" 를 판단할 수 없다.
 ///
-/// ⚠ **임시다. MINE.md 10장의 진짜 HUD 를 만들면 이 파일을 지운다.**
-///    IMGUI(OnGUI) 로 그리므로 출시용이 아니다.
+/// ⚠ **임시다. IMGUI(OnGUI) 로 그리므로 출시용이 아니다.**
+///
+/// 진짜 HUD(<see cref="MineHud"/>)가 생긴 뒤에도 이 파일을 아직 지우지 않는다.
+/// **7단계 밸런싱에 쓸 숫자가 여기밖에 없기 때문이다** — 랜턴 반경, 탑뷰 높이,
+/// 채점 상세. 진짜 HUD 에는 이런 것을 넣지 않는다. 밸런싱이 끝나면 지운다.
+///
+/// 그래서 **기본은 꺼져 있다.** 진짜 HUD 와 겹쳐 보이면 안 된다. F1 로 켠다.
 ///
 /// 다만 **읽는 값은 임시가 아니다.** 이 표시는 <see cref="MineGame"/> 의 공개 속성만
 /// 보므로, 진짜 HUD 를 만들 때 MineGame 은 한 줄도 안 고치고 이 파일만 갈아끼운다.
@@ -38,7 +43,9 @@ public class MineDebugHud : MonoBehaviour
     /// <summary>시점만 읽는다. 랜턴과 같은 이유로 진짜 HUD 에는 안 들어간다.</summary>
     private MineCamera _camera;
     private GUIStyle _style;
-    private bool _visible = true;
+
+    // 진짜 HUD 와 겹치지 않게 기본은 꺼둔다. 밸런싱할 때 F1 로 켠다.
+    private bool _visible;
     private readonly StringBuilder _sb = new StringBuilder(512);
 
     private void Awake()
@@ -131,7 +138,7 @@ public class MineDebugHud : MonoBehaviour
         _sb.AppendLine("F         휘두르기 (발밑 한 칸)");
         _sb.AppendLine("C         되메우기 (발밑 · 블록 1개)");
         _sb.AppendLine("V         힌트 (목표 다시 보기 · 1회)");
-        _sb.AppendLine($"{toggleKey}        이 표시 켜기 / 끄기");
+        _sb.AppendLine($"{toggleKey}        이 개발용 표시 끄기");
     }
 
     private static string StateLabel(MineState state)

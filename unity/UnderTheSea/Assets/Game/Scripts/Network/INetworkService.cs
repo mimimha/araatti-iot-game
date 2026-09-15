@@ -1,4 +1,5 @@
 using System;
+using MiniGames.Common;
 
 /// <summary>
 /// 서버 하나의 정보. Title 화면의 서버 목록에 표시된다.
@@ -67,6 +68,12 @@ public interface INetworkService
     /// <summary>미니게임이 끝났을 때 결과를 보고한다.</summary>
     void ReportMiniGameResult(bool success, int score);
 
+    /// <summary>
+    /// 점수·시간·게임별 기록을 포함한 전체 결과를 서버에 보고한다.
+    /// 새 미니게임은 이 오버로드를 사용하고, 위의 짧은 함수는 기존 코드 호환용으로 둔다.
+    /// </summary>
+    void ReportMiniGameResult(MiniGameResult result);
+
     // ------------------------------------------------------------
     // 서버 → 클라이언트 (알림)
     // ------------------------------------------------------------
@@ -80,7 +87,10 @@ public interface INetworkService
     /// <summary>로비 인원이 바뀌었다. (현재 인원)</summary>
     event Action<int> OnLobbyPlayerCountChanged;
 
-    /// <summary>대기열 인원이 바뀌었다. (미니게임 이름, 현재 인원, 필요 인원)</summary>
+    /// <summary>
+    /// 최초 대기열 응답 또는 대기열 인원 변경을 받았다. (미니게임 이름, 현재 인원, 필요 인원)
+    /// 실제 구현은 이 이벤트를 올리기 전에 PlayerRoster를 서버 스냅샷으로 갱신한다.
+    /// </summary>
     event Action<string, int, int> OnQueueUpdated;
 
     /// <summary>매칭이 완료되었다. (이동할 미니게임 이름)</summary>

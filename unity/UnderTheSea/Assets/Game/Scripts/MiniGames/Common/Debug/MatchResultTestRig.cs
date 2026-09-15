@@ -8,11 +8,16 @@ using MiniGames.Common.UI;
 namespace MiniGames.Common.DebugTools
 {
     /// <summary>
-    /// 테스트 씬 전용. 매칭 → 카운트다운 → (가짜 게임) → 결과 → 다시 하기 / 로비까지
-    /// 네트워크 없이 손으로 돌려 보기 위한 판.
+    /// 테스트 씬 전용 조작 줄 (Debug/MatchDebugControls). 매칭 → 카운트다운 → (가짜 게임) → 결과 →
+    /// 다시 하기 / 로비까지 네트워크 없이 손으로 돌려 보기 위한 판.
     ///
-    /// ⚠ 실제 게임 화면에는 올리지 않는다. 이 컴포넌트를 지워도 공통 시스템은 그대로
-    ///    남도록, 공통 쪽에서는 이 파일을 참조하지 않는다.
+    ///     [검 1~2인] [광산 1~4인] [배 4인]      ← 지금 씬에 달려 있는 버튼
+    ///     [+ Player] [- Player] [준비 토글] [조각 초기화]   ← 코드는 있지만 버튼은 떼어 둠 (필요하면 다시 연결)
+    ///
+    /// ⚠ 실제 게임 화면에는 올리지 않는다. 유저는 이 버튼으로 게임을 고르지 않는다 — 실제로는
+    ///    각 미니게임 포탈이 자기 설정을 <see cref="CommonMatchingUI.Show"/> 에 넘긴다. 이 줄은
+    ///    설정 세 개와 명단이 제대로 동작하는지 손으로 확인하는 용도일 뿐이다.
+    ///    이 컴포넌트를 지워도 공통 시스템은 그대로 남도록, 공통 쪽에서는 이 파일을 참조하지 않는다.
     ///
     /// 여기서 하는 일은 <b>네트워크가 할 일을 손으로 흉내 내는 것뿐</b>이다. 누르는 버튼은
     /// 전부 <see cref="PlayerRoster"/> 와 <see cref="MatchFlowController"/> 의 public
@@ -22,17 +27,23 @@ namespace MiniGames.Common.DebugTools
     {
         [SerializeField] private MatchFlow flow;
         [SerializeField] private MatchFlowController controller;
+        [Tooltip("프리팹 루트의 손잡이. 게임을 바꿀 때 포탈이 하는 것과 똑같이 Show(config) 를 부른다.")]
+        [SerializeField] private CommonMatchingUI matchingUI;
         [SerializeField] private MatchPanelPresenter matchPanel;
         [SerializeField] private ResultPanelPresenter resultPanel;
 
         [Header("미니게임 설정 세 개")]
-        [SerializeField] private MiniGameConfig swordConfig;
-        [SerializeField] private MiniGameConfig miningConfig;
-        [SerializeField] private MiniGameConfig shipConfig;
+        [SerializeField] private MiniGameConfigProvider configs;
 
         [Header("디버그 UI")]
-        [Tooltip("끄면 조작 줄이 화면에서 사라진다. 실제 배포 화면에서는 반드시 꺼 둔다.")]
+        [Tooltip("끄면 조작 줄이 화면에서 사라진다. 실제 게임 연결 시 기본값은 false.")]
         [SerializeField] private bool showDebugControls = true;
+
+        [Tooltip("Play 직후 현재 게임으로 5초 대기열 테스트를 자동 시작한다.")]
+        [SerializeField] private bool startQueueOnPlay = true;
+
+        [Tooltip("이 씬에서는 등록된 네트워크가 Fusion 이어도 Fake 로 바꿔 세운다. 서버 없이 대기열 흐름을 보기 위한 것이다.")]
+        [SerializeField] private bool useFakeNetworkInTestScene = true;
 
         [Tooltip("이 키로 조작 줄을 여닫는다.")]
         [SerializeField] private Key toggleKey = Key.F1;
@@ -40,6 +51,7 @@ namespace MiniGames.Common.DebugTools
         [SerializeField] private GameObject debugRoot;
         [SerializeField] private Button addPlayerButton;
         [SerializeField] private Button removePlayerButton;
+        [SerializeField] private Button toggleReadyButton;
         [SerializeField] private Button swordButton;
         [SerializeField] private Button miningButton;
         [SerializeField] private Button shipButton;
@@ -57,11 +69,14 @@ namespace MiniGames.Common.DebugTools
         // [+ Player] 한 번에 두 명씩 들어오게 된다.
         private void Awake()
         {
+            EnsureFakeNetwork();
+
             Bind(addPlayerButton, AddPlayer);
             Bind(removePlayerButton, RemovePlayer);
-            Bind(swordButton, () => SwitchGame(swordConfig));
-            Bind(miningButton, () => SwitchGame(miningConfig));
-            Bind(shipButton, () => SwitchGame(shipConfig));
+            Bind(toggleReadyButton, ToggleReadyOfLast);
+            Bind(swordButton, () => SwitchGame(configs != null ? configs.Sword : null));
+            Bind(miningButton, () => SwitchGame(configs != null ? configs.Mining : null));
+            Bind(shipButton, () => SwitchGame(configs != null ? configs.Ship : null));
             Bind(resetFragmentsButton, () =>
             {
                 RewardService.ResetAll();
@@ -80,11 +95,13 @@ namespace MiniGames.Common.DebugTools
             }
 
             PlayerRoster.Changed += RefreshDebugStatus;
+            if (flow != null) flow.StateChanged += OnStateChanged;
         }
 
         private void OnDisable()
         {
             if (controller != null) controller.MiniGameStarting -= OnMiniGameStarting;
+            if (flow != null) flow.StateChanged -= OnStateChanged;
 
             if (resultPanel != null)
             {
@@ -99,6 +116,8 @@ namespace MiniGames.Common.DebugTools
         {
             if (playingRoot != null) playingRoot.SetActive(false);
             if (debugRoot != null) debugRoot.SetActive(showDebugControls);
+            if (startQueueOnPlay && matchingUI != null && flow != null && flow.Config != null)
+                matchingUI.BeginQueue(flow.Config);
             RefreshDebugStatus();
         }
 
@@ -106,11 +125,16 @@ namespace MiniGames.Common.DebugTools
         {
             if (debugRoot == null) return;
 
+            bool loading = matchingUI != null && matchingUI.QueueCoordinator != null &&
+                           matchingUI.QueueCoordinator.IsLoadingVisible;
+            bool shouldShow = showDebugControls && !loading;
+            if (debugRoot.activeSelf != shouldShow) debugRoot.SetActive(shouldShow);
+
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || !keyboard[toggleKey].wasPressedThisFrame) return;
 
             showDebugControls = !showDebugControls;
-            debugRoot.SetActive(showDebugControls);
+            debugRoot.SetActive(showDebugControls && !loading);
         }
 
         private static void Bind(Button button, UnityEngine.Events.UnityAction action)
@@ -118,11 +142,34 @@ namespace MiniGames.Common.DebugTools
             if (button != null) button.onClick.AddListener(action);
         }
 
+        /// <summary>
+        /// 테스트 씬은 서버 없이 돌아야 한다. 부트스트랩이 Fusion 을 세웠다면(기본값) 그것을 내리고
+        /// Fake 를 세운다. 에디터 전체 스위치를 건드리지 않으므로 다른 씬의 Fusion 테스트에는 영향이 없다.
+        /// Awake 에서 하는 이유: 프리팹의 MatchingQueueCoordinator 는 BeginQueue 때 다시 서비스를 잡는다.
+        /// </summary>
+        private void EnsureFakeNetwork()
+        {
+            if (!useFakeNetworkInTestScene) return;
+
+            INetworkService current = NetworkServiceLocator.Current;
+            if (current is FakeNetworkService) return;
+
+            if (current is MonoBehaviour host)
+            {
+                UnityEngine.Debug.Log($"[TestRig] 테스트 씬이라 {host.GetType().Name} 대신 FakeNetworkService 를 세웁니다.", this);
+                DestroyImmediate(host.gameObject); // OnDestroy 가 Locator 등록을 푼다
+            }
+
+            new GameObject("NetworkService (Fake, 테스트 씬)").AddComponent<FakeNetworkService>();
+        }
+
         // ------------------------------------------------------------
         // 네트워크가 할 일을 손으로
         // ------------------------------------------------------------
 
-        /// <summary>Photon 의 "플레이어 입장" 이 할 일과 같다.</summary>
+        private void OnStateChanged(MatchState state) => RefreshDebugStatus();
+
+        /// <summary>Fusion 의 "플레이어 입장" 이 할 일과 같다 → RegisterPlayer.</summary>
         private void AddPlayer()
         {
             MiniGameConfig config = flow != null ? flow.Config : null;
@@ -135,10 +182,29 @@ namespace MiniGames.Common.DebugTools
             PlayerRoster.RegisterNextTestPlayer(isLocal: PlayerRoster.ActivePlayerCount == 0);
         }
 
-        /// <summary>Photon 의 "플레이어 퇴장" 이 할 일과 같다.</summary>
-        private void RemovePlayer() => PlayerRoster.UnregisterLast();
+        /// <summary>Fusion 의 "플레이어 퇴장" 이 할 일과 같다 → UnregisterPlayer(id).</summary>
+        private void RemovePlayer()
+        {
+            PlayerEntry last = PlayerRoster.AtSlot(PlayerRoster.ActivePlayerCount - 1);
+            if (last == null) return;
 
-        /// <summary>다른 미니게임 규칙으로 갈아 끼운다. 인원은 비우고 나부터 다시 시작.</summary>
+            PlayerRoster.UnregisterPlayer(last.PlayerId);
+        }
+
+        /// <summary>준비 동기화가 할 일과 같다 → SetPlayerReady. 마지막 사람의 준비를 뒤집는다.</summary>
+        private void ToggleReadyOfLast()
+        {
+            PlayerEntry last = PlayerRoster.AtSlot(PlayerRoster.ActivePlayerCount - 1);
+            if (last == null) return;
+
+            PlayerRoster.SetPlayerReady(last.PlayerId, !last.IsReady);
+        }
+
+        /// <summary>
+        /// 다른 미니게임 규칙으로 갈아 끼운다. 실제 게임에서 포탈이 하는 일과 같다 —
+        /// 명단을 비우고 <see cref="CommonMatchingUI.Show"/> 에 설정을 넘긴다.
+        /// (정원 4명인 광산에서 2명인 검으로 바꾸면 자리가 넘치므로 비우고 시작한다.)
+        /// </summary>
         private void SwitchGame(MiniGameConfig config)
         {
             if (config == null || flow == null) return;
@@ -152,9 +218,12 @@ namespace MiniGames.Common.DebugTools
             // 패널이 꺼져 있는 동안에는 Redraw 도 돌지 않아 인원이 바뀌어도 반응이 없다.
             if (matchPanel != null) matchPanel.gameObject.SetActive(true);
 
-            PlayerRoster.Clear();
-            flow.Configure(config);
-            PlayerRoster.RegisterNextTestPlayer(isLocal: true);
+            PlayerRoster.ClearPlayers();
+            // 에디터에서는 FakeNetworkService가 5초 뒤 실제 서버와 같은 이벤트를 보낸다.
+            // 따라서 아래 게임 선택 버튼으로 조타 로딩 → 매칭 화면 전체 흐름을 검증한다.
+            if (matchingUI != null && matchingUI.QueueCoordinator != null) matchingUI.BeginQueue(config);
+            else if (matchingUI != null) matchingUI.Show(config);
+            else flow.Configure(config);
             RefreshDebugStatus();
         }
 
@@ -170,9 +239,11 @@ namespace MiniGames.Common.DebugTools
                     ? $"{config.MaxPlayers}인 고정"
                     : $"{config.MinPlayers}~{config.MaxPlayers}인";
 
+            string state = flow != null ? flow.State.ToString() : "-";
+
             debugStatus.text =
-                $"{game} ({rule})   인원 {PlayerRoster.ActivePlayerCount}" +
-                $"   준비 {PlayerRoster.ReadyCount}   조각 {RewardService.OwnedCount}개";
+                $"[DEBUG · F1]  {game} ({rule})   인원 {PlayerRoster.ActivePlayerCount}" +
+                $"   준비 {PlayerRoster.ReadyCount}   상태 {state}   조각 {RewardService.OwnedCount}개";
         }
 
         // ------------------------------------------------------------

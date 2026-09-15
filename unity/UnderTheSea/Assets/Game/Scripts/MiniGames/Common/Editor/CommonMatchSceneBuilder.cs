@@ -14,9 +14,17 @@ namespace MiniGames.Common.EditorTools
     /// 공통 매칭·결과 UI 를 짓는다. 결과물은 두 가지다.
     ///
     ///   1. <b>프리팹</b> CommonMatchCanvas — 미니게임 씬에 그대로 끌어다 놓는 드롭인 한 덩어리.
-    ///      Canvas(매칭·결과 화면) 와 Systems(흐름·컨트롤러·씬 전환) 가 같이 들어 있어서,
-    ///      미니게임마다 UI 를 복사해 고칠 일이 없다.
-    ///   2. <b>테스트 씬</b> CommonMatchResultTest — 위 프리팹 + 해변 배경 + 테스트 조작 줄.
+    ///      Canvas(매칭·결과 화면) 와 Systems(흐름·컨트롤러·씬 전환·명단) 가 같이 들어 있어서,
+    ///      미니게임마다 UI 를 복사해 고칠 일이 없다. 루트의 <see cref="CommonMatchingUI"/> 에
+    ///      포탈이 자기 <see cref="MiniGameConfig"/> 를 <c>Show(config)</c> 로 넘기면 끝이다.
+    ///   2. <b>테스트 씬</b> CommonMatchResultTest — 위 프리팹 + 해변 배경 + 설정 목록 + 테스트 조작 줄.
+    ///
+    /// 매칭 판은 위에서 아래로 네 칸이 고정돼 있다. 글은 최소한만 — 인원 숫자·자동 시작·부제는 없다.
+    ///
+    ///     HeaderArea      작게 "광산 미니게임" + 크게 "플레이어를 매칭 중입니다" + 튀는 점 셋
+    ///     StatusArea      매칭 중 "30초 후 자동 시작" → 카운트다운이면 큰 숫자
+    ///     PlayerSlotArea  파티원 카드 — 두 상태에서 같은 Y
+    ///     ActionArea      [게임 시작] [매칭 취소]   (배의 "4명이 모두 모여야…" 는 StatusArea 에 적는다)
     ///
     /// 손으로 끌어다 붙인 UI 는 무엇이 무엇에 물려 있는지 씬을 열어야만 알 수 있다. 여기서
     /// 한 번에 지어 두면 배치와 연결이 전부 코드로 남아, 고칠 때 이 파일만 고치고 메뉴를
@@ -31,12 +39,22 @@ namespace MiniGames.Common.EditorTools
         private const string ScenePath = "Assets/Game/Scenes/Develop/SeoYeon/CommonMatchResultTest.unity";
         private const string PrefabPath = "Assets/Game/Prefabs/MiniGames/Common/CommonMatchCanvas.prefab";
         private const string ConfigDir = "Assets/Game/ScriptableObjects/MiniGames/Common/";
-        private const string ArenaPrefab =
-            "Assets/Game/Prefabs/MiniGames/Warriors/Arena/WarriorsBeachArena.prefab";
+        /// <summary>
+        /// 배경. 캐릭터 커스터마이징 화면(CharacterCustomizationTest)과 같은 섬·해변·카메라를 그대로
+        /// 프리팹으로 묶어 둔 것이다. 매칭 화면은 로비→미니게임 사이에 잠깐 보이는 판이라 커스터마이징
+        /// 화면과 같은 곳에 있는 느낌이 나야 한다. 카메라(Preview Camera)와 조명도 안에 들어 있다.
+        /// </summary>
+        private const string BackdropPrefab =
+            "Assets/Game/Prefabs/Environment/CustomizationBeachBackdrop.prefab";
         private const string FontPath = "Assets/Game/Fonts/NotoSansKR-Bold SDF.asset";
 
         private const string Hud = "Assets/Game/Art/UI/ShipCoopHudV2/";
         private const string FramePath = "Assets/Game/Art/UI/ChannelSelect/channel-panel-frame-login-matched.png";
+        private const string MatchingFramePath = "Assets/Game/Art/UI/MiniGames/Common/matching-panel-frame-wide.png";
+        private const string ResultFramePath = "Assets/Game/Art/UI/MiniGames/Common/result-panel-frame.png";
+        private const string QueueBackgroundPath = "Assets/Game/Art/UI/MiniGames/Common/queue-loading-background.png";
+        private const string QueueWheelPath = "Assets/Game/Art/UI/MiniGames/Common/queue-loading-wheel.png";
+        private const string CircularRevealShaderPath = "Assets/Game/Art/Shaders/UI/CircularRevealCutout.shader";
         private const string ButtonPath = "Assets/Game/Art/UI/Common/button-login-base-balanced-gold.png";
         private const string BackplatePath = Hud + "portrait-backplate.png";
         private const string DotPath = Hud + "badge-player.png";
@@ -55,7 +73,7 @@ namespace MiniGames.Common.EditorTools
             Hud + "portrait-frame-purple.png", Hud + "portrait-frame-red.png",
         };
 
-        private static readonly Color[] SlotAccents =
+        internal static readonly Color[] SlotAccents =
         {
             // 1번 자리는 사실상 늘 본인이다. 빨강은 "뭔가 잘못됐다"로 읽혀서 금색으로 바꿨다.
             new(.98f, .80f, .36f, 1f),   // 금색 - 선장 (본인)
@@ -64,40 +82,125 @@ namespace MiniGames.Common.EditorTools
             new(.93f, .47f, .45f, 1f),   // 산호 - 백발
         };
 
-        private static readonly Color Plank = new(1f, 1f, 1f, 1f);           // 프레임은 원본 색 그대로
-        private static readonly Color Sunk = new(.045f, .100f, .180f, 1f);   // 기록: 나무판보다 어둡게
-        private static readonly Color Raised = new(.130f, .280f, .490f, 1f); // 보상: 나무판보다 밝게
-        private static readonly Color Gold = new(1f, .82f, .35f, 1f);
-        private static readonly Color Cyan = new(.62f, .90f, .99f, 1f);
-        private static readonly Color White = new(.96f, .98f, 1f, 1f);
-        private static readonly Color Muted = new(.72f, .81f, .92f, 1f);
+        internal static readonly Color Plank = new(1f, 1f, 1f, 1f);           // 프레임은 원본 색 그대로
+        internal static readonly Color Sunk = new(.045f, .100f, .180f, 1f);   // 기록: 나무판보다 어둡게
+        internal static readonly Color Raised = new(.130f, .280f, .490f, 1f); // 보상: 나무판보다 밝게
+        internal static readonly Color Gold = new(1f, .82f, .35f, 1f);
+        internal static readonly Color Cyan = new(.62f, .90f, .99f, 1f);
+        internal static readonly Color White = new(.96f, .98f, 1f, 1f);
+        internal static readonly Color Muted = new(.72f, .81f, .92f, 1f);
 
-        private static TMP_FontAsset font;
-        private static Sprite frame, button, backplate, dot, whitePlate, gem;
-        private static Sprite[] portraits, portraitFrames;
+        internal static TMP_FontAsset font;
+        internal static Sprite frame, matchingFrame, resultFrame, queueBackground, queueWheel;
+        internal static Shader circularRevealShader;
+        internal static Sprite button, backplate, dot, whitePlate, gem;
+        internal static Sprite[] portraits, portraitFrames;
 
-        private const float PanelW = 1240f, PanelH = 840f;
+        private const float PanelW = 1360f, PanelH = 853f;
         private const float ResultW = 900f, ResultH = 830f;
+
+        // ── 매칭 판 세로 배치 (판 위쪽 기준 px). 위→아래 순서가 곧 정보의 순서다.
+        //    게임 이름(작게) → 제목(크게) → [카운트다운 숫자 자리] → 카드 → (배만) 이유 한 줄 → 버튼.
+        //    숫자 자리는 매칭 중엔 비어 있으므로 딱 숫자 높이만큼만 남긴다. 더 남기면 판이 헐렁해 보인다.
+        private const float GameTitleY = -100f, GameTitleH = 28f;    // -100 ~ -128 (닻 장식 아래)
+        private const float TitleY = -132f, TitleH = 54f;            // -132 ~ -186
+        private const float StatusAreaY = -196f, StatusAreaH = 96f;  // -196 ~ -292  (매칭 중: 자동 시작 한 줄 / 카운트다운: 숫자)
+        private const float NumberH = 96f;
+        private const float SlotAreaY = -300f, SlotH = 330f;         // -300 ~ -630  ← 두 상태에서 같은 Y
+        private const float HintY = -638f, HintH = 26f;              // -638 ~ -664
+        private const float ActionY = -672f, ActionH = 66f;          // -672 ~ -738
 
         [MenuItem("Tools/아라아띠/공통 매칭·결과 테스트 씬 만들기")]
         public static void Build()
         {
-            // 9-slice 테두리를 먼저 박아 둔다. 늘려도 밧줄 굵기가 유지되어야 한다.
-            // 지금 이 스프라이트들을 쓰는 곳은 전부 Image Type = Simple/Filled 이라 보더는
-            // 무시되고, 따라서 다른 화면에는 아무 영향이 없다 (확인함).
-            SetBorder(FramePath, new Vector4(130f, 150f, 130f, 150f));
-            SetBorder(ButtonPath, new Vector4(70f, 20f, 70f, 20f));
-            SetBorder(BackplatePath, new Vector4(28f, 28f, 28f, 28f));
-            SetBorder(WhitePlatePath, new Vector4(10f, 8f, 10f, 8f));
-            foreach (string p in PortraitFramePaths) SetBorder(p, new Vector4(30f, 30f, 30f, 30f));
+            ApplyBorders();
 
             // 빈 씬을 먼저 연다. 새 씬을 열면 아무도 붙들고 있지 않은 에셋이 정리되는데,
             // 그 전에 불러 둔 ScriptableObject 는 여기서 조용히 사라진다. 실제로 그렇게
             // 해 봤다가 config 세 개가 전부 fileID 0 으로 저장됐다. 그래서 불러오기는 전부 이 뒤로.
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
+            LoadSharedArt();
+
+            var sword = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Sword.asset");
+            var mining = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Mining.asset");
+            var ship = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Ship.asset");
+            if (sword == null || mining == null || ship == null)
+            {
+                Debug.LogError("[SceneBuilder] 미니게임 설정 에셋을 찾지 못했습니다: " + ConfigDir);
+                return;
+            }
+
+            // ── Environment: 캐릭터 커스터마이징 화면의 섬·해변 배경을 그대로 세운다 (카메라·조명 포함).
+            var env = new GameObject("Environment");
+            var backdrop = AssetDatabase.LoadAssetAtPath<GameObject>(BackdropPrefab);
+            if (backdrop == null)
+            {
+                Debug.LogError("[SceneBuilder] 배경 프리팹이 없습니다: " + BackdropPrefab);
+                return;
+            }
+
+            var backdropGo = (GameObject)PrefabUtility.InstantiatePrefab(backdrop, env.transform);
+            backdropGo.name = "CustomizationBeachBackdrop";
+
+            if (Object.FindAnyObjectByType<EventSystem>() == null)
+                new GameObject("EventSystem",
+                    typeof(EventSystem), typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
+
+            // ── Systems (씬 쪽): 설정 세 개 목록. 실제 게임에서는 포탈이 자기 설정을 직접 들고 있다.
+            var systems = new GameObject("Systems");
+            var providerGo = new GameObject("MiniGameConfigProvider");
+            providerGo.transform.SetParent(systems.transform);
+            var provider = providerGo.AddComponent<MiniGameConfigProvider>();
+            Bind(provider, "sword", sword);
+            Bind(provider, "mining", mining);
+            Bind(provider, "ship", ship);
+
+            // ── 드롭인 한 덩어리: Canvas + Systems
+            GameObject ui = BuildCommonUI(sword, out MatchFlow flow, out MatchFlowController controller,
+                out MatchPanelPresenter matchPanel, out ResultPanelPresenter resultPanel,
+                out CommonMatchingUI facade);
+
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PrefabPath));
+            PrefabUtility.SaveAsPrefabAssetAndConnect(ui, PrefabPath, InteractionMode.AutomatedAction);
+
+            // ── 테스트 전용. 프리팹 바깥에 둔다 — 실제 게임에 딸려 가면 안 된다.
+            BuildDebug(flow, controller, matchPanel, resultPanel, facade, provider);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            AssetDatabase.Refresh();
+
+            Debug.Log($"[SceneBuilder] 프리팹: {PrefabPath}\n[SceneBuilder] 테스트 씬: {ScenePath}");
+        }
+
+        /// <summary>
+        /// 9-slice 테두리를 박아 둔다. 늘려도 밧줄 굵기가 유지되어야 한다.
+        /// 지금 이 스프라이트들을 쓰는 곳은 전부 Image Type = Simple/Filled 이라 보더는
+        /// 무시되고, 따라서 다른 화면에는 아무 영향이 없다 (확인함). 이미 같은 값이면 건너뛴다.
+        /// </summary>
+        internal static void ApplyBorders()
+        {
+            SetBorder(FramePath, new Vector4(130f, 150f, 130f, 150f));
+            SetBorder(ButtonPath, new Vector4(70f, 20f, 70f, 20f));
+            SetBorder(BackplatePath, new Vector4(28f, 28f, 28f, 28f));
+            SetBorder(WhitePlatePath, new Vector4(10f, 8f, 10f, 8f));
+            foreach (string p in PortraitFramePaths) SetBorder(p, new Vector4(30f, 30f, 30f, 30f));
+        }
+
+        /// <summary>
+        /// 매칭 화면이 쓰는 그림과 글꼴을 전부 불러 둔다. 전부 프로젝트에 이미 있던 것이다.
+        /// 새 씬을 연 <b>뒤에</b> 불러야 한다 (씬을 열면 참조 없는 에셋이 정리된다).
+        /// </summary>
+        internal static void LoadSharedArt()
+        {
             font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
             frame = Load(FramePath);
+            matchingFrame = Load(MatchingFramePath);
+            resultFrame = Load(ResultFramePath);
+            queueBackground = Load(QueueBackgroundPath);
+            queueWheel = Load(QueueWheelPath);
+            circularRevealShader = AssetDatabase.LoadAssetAtPath<Shader>(CircularRevealShaderPath);
             button = Load(ButtonPath);
             backplate = Load(BackplatePath);
             dot = Load(DotPath);
@@ -111,47 +214,6 @@ namespace MiniGames.Common.EditorTools
                 portraits[i] = Load(PortraitPaths[i]);
                 portraitFrames[i] = Load(PortraitFramePaths[i]);
             }
-
-            var sword = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Sword.asset");
-            var mining = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Mining.asset");
-            var ship = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ConfigDir + "MiniGame_Ship.asset");
-            if (sword == null || mining == null || ship == null)
-            {
-                Debug.LogError("[SceneBuilder] 미니게임 설정 에셋을 찾지 못했습니다: " + ConfigDir);
-                return;
-            }
-
-            // ── Environment: 프로젝트에 이미 있는 열대 해변 아레나를 그대로 세운다.
-            var env = new GameObject("Environment");
-            var arena = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaPrefab);
-            if (arena == null)
-            {
-                Debug.LogError("[SceneBuilder] 배경 아레나 프리팹이 없습니다: " + ArenaPrefab);
-                return;
-            }
-
-            var arenaGo = (GameObject)PrefabUtility.InstantiatePrefab(arena, env.transform);
-            arenaGo.name = "WarriorsBeachArena";
-
-            if (Object.FindAnyObjectByType<EventSystem>() == null)
-                new GameObject("EventSystem",
-                    typeof(EventSystem), typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
-
-            // ── 드롭인 한 덩어리: Canvas + Systems
-            GameObject ui = BuildCommonUI(sword, out MatchFlow flow, out MatchFlowController controller,
-                out MatchPanelPresenter matchPanel, out ResultPanelPresenter resultPanel);
-
-            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(PrefabPath));
-            PrefabUtility.SaveAsPrefabAssetAndConnect(ui, PrefabPath, InteractionMode.AutomatedAction);
-
-            // ── 테스트 전용. 프리팹 바깥에 둔다 — 실제 게임에 딸려 가면 안 된다.
-            BuildDebug(flow, controller, matchPanel, resultPanel, sword, mining, ship);
-
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            AssetDatabase.Refresh();
-
-            Debug.Log($"[SceneBuilder] 프리팹: {PrefabPath}\n[SceneBuilder] 테스트 씬: {ScenePath}");
         }
 
         // ------------------------------------------------------------
@@ -160,9 +222,11 @@ namespace MiniGames.Common.EditorTools
 
         private static GameObject BuildCommonUI(MiniGameConfig startConfig,
             out MatchFlow flow, out MatchFlowController controller,
-            out MatchPanelPresenter matchPanel, out ResultPanelPresenter resultPanel)
+            out MatchPanelPresenter matchPanel, out ResultPanelPresenter resultPanel,
+            out CommonMatchingUI facade)
         {
             var root = new GameObject("CommonMatchUI");
+            facade = root.AddComponent<CommonMatchingUI>();
 
             var systems = new GameObject("Systems");
             systems.transform.SetParent(root.transform);
@@ -179,24 +243,48 @@ namespace MiniGames.Common.EditorTools
             controllerGo.transform.SetParent(systems.transform);
             controller = controllerGo.AddComponent<MatchFlowController>();
 
+            // 명단은 static 이지만 하이어라키에서 보이고 인스펙터로 읽을 수 있게 자리를 둔다.
+            var rosterGo = new GameObject("PlayerRoster");
+            rosterGo.transform.SetParent(systems.transform);
+            rosterGo.AddComponent<PlayerRosterHost>();
+
             GameObject canvasGo = Canvas("Canvas", root.transform, 0);
 
+            QueueLoadingPresenter queueLoading = BuildQueueLoading(canvasGo.transform);
             matchPanel = BuildMatchPanel(canvasGo.transform, flow);
             resultPanel = BuildResultPanel(canvasGo.transform);
 
+            MatchingQueueCoordinator queueCoordinator = root.AddComponent<MatchingQueueCoordinator>();
+            Bind(queueCoordinator, "matchingUI", facade);
+            Bind(queueCoordinator, "loadingView", queueLoading);
+            Bind(queueCoordinator, "controller", controller);
+            BindFloat(queueCoordinator, "minimumLoadingSeconds", 5f);
+
             Bind(flow, "config", startConfig);
             BindFloat(flow, "countdownSeconds", 5f);
+            BindBool(flow, "joinLocalPlayerOnStart", true);
+            BindBool(flow, "autoStart", true);
 
             Bind(controller, "flow", flow);
             Bind(controller, "sceneTransition", sceneTransition);
             Bind(controller, "resultPanel", resultPanel);
             // 테스트 씬에서는 진짜 씬을 열지 않는다. 실제 미니게임에 붙일 때 끈다.
             BindBool(controller, "suppressSceneLoad", true);
+            BindBool(controller, "returnToLobbyOnCancel", true);
+
+            Bind(facade, "flow", flow);
+            Bind(facade, "controller", controller);
+            Bind(facade, "canvasRoot", canvasGo);
+            Bind(facade, "matchPanel", matchPanel.gameObject);
+            Bind(facade, "queueLoading", queueLoading);
+            Bind(facade, "queueCoordinator", queueCoordinator);
+            Bind(facade, "resultPanel", resultPanel);
+            BindBool(facade, "showOnStart", true);
 
             return root;
         }
 
-        private static GameObject Canvas(string name, Transform parent, int sortingOrder)
+        internal static GameObject Canvas(string name, Transform parent, int sortingOrder)
         {
             var go = new GameObject(name, typeof(UnityEngine.Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             if (parent != null) go.transform.SetParent(parent);
@@ -216,6 +304,46 @@ namespace MiniGames.Common.EditorTools
         }
 
         // ------------------------------------------------------------
+        // 서버 최초 패킷 대기 — 전체 화면 조타 로딩
+        // ------------------------------------------------------------
+
+        private static QueueLoadingPresenter BuildQueueLoading(Transform parent)
+        {
+            // 화면 전체를 덮어야 하므로 판과 배경은 캔버스에 늘려 붙인다(stretch). 1920×1080 고정 크기로 두면
+            // 16:10 같은 화면에서 위아래가 비고, 원형 전환의 가로세로 비율도 어긋난다.
+            var root = Node("QueueLoadingPanel", parent, Vector2.zero, Vector2.zero, top: false);
+            Stretch((RectTransform)root.transform);
+            QueueLoadingPresenter presenter = root.AddComponent<QueueLoadingPresenter>();
+
+            var backgroundGo = Node("Background", root.transform, Vector2.zero, Vector2.zero, top: false);
+            Stretch((RectTransform)backgroundGo.transform);
+            var background = backgroundGo.AddComponent<Image>();
+            background.sprite = queueBackground;
+            background.type = Image.Type.Simple;
+            background.preserveAspect = false;
+            background.raycastTarget = true;
+
+            var wheelGo = Node("HelmWheel", root.transform, Vector2.zero,
+                new Vector2(250f, 250f), top: false);
+            var wheelImage = wheelGo.AddComponent<Image>();
+            var wheelGroup = wheelGo.AddComponent<CanvasGroup>();
+            wheelImage.sprite = queueWheel;
+            wheelImage.type = Image.Type.Simple;
+            wheelImage.preserveAspect = true;
+            wheelImage.raycastTarget = false;
+
+            Bind(presenter, "root", root);
+            Bind(presenter, "wheel", wheelGo.transform as RectTransform);
+            Bind(presenter, "background", background);
+            Bind(presenter, "wheelCanvasGroup", wheelGroup);
+            Bind(presenter, "circularRevealShader", circularRevealShader);
+            BindFloat(presenter, "rotationDegreesPerSecond", 72f);
+            BindFloat(presenter, "circularRevealSeconds", .85f);
+            root.SetActive(false);
+            return presenter;
+        }
+
+        // ------------------------------------------------------------
         // 매칭 + 카운트다운 — 한 판 위에서 머리말만 바뀐다
         // ------------------------------------------------------------
 
@@ -224,78 +352,96 @@ namespace MiniGames.Common.EditorTools
             var panel = Node("MatchPanel", parent, Vector2.zero, new Vector2(PanelW, PanelH), top: false);
             MatchPanelPresenter presenter = panel.AddComponent<MatchPanelPresenter>();
 
-            Image plank = Plate(panel, frame, Plank);
-            // 배수를 올리면 밧줄이 얇아진다. 장식보다 정보가 먼저 보이게 하는 가장 싼 방법.
-            plank.pixelsPerUnitMultiplier = 2.1f;
+            // 매칭 판은 전용 와이드 프레임을 원본 비율 그대로 쓴다. 장식이 합쳐진 프레임을
+            // 9-slice 하면 중앙 닻과 리벳까지 가로로 늘어나므로 이 이미지만 Simple 로 표시한다.
+            Image plank = panel.AddComponent<Image>();
+            plank.sprite = matchingFrame;
+            plank.type = Image.Type.Simple;
+            plank.preserveAspect = true;
+            // 원본보다 살짝만 눌러 금색은 유지하되 나무판까지 지나치게 어두워지지 않게 한다.
+            plank.color = new Color(.92f, .92f, .92f, 1f);
 
-            // ── 화면은 세 칸으로 고정한다. 상태가 바뀌어도 아래 두 칸은 움직이지 않는다.
-            //    Header(제목 + StatusArea) / SlotArea / ActionArea
-            TMP_Text title = Label(panel.transform, "Title", "지금 매칭 중입니다",
-                44f, White, new Vector2(0f, -88f), new Vector2(1000f, 52f));
+            // ── HeaderArea: 어느 게임인지(작게) + 지금 무엇을 하는지(크게). 상단 글은 이 둘뿐이다.
+            var header = Node("HeaderArea", panel.transform, new Vector2(0f, GameTitleY),
+                new Vector2(1160f, GameTitleY - TitleY + TitleH));   // 92
+            TMP_Text gameTitle = Label(header.transform, "GameTitle", "광산 미니게임",
+                21f, Gold, Vector2.zero, new Vector2(1000f, GameTitleH));
+            TMP_Text title = Label(header.transform, "Title", "플레이어를 매칭 중입니다",
+                44f, White, new Vector2(0f, TitleY - GameTitleY), new Vector2(1000f, TitleH));
 
-            // StatusArea — 매칭이면 인원/타이머, 카운트다운이면 큰 숫자가 들어오는 같은 자리.
-            // 크기를 고정해 두어야 내용이 바뀌어도 아래 칸이 밀리지 않는다.
-            var statusArea = Node("StatusArea", panel.transform, new Vector2(0f, -150f),
-                new Vector2(1160f, 156f));
+            // 제목 뒤에서 튀는 점 셋. 제목과 따로 두어 제목 글자는 움직이지 않는다.
+            // x 는 실행 중 제목의 실제 폭을 재서 Presenter 가 잡는다. y 는 제목 글줄과 같은 높이.
+            float headerH = GameTitleY - TitleY + TitleH;
+            float titleCentreY = (TitleY - GameTitleY) - TitleH * .5f;   // 헤더 위 기준 제목 중심
+            float dotY = titleCentreY + headerH * .5f;                    // 헤더 중심 기준으로 바꾼다
+            var dots = new TMP_Text[3];
+            for (int i = 0; i < dots.Length; i++)
+                dots[i] = Label(header.transform, $"Dot{i + 1}", ".", 44f, White,
+                    new Vector2(0f, dotY), new Vector2(20f, TitleH), centre: true);
 
-            // 매칭 상태 내용
+            // ── StatusArea: 매칭 중엔 "30초 후 자동 시작" 한 줄, 카운트다운이면 큰 숫자로 교체.
+            //    크기를 고정해 두어야 내용이 바뀌어도 아래 칸이 밀리지 않는다.
+            var statusArea = Node("StatusArea", panel.transform, new Vector2(0f, StatusAreaY),
+                new Vector2(1160f, StatusAreaH));
             var matchStatus = Node("MatchStatus", statusArea.transform, Vector2.zero,
-                new Vector2(1160f, 156f), top: false);
-            TMP_Text subtitle = Label(matchStatus.transform, "Subtitle", "다른 플레이어를 찾고 있어요...",
-                22f, Cyan, new Vector2(0f, 30f), new Vector2(1000f, 30f), centre: true);
-
-            // 인원과 자동 시작을 한 줄로 묶는다. 매칭 화면에 들어와 가장 먼저 알아야 하는 두 가지라
-            // 카드 위에 둔다 — 예전에는 카드 아래에 있어서 제일 늦게 읽혔다.
-            var statusRow = Node("StatusRow", matchStatus.transform, new Vector2(0f, -26f),
-                new Vector2(1000f, 44f), top: false);
-            TMP_Text count = Label(statusRow.transform, "CountText", "0 / 4명",
-                29f, White, new Vector2(-22f, 0f), new Vector2(420f, 40f), right: true);
-            TMP_Text hint = Label(statusRow.transform, "HintText", "",
-                21f, Muted, new Vector2(22f, 0f), new Vector2(520f, 40f), left: true);
-
-            // 카운트다운 상태 내용 — 같은 자리를 쓴다
-            var countdownStatus = Node("CountdownStatus", statusArea.transform, Vector2.zero,
-                new Vector2(1160f, 156f), top: false);
+                new Vector2(1160f, StatusAreaH));
+            TMP_Text autoStart = Label(matchStatus.transform, "AutoStartText", "30초 후 자동 시작",
+                23f, Cyan, new Vector2(0f, -6f), new Vector2(800f, 32f));
+            var countdownStatus = Node("CountdownStateArea", statusArea.transform, Vector2.zero,
+                new Vector2(1160f, StatusAreaH));
             TMP_Text cdNumber = Label(countdownStatus.transform, "Number", "5",
-                96f, White, new Vector2(0f, 18f), new Vector2(420f, 118f), centre: true);
-            TMP_Text cdFooter = Label(countdownStatus.transform, "Footer", "게임이 시작됩니다",
-                23f, Cyan, new Vector2(0f, -60f), new Vector2(800f, 30f), centre: true);
+                84f, White, new Vector2(0f, -(StatusAreaH - NumberH) * .5f), new Vector2(420f, NumberH));
             countdownStatus.SetActive(false);
 
-            // ── 파티원 줄 — 두 상태에서 같은 Y. 여기가 움직이면 다른 화면처럼 보인다.
-            var slotRow = Node("SlotRow", panel.transform, new Vector2(0f, -328f), new Vector2(1060f, 330f));
+            // ── PlayerSlotArea: 두 상태에서 같은 Y. 여기가 움직이면 다른 화면처럼 보인다.
+            var slotArea = Node("PlayerSlotArea", panel.transform, new Vector2(0f, SlotAreaY), new Vector2(1060f, SlotH));
             var slots = new MatchSlotView[4];
             const float slotWidth = 236f, gap = 34f;
             float row = slots.Length * slotWidth + (slots.Length - 1) * gap;
             for (int i = 0; i < slots.Length; i++)
-                slots[i] = BuildSlot(slotRow.transform, i, -row * .5f + slotWidth * .5f + i * (slotWidth + gap), slotWidth);
+            {
+                slots[i] = BuildSlot(slotArea.transform, i,
+                    -row * .5f + slotWidth * .5f + i * (slotWidth + gap), slotWidth);
 
-            // ── 버튼 — 숨겨져도 위 칸에 영향이 없도록 별도 컨테이너에 고정해 둔다.
-            var actionArea = Node("ActionArea", panel.transform, new Vector2(0f, -682f),
-                new Vector2(PanelW, 66f));
+                // 내 자리 강조색. 자리마다 다른 accent 와 별개로, 내가 어느 자리에 앉든 금색이다.
+                BindColor(slots[i], "localAccent", SlotAccents[0]);
+            }
+
+            // ── ActionArea: (배만) 못 누르는 이유 한 줄 + 버튼 두 개, 같은 크기.
+            //    숨겨져도 위 칸에 영향이 없도록 별도 컨테이너.
+            var actionArea = Node("ActionArea", panel.transform, new Vector2(0f, HintY),
+                new Vector2(PanelW, HintY - ActionY + ActionH));   // 100
+            TMP_Text hint = Label(actionArea.transform, "StartHint", "",
+                19f, Muted, Vector2.zero, new Vector2(1000f, HintH));
             Button start = ButtonNode(actionArea.transform, "StartButton", "게임 시작",
-                new Vector2(-172f, 0f), new Vector2(300f, 66f), Gold, out TMP_Text startLabel);
+                new Vector2(-172f, ActionY - HintY), new Vector2(300f, ActionH), Gold, out TMP_Text startLabel);
             Button cancel = ButtonNode(actionArea.transform, "CancelButton", "매칭 취소",
-                new Vector2(172f, 0f), new Vector2(300f, 66f), White, out _);
+                new Vector2(172f, ActionY - HintY), new Vector2(300f, ActionH), White, out _);
+
+            // 배에서 4명이 안 찼을 때 잠긴 버튼이 "잠겼다" 고 읽혀야 한다. 기본 비활성 색은 거의 티가 안 났다.
+            ColorBlock colours = start.colors;
+            colours.disabledColor = new Color(.45f, .50f, .58f, .75f);
+            start.colors = colours;
 
             Bind(presenter, "flow", flow);
+            Bind(presenter, "gameTitleText", gameTitle);
             Bind(presenter, "titleText", title);
-            BindArray(presenter, "slots", slots);
+            BindArray(presenter, "dotTexts", dots);
             Bind(presenter, "matchStatus", matchStatus);
+            Bind(presenter, "autoStartText", autoStart);
+            Bind(presenter, "countdownStatus", countdownStatus);
+            Bind(presenter, "countdownNumber", cdNumber);
+            BindArray(presenter, "slots", slots);
+            BindFloat(presenter, "slotGap", gap);
             Bind(presenter, "actionArea", actionArea);
-            Bind(presenter, "subtitleText", subtitle);
-            Bind(presenter, "countText", count);
-            Bind(presenter, "hintText", hint);
+            Bind(presenter, "startHintText", hint);
             Bind(presenter, "startButton", start);
             Bind(presenter, "startButtonLabel", startLabel);
             Bind(presenter, "cancelButton", cancel);
-            Bind(presenter, "countdownStatus", countdownStatus);
-            Bind(presenter, "countdownNumber", cdNumber);
-            Bind(presenter, "countdownFooter", cdFooter);
             return presenter;
         }
 
-        private static MatchSlotView BuildSlot(Transform parent, int index, float x, float width)
+        internal static MatchSlotView BuildSlot(Transform parent, int index, float x, float width)
         {
             var go = Node($"Slot_{index + 1}", parent, new Vector2(x, 0f), new Vector2(width, 330f));
 
@@ -366,8 +512,12 @@ namespace MiniGames.Common.EditorTools
             ResultPanelPresenter presenter = panel.AddComponent<ResultPanelPresenter>();
 
             var content = Node("Content", panel.transform, Vector2.zero, new Vector2(ResultW, ResultH), top: false);
-            Image plank = Plate(content, frame, Plank);
-            plank.pixelsPerUnitMultiplier = 2.3f;
+            // 결과 판도 화면 비율에 맞춘 전용 프레임을 써서 장식이 늘어나지 않게 한다.
+            Image plank = content.AddComponent<Image>();
+            plank.sprite = resultFrame;
+            plank.type = Image.Type.Simple;
+            plank.preserveAspect = true;
+            plank.color = Plank;
 
             TMP_Text title = Label(content.transform, "Title", "GAME CLEAR",
                 60f, Gold, new Vector2(0f, -88f), new Vector2(700f, 78f));
@@ -441,52 +591,42 @@ namespace MiniGames.Common.EditorTools
 
         private static void BuildDebug(MatchFlow flow, MatchFlowController controller,
             MatchPanelPresenter matchPanel, ResultPanelPresenter resultPanel,
-            MiniGameConfig sword, MiniGameConfig mining, MiniGameConfig ship)
+            CommonMatchingUI facade, MiniGameConfigProvider provider)
         {
             var debugRoot = new GameObject("Debug");
             GameObject canvasGo = Canvas("DebugCanvas", debugRoot.transform, 10);
 
             GameObject playing = BuildPlayingBanner(canvasGo.transform);
 
-            var bar = Node("DebugBar", canvasGo.transform, Vector2.zero, new Vector2(1500f, 96f), top: false);
+            // 조작 줄은 게임 세 개 버튼만. 판(배경)도 상태 글도 두지 않는다 — 화면 아래가 답답해 보였다.
+            // +Player / -Player / 준비 토글 / 조각 초기화 는 리그 코드에 남아 있으니 필요하면 버튼만 다시 달면 된다.
+            var bar = Node("DebugBar", canvasGo.transform, Vector2.zero, new Vector2(560f, 96f), top: false);
             var rt = (RectTransform)bar.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(.5f, 0f);
             rt.pivot = new Vector2(.5f, 0f);
             rt.anchoredPosition = new Vector2(0f, 20f);
-            Plate(bar, whitePlate, new Color(0f, 0f, 0f, .82f)).pixelsPerUnitMultiplier = 1f;
 
-            TMP_Text status = Label(bar.transform, "Status", "",
-                20f, Cyan, new Vector2(0f, -8f), new Vector2(1400f, 28f));
-
-            float x = -570f;
-            Button add = Small(bar.transform, "AddPlayer", "+ Player", ref x);
-            Button remove = Small(bar.transform, "RemovePlayer", "- Player", ref x);
-            x += 30f;
+            float x = -(170f * 3f + 12f * 2f) * .5f;
             Button swordBtn = Small(bar.transform, "SwordGame", "검 1~2인", ref x);
             Button miningBtn = Small(bar.transform, "MiningGame", "광산 1~4인", ref x);
             Button shipBtn = Small(bar.transform, "ShipGame", "배 4인", ref x);
-            x += 30f;
-            Button reset = Small(bar.transform, "ResetFragments", "조각 초기화", ref x);
 
-            var rigGo = new GameObject("TestPlayerControls");
+            var rigGo = new GameObject("MatchDebugControls");
             rigGo.transform.SetParent(debugRoot.transform);
             MatchResultTestRig rig = rigGo.AddComponent<MatchResultTestRig>();
 
             Bind(rig, "flow", flow);
             Bind(rig, "controller", controller);
+            Bind(rig, "matchingUI", facade);
             Bind(rig, "matchPanel", matchPanel);
             Bind(rig, "resultPanel", resultPanel);
-            Bind(rig, "swordConfig", sword);
-            Bind(rig, "miningConfig", mining);
-            Bind(rig, "shipConfig", ship);
+            Bind(rig, "configs", provider);
+            BindBool(rig, "showDebugControls", true);
+            BindBool(rig, "startQueueOnPlay", true);
             Bind(rig, "debugRoot", bar);
-            Bind(rig, "addPlayerButton", add);
-            Bind(rig, "removePlayerButton", remove);
             Bind(rig, "swordButton", swordBtn);
             Bind(rig, "miningButton", miningBtn);
             Bind(rig, "shipButton", shipBtn);
-            Bind(rig, "resetFragmentsButton", reset);
-            Bind(rig, "debugStatus", status);
             Bind(rig, "playingRoot", playing);
             Bind(rig, "playingText", playing.transform.Find("Text").GetComponent<TMP_Text>());
         }
@@ -513,7 +653,7 @@ namespace MiniGames.Common.EditorTools
         // 조립 도구
         // ------------------------------------------------------------
 
-        private static Sprite Load(string path)
+        internal static Sprite Load(string path)
         {
             var s = AssetDatabase.LoadAssetAtPath<Sprite>(path);
             if (s == null) Debug.LogError("[SceneBuilder] 스프라이트를 찾지 못했습니다: " + path);
@@ -521,7 +661,7 @@ namespace MiniGames.Common.EditorTools
         }
 
         /// <summary>9-slice 테두리를 박는다. 이미 같은 값이면 아무것도 하지 않는다.</summary>
-        private static void SetBorder(string path, Vector4 border)
+        internal static void SetBorder(string path, Vector4 border)
         {
             var importer = AssetImporter.GetAtPath(path) as TextureImporter;
             if (importer == null)
@@ -536,11 +676,21 @@ namespace MiniGames.Common.EditorTools
             importer.SaveAndReimport();
         }
 
+        /// <summary>부모 사각형에 네 변을 다 붙인다. 부모 크기가 바뀌어도 같이 늘어난다.</summary>
+        internal static void Stretch(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(.5f, .5f);
+            rt.sizeDelta = Vector2.zero;
+            rt.anchoredPosition = Vector2.zero;
+        }
+
         /// <param name="top">
         /// true 면 부모의 위쪽 가장자리에 매단다. 판 안의 줄들은 "위에서 몇 픽셀" 로
         /// 읽는 편이 셈이 쉬워서, 판 자신만 가운데(top:false)에 두고 그 안은 전부 위 기준이다.
         /// </param>
-        private static GameObject Node(string name, Transform parent, Vector2 pos, Vector2 size, bool top = true)
+        internal static GameObject Node(string name, Transform parent, Vector2 pos, Vector2 size, bool top = true)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -552,7 +702,7 @@ namespace MiniGames.Common.EditorTools
             return go;
         }
 
-        private static Image Plate(GameObject go, Sprite sprite, Color colour)
+        internal static Image Plate(GameObject go, Sprite sprite, Color colour)
         {
             var image = go.AddComponent<Image>();
             image.sprite = sprite;
@@ -562,7 +712,7 @@ namespace MiniGames.Common.EditorTools
             return image;
         }
 
-        private static TMP_Text Label(Transform parent, string name, string text, float size, Color colour,
+        internal static TMP_Text Label(Transform parent, string name, string text, float size, Color colour,
             Vector2 pos, Vector2 rect, bool centre = false, bool left = false, bool right = false)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -596,7 +746,7 @@ namespace MiniGames.Common.EditorTools
             return tmp;
         }
 
-        private static Button ButtonNode(Transform parent, string name, string label, Vector2 pos, Vector2 size,
+        internal static Button ButtonNode(Transform parent, string name, string label, Vector2 pos, Vector2 size,
             Color textColour, out TMP_Text labelText, float fontSize = 26f)
         {
             var go = Node(name, parent, pos, size);
@@ -613,7 +763,7 @@ namespace MiniGames.Common.EditorTools
             return b;
         }
 
-        private static void Bind(Object target, string field, Object value)
+        internal static void Bind(Object target, string field, Object value)
         {
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field);
@@ -634,7 +784,7 @@ namespace MiniGames.Common.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void BindBool(Object target, string field, bool value)
+        internal static void BindBool(Object target, string field, bool value)
         {
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field);
@@ -643,7 +793,7 @@ namespace MiniGames.Common.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void BindFloat(Object target, string field, float value)
+        internal static void BindFloat(Object target, string field, float value)
         {
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field);
@@ -652,7 +802,7 @@ namespace MiniGames.Common.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void BindColor(Object target, string field, Color value)
+        internal static void BindColor(Object target, string field, Color value)
         {
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field);
@@ -661,7 +811,7 @@ namespace MiniGames.Common.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void BindArray(Object target, string field, Object[] values)
+        internal static void BindArray(Object target, string field, Object[] values)
         {
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field);
