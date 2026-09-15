@@ -11,10 +11,18 @@ using UnityEngine;
 /// ⚠ 힌트를 빠뜨리면 안 된다. 도안을 켜고 판을 밝혀도 **카메라가 낮으면 내 주변
 ///   도안만 보인다.** 어둠을 넣었을 때와 똑같은 함정이다.
 ///
-/// **카메라를 회전시키지 않는다.** 캐릭터가 회전하지 않기 때문이다
-/// (Rotate Speed = 0, Space = World). 방향키가 월드 기준이라 "캐릭터 뒤쪽" 이
-/// 고정된 방향이고, 카메라는 위치만 따라가면 된다.
-/// 마우스로 시점을 돌리는 기능은 넣지 않는다 — 6장에서 숄더뷰를 기각한 이유와 같다.
+/// **낮은 3인칭에서는 마우스로 시점을 돌린다.** 판 전체가 안 보이는 게임이라,
+/// 이미 판 곳을 확인하려면 몸을 옮기는 것 말고 둘러볼 방법이 있어야 한다.
+///
+/// ⚠ 시점을 돌리면 **이동도 화면 기준이어야 한다.** 카메라만 돌리면 뒤를 본
+///   순간 "앞으로" 가 화면 아래로 걸어간다. 그 일은 <see cref="MineMoveInput"/>
+///   이 맡는다 — 여기 <see cref="Yaw"/> 를 캐릭터가 바라볼 방향으로 넘긴다.
+///   **둘은 같이 움직인다.** 하나만 떼면 조작이 꼬인다.
+///
+/// 캐릭터는 보고 있는 쪽으로 몸을 돌린다. W 로 그쪽으로 직진하고 A · D 는 옆걸음이다.
+/// 조준은 그래도 발밑이라, 어디를 보든 파는 칸은 같다. (MINE.md 6장)
+///
+/// 탑뷰에서는 마우스를 안 받는다. 그림을 외우는 시간이라 화면이 흔들리면 안 된다.
 ///
 /// 탑뷰 높이는 **박아두지 않고 계산한다.** 판 크기나 FOV 를 바꾸면 따라 바뀌어야 한다.
 ///
@@ -32,6 +40,40 @@ public class MineCamera : MonoBehaviour
 
     [Tooltip("따라가는 부드러움(초). 0 이면 딱 붙어 움직여 흔들릴 수 있다.")]
     [SerializeField, Min(0f)] private float followSmoothing = 0.12f;
+
+    [Header("마우스 시점 (낮은 3인칭에서만)")]
+    [Tooltip("끄면 예전처럼 고정된 각도로만 따라간다.")]
+    [SerializeField] private bool mouseLook = true;
+
+    [Tooltip("마우스 입력 1 당 몇 도를 돌 것인가. 좌우.\n" +
+             "Mouse X 는 픽셀의 0.1 배로 들어온다. 값 × 0.1 이 곧 도/픽셀 이다.\n" +
+             "1.5 면 800DPI 마우스로 1인치에 약 120도 돌아간다.")]
+    [SerializeField, Range(0.5f, 15f)] private float sensitivityX = 1.5f;
+
+    [Tooltip("위아래 감도. 좌우보다 낮게 둔다 — 위아래는 minPitch~maxPitch 만큼만\n" +
+             "움직이므로(기본 68도), 가로와 같은 감도면 금방 한계에 부딪힌다.")]
+    [SerializeField, Range(0.5f, 15f)] private float sensitivityY = 1f;
+
+    [Tooltip("켜면 마우스를 위로 밀 때 화면이 아래를 본다.")]
+    [SerializeField] private bool invertY;
+
+    [Tooltip("내려다보는 각도의 한계(도). 작을수록 수평, 클수록 위에서 본다.\n" +
+             "0 아래로 내려가면 바닥을 뚫고 올려다보게 된다.")]
+    [SerializeField, Range(-10f, 40f)] private float minPitch = 2f;
+
+    [SerializeField, Range(40f, 89f)] private float maxPitch = 70f;
+
+    [Tooltip("휠로 당기고 미는 거리의 한계(m).")]
+    [SerializeField, Min(1f)] private float minDistance = 3f;
+
+    [SerializeField, Min(1f)] private float maxDistance = 14f;
+
+    [Tooltip("휠 한 칸에 움직이는 거리(m). 0 이면 줌을 안 쓴다.")]
+    [SerializeField, Min(0f)] private float zoomStep = 12f;
+
+    [Tooltip("시점을 도는 동안 커서를 잠그고 숨긴다.\n" +
+             "ESC 로 풀고 화면을 한 번 누르면 다시 잠긴다. 탑뷰에서는 항상 풀린다.")]
+    [SerializeField] private bool lockCursor = true;
 
     [Header("탑뷰 (공개 · 힌트 · 결과)")]
     [Tooltip("판 바깥으로 남길 여유. 1.15 면 판보다 15% 넓게 잡는다.")]
@@ -65,11 +107,127 @@ public class MineCamera : MonoBehaviour
 
     private Vector3 _velocity;
 
+    /// <summary>카메라가 따라가는 지점. 플레이어보다 살짝 늦게 움직인다.</summary>
+    private Vector3 _followPoint;
+
     /// <summary>지금 탑뷰인가.</summary>
     public bool IsBoardView => _boardView;
 
     /// <summary>계산된 탑뷰 높이(m). 화면에 띄워 확인할 때 쓴다.</summary>
     public float BoardHeight => CalcBoardHeight();
+
+    // 마우스로 돌린 시점. followOffset 에서 뽑은 값으로 시작한다.
+    private float _yaw;
+    private float _pitch;
+    private float _distance;
+    private bool _orbitReady;
+
+    /// <summary>
+    /// 지금 보고 있는 좌우 각도(도). <see cref="MineMoveInput"/> 이 이걸 보고
+    /// 방향키를 화면 기준으로 돌린다. 0 이면 카메라가 월드 -Z 쪽에 있다.
+    /// </summary>
+    public float Yaw
+    {
+        get { EnsureOrbit(); return _yaw; }
+    }
+
+    /// <summary>
+    /// 시점을 followOffset 이 말하는 기본 각도로 되돌린다.
+    ///
+    /// ⚠ followOffset 은 **발밑 기준**이고 회전은 **바라보는 점 기준**이다.
+    ///   lookHeight 만큼 빼고 계산해야 기본값이 예전 화면과 정확히 같아진다.
+    ///   기본값 (0, 4.5, -7.5) · lookHeight 1 이면 거리 8.28m · 내림각 25도다.
+    /// </summary>
+    public void ResetOrbit()
+    {
+        Vector3 rel = followOffset - Vector3.up * lookHeight;
+        float flat = new Vector2(rel.x, rel.z).magnitude;
+
+        _distance = Mathf.Clamp(rel.magnitude, minDistance, maxDistance);
+        _pitch = Mathf.Clamp(Mathf.Atan2(rel.y, flat) * Mathf.Rad2Deg, minPitch, maxPitch);
+        _yaw = Mathf.Atan2(-rel.x, -rel.z) * Mathf.Rad2Deg;
+
+        _orbitReady = true;
+    }
+
+    // Awake 를 기다리지 않는다. MineMoveInput 이 -100 이라 여기 Awake 보다
+    // 먼저 Yaw 를 물어볼 수 있다. 그때 0 을 돌려주면 첫 프레임에 이동이 튄다.
+    private void EnsureOrbit()
+    {
+        if (!_orbitReady) ResetOrbit();
+    }
+
+    /// <summary>
+    /// 마우스를 읽어 시점을 돌린다. 탑뷰에서는 받지 않는다.
+    ///
+    /// ⚠ Mouse X · Y 는 **이미 프레임당 변화량**이다. deltaTime 을 곱하면
+    ///   프레임이 빠를수록 덜 도는 반대 결과가 나온다.
+    /// </summary>
+    private void Update()
+    {
+        EnsureOrbit();
+        UpdateCursor();
+
+        if (!mouseLook || _boardView || _follow == null) return;
+
+        // 커서가 풀려 있으면(ESC) 화면 밖 작업 중이다. 그때는 안 돈다.
+        if (lockCursor && Cursor.lockState != CursorLockMode.Locked) return;
+
+        float mx = Input.GetAxis("Mouse X");
+        float my = Input.GetAxis("Mouse Y");
+
+        _yaw += mx * sensitivityX;
+        _pitch += (invertY ? my : -my) * sensitivityY;
+        _pitch = Mathf.Clamp(_pitch, minPitch, Mathf.Max(minPitch, maxPitch));
+
+        if (zoomStep > 0f)
+        {
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.0001f)
+            {
+                _distance = Mathf.Clamp(_distance - scroll * zoomStep,
+                                        minDistance, Mathf.Max(minDistance, maxDistance));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 커서를 잠그고 푼다.
+    ///
+    /// 탑뷰에서는 푼다 — 공개와 결과는 보는 시간이라 마우스를 뺏을 이유가 없다.
+    /// 에디터에서는 ESC 를 누르면 Unity 가 알아서 풀어주므로, 다시 잠그는 길만
+    /// 열어두면 된다.
+    /// </summary>
+    private void UpdateCursor()
+    {
+        if (!mouseLook || !lockCursor) return;
+
+        bool wantLock = !_boardView && _follow != null;
+
+        if (!wantLock)
+        {
+            if (Cursor.lockState == CursorLockMode.Locked)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            return;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            return;
+        }
+
+        // 풀려 있을 때 화면을 누르면 다시 잠근다.
+        if (Cursor.lockState != CursorLockMode.Locked && Input.GetMouseButtonDown(0))
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
 
     private void Awake()
     {
@@ -102,6 +260,11 @@ public class MineCamera : MonoBehaviour
 
         _follow = player;
         _boardView = false;
+
+        // 새 사람을 잡을 때는 지점을 바로 옮긴다. 안 그러면 앞 사람 자리에서
+        // 슬금슬금 기어오는 모양이 된다.
+        _followPoint = player.position;
+
         BeginMove(transitionSeconds);
     }
 
@@ -118,6 +281,8 @@ public class MineCamera : MonoBehaviour
     private void LateUpdate()
     {
         // 캐릭터는 Update 에서 움직인다. LateUpdate 에서 따라가야 한 프레임 안 밀린다.
+        TrackFollow();
+
         if (!Desired(out Vector3 pos, out Quaternion rot)) return;
 
         // 시점을 바꾼 직후에는 예전 자리에서 새 자리로 부드럽게 넘어간다.
@@ -134,16 +299,30 @@ public class MineCamera : MonoBehaviour
             return;
         }
 
-        // 전환이 끝난 뒤 — 탑뷰는 고정, 3인칭은 계속 부드럽게 따라간다.
+        transform.SetPositionAndRotation(pos, rot);
+    }
+
+    /// <summary>
+    /// 따라가는 지점을 부드럽게 옮긴다.
+    ///
+    /// ⚠ 늦추는 것은 **카메라 위치가 아니라 따라가는 지점**이다.
+    ///   카메라 위치를 SmoothDamp 하면 마우스로 시점을 돌릴 때도 목표가 매 프레임
+    ///   크게 움직여서, 화면이 고무줄처럼 늘어졌다가 따라온다.
+    ///   지점만 늦추면 걸음은 부드럽고 시점은 마우스에 딱 붙는다.
+    /// </summary>
+    private void TrackFollow()
+    {
+        if (_follow == null) return;
+
         if (_boardView || followSmoothing <= 0f)
         {
-            transform.SetPositionAndRotation(pos, rot);
+            _followPoint = _follow.position;
+            _velocity = Vector3.zero;
             return;
         }
 
-        transform.position = Vector3.SmoothDamp(
-            transform.position, pos, ref _velocity, followSmoothing);
-        transform.rotation = rot;
+        _followPoint = Vector3.SmoothDamp(
+            _followPoint, _follow.position, ref _velocity, followSmoothing);
     }
 
     /// <summary>지금 있어야 할 자리와 방향. 정할 수 없으면 false.</summary>
@@ -167,9 +346,13 @@ public class MineCamera : MonoBehaviour
 
         if (_follow == null) return false;
 
-        pos = _follow.position + followOffset;
-        Vector3 pivot = _follow.position + Vector3.up * lookHeight;
-        rot = Quaternion.LookRotation(pivot - pos, Vector3.up);
+        EnsureOrbit();
+
+        // 바라보는 점을 중심으로 돌린다. 마우스를 안 움직이면
+        // followOffset 이 말하던 그 자리 그대로다.
+        Vector3 pivot = _followPoint + Vector3.up * lookHeight;
+        rot = Quaternion.Euler(_pitch, _yaw, 0f);
+        pos = pivot + rot * new Vector3(0f, 0f, -_distance);
         return true;
     }
 
@@ -183,6 +366,15 @@ public class MineCamera : MonoBehaviour
     /// </summary>
     private float CalcBoardHeight()
     {
+        // ⚠ Awake 를 기다리지 않는다. 여기 오는 길이 둘이다.
+        //   하나는 Awake 를 거친 재생 중이고, 다른 하나는 아직 Awake 가 안 돈
+        //   **다른 컴포넌트의 Awake** 다. MineVision 이 그 경우인데, 순서가 밀리면
+        //   최소 높이(5m)로 안개 거리를 잡아 판 바깥 칸이 먹힌다.
+        //   에디터에서 값을 확인할 때도 같은 이유로 여기서 찾는다.
+        if (cam == null) cam = GetComponent<Camera>();
+        if (cam == null) cam = Camera.main;
+        if (grid == null) grid = FindAnyObjectByType<MineGrid>();
+
         if (grid == null || cam == null) return minBoardHeight;
 
         float half = grid.Size * grid.CellSize * 0.5f;
