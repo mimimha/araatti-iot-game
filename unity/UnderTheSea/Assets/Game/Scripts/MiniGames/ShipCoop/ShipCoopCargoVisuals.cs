@@ -37,6 +37,20 @@ public class ShipCoopCargoVisuals : ScriptableObject
     [Tooltip("양동이 안 물 원판의 색. CarryTask.waterColor · DroppedCargo 와 같다.")]
     public Color waterColor = new Color(0.25f, 0.60f, 0.85f);
 
+    // ⚠ **물 원판이 양동이에 안 맞았습니다.** 지름을 `min(가로, 세로) × 0.75` 로 잡았는데,
+    //    이 양동이는 아래가 좁고 **위로 벌어지는** 모양이다. (재서 확인 — ShipCoopBucketMeasure)
+    //
+    //      바닥 반지름 0.31m  →  테두리 반지름 0.38m,  전체 0.760 × 0.679 × 0.715m
+    //      테두리가 경계의 **맨 위**다 (손잡이가 그 위로 안 솟는다)
+    //
+    //    넓은 테두리 바로 아래에 지름 0.54m 원판을 놓으니 물이 덜 찬 것처럼 보였다.
+    //    그래서 테두리 기준으로 다시 잡고, 두 값 다 인스펙터에서 맞출 수 있게 연다.
+    [Tooltip("물 원판 지름. 양동이 테두리 폭 대비 비율. 1 이면 테두리에 딱 붙는다 — 벽 두께만큼 줄인다.")]
+    [Range(0.3f, 1f)] public float waterWidth = 0.88f;
+
+    [Tooltip("물 높이. 테두리에서 이만큼 아래로 내린다 (양동이 높이 대비 비율). 0 이면 테두리와 같은 높이.")]
+    [Range(0f, 0.5f)] public float waterSink = 0.08f;
+
     [Header("🪵 자재 — 판자 묶음")]
     [Tooltip("판자 2장이 붙은 메시 하나. SM_Gen_Prop_Plank_02 (1.77 × 0.11 × 0.28m). 긴 축이 x 라 그대로 들면 어깨 방향으로 눕는다.")]
     public GameObject plankModel;
@@ -180,7 +194,13 @@ public class ShipCoopCargoVisuals : ScriptableObject
         return made;
     }
 
-    /// <summary>테두리 살짝 아래에 납작한 원판. 양동이 안폭의 75% 지름, 두께 2cm.</summary>
+    /// <summary>
+    /// 테두리 살짝 아래에 납작한 원판. 두께 2cm.
+    ///
+    /// ⚠ 지름은 **테두리 폭**에서 낸다. 예전에는 전체 경계의 좁은 쪽 × 0.75 로 잡았는데, 이 양동이는
+    ///    아래가 좁고 위로 벌어져서 그 값이 테두리보다 한참 작았다 — 물이 덜 찬 것처럼 보였다.
+    ///    테두리가 가장 넓은 곳이고 경계의 맨 위라, 경계 가로폭이 곧 테두리 폭이다. (ShipCoopBucketMeasure)
+    /// </summary>
     private void AddWaterDisc(GameObject bucket)
     {
         Renderer[] draws = bucket.GetComponentsInChildren<Renderer>(true);
@@ -208,7 +228,7 @@ public class ShipCoopCargoVisuals : ScriptableObject
 
         disc.transform.SetParent(bucket.transform, false);
 
-        float diameter = Mathf.Min(box.size.x, box.size.z) * 0.75f;
+        float diameter = Mathf.Min(box.size.x, box.size.z) * waterWidth;
         Vector3 lossy = bucket.transform.lossyScale;
 
         // 유니티 실린더는 높이 2 라 y 배율이 곧 반높이다. 1cm → 두께 2cm.
@@ -217,8 +237,13 @@ public class ShipCoopCargoVisuals : ScriptableObject
             0.01f / Mathf.Max(lossy.y, 0.0001f),
             diameter / Mathf.Max(lossy.z, 0.0001f));
 
-        disc.transform.position = new Vector3(box.center.x, box.max.y - box.size.y * 0.12f, box.center.z);
+        disc.transform.position = new Vector3(box.center.x, box.max.y - box.size.y * waterSink, box.center.z);
         disc.transform.rotation = bucket.transform.rotation;
+
+        Debug.Log(
+            $"[양동이] 물 원판 — 양동이 {box.size.x:F2}×{box.size.y:F2}×{box.size.z:F2}m, " +
+            $"원판 지름 {diameter:F2}m (테두리 폭의 {waterWidth:P0}), " +
+            $"테두리에서 {box.size.y * waterSink:F2}m 아래", bucket);
 
         Renderer surface = disc.GetComponent<Renderer>();
         if (surface != null)

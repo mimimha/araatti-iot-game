@@ -46,7 +46,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                     "넘은 것은 복제되지 않습니다. MaxEvents 를 늘려 주세요.", this);
             }
 
+            Current = this;
+
             Debug.Log($"[ShipCoopEventSync] 사건 {ordered.Length}개를 복제 대상으로 잡았습니다.");
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            if (Current == this)
+            {
+                Current = null;
+            }
         }
 
         public override void FixedUpdateNetwork()
@@ -68,6 +78,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                     {
                         Stage = (int)step.CurrentStage,
                         Elapsed = step.Elapsed,
+                        Seed = step.Seed,
+                        Extra = step.SyncExtra,
                     });
             }
         }
@@ -89,7 +101,156 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 if (step != null)
                 {
                     EventSlot slot = Slots.Get(i);
-                    step.ShowStage((VoyageEvent.Stage)slot.Stage, slot.Elapsed);
+                    step.ShowStage((VoyageEvent.Stage)slot.Stage, slot.Elapsed, slot.Seed, slot.Extra);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------
+        // 🛠 개발자 모드 — **클라이언트에서 누른 키를 호스트가 대신 실행한다**
+        //
+        // ⚠ 규칙(사건 · HP · 침수 · 진행도)은 호스트만 계산한다. 그래서 클라이언트에서 개발자 모드 키를
+        //    누르고 그 자리에서 값을 바꾸면, 그 프레임에만 잠깐 바뀌었다가 호스트가 보내는 진짜 값이
+        //    도착해 **곧바로 덮어써 없던 일이 된다.** 눌러도 아무 일도 안 일어나는 것처럼 보였던 이유다.
+        //
+        //    그렇다고 "호스트에서만 눌러라" 로 막으면 쓸 수가 없다. 진짜 Dedicated Server 는 창도
+        //    입력도 없어서 사람이 키를 누를 데가 아예 없다. 그래서 **클라이언트가 호스트에게 부탁**한다.
+        //
+        // ⚠ 이 RPC 는 `#if DEVELOPMENT_BUILD` 로 감싸지 않는다. Fusion 은 RPC 를 컴파일 시점에 번호로
+        //    엮는데, 서버(Release)와 클라이언트(Development)의 RPC 목록이 다르면 번호가 어긋나
+        //    **이 게임의 모든 RPC 가 엉뚱한 곳으로 간다.** 양쪽에 똑같이 있어야 한다.
+        //    개발자 모드 UI 자체는 여전히 개발 빌드에만 컴파일된다(ShipCoopDevMode).
+        // ------------------------------------------------------------
+
+        /// <summary>개발자 모드가 호스트에 부탁하는 일. 숫자는 <c>ShipCoopDevMode</c> 와 짝이다.</summary>
+        public enum DevCommand
+        {
+            FireEvent = 0,
+            ToggleInvincible = 1,
+            MoveProgress = 2,
+            AddFlood = 3,
+            ResetFlood = 4,
+            Damage = 5,
+            RepairFull = 6,
+            TogglePause = 7,
+            Restart = 8,
+        }
+
+        /// <summary>이 화면에서 개발자 모드가 부탁을 보낼 수 있는 곳. 없으면 네트워크 세션이 아니다.</summary>
+        public static ShipCoopEventSync Current { get; private set; }
+
+        /// <summary>사건 개수. 개발자 모드가 숫자키 범위를 정할 때 쓴다.</summary>
+        public int EventCount => ordered.Length;
+
+        /// <summary>사건 이름 (경로순). 개발자 모드 화면에 그대로 뜬다.</summary>
+        public VoyageEvent EventAt(int index)
+        {
+            return index >= 0 && index < ordered.Length ? ordered[index] : null;
+        }
+
+        /// <summary>
+        /// 클라이언트 → 호스트. 개발자 모드 키 하나를 호스트에서 실행한다.
+        ///
+        /// 호스트가 직접 누른 경우에는 RPC 를 거치지 않고 자기 자리에서 바로 한다. (ShipCoopDevMode)
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void Rpc_DevCommand(int command, int index, float value)
+        {
+            RunDevCommand((DevCommand)command, index, value);
+        }
+
+        /// <summary>부탁받은 일을 실제로 한다. **호스트에서만 불린다.**</summary>
+        public static void RunDevCommand(DevCommand command, int index, float value)
+        {
+            switch (command)
+            {
+                case DevCommand.FireEvent:
+                {
+                    VoyageEvent step = Current != null ? Current.EventAt(index) : null;
+
+                    if (step == null)
+                    {
+                        return;
+                    }
+
+                    if (step.IsActive)
+                    {
+                        Debug.Log($"[개발자 모드] {step.WarningText} 는 이미 떠 있다.", step);
+                        return;
+                    }
+
+                    step.Begin();
+                    break;
+                }
+
+                case DevCommand.ToggleInvincible:
+                {
+                    ShipHealth health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
+                    if (health == null) return;
+                    health.Invincible = !health.Invincible;
+                    Debug.Log($"[개발자 모드] 무적 {(health.Invincible ? "켜짐" : "꺼짐")}");
+                    break;
+                }
+
+                case DevCommand.MoveProgress:
+                {
+                    ShipVoyage voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
+                    if (voyage == null) return;
+                    voyage.SetProgress01(voyage.Progress01 + value);
+                    Debug.Log($"[개발자 모드] 진행도 {voyage.Progress01:P0}");
+                    break;
+                }
+
+                case DevCommand.AddFlood:
+                {
+                    ShipFlooding flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+                    if (flooding == null) return;
+                    flooding.Add(value);
+                    break;
+                }
+
+                case DevCommand.ResetFlood:
+                {
+                    ShipFlooding flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+                    if (flooding == null) return;
+                    flooding.ResetFlooding();
+                    Debug.Log("[개발자 모드] 물을 전부 비웠다.");
+                    break;
+                }
+
+                case DevCommand.Damage:
+                {
+                    ShipHealth health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
+                    if (health == null) return;
+                    health.TakeDamage(value, "개발자 모드");
+                    break;
+                }
+
+                case DevCommand.RepairFull:
+                {
+                    ShipHealth health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
+                    if (health == null) return;
+                    health.Repair(health.MaxHp);
+                    Debug.Log($"[개발자 모드] HP 를 채웠다. {health.CurrentHp:F0}");
+                    break;
+                }
+
+                case DevCommand.TogglePause:
+                {
+                    EventScheduler scheduler = FindAnyObjectByType<EventScheduler>(FindObjectsInactive.Include);
+                    if (scheduler == null) return;
+                    scheduler.Paused = !scheduler.Paused;
+                    Debug.Log($"[개발자 모드] 사건 뿌리기 {(scheduler.Paused ? "정지" : "재개")}");
+                    break;
+                }
+
+                case DevCommand.Restart:
+                {
+                    ShipCoopGame game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
+                    if (game == null) return;
+                    game.RestartVoyage();
+                    Debug.Log("[개발자 모드] 처음부터 다시 시작했다.");
+                    break;
                 }
             }
         }
@@ -107,11 +268,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             return path;
         }
 
-        /// <summary>사건 한 칸. 단계와 그 단계에서 지난 시간.</summary>
+        /// <summary>사건 한 칸. 단계 · 그 단계에서 지난 시간 · 이번 발생의 무작위 씨앗.</summary>
         private struct EventSlot : INetworkStruct
         {
             public int Stage;
             public float Elapsed;
+
+            /// <summary>서버가 뽑은 주사위 씨앗. 같은 씨앗이면 암초의 쪽 · 바위 종류가 모든 화면에서 같다.</summary>
+            public int Seed;
+
+            /// <summary>사건이 하나 더 내주는 값(VoyageEvent.SyncExtra). 적선은 맞힌 발수.</summary>
+            public int Extra;
         }
     }
 }

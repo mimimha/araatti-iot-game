@@ -88,6 +88,25 @@ public class VoyageSea : MonoBehaviour
     [Tooltip("도착했을 때 섬까지의 거리 (m). 0 으로 두면 배를 뚫고 지나간다.")]
     [SerializeField, Min(0f)] private float islandNearDistance = 25f;
 
+    // ⚠ **섬이 중반에 이미 코앞으로 보였습니다.**
+    //
+    //    거리는 진행도와 정확히 맞았다 (재서 확인 — 진행도 46% 일 때 섬 227m = Lerp(400, 25, 0.46)).
+    //    문제는 **섬이 크다**는 것이다. 폭 81m · 화산 높이 50m 라, 60° 화각에서 화면을 이만큼 채운다.
+    //
+    //      400m → 화면 폭의 18%      227m → 31%      100m → 70%      25m → 화면을 넘는다
+    //
+    //    그래서 절반쯤 왔을 때 이미 "다 온 것" 처럼 보인다. 거리를 선형으로 줄이면 중반이 가장 빨리
+    //    커지는 구간이 된다. 진행도를 제곱해서 **앞부분에서는 천천히, 끝에서 확 다가오게** 한다.
+    //
+    //      진행도 46%  선형 227m  →  제곱 321m (화면의 11%)
+    //      진행도 80%  선형 100m  →  제곱 160m (화면의 44%)
+    //      진행도 100% 선형  25m  →  제곱  25m (도착은 같다)
+    [Tooltip("섬이 다가오는 곡선. 1 이면 진행도에 정비례. 클수록 앞에서는 멀리 있다가 끝에서 확 다가온다.")]
+    [SerializeField, Range(1f, 3f)] private float islandApproachCurve = 2f;
+
+    [Tooltip("섬 거리 · 진행도를 2초마다 로그로 남긴다. 값을 맞출 때만 켠다.")]
+    [SerializeField] private bool logIsland = true;
+
     [Header("항로선")]
     [Tooltip("항로 폭의 절반 (m). 이 안에 있으면 목적지를 제대로 향하고 있는 것이다.\n" +
              "0 으로 두면 선을 안 그린다.")]
@@ -165,6 +184,9 @@ public class VoyageSea : MonoBehaviour
 
     private Vector3[] _scrollStart;
     private Transform _island;
+
+    /// <summary>섬 자리 계측을 다음에 찍을 시각. (진행도와 섬 거리를 숫자로 맞춰 보려고)</summary>
+    private float _nextIslandLog;
     private Transform[] _courseLines;
 
     private void Awake()
@@ -300,8 +322,20 @@ public class VoyageSea : MonoBehaviour
 
         if (_island != null)
         {
-            float z = Mathf.Lerp(islandFarDistance, islandNearDistance, voyage.Progress01);
+            // 진행도를 그대로 쓰지 않고 곡선을 태운다. (위 주석 — 중반에 이미 코앞으로 보였다)
+            float closing = Mathf.Pow(Mathf.Clamp01(voyage.Progress01), islandApproachCurve);
+            float z = Mathf.Lerp(islandFarDistance, islandNearDistance, closing);
             _island.position = Origin + new Vector3(-ShipLateral, 0f, z);
+
+            if (logIsland && Time.time >= _nextIslandLog)
+            {
+                _nextIslandLog = Time.time + 2f;
+
+                Debug.Log(
+                    $"[바다] 섬 {z:F0}m 앞 (곡선 {islandApproachCurve:F1}, 정비례였다면 {Mathf.Lerp(islandFarDistance, islandNearDistance, voyage.Progress01):F0}m)   " +
+                    $"진행도 {voyage.Progress01:P1} = {voyage.Distance:F0}m / {voyage.TotalDistance:F0}m   " +
+                    $"지금 속도 {voyage.Speed:F2}m/s (돛 {voyage.SailPower01:P0}, 항로 {voyage.CourseFactor:F2})", this);
+            }
         }
 
         // 항로선도 바다의 일부라 배가 꺾이면 같이 밀린다. 그래서 틀어진 것이 보인다.

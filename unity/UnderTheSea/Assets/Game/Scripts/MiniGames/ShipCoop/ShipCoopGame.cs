@@ -172,6 +172,14 @@ public class ShipCoopGame : MonoBehaviour
     /// <summary>게임이 끝났다. (성공 여부, 점수) — 결과 화면이 이걸 듣는다.</summary>
     public event Action<bool, int> Finished;
 
+    /// <summary>
+    /// 판이 **새로 시작됐다.** 결과 화면처럼 끝났을 때 떠 있던 것들이 이걸 듣고 스스로 닫는다.
+    ///
+    /// <see cref="Finished"/> 의 짝이다. 끝났을 때 켜는 것이 있으면 다시 시작할 때 끄는 것도 있어야 한다.
+    /// 이게 없어서 개발자 모드로 다시 시작해도 "침몰" 글자가 화면에 그대로 남아 있었다.
+    /// </summary>
+    public event Action Restarted;
+
     private void Start()
     {
         if (autoStart)
@@ -208,6 +216,83 @@ public class ShipCoopGame : MonoBehaviour
         CheckEnd();
     }
 
+    /// <summary>
+    /// 🛠 **판을 처음부터 다시 시작한다.** 개발자 모드의 R 이 부른다. (10장)
+    ///
+    /// <see cref="StartVoyage"/> 만으로는 다시 시작되지 않는다. 두 가지 때문이다.
+    /// <code>
+    ///   항해 중이면  State 가 Sailing 이라 그대로 되돌아 나간다 — 아무 일도 안 일어난다
+    ///   침몰한 뒤면  HP 가 0 인 채로 다시 뜬다 (Repair 는 가라앉은 배를 일부러 안 고친다)
+    /// </code>
+    /// 게다가 떠 있던 사건 · 뚫려 있던 구멍이 그대로 남아 새 판이 이미 망가진 채로 시작한다.
+    ///
+    /// 그래서 여기서 **먼저 치우고** 다시 시작한다 — 사건을 전부 끄고, 구멍을 치우고, HP 를 채운다.
+    /// 물 · 진행도 · 시간은 <see cref="StartVoyage"/> 가 되돌린다.
+    /// </summary>
+    public void RestartVoyage()
+    {
+        // 떠 있던 사건을 전부 끈다. 바다에 띄운 바위 · 적선도 각 사건의 OnHide 가 치운다.
+        VoyageEvent[] running = new VoyageEvent[VoyageEvent.Active.Count];
+        for (int i = 0; i < running.Length; i++)
+        {
+            running[i] = VoyageEvent.Active[i];
+        }
+
+        for (int i = 0; i < running.Length; i++)
+        {
+            if (running[i] != null)
+            {
+                running[i].Cancel();
+            }
+        }
+
+        // 뚫려 있던 구멍을 치운다. 씬에 미리 놓인 수리 지점은 없고 전부 사건이 만든 것이라 다 치워도 된다.
+        TaskBase[] tasks = new TaskBase[TaskBase.All.Count];
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            tasks[i] = TaskBase.All[i];
+        }
+
+        int holes = 0;
+
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            if (tasks[i] is not RepairTask hole)
+            {
+                continue;
+            }
+
+            holes++;
+
+            if (RepairTask.Remover != null)
+            {
+                RepairTask.Remover(hole);
+            }
+            else
+            {
+                Destroy(hole.gameObject);
+            }
+        }
+
+        // 가라앉았어도 되살린다. 이건 개발 도구라 "실패는 실패로 남는다" 규칙의 예외다.
+        if (health == null)
+        {
+            health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
+        }
+
+        if (health != null)
+        {
+            health.ResetHealth();
+        }
+
+        // 이미 항해 중이면 StartVoyage 가 그냥 되돌아 나간다. 끝난 것으로 만들어 두고 다시 시작한다.
+        State = ShipCoopState.Ready;
+
+        Debug.Log($"[ShipCoopGame] 처음부터 다시 — 사건 {running.Length}개를 끄고 구멍 {holes}개를 치웠다.", this);
+
+        StartVoyage();
+    }
+
     /// <summary>출항한다.</summary>
     public void StartVoyage()
     {
@@ -241,6 +326,7 @@ public class ShipCoopGame : MonoBehaviour
         }
 
         State = ShipCoopState.Sailing;
+        Restarted?.Invoke();
 
         Debug.Log($"[ShipCoopGame] 출항. 제한시간 {timeLimit:0}초", this);
         UpdatePhase();
@@ -326,6 +412,12 @@ public class ShipCoopGame : MonoBehaviour
         if (ended)
         {
             Finished?.Invoke(state == ShipCoopState.Cleared, score);
+        }
+        else if (state == ShipCoopState.Sailing)
+        {
+            // 끝났다가 다시 항해 중이 됐다 — 호스트가 판을 다시 시작한 것이다. (개발자 모드의 R)
+            // 이 화면은 StartVoyage 를 부르지 않으니 여기서 알리지 않으면 "침몰" 글자가 안 사라진다.
+            Restarted?.Invoke();
         }
     }
 

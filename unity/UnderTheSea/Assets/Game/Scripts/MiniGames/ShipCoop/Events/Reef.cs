@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>
 /// 🪨 암초. 조타로 피한다. (SHIPCOOP.md 5장)
@@ -148,6 +149,36 @@ public class Reef : VoyageEvent
     /// <summary>이번 바위를 이미 판정했는가.</summary>
     private bool _judged;
 
+    // ------------------------------------------------------------
+    // ⚠ **판정 결과를 복제한다. 클라이언트가 눈으로 다시 재면 안 된다.**
+    //
+    //    서버는 바위가 **뱃머리에 처음 닿는 순간** 부딪힘을 잡는다 (실측: 필요 간격 8~12m, 그때 선체
+    //    반폭이 2~3m 인 뱃머리 구간). 그리고 바위를 지운다.
+    //
+    //    그런데 그 "끝났다" 가 클라이언트에 도착하는 데 몇 프레임이 걸린다. 도착했을 때 클라이언트의
+    //    바위는 이미 더 안쪽으로 들어와 있다. 예전에는 그 시점에 클라이언트가 **직접 겹침을 다시 재서**
+    //    지울지 흘려보낼지 정했는데, 그 사이 위치가 달라져 "안 닿았다" 로 읽히면 바위를 흘려보낸다 —
+    //    **바위가 배를 그대로 통과했다.** 실제로 그렇게 보였다.
+    //
+    //    그래서 서버가 내린 결론을 그대로 보낸다. 클라이언트는 다시 재지 않는다.
+    // ------------------------------------------------------------
+
+    /// <summary>판정 결과. 0 아직, 1 부딪힘, 2 피함. <c>SyncExtra</c> 로 복제된다.</summary>
+    private int _verdict;
+
+    private const int VerdictNone = 0;
+    private const int VerdictHit = 1;
+    private const int VerdictDodged = 2;
+
+    /// <summary>복제할 값 — 이번 바위를 부딪혔는지 피했는지.</summary>
+    public override int SyncExtra => _verdict;
+
+    /// <summary>클라이언트 — 서버가 내린 결론을 그대로 받는다. 다시 재지 않는다.</summary>
+    public override void ShowExtra(int value)
+    {
+        _verdict = value;
+    }
+
     /// <summary>바위가 배 옆에 들어온 적이 있는가. 다 지나가면 "피했다" 가 된다.</summary>
     private bool _wasAlongside;
 
@@ -164,9 +195,11 @@ public class Reef : VoyageEvent
         // 지난 판의 판정이 남아 있으면 이번 바위를 그냥 지나칩니다.
         _judged = false;
         _wasAlongside = false;
+        _verdict = VerdictNone;
 
+        // ⚠ UnityEngine.Random 이 아니라 Dice 다. 서버와 클라이언트가 같은 씨앗으로 같은 쪽 · 같은 바위를 띄워야 한다. (11장)
         RockSide = randomSide
-            ? (Random.value < 0.5f ? -1f : 1f)
+            ? (Dice.NextDouble() < 0.5 ? -1f : 1f)
             : Mathf.Sign(fixedSide == 0f ? 1f : fixedSide);
 
         if (_helm == null)
@@ -196,7 +229,7 @@ public class Reef : VoyageEvent
         _rock.name = $"Reef_{Time.frameCount}";
 
         // 같은 바위라도 매번 다르게 보이도록 돌려 놓는다.
-        _rock.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        _rock.transform.rotation = Quaternion.Euler(0f, (float)(Dice.NextDouble() * 360.0), 0f);
 
         MeasureRock();
 
@@ -223,7 +256,7 @@ public class Reef : VoyageEvent
             }
         }
 
-        return ok.Count == 0 ? null : ok[Random.Range(0, ok.Count)];
+        return ok.Count == 0 ? null : ok[Dice.Next(ok.Count)];
     }
 
     // 띄운 바위의 실제 폭과 높이를 재서, 아픈 정도와 피할 폭을 거기에 맞춘다.
@@ -285,6 +318,14 @@ public class Reef : VoyageEvent
         SinkRock();
 
         if (_judged || !IsRunning)
+        {
+            return;
+        }
+
+        // ⚠ **판정은 서버만 한다.** 여기까지는 보여주는 것(자리 맞추기)이라 모두가 했다. 아래는 판정이다.
+        //    클라이언트가 자기 화면의 바위로 Hit/Fail 을 부르면 자기 사건을 끝내 버리고, 다음 프레임에 서버 단계를
+        //    받아 다시 Begin 하면서 **새 바위가 배 한복판에 솟는다.** 실제로 그렇게 배를 뚫고 들어왔다. (11장)
+        if (!ShipCoopNet.IsAuthorityHere)
         {
             return;
         }
@@ -602,6 +643,8 @@ public class Reef : VoyageEvent
     /// </summary>
     private void Hit(float gap, float need, float rockZ)
     {
+        _verdict = VerdictHit;
+
         string where = rockZ > BowZ * 0.5f ? "뱃머리"
             : rockZ > SternZ * 0.5f ? "배 가운데"
             : "배 뒤쪽";
@@ -620,6 +663,8 @@ public class Reef : VoyageEvent
     /// </summary>
     private void Dodged()
     {
+        _verdict = VerdictDodged;
+
         Debug.Log($"[{name}] 배 전체를 스치지 않고 지나갔다. (바위 {RockWidth:F1}m)", this);
 
         LetItDriftBy();
@@ -695,7 +740,14 @@ public class Reef : VoyageEvent
         _rock = null;
     }
 
-    /// <summary>끝났으면 바위를 치운다. 성공·실패·취소 모두 여기를 지난다.</summary>
+    /// <summary>
+    /// 끝났으면 바위를 치운다. 성공·실패·취소 모두 여기를 지난다.
+    ///
+    /// ⚠ **클라이언트는 서버가 보낸 판정(SyncExtra)을 그대로 따른다.** 피했다고 받았을 때만 흘려보내고,
+    ///    부딪혔다고 받았으면 그 자리에서 지운다. 예전에는 클라이언트가 겹침을 다시 쟀는데, 판정이 도착할
+    ///    때쯤 바위가 더 들어와 있어 "안 닿았다" 로 읽히면 **배를 그대로 통과**했다.
+    ///    서버는 피했을 때 <see cref="Dodged"/> 에서 이미 손을 뗐으니 여기 오면 늘 지운다.
+    /// </summary>
     protected override void OnHide()
     {
         if (_rock == null)
@@ -703,10 +755,19 @@ public class Reef : VoyageEvent
             return;
         }
 
+        // ⚠ 클라이언트는 **서버가 내린 결론**을 따른다. 눈으로 다시 재지 않는다. (위 주석)
+        //    피했다고 받았을 때만 흘려보내고, 그 밖(부딪힘 · 취소)은 지운다.
+        if (!ShipCoopNet.IsAuthorityHere && _verdict == VerdictDodged)
+        {
+            LetItDriftBy();
+            return;
+        }
+
         // 띄운 것은 프리팹을 복제했든 큐브를 만들었든 전부 이 사건이 만든 것이다.
         Destroy(_rock);
         _rock = null;
     }
+
 
     /// <summary>
     /// 사건 알림 아래에 붙는 안내. **어느 쪽 바위이고 어느 키를 누르는지**만 말한다.

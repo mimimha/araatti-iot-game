@@ -221,6 +221,19 @@ public class ShipCoopHelp : MonoBehaviour
     /// </summary>
     private void RingEveryoneElse()
     {
+        // ⚠ **진동은 규칙(호스트만)입니다. Call() 은 화면 쪽(ShipCoopWorkerSync.ApplyHands)도 부릅니다.**
+        //
+        //    ShipCoopWorkerSync 는 서버가 정한 CallingHelp 값을 복제받아 **모든 클라이언트에서** Call()
+        //    을 그대로 다시 부른다 — 화면에 "🆘 표시" 를 띄우기 위해서다 (11장, 화면 쪽은 전원이 돈다).
+        //    그런데 여기서 남의 기기를 울리는 Rpc_Vibrate(RpcSources.StateAuthority) 까지 같이 실행되면,
+        //    상태 권한이 없는 클라이언트가 그 RPC 를 보내려다 Fusion 이 "Local simulation is not allowed
+        //    to send this RPC" 로 거부한다. 실제로 이 오류가 클라이언트 로그에서만 났다.
+        //    그래서 **진동만** 여기서 호스트로 한정한다. 표시(showUntil · CallingNow)는 그대로 전원이 본다.
+        if (!ShipCoopNet.IsAuthorityHere)
+        {
+            return;
+        }
+
         for (int i = 0; i < AllHelpers.Count; i++)
         {
             ShipCoopHelp other = AllHelpers[i];

@@ -17,6 +17,8 @@ MonoBehaviour:
   bucketHeight: 0.55
   bucketScale: 1
   waterColor: {r: 0.25, g: 0.6, b: 0.85, a: 1}
+  waterWidth: 0.88
+  waterSink: 0.08
   plankModel: {fileID: 5426267665804594891, guid: 3f54f68ff6899d34a85247498b4b2633, type: 3}
   plankScale: 1
   ammoModel: {fileID: 0}
