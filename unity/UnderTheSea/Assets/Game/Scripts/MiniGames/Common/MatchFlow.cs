@@ -109,6 +109,23 @@ namespace MiniGames.Common
         /// <summary>자동 시작을 쓰는가. 끄면 버튼으로만 시작한다.</summary>
         public bool AutoStartEnabled => autoStart;
 
+        /// <summary>
+        /// 네트워크가 명단을 채울 때 테스트용 로컬 플레이어 자동 참가만 끈다.
+        /// 30초 자동 시작과 [게임 시작] 버튼은 기존 규칙대로 계속 동작한다.
+        /// </summary>
+        public void SetNetworkManagedRoster(bool enabled)
+        {
+            joinLocalPlayerOnStart = !enabled;
+        }
+
+        /// <summary>화면 전환이 끝난 시점부터 자동 시작 시간을 온전히 다시 센다.</summary>
+        public void RestartAutoStartTimer()
+        {
+            if (State != MatchState.Matching) return;
+            RestartAutoStartWindow();
+            Refreshed?.Invoke();
+        }
+
         private float countdownTimer;
         private bool waitingForAutoStart;
         private bool launchRaised;

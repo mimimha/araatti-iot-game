@@ -10,8 +10,9 @@ namespace MiniGames.Common
     /// 같은 자리에 들어간다.
     ///
     /// ⚠ 미니게임 쪽에서 결과 화면의 Text 를 직접 찾아 고치지 말 것. 이 구조체 하나를
-    ///    채워 <see cref="MatchFlowController.CompleteMiniGame"/> 에 넘기면 된다. 화면이
-    ///    바뀌어도 미니게임 코드는 그대로 남는다.
+    ///    채워 INetworkService.ReportMiniGameResult에 넘긴다. 서버는 검증한 결과를
+    ///    <see cref="MiniGameResultGateway.SubmitAuthoritative"/>로 돌려주며, 결과 화면이
+    ///    아직 없는 씬이면 Gateway가 결과를 보관한다.
     /// </summary>
     public readonly struct MiniGameResult
     {

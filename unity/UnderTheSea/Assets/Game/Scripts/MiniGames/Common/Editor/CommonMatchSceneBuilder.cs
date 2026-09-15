@@ -24,7 +24,7 @@ namespace MiniGames.Common.EditorTools
     ///     HeaderArea      작게 "광산 미니게임" + 크게 "플레이어를 매칭 중입니다" + 튀는 점 셋
     ///     StatusArea      매칭 중 "30초 후 자동 시작" → 카운트다운이면 큰 숫자
     ///     PlayerSlotArea  파티원 카드 — 두 상태에서 같은 Y
-    ///     ActionArea      (배만) "4명이 모두 모여야…" + [게임 시작] [매칭 취소]
+    ///     ActionArea      [게임 시작] [매칭 취소]   (배의 "4명이 모두 모여야…" 는 StatusArea 에 적는다)
     ///
     /// 손으로 끌어다 붙인 UI 는 무엇이 무엇에 물려 있는지 씬을 열어야만 알 수 있다. 여기서
     /// 한 번에 지어 두면 배치와 연결이 전부 코드로 남아, 고칠 때 이 파일만 고치고 메뉴를
@@ -50,6 +50,11 @@ namespace MiniGames.Common.EditorTools
 
         private const string Hud = "Assets/Game/Art/UI/ShipCoopHudV2/";
         private const string FramePath = "Assets/Game/Art/UI/ChannelSelect/channel-panel-frame-login-matched.png";
+        private const string MatchingFramePath = "Assets/Game/Art/UI/MiniGames/Common/matching-panel-frame-wide.png";
+        private const string ResultFramePath = "Assets/Game/Art/UI/MiniGames/Common/result-panel-frame.png";
+        private const string QueueBackgroundPath = "Assets/Game/Art/UI/MiniGames/Common/queue-loading-background.png";
+        private const string QueueWheelPath = "Assets/Game/Art/UI/MiniGames/Common/queue-loading-wheel.png";
+        private const string CircularRevealShaderPath = "Assets/Game/Art/Shaders/UI/CircularRevealCutout.shader";
         private const string ButtonPath = "Assets/Game/Art/UI/Common/button-login-base-balanced-gold.png";
         private const string BackplatePath = Hud + "portrait-backplate.png";
         private const string DotPath = Hud + "badge-player.png";
@@ -86,22 +91,24 @@ namespace MiniGames.Common.EditorTools
         internal static readonly Color Muted = new(.72f, .81f, .92f, 1f);
 
         internal static TMP_FontAsset font;
-        internal static Sprite frame, button, backplate, dot, whitePlate, gem;
+        internal static Sprite frame, matchingFrame, resultFrame, queueBackground, queueWheel;
+        internal static Shader circularRevealShader;
+        internal static Sprite button, backplate, dot, whitePlate, gem;
         internal static Sprite[] portraits, portraitFrames;
 
-        private const float PanelW = 1240f, PanelH = 778f;
+        private const float PanelW = 1360f, PanelH = 853f;
         private const float ResultW = 900f, ResultH = 830f;
 
         // ── 매칭 판 세로 배치 (판 위쪽 기준 px). 위→아래 순서가 곧 정보의 순서다.
         //    게임 이름(작게) → 제목(크게) → [카운트다운 숫자 자리] → 카드 → (배만) 이유 한 줄 → 버튼.
         //    숫자 자리는 매칭 중엔 비어 있으므로 딱 숫자 높이만큼만 남긴다. 더 남기면 판이 헐렁해 보인다.
-        private const float GameTitleY = -66f, GameTitleH = 28f;     // -66 ~ -94
-        private const float TitleY = -98f, TitleH = 54f;             // -98 ~ -152
-        private const float StatusAreaY = -162f, StatusAreaH = 96f;  // -162 ~ -258  (매칭 중: 자동 시작 한 줄 / 카운트다운: 숫자)
+        private const float GameTitleY = -100f, GameTitleH = 28f;    // -100 ~ -128 (닻 장식 아래)
+        private const float TitleY = -132f, TitleH = 54f;            // -132 ~ -186
+        private const float StatusAreaY = -196f, StatusAreaH = 96f;  // -196 ~ -292  (매칭 중: 자동 시작 한 줄 / 카운트다운: 숫자)
         private const float NumberH = 96f;
-        private const float SlotAreaY = -270f, SlotH = 330f;         // -270 ~ -600  ← 두 상태에서 같은 Y
-        private const float HintY = -608f, HintH = 26f;              // -608 ~ -634
-        private const float ActionY = -642f, ActionH = 66f;          // -642 ~ -708
+        private const float SlotAreaY = -300f, SlotH = 330f;         // -300 ~ -630  ← 두 상태에서 같은 Y
+        private const float HintY = -638f, HintH = 26f;              // -638 ~ -664
+        private const float ActionY = -672f, ActionH = 66f;          // -672 ~ -738
 
         [MenuItem("Tools/아라아띠/공통 매칭·결과 테스트 씬 만들기")]
         public static void Build()
@@ -189,6 +196,11 @@ namespace MiniGames.Common.EditorTools
         {
             font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
             frame = Load(FramePath);
+            matchingFrame = Load(MatchingFramePath);
+            resultFrame = Load(ResultFramePath);
+            queueBackground = Load(QueueBackgroundPath);
+            queueWheel = Load(QueueWheelPath);
+            circularRevealShader = AssetDatabase.LoadAssetAtPath<Shader>(CircularRevealShaderPath);
             button = Load(ButtonPath);
             backplate = Load(BackplatePath);
             dot = Load(DotPath);
@@ -238,8 +250,15 @@ namespace MiniGames.Common.EditorTools
 
             GameObject canvasGo = Canvas("Canvas", root.transform, 0);
 
+            QueueLoadingPresenter queueLoading = BuildQueueLoading(canvasGo.transform);
             matchPanel = BuildMatchPanel(canvasGo.transform, flow);
             resultPanel = BuildResultPanel(canvasGo.transform);
+
+            MatchingQueueCoordinator queueCoordinator = root.AddComponent<MatchingQueueCoordinator>();
+            Bind(queueCoordinator, "matchingUI", facade);
+            Bind(queueCoordinator, "loadingView", queueLoading);
+            Bind(queueCoordinator, "controller", controller);
+            BindFloat(queueCoordinator, "minimumLoadingSeconds", 5f);
 
             Bind(flow, "config", startConfig);
             BindFloat(flow, "countdownSeconds", 5f);
@@ -257,6 +276,8 @@ namespace MiniGames.Common.EditorTools
             Bind(facade, "controller", controller);
             Bind(facade, "canvasRoot", canvasGo);
             Bind(facade, "matchPanel", matchPanel.gameObject);
+            Bind(facade, "queueLoading", queueLoading);
+            Bind(facade, "queueCoordinator", queueCoordinator);
             Bind(facade, "resultPanel", resultPanel);
             BindBool(facade, "showOnStart", true);
 
@@ -283,6 +304,46 @@ namespace MiniGames.Common.EditorTools
         }
 
         // ------------------------------------------------------------
+        // 서버 최초 패킷 대기 — 전체 화면 조타 로딩
+        // ------------------------------------------------------------
+
+        private static QueueLoadingPresenter BuildQueueLoading(Transform parent)
+        {
+            // 화면 전체를 덮어야 하므로 판과 배경은 캔버스에 늘려 붙인다(stretch). 1920×1080 고정 크기로 두면
+            // 16:10 같은 화면에서 위아래가 비고, 원형 전환의 가로세로 비율도 어긋난다.
+            var root = Node("QueueLoadingPanel", parent, Vector2.zero, Vector2.zero, top: false);
+            Stretch((RectTransform)root.transform);
+            QueueLoadingPresenter presenter = root.AddComponent<QueueLoadingPresenter>();
+
+            var backgroundGo = Node("Background", root.transform, Vector2.zero, Vector2.zero, top: false);
+            Stretch((RectTransform)backgroundGo.transform);
+            var background = backgroundGo.AddComponent<Image>();
+            background.sprite = queueBackground;
+            background.type = Image.Type.Simple;
+            background.preserveAspect = false;
+            background.raycastTarget = true;
+
+            var wheelGo = Node("HelmWheel", root.transform, Vector2.zero,
+                new Vector2(250f, 250f), top: false);
+            var wheelImage = wheelGo.AddComponent<Image>();
+            var wheelGroup = wheelGo.AddComponent<CanvasGroup>();
+            wheelImage.sprite = queueWheel;
+            wheelImage.type = Image.Type.Simple;
+            wheelImage.preserveAspect = true;
+            wheelImage.raycastTarget = false;
+
+            Bind(presenter, "root", root);
+            Bind(presenter, "wheel", wheelGo.transform as RectTransform);
+            Bind(presenter, "background", background);
+            Bind(presenter, "wheelCanvasGroup", wheelGroup);
+            Bind(presenter, "circularRevealShader", circularRevealShader);
+            BindFloat(presenter, "rotationDegreesPerSecond", 72f);
+            BindFloat(presenter, "circularRevealSeconds", .85f);
+            root.SetActive(false);
+            return presenter;
+        }
+
+        // ------------------------------------------------------------
         // 매칭 + 카운트다운 — 한 판 위에서 머리말만 바뀐다
         // ------------------------------------------------------------
 
@@ -291,9 +352,14 @@ namespace MiniGames.Common.EditorTools
             var panel = Node("MatchPanel", parent, Vector2.zero, new Vector2(PanelW, PanelH), top: false);
             MatchPanelPresenter presenter = panel.AddComponent<MatchPanelPresenter>();
 
-            Image plank = Plate(panel, frame, Plank);
-            // 배수를 올리면 밧줄이 얇아진다. 장식보다 정보가 먼저 보이게 하는 가장 싼 방법.
-            plank.pixelsPerUnitMultiplier = 2.1f;
+            // 매칭 판은 전용 와이드 프레임을 원본 비율 그대로 쓴다. 장식이 합쳐진 프레임을
+            // 9-slice 하면 중앙 닻과 리벳까지 가로로 늘어나므로 이 이미지만 Simple 로 표시한다.
+            Image plank = panel.AddComponent<Image>();
+            plank.sprite = matchingFrame;
+            plank.type = Image.Type.Simple;
+            plank.preserveAspect = true;
+            // 원본보다 살짝만 눌러 금색은 유지하되 나무판까지 지나치게 어두워지지 않게 한다.
+            plank.color = new Color(.92f, .92f, .92f, 1f);
 
             // ── HeaderArea: 어느 게임인지(작게) + 지금 무엇을 하는지(크게). 상단 글은 이 둘뿐이다.
             var header = Node("HeaderArea", panel.transform, new Vector2(0f, GameTitleY),
@@ -344,7 +410,7 @@ namespace MiniGames.Common.EditorTools
             // ── ActionArea: (배만) 못 누르는 이유 한 줄 + 버튼 두 개, 같은 크기.
             //    숨겨져도 위 칸에 영향이 없도록 별도 컨테이너.
             var actionArea = Node("ActionArea", panel.transform, new Vector2(0f, HintY),
-                new Vector2(PanelW, HintY - ActionY + ActionH));   // 102
+                new Vector2(PanelW, HintY - ActionY + ActionH));   // 100
             TMP_Text hint = Label(actionArea.transform, "StartHint", "",
                 19f, Muted, Vector2.zero, new Vector2(1000f, HintH));
             Button start = ButtonNode(actionArea.transform, "StartButton", "게임 시작",
@@ -446,8 +512,12 @@ namespace MiniGames.Common.EditorTools
             ResultPanelPresenter presenter = panel.AddComponent<ResultPanelPresenter>();
 
             var content = Node("Content", panel.transform, Vector2.zero, new Vector2(ResultW, ResultH), top: false);
-            Image plank = Plate(content, frame, Plank);
-            plank.pixelsPerUnitMultiplier = 2.3f;
+            // 결과 판도 화면 비율에 맞춘 전용 프레임을 써서 장식이 늘어나지 않게 한다.
+            Image plank = content.AddComponent<Image>();
+            plank.sprite = resultFrame;
+            plank.type = Image.Type.Simple;
+            plank.preserveAspect = true;
+            plank.color = Plank;
 
             TMP_Text title = Label(content.transform, "Title", "GAME CLEAR",
                 60f, Gold, new Vector2(0f, -88f), new Vector2(700f, 78f));
@@ -552,6 +622,7 @@ namespace MiniGames.Common.EditorTools
             Bind(rig, "resultPanel", resultPanel);
             Bind(rig, "configs", provider);
             BindBool(rig, "showDebugControls", true);
+            BindBool(rig, "startQueueOnPlay", true);
             Bind(rig, "debugRoot", bar);
             Bind(rig, "swordButton", swordBtn);
             Bind(rig, "miningButton", miningBtn);
@@ -603,6 +674,16 @@ namespace MiniGames.Common.EditorTools
 
             importer.spriteBorder = border;
             importer.SaveAndReimport();
+        }
+
+        /// <summary>부모 사각형에 네 변을 다 붙인다. 부모 크기가 바뀌어도 같이 늘어난다.</summary>
+        internal static void Stretch(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(.5f, .5f);
+            rt.sizeDelta = Vector2.zero;
+            rt.anchoredPosition = Vector2.zero;
         }
 
         /// <param name="top">

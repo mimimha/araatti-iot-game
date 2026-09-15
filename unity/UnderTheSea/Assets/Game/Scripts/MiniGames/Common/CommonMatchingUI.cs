@@ -1,4 +1,5 @@
 using UnityEngine;
+using MiniGames.Common.UI;
 
 namespace MiniGames.Common
 {
@@ -26,6 +27,12 @@ namespace MiniGames.Common
         [Tooltip("매칭 판(MatchPanel). 다른 화면(결과 등)이 꺼 두었더라도 Show 가 다시 켠다.")]
         [SerializeField] private GameObject matchPanel;
 
+        [Tooltip("서버 최초 대기열 패킷을 기다리는 전체 화면.")]
+        [SerializeField] private QueueLoadingPresenter queueLoading;
+
+        [Tooltip("포탈과 네트워크 대기열을 잇는 조정자.")]
+        [SerializeField] private MatchingQueueCoordinator queueCoordinator;
+
         [Tooltip("결과 판. 켜져 있으면 Show 가 닫는다. 매칭 전용 프리팹에는 없으므로 비워 둘 수 있다.")]
         [SerializeField] private MiniGames.Common.UI.ResultPanelPresenter resultPanel;
 
@@ -37,6 +44,7 @@ namespace MiniGames.Common
 
         public MatchFlow Flow => flow;
         public MatchFlowController Controller => controller;
+        public MatchingQueueCoordinator QueueCoordinator => queueCoordinator;
         public bool IsShown => canvasRoot != null && canvasRoot.activeSelf;
 
         private void Awake()
@@ -67,14 +75,57 @@ namespace MiniGames.Common
             }
 
             if (canvasRoot != null) canvasRoot.SetActive(true);
+            if (queueLoading != null) queueLoading.Hide();
             if (resultPanel != null) resultPanel.Hide();   // 결과 판이 남아 있으면 매칭 판 위를 덮는다
             if (matchPanel != null) matchPanel.SetActive(true);
             if (flow != null) flow.Configure(config);
         }
 
+        /// <summary>포탈이 서버 대기열에 들어갈 때 호출하는 실제 게임용 진입점.</summary>
+        public void BeginQueue(MiniGameConfig config)
+        {
+            if (queueCoordinator == null)
+            {
+                Debug.LogError("[CommonMatchingUI] MatchingQueueCoordinator가 연결되지 않았습니다.", this);
+                return;
+            }
+
+            queueCoordinator.BeginQueue(config);
+        }
+
+        /// <summary>서버 응답 전에는 기존 매칭 판을 숨기고 조타 로딩만 보여 준다.</summary>
+        public void ShowQueueLoading(MiniGameConfig config)
+        {
+            if (config == null) return;
+
+            if (flow != null) flow.SetNetworkManagedRoster(true);
+            if (canvasRoot != null) canvasRoot.SetActive(true);
+            if (resultPanel != null) resultPanel.Hide();
+            if (matchPanel != null) matchPanel.SetActive(false);
+            if (queueLoading != null) queueLoading.Show();
+        }
+
+        /// <summary>원형 전환 동안 대기 화면 뒤에 매칭 화면을 미리 준비한다.</summary>
+        public void PrepareMatchBehindLoading(MiniGameConfig config)
+        {
+            if (config == null) return;
+
+            if (canvasRoot != null) canvasRoot.SetActive(true);
+            if (resultPanel != null) resultPanel.Hide();
+            if (matchPanel != null) matchPanel.SetActive(true);
+            if (flow != null) flow.Configure(config);
+        }
+
+        /// <summary>원형 전환이 끝난 순간부터 30초 자동 시작 시간을 다시 센다.</summary>
+        public void CompleteQueueReveal()
+        {
+            if (flow != null) flow.RestartAutoStartTimer();
+        }
+
         /// <summary>화면만 감춘다. 파티는 그대로 둔다.</summary>
         public void Hide()
         {
+            if (queueLoading != null) queueLoading.Hide();
             if (canvasRoot != null) canvasRoot.SetActive(false);
         }
     }
