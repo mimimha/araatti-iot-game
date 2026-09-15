@@ -140,7 +140,14 @@ public class HullDamage : VoyageEvent
     /// <summary>HUD 문구</summary>
     public string RepairHint()
     {
-        if (SpawnedPoint == null || SpawnedPoint.IsRepaired)
+        // ⚠ **예고 중에는 아무 말도 하지 않는다.** 구멍은 OnBegin 에서 생기므로 예고 동안 SpawnedPoint 가 비어 있다.
+        //    그걸 "수리 완료" 로 읽어서, 파손 예고 카드 밑에 **아직 생기지도 않은 구멍이 다 고쳐졌다**고 떴다.
+        if (SpawnedPoint == null)
+        {
+            return null;
+        }
+
+        if (SpawnedPoint.IsRepaired)
         {
             return "수리 완료";
         }

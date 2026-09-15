@@ -168,7 +168,7 @@ PrefabInstance:
     - target: {fileID: 877225837851298894, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 1030473830946173913, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
@@ -228,7 +228,7 @@ PrefabInstance:
     - target: {fileID: 3296373341653321172, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 3376119990960100509, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: GunPortCap_01_R
@@ -272,11 +272,11 @@ PrefabInstance:
     - target: {fileID: 4839159977021093334, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 4899843294402328369, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 4982830455326681941, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: MastAft
@@ -304,7 +304,7 @@ PrefabInstance:
     - target: {fileID: 5799161569940238756, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 5825649365006218380, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
@@ -332,7 +332,7 @@ PrefabInstance:
     - target: {fileID: 6527537729205942131, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 6603522694710932468, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: MastMid
@@ -396,7 +396,7 @@ PrefabInstance:
     - target: {fileID: 7907389495241661795, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 7944351521576922507, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: Hull
