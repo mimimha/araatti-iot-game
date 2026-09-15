@@ -148,8 +148,103 @@ public class MineHud : MonoBehaviour
         RefreshPlayers();
     }
 
+    // ------------------------------------------------------------
+    // 네트워크 전환용 덧붙임 (광산 서버화 1단계)
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 네트워크가 이 HUD 를 대신 몰고 있는가.
+    ///
+    /// 1단계에서는 <c>MineGame</c> 이 꺼져 있다. 그대로 두면 시작도 안 한 판의
+    /// 기본값(<c>- / 4 TURN</c> · "곧 시작합니다")이 계속 떠 있어 거짓말을 한다.
+    /// 켜지면 아래 값들만 그리고, <b>아직 못 잇는 칸은 감춘다.</b>
+    ///
+    /// 혼자 하는 씬에서는 아무도 켜지 않으므로 예전 그대로다.
+    /// </summary>
+    public bool NetworkDriven { get; set; }
+
+    /// <summary>"동료를 기다리는 중" · "P1 채굴 중" 같은 한 줄.</summary>
+    public string NetworkPhaseText { get; set; }
+
+    /// <summary>"1 / 2" 같은 턴 표시. 턴 전에는 빈 문자열.</summary>
+    public string NetworkTurnText { get; set; }
+
+    /// <summary>"00:27" 같은 남은 시간. 없으면 빈 문자열.</summary>
+    public string NetworkTimeText { get; set; }
+
+    /// <summary>카운트다운 숫자. 0 이면 안 띄운다.</summary>
+    public int NetworkCountdown { get; set; }
+
+    /// <summary>결과 화면을 띄울 것인가.</summary>
+    public bool NetworkResultShow { get; set; }
+
+    /// <summary>"성공!" 또는 "실패".</summary>
+    public string NetworkResultText { get; set; }
+
+    /// <summary>"82점 · 유사도 82.4%" 같은 두 줄.</summary>
+    public string NetworkResultDetail { get; set; }
+
+    private bool _hidUnwired;
+
+    /// <summary>
+    /// 아직 서버에 연결되지 않은 칸을 감춘다. **1단계 한정이다.**
+    ///
+    /// 복구 · 힌트 · 결과 · 플레이어 줄은 2단계에서 격자와 함께 살아난다.
+    /// 그때까지 숫자를 띄워 두면 "복구 4개 남음" 같은 없는 정보를 읽게 된다.
+    /// </summary>
+    private void HideUnwiredParts()
+    {
+        if (_hidUnwired) return;
+        _hidUnwired = true;
+
+        SetActive(restoreText, false);
+        SetActive(hintText, false);
+
+        if (rows != null)
+            foreach (PlayerRow row in rows)
+                SetActive(RowObject(row), false);
+    }
+
+    private static void SetActive(Component target, bool on)
+    {
+        if (target != null && target.gameObject.activeSelf != on) target.gameObject.SetActive(on);
+    }
+
+    private static void SetActive(GameObject target, bool on)
+    {
+        if (target != null && target.activeSelf != on) target.SetActive(on);
+    }
+
+    /// <summary>서버가 준 값으로 그린다. <c>MineGame</c> 은 보지 않는다.</summary>
+    private void DrawNetwork()
+    {
+        HideUnwiredParts();
+
+        if (countdownText != null)
+        {
+            bool counting = NetworkCountdown > 0;
+            SetActive(countdownText, counting);
+            if (counting) countdownText.text = NetworkCountdown.ToString();
+        }
+
+        // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
+        SetActive(resultPanel, NetworkResultShow);
+
+        if (NetworkResultShow)
+        {
+            if (resultText != null) resultText.text = NetworkResultText ?? string.Empty;
+            if (resultDetailText != null) resultDetailText.text = NetworkResultDetail ?? string.Empty;
+        }
+
+        if (phaseText != null) phaseText.text = NetworkPhaseText ?? string.Empty;
+        if (turnText != null) turnText.text = NetworkTurnText ?? string.Empty;
+        if (timeText != null) timeText.text = string.IsNullOrEmpty(NetworkTimeText) ? "--:--" : NetworkTimeText;
+    }
+
     private void Update()
     {
+        if (NetworkDriven) { DrawNetwork(); return; }
+
         if (game == null) return;
 
         // 카운트다운은 매 프레임 본다. 남은 시간이 곧 띄울 숫자다.
