@@ -11,26 +11,44 @@ namespace MiniGames.Common
     /// 사람도 이 파일의 public 함수만 알면 된다. <see cref="MatchFlow"/> 안쪽이나 결과
     /// 화면의 계층 구조를 뒤질 일이 없다.
     ///
-    ///     매칭이 다 됨   → (자동) LaunchRequested 를 받아 씬을 연다
-    ///     게임이 끝남    → <see cref="CompleteMiniGame"/>
-    ///     다시 하기      → <see cref="ReplayCurrentMiniGame"/>
-    ///     로비로         → <see cref="ReturnToLobby"/>
+    ///     [게임 시작] 버튼  → <see cref="RequestStart"/>  (조건이 맞으면 카운트다운)
+    ///     [매칭 취소] 버튼  → <see cref="CancelMatch"/>
+    ///     카운트다운 끝    → (자동) <see cref="StartGame"/>  ← 씬 이동의 <b>유일한</b> 진입점
+    ///     게임이 끝남      → <see cref="CompleteMiniGame"/>
+    ///     다시 하기        → <see cref="ReplayCurrentMiniGame"/>
+    ///     로비로           → <see cref="ReturnToLobby"/>
     ///
     /// 보상 적립은 <see cref="RewardService"/> 가, 씬 열기는
     /// <see cref="SceneTransitionService"/> 가 한다. 이 파일은 순서만 정한다.
+    ///
+    /// ── 서버·네트워크 담당자가 바꿀 곳 ──────────────────────────────
+    ///
+    /// 씬 이동은 <see cref="StartGame"/> 한 곳에서만 일어난다. Fusion 의 네트워크 씬 로드로
+    /// 바꿀 때는 <see cref="SceneTransitionService.LoadMiniGame"/> 안쪽만 갈아 끼우면 되고,
+    /// 서버가 "지금 시작" 을 내려 준다면 클라이언트에서 <see cref="StartGame"/> 을 직접 불러도 된다.
+    /// 두 번 불려도 한 번만 실행된다.
     /// </summary>
     public sealed class MatchFlowController : MonoBehaviour
     {
         [SerializeField] private MatchFlow flow;
         [SerializeField] private SceneTransitionService sceneTransition;
+
+        [Tooltip("결과 화면. 매칭 전용 프리팹에는 없으므로 비워 둘 수 있다.")]
         [SerializeField] private ResultPanelPresenter resultPanel;
 
         [SerializeField]
-        [Tooltip("켜 두면 매칭이 끝나도 씬을 열지 않는다. 테스트 씬에서 가짜 한 판을 돌릴 때 쓴다.")]
+        [Tooltip("켜 두면 매칭이 끝나도 씬을 열지 않는다. 테스트 씬에서 쓴다.")]
         private bool suppressSceneLoad;
 
-        /// <summary>매칭이 끝나 이 게임을 시작할 차례. 테스트 리그가 가짜 한 판을 여기서 돌린다.</summary>
+        [SerializeField]
+        [Tooltip("[매칭 취소] 를 누르면 로비 씬으로 돌아간다. 로비 안에서 매칭 창만 띄우는 구조라면 끈다.")]
+        private bool returnToLobbyOnCancel = true;
+
+        /// <summary>매칭이 끝나 이 게임을 시작할 차례. 테스트 씬은 여기서 씬 대신 매칭으로 되돌아간다.</summary>
         public event Action<MiniGameConfig> MiniGameStarting;
+
+        /// <summary>[매칭 취소] 로 파티가 비워졌다.</summary>
+        public event Action MatchCancelled;
 
         /// <summary>결과 화면을 띄운 직후. 적립까지 끝난 결과가 넘어온다.</summary>
         public event Action<MiniGameResult> ResultShown;
@@ -41,9 +59,20 @@ namespace MiniGames.Common
         /// <summary>마지막 판의 결과. 로비가 물어볼 수 있다.</summary>
         public MiniGameResult LastResult { get; private set; }
 
+        /// <summary>
+        /// 이 판에서 이미 <see cref="StartGame"/> 이 실행됐는가. 카운트다운이 끝나는 프레임에
+        /// 서버 신호까지 같이 들어와도 씬은 한 번만 열린다. 매칭 상태로 돌아오면 풀린다.
+        /// </summary>
+        public bool HasStarted { get; private set; }
+
         private void OnEnable()
         {
-            if (flow != null) flow.LaunchRequested += OnLaunchRequested;
+            if (flow != null)
+            {
+                flow.LaunchRequested += OnLaunchRequested;
+                flow.MatchCancelled += OnMatchCancelled;
+                flow.StateChanged += OnFlowStateChanged;
+            }
 
             if (resultPanel != null)
             {
@@ -54,7 +83,12 @@ namespace MiniGames.Common
 
         private void OnDisable()
         {
-            if (flow != null) flow.LaunchRequested -= OnLaunchRequested;
+            if (flow != null)
+            {
+                flow.LaunchRequested -= OnLaunchRequested;
+                flow.MatchCancelled -= OnMatchCancelled;
+                flow.StateChanged -= OnFlowStateChanged;
+            }
 
             if (resultPanel != null)
             {
@@ -64,7 +98,55 @@ namespace MiniGames.Common
         }
 
         // ------------------------------------------------------------
-        // 미니게임이 부를 것
+        // 매칭 화면의 두 버튼
+        // ------------------------------------------------------------
+
+        /// <summary>[게임 시작]. 지금 인원으로 시작할 수 없으면 아무 일도 하지 않는다.</summary>
+        public void RequestStart()
+        {
+            if (flow != null) flow.RequestStart();
+        }
+
+        /// <summary>[매칭 취소]. 파티를 비우고, 설정에 따라 로비로 돌아간다.</summary>
+        public void CancelMatch()
+        {
+            if (flow != null) flow.CancelMatch();
+        }
+
+        /// <summary>지금 인원으로 시작할 수 있는가. 조건식은 <see cref="MatchFlow.CanStartMatch"/> 한 곳에 있다.</summary>
+        public bool CanStartMatch() => flow != null && flow.CanStartMatch();
+
+        // ------------------------------------------------------------
+        // 씬 이동 — 유일한 진입점
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// 게임을 실제로 시작한다. 카운트다운이 끝나면 자동으로 불리고, 서버가 시작을 내려 줄 때
+        /// 직접 불러도 된다. <b>한 판에 한 번만</b> 실행된다 — 두 번째부터는 무시한다.
+        ///
+        /// 씬을 여는 코드는 <see cref="SceneTransitionService.LoadMiniGame"/> 에만 있다.
+        /// 버튼이나 UI 가 <c>SceneManager.LoadScene</c> 을 직접 부르지 않는다.
+        /// </summary>
+        public void StartGame(MiniGameConfig config)
+        {
+            if (HasStarted)
+            {
+                Debug.LogWarning("[MatchFlowController] StartGame 이 두 번 불렸습니다. 두 번째는 무시합니다.", this);
+                return;
+            }
+
+            HasStarted = true;
+
+            if (flow != null) flow.EnterInGame();
+            MiniGameStarting?.Invoke(config);
+
+            if (suppressSceneLoad) return;
+            if (sceneTransition != null && config != null)
+                sceneTransition.LoadMiniGame(config.SceneName);
+        }
+
+        // ------------------------------------------------------------
+        // 미니게임이 부를 것 (결과 흐름 — 이 브랜치 범위 밖. 그대로 둔다)
         // ------------------------------------------------------------
 
         /// <summary>
@@ -115,10 +197,6 @@ namespace MiniGames.Common
             CompleteMiniGame(result);
         }
 
-        // ------------------------------------------------------------
-        // 결과 화면의 두 버튼
-        // ------------------------------------------------------------
-
         /// <summary>인원은 그대로 두고 같은 게임을 다시. 매칭부터 하지 않는다.</summary>
         public void ReplayCurrentMiniGame()
         {
@@ -134,7 +212,7 @@ namespace MiniGames.Common
         {
             if (resultPanel != null) resultPanel.Hide();
 
-            PlayerRoster.Clear();
+            PlayerRoster.ClearPlayers();
             if (flow != null) flow.ReturnToMatching();
 
             if (sceneTransition != null) sceneTransition.LoadLobby();
@@ -144,14 +222,20 @@ namespace MiniGames.Common
         // 안쪽
         // ------------------------------------------------------------
 
-        private void OnLaunchRequested(MiniGameConfig config)
-        {
-            if (flow != null) flow.EnterInGame();
-            MiniGameStarting?.Invoke(config);
+        private void OnLaunchRequested(MiniGameConfig config) => StartGame(config);
 
-            if (suppressSceneLoad) return;
-            if (sceneTransition != null && config != null)
-                sceneTransition.LoadMiniGame(config.SceneName);
+        private void OnMatchCancelled()
+        {
+            MatchCancelled?.Invoke();
+
+            if (!returnToLobbyOnCancel) return;
+            if (sceneTransition != null) sceneTransition.LoadLobby();
+        }
+
+        private void OnFlowStateChanged(MatchState state)
+        {
+            // 매칭으로 돌아오면 다음 판을 열 수 있어야 한다.
+            if (state == MatchState.Matching) HasStarted = false;
         }
     }
 }

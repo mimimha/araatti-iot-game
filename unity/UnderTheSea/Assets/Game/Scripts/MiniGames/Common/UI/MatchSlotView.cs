@@ -5,14 +5,21 @@ using UnityEngine.UI;
 namespace MiniGames.Common.UI
 {
     /// <summary>
-    /// 매칭 화면의 자리 하나.
+    /// 매칭 화면의 자리 하나. 네 자리가 전부 이 하나를 재사용한다.
     ///
-    /// 사람이 앉으면 캐릭터 초상이 제 색으로 켜지고, 빈 자리면 같은 그림을 어두운
-    /// 실루엣으로 눕힌다. 빈 자리에 물음표만 두면 "아직 아무도 없다"는 것은 알겠지만
-    /// 몇 명짜리 판인지가 눈에 안 들어온다. 실루엣은 자리의 모양을 남기면서도
-    /// 찬 자리와 확실히 구분된다.
+    ///     참가한 사람   초상(제 색) + 이름 + READY (준비 전이면 WAIT, 노란 점)
+    ///     빈 자리       실루엣 + "매칭 중..." + WAIT   (카운트다운 중엔 한 단 더 어둡게)
+    ///     나            금색 테두리·이름표, 카드 한 단 밝게, 이름 뒤 "(나)"
+    ///
+    /// 상태 배지는 READY / WAIT 두 단어만 쓴다. 짧아서 카드 폭에 맞고 한눈에 구분된다.
+    ///
+    /// 빈 자리에 물음표만 두면 "아직 아무도 없다"는 것은 알겠지만 몇 명짜리 판인지가
+    /// 눈에 안 들어온다. 실루엣은 자리의 모양을 남기면서도 찬 자리와 확실히 구분된다.
+    /// 빈 카드도 카드로 보여야 하므로 완전 검정까지 내리지 않고 어두운 네이비에서 멈춘다.
     ///
     /// 자리마다 색(<see cref="accent"/>)과 초상은 씬을 지을 때 정해 준다.
+    /// 캐릭터 외형(<see cref="PlayerEntry.CharacterPresetId"/>)을 초상에 반영하는 일은
+    /// 아직 하지 않는다 — 자리는 <see cref="portrait"/> 하나라 나중에 그 스프라이트만 바꾸면 된다.
     /// </summary>
     public sealed class MatchSlotView : MonoBehaviour
     {
@@ -41,6 +48,12 @@ namespace MiniGames.Common.UI
         [SerializeField] private Color pendingAmber = new(1f, .78f, .35f, 1f);
         [SerializeField] private Color nameOn = new(1f, 1f, 1f, 1f);
 
+        [Header("나 (이 기기의 플레이어)")]
+        [Tooltip("내 자리의 테두리·이름표 색. 금색. 빨강은 '문제 있음' 으로 읽혀서 쓰지 않는다.")]
+        [SerializeField] private Color localAccent = new(.98f, .80f, .36f, 1f);
+        [Tooltip("내 카드는 다른 사람보다 한 단만 밝게. 너무 튀면 다른 READY 카드가 죽는다.")]
+        [SerializeField] private Color localCard = new(.070f, .190f, .350f, 1f);
+
         // 빈 자리도 카드로 보여야 한다. 메인 패널보다 한 단 어두운 네이비까지만 내린다.
         [Header("빈 자리")]
         [SerializeField] private Color emptyCard = new(.027f, .090f, .184f, 1f);
@@ -53,11 +66,15 @@ namespace MiniGames.Common.UI
         /// <summary>사람이 앉아 있는 자리.</summary>
         public void ShowMember(PlayerEntry entry, int slotNumber)
         {
-            Paint(filledCard, filledBack, Color.white, accent, accent);
+            bool mine = entry.IsLocal;
+            Color tint = mine ? localAccent : accent;
+
+            Paint(mine ? localCard : filledCard, filledBack, Color.white, tint, tint);
 
             if (nameText != null)
             {
-                nameText.text = entry.IsLocal ? "나" : entry.DisplayName;
+                string name = string.IsNullOrEmpty(entry.DisplayName) ? $"P{slotNumber}" : entry.DisplayName;
+                nameText.text = mine ? $"{name} (나)" : name;
                 nameText.color = nameOn;
             }
 
@@ -68,7 +85,7 @@ namespace MiniGames.Common.UI
 
             if (stateText != null)
             {
-                stateText.text = ready ? "준비 완료" : "대기 중";
+                stateText.text = ready ? "READY" : "WAIT";
                 stateText.color = mark;
             }
 
@@ -76,24 +93,29 @@ namespace MiniGames.Common.UI
             if (readyPlate != null) readyPlate.color = new Color(.02f, .06f, .12f, .85f);
         }
 
-        /// <summary>아직 아무도 없는 자리.</summary>
-        public void ShowEmpty()
+        /// <summary>
+        /// 아직 아무도 없는 자리.
+        /// <paramref name="dimmed"/> 는 카운트다운 중 — 이번 판에는 들어오지 않는 자리라 한 단 더 어둡게.
+        /// 그래도 카드 윤곽은 남긴다. 완전 검정이면 자리가 비었는지 고장인지 헷갈린다.
+        /// </summary>
+        public void ShowEmpty(bool dimmed = false)
         {
-            Paint(emptyCard, emptyBack, silhouette, new Color(0f, 0f, 0f, 0f), emptyAccent);
+            float k = dimmed ? .72f : 1f;
+            Paint(emptyCard * k, emptyBack * k, silhouette * k, new Color(0f, 0f, 0f, 0f), emptyAccent * k);
 
             if (nameText != null)
             {
                 nameText.text = "매칭 중...";
-                nameText.color = nameOff;
+                nameText.color = nameOff * k;
             }
 
             if (stateText != null)
             {
                 stateText.text = "WAIT";
-                stateText.color = nameOff;
+                stateText.color = nameOff * k;
             }
 
-            if (readyDot != null) readyDot.color = emptyAccent;
+            if (readyDot != null) readyDot.color = emptyAccent * k;
             if (readyPlate != null) readyPlate.color = new Color(.043f, .086f, .149f, .85f);
         }
 

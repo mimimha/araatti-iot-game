@@ -59,8 +59,9 @@ namespace MiniGames.Common
     ///
     ///     플레이어 입장  → <see cref="RegisterPlayer"/>
     ///     플레이어 퇴장  → <see cref="UnregisterPlayer"/>
-    ///     준비 상태 변경 → <see cref="SetReady"/>
+    ///     준비 상태 변경 → <see cref="SetPlayerReady"/>
     ///     연결 끊김/복구 → <see cref="SetConnectionState"/>
+    ///     방 해산        → <see cref="ClearPlayers"/>
     ///
     /// 지금은 테스트 버튼이 같은 함수를 부르고 있다. 부르는 쪽만 바뀌면 된다.
     /// </summary>
@@ -138,7 +139,7 @@ namespace MiniGames.Common
             Changed?.Invoke();
         }
 
-        public static void SetReady(int playerId, bool ready)
+        public static void SetPlayerReady(int playerId, bool ready)
         {
             PlayerEntry entry = ForId(playerId);
             if (entry == null || entry.IsReady == ready) return;
@@ -146,6 +147,9 @@ namespace MiniGames.Common
             entry.IsReady = ready;
             Changed?.Invoke();
         }
+
+        /// <summary><see cref="SetPlayerReady"/> 와 같다. 예전 이름.</summary>
+        public static void SetReady(int playerId, bool ready) => SetPlayerReady(playerId, ready);
 
         public static void SetConnectionState(int playerId, ConnectionState state)
         {
@@ -178,7 +182,8 @@ namespace MiniGames.Common
 
         public static PlayerEntry Local => Entries.Find(e => e.IsLocal);
 
-        public static void Clear()
+        /// <summary>전부 내보낸다. 매칭 취소, 방 해산, 로비 복귀에서 부른다.</summary>
+        public static void ClearPlayers()
         {
             if (Entries.Count == 0) return;
 
@@ -186,6 +191,9 @@ namespace MiniGames.Common
             nextTestId = 1;
             Changed?.Invoke();
         }
+
+        /// <summary><see cref="ClearPlayers"/> 와 같다. 예전 이름.</summary>
+        public static void Clear() => ClearPlayers();
 
         // ------------------------------------------------------------
         // 테스트 전용 — 네트워크가 붙으면 쓰지 않는다

@@ -13,12 +13,12 @@ MonoBehaviour:
   m_Name: MiniGame_Ship
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameConfig
   gameId: 2
-  displayName: "\uBC30 \uD611\uB3D9"
+  displayName: "\uBC30 \uD611\uB3D9 \uBBF8\uB2C8\uAC8C\uC784"
   sceneName: 
   minPlayers: 4
   maxPlayers: 4
   requireFullParty: 1
-  autoStartSeconds: 5
+  autoStartSeconds: 30
   extraStatLabel: "\uD56D\uD574 \uC810\uC218"
   rewardName: "\uBC14\uB2E4\uC758 \uC2EC\uC7A5 \uC870\uAC01"
   fragmentId: ship
