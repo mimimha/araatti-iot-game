@@ -18,7 +18,7 @@ MonoBehaviour:
   minPlayers: 1
   maxPlayers: 4
   requireFullParty: 0
-  autoStartSeconds: 5
+  autoStartSeconds: 30
   extraStatLabel: "\uCC44\uAD74\uB7C9"
   rewardName: "\uBC14\uB2E4\uC758 \uC2EC\uC7A5 \uC870\uAC01"
   fragmentId: mining

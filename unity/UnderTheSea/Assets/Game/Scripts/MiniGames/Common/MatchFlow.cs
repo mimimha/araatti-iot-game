@@ -36,6 +36,11 @@ namespace MiniGames.Common
     /// 인원은 <see cref="PlayerRoster"/> 가 바뀔 때마다 다시 센다. 깨어날 때 한 번 세고 마는
     /// 구조였다면 사람이 들어온 뒤에도 시작 버튼이 잠긴 채였을 것이다.
     ///
+    /// 시작은 두 길이다. 사람이 [게임 시작] 을 누르거나(<see cref="RequestStart"/>), 시작할 수 있게 된
+    /// 뒤 <see cref="MiniGameConfig.AutoStartSeconds"/>(30초) 가 지나면 알아서 센다. 세 게임 모두
+    /// 같은 규칙이다 — 배도 4명이 모인 순간이 아니라 그로부터 30초 뒤에 알아서 시작한다.
+    /// 인원이 바뀌면 30초를 다시 잰다. 자동 시작은 <see cref="autoStart"/> 로 끌 수 있다.
+    ///
     /// 시작이 두 번 일어나지 않도록 두 겹으로 막는다 — 상태가 <see cref="MatchState.Countdown"/>
     /// 이 아니면 세지 않고, 다 센 뒤에는 <see cref="MatchState.Starting"/> 으로 넘어가
     /// <see cref="LaunchRequested"/> 를 판당 한 번만 올린다. 버튼 연타로 씬이 두 번
@@ -53,6 +58,11 @@ namespace MiniGames.Common
         [Tooltip("켜 두면 씬이 시작될 때 이 기기의 플레이어를 자동으로 한 명 넣는다. 네트워크가 붙으면 끈다.")]
         private bool joinLocalPlayerOnStart = true;
 
+        [SerializeField]
+        [Tooltip("켜면 시작할 수 있게 된 뒤 Config.AutoStartSeconds 가 지나면 알아서 카운트다운을 시작한다. " +
+                 "끄면 [게임 시작] 버튼으로만 시작한다.")]
+        private bool autoStart = true;
+
         /// <summary>상태가 바뀔 때마다.</summary>
         public event Action<MatchState> StateChanged;
 
@@ -65,8 +75,14 @@ namespace MiniGames.Common
         /// <summary>다 셌다. 이 게임을 열어 달라는 뜻. 한 판에 <b>한 번만</b> 올라온다.</summary>
         public event Action<MiniGameConfig> LaunchRequested;
 
+        /// <summary>[매칭 취소] 를 눌러 파티를 비웠다. 로비로 돌아갈지는 <see cref="MatchFlowController"/> 가 정한다.</summary>
+        public event Action MatchCancelled;
+
         public MiniGameConfig Config => config;
         public MatchState State { get; private set; } = MatchState.Idle;
+
+        /// <summary>카운트다운 길이(초). 화면이 "5초" 같은 안내를 쓸 때 참고한다.</summary>
+        public float CountdownSeconds => countdownSeconds;
 
         public int PlayerCount => PlayerRoster.ActivePlayerCount;
 
@@ -87,8 +103,11 @@ namespace MiniGames.Common
         /// <summary>카운트다운에 남은 초. 화면에 크게 보여 줄 숫자.</summary>
         public int CountdownRemaining { get; private set; }
 
-        /// <summary>자동 시작까지 남은 초. 정원이 차야 하는 게임에서는 쓰지 않는다.</summary>
+        /// <summary>자동 시작까지 남은 초. <see cref="autoStart"/> 가 꺼져 있으면 늘 0.</summary>
         public float AutoStartRemaining { get; private set; }
+
+        /// <summary>자동 시작을 쓰는가. 끄면 버튼으로만 시작한다.</summary>
+        public bool AutoStartEnabled => autoStart;
 
         private float countdownTimer;
         private bool waitingForAutoStart;
@@ -146,15 +165,26 @@ namespace MiniGames.Common
             if (next == null) return;
 
             config = next;
+            enabled = true; // 설정이 비어 Start 에서 꺼졌더라도 다시 살린다
             PlayerRoster.SelectGame(config);
+
+            // 포탈에서 열었을 때 아직 아무도 없으면 이 기기의 플레이어를 넣는다.
+            // 네트워크가 사람을 넣어 주는 씬에서는 joinLocalPlayerOnStart 를 꺼서 막는다.
+            if (joinLocalPlayerOnStart && PlayerRoster.ActivePlayerCount == 0)
+                PlayerRoster.RegisterNextTestPlayer(isLocal: true);
+
             EnterMatching();
         }
 
-        /// <summary>[매칭 취소]. 파티를 비우고 처음부터.</summary>
+        /// <summary>
+        /// [매칭 취소]. 파티를 비우고 매칭 상태로 되돌린 뒤 <see cref="MatchCancelled"/> 를 올린다.
+        /// 어디로 돌아갈지(로비 씬 등)는 여기서 정하지 않는다.
+        /// </summary>
         public void CancelMatch()
         {
-            PlayerRoster.Clear();
+            PlayerRoster.ClearPlayers();
             EnterMatching();
+            MatchCancelled?.Invoke();
         }
 
         /// <summary>결과 화면에서 [다시 하기] 로 돌아왔을 때. 인원은 그대로 두고 다시 센다.</summary>
@@ -194,17 +224,9 @@ namespace MiniGames.Common
                 return;
             }
 
-            if (State == MatchState.Matching)
-            {
-                // 정원이 차야 하는 게임은 다 모인 순간이 곧 시작이다. 누를 버튼이 없다.
-                if (config != null && config.RequireFullParty && CanStartMatch())
-                {
-                    BeginCountdown();
-                    return;
-                }
-
-                RestartAutoStartWindow();
-            }
+            // 인원이 바뀌면 자동 시작까지의 시간을 다시 잰다. 배도 다 모인 순간 바로 세지 않고
+            // 같은 시간을 기다린다 — 세 게임의 화면 흐름이 같아야 한다.
+            if (State == MatchState.Matching) RestartAutoStartWindow();
 
             Refreshed?.Invoke();
         }
@@ -217,18 +239,14 @@ namespace MiniGames.Common
             RestartAutoStartWindow();
             Refreshed?.Invoke();
 
-            // 이미 조건이 맞은 채로 들어왔다면(예: 4명이 모인 상태에서 다시 하기) 바로 센다.
-            if (config != null && config.RequireFullParty && CanStartMatch())
-                BeginCountdown();
         }
 
         /// <summary>
-        /// 혼자서도 되는 게임에서 "조금 더 기다려 볼까" 하는 시간을 다시 잰다.
-        /// 시작할 수 없는 상태라면 시계를 아예 돌리지 않는다.
+        /// 자동 시작까지의 시간을 다시 잰다. 시작할 수 없는 상태(인원 부족)라면 시계를 아예 돌리지 않는다.
         /// </summary>
         private void RestartAutoStartWindow()
         {
-            waitingForAutoStart = config != null && !config.RequireFullParty && CanStartMatch();
+            waitingForAutoStart = autoStart && config != null && CanStartMatch();
             AutoStartRemaining = waitingForAutoStart ? config.AutoStartSeconds : 0f;
         }
 

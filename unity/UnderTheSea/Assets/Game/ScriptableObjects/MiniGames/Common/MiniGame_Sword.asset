@@ -18,7 +18,7 @@ MonoBehaviour:
   minPlayers: 1
   maxPlayers: 2
   requireFullParty: 0
-  autoStartSeconds: 5
+  autoStartSeconds: 30
   extraStatLabel: "\uBAAC\uC2A4\uD130 \uCC98\uCE58"
   rewardName: "\uBC14\uB2E4\uC758 \uC2EC\uC7A5 \uC870\uAC01"
   fragmentId: sword
