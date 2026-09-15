@@ -58,12 +58,20 @@ public class ShipCoopResultView : MonoBehaviour
 
     private void OnEnable()
     {
-        if (game != null) game.Finished += HandleFinished;
+        if (game != null)
+        {
+            game.Finished += HandleFinished;
+            game.Restarted += Hide;
+        }
     }
 
     private void OnDisable()
     {
-        if (game != null) game.Finished -= HandleFinished;
+        if (game != null)
+        {
+            game.Finished -= HandleFinished;
+            game.Restarted -= Hide;
+        }
     }
 
     /// <summary>결과 화면을 닫는다. 다시 출항할 때 쓴다.</summary>

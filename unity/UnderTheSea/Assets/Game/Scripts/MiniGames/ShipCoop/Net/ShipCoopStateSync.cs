@@ -57,6 +57,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Networked] private int PhaseIndex { get; set; }
         [Networked] private int Score { get; set; }
         [Networked] private float Hp { get; set; }
+
+        /// <summary>
+        /// 무적(개발자 모드)인가. **화면에 보이라고 복제한다.**
+        ///
+        /// 판정은 서버만 하므로 규칙에는 필요 없다. 그런데 개발자 모드 패널은 각자 자기 화면에서 그리고
+        /// 자기 컴퓨터의 ShipHealth 를 읽는다 — 복제하지 않으면 **서버는 무적인데 내 화면 패널은 계속
+        /// 꺼짐으로 보인다.** 0 을 눌러도 아무 일도 안 일어나는 것처럼 보였던 이유다.
+        /// </summary>
+        [Networked] private NetworkBool Invincible { get; set; }
         [Networked] private float Progress01 { get; set; }
         [Networked] private float Flood01 { get; set; }
         [Networked] private int Leaks { get; set; }
@@ -183,6 +192,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             if (health != null)
             {
                 Hp = health.CurrentHp;
+                Invincible = health.Invincible;
             }
 
             if (voyage != null)
@@ -488,6 +498,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             if (health != null)
             {
                 health.ShowHp(Hp);
+
+                // 판정에는 안 쓴다(클라이언트는 깎지 않는다). 개발자 모드 패널이 보여주기만 한다.
+                health.Invincible = Invincible;
             }
 
             if (voyage != null)

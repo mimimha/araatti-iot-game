@@ -99,6 +99,19 @@ public class ShipHealth : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// HP 를 가득 채워 **가라앉은 것도 되돌린다.** 판을 다시 시작할 때만 쓴다.
+    ///
+    /// ⚠ <see cref="Repair"/> 와 다르다. 수리는 가라앉은 배를 일부러 안 고친다 — 되살아나면
+    ///    실패가 실패가 아니게 되기 때문이다. 그래서 침몰한 뒤에 다시 시작하려면 이쪽이 필요하다.
+    ///    (개발자 모드의 R · <c>ShipCoopGame.RestartVoyage</c>)
+    /// </summary>
+    public void ResetHealth()
+    {
+        CurrentHp = maxHp;
+        Changed?.Invoke(CurrentHp, maxHp);
+    }
+
     /// <summary>수리한다. 최대치를 넘지 않는다.</summary>
     public void Repair(float amount)
     {
