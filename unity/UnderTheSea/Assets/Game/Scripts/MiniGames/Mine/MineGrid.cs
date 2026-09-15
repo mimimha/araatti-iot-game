@@ -312,6 +312,58 @@ public class MineGrid : MonoBehaviour
     /// <summary>시드를 아무거나 골라 새로 시작한다. 혼자 테스트할 때.</summary>
     public void ResetAll() => ResetAll(Environment.TickCount);
 
+    // ------------------------------------------------------------
+    // 네트워크 전환용 덧붙임 (광산 서버화 2단계)
+    // ------------------------------------------------------------
+
+    /// <summary>칸 하나의 남은 타격 수. 서버가 복제할 값이다. 1 = 무른 돌, 2 = 단단한 돌, 0 = 파임.</summary>
+    public int RemainingAt(int x, int y)
+    {
+        EnsureAllocated();
+        return InBounds(x, y) ? _remaining[Index(x, y)] : 0;
+    }
+
+    /// <summary>
+    /// 서버가 정한 칸 상태를 **그대로 받아 적는다.** 판단은 하지 않는다.
+    ///
+    /// 클라이언트는 자기 격자를 계산하지 않는다. 계산은 서버에서 한 번만 일어나고,
+    /// 이쪽은 그 결과를 그리기만 한다. 그래야 네 명이 같은 그림을 본다.
+    ///
+    /// <c>OnCellChanged</c> 를 울려서 <see cref="MineGridView"/> 가 다시 칠하게 하고,
+    /// 값이 줄어든 경우에는 <c>OnCellHit</c> 도 울려 부스러기가 튀게 한다.
+    ///
+    /// ⚠ 혼자 하는 씬에서는 아무도 부르지 않으므로 예전 그대로다.
+    /// </summary>
+    public void ShowCell(int x, int y, int remaining)
+    {
+        EnsureAllocated();
+
+        if (!InBounds(x, y)) return;
+
+        int i = Index(x, y);
+        int was = _remaining[i];
+        byte now = (byte)Mathf.Clamp(remaining, 0, 2);
+
+        if (was == now) return;
+
+        // 단단한 돌인지는 '한 번이라도 2 였는가' 로 안다. 복구하면 원래 굳기로 돌아가야 한다.
+        if (now > _hardness[i]) _hardness[i] = now;
+
+        _remaining[i] = now;
+
+        bool dugNow = now == 0;
+        if (_dug[i] != dugNow)
+        {
+            _dug[i] = dugNow;
+            DugCount += dugNow ? 1 : -1;
+        }
+
+        OnCellChanged?.Invoke(x, y);
+
+        // 줄어들었으면 맞은 것이다. 깨졌는지(0) 금만 갔는지(그 외)를 같이 알린다.
+        if (now < was) OnCellHit?.Invoke(x, y, dugNow);
+    }
+
     /// <summary>
     /// 월드 좌표가 어느 칸인지. 격자 밖이면 false 를 돌려주고 x, y 는 믿을 수 없다.
     /// 높이(Y)는 보지 않는다.

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// 광산의 카메라. 시점이 셋이다. (MINE.md 6장 · 3장 7번)
@@ -131,6 +132,49 @@ public class MineCamera : MonoBehaviour
         get { EnsureOrbit(); return _yaw; }
     }
 
+    // ------------------------------------------------------------
+    // 네트워크 전환용 덧붙임 (광산 서버화 1단계)
+    // 아래 셋은 **읽기와 대입만** 한다. 위의 궤도 계산은 하나도 건드리지 않았다.
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 지금 보고 있는 상하 각도(도). 관전자가 같은 시점을 보려면 이것도 필요하다.
+    ///
+    /// 좌우(<see cref="Yaw"/>)만 맞추면 고개 높이가 서로 달라, 같은 곳을 본다고 해도
+    /// 화면에 잡히는 범위가 다르다.
+    /// </summary>
+    public float Pitch
+    {
+        get { EnsureOrbit(); return _pitch; }
+    }
+
+    /// <summary>
+    /// 마우스로 시점을 돌릴 수 있는가. **관전 중에는 꺼진다.**
+    ///
+    /// <c>mouseLook</c> 은 인스펙터 값이라 "이 씬이 마우스 시점을 쓰는가" 를 정하고,
+    /// 이쪽은 "지금 이 사람이 돌려도 되는가" 를 정한다. 둘 다 켜져야 돈다.
+    ///
+    /// 혼자 하는 씬에서는 아무도 내리지 않으므로 예전 그대로다.
+    /// </summary>
+    public bool AcceptsMouse { get; set; } = true;
+
+    /// <summary>
+    /// 시점을 밖에서 정해 준다. **관전용이다.**
+    ///
+    /// 지금 턴인 사람의 각도를 복제받아 그대로 넣으면 네 명이 같은 화면을 본다.
+    /// 자리(<see cref="FollowPlayer"/>)만 맞추고 각도를 안 맞추면, 같은 사람을
+    /// 따라다니면서도 저마다 다른 쪽을 보게 된다.
+    ///
+    /// 거리(줌)는 건드리지 않는다. 각자 편한 거리로 두어도 시점은 같다.
+    /// </summary>
+    public void ApplyOrbit(float yaw, float pitch)
+    {
+        EnsureOrbit();
+
+        _yaw = yaw;
+        _pitch = Mathf.Clamp(pitch, minPitch, Mathf.Max(minPitch, maxPitch));
+    }
+
     /// <summary>
     /// 시점을 followOffset 이 말하는 기본 각도로 되돌린다.
     ///
@@ -168,13 +212,31 @@ public class MineCamera : MonoBehaviour
         EnsureOrbit();
         UpdateCursor();
 
-        if (!mouseLook || _boardView || _follow == null) return;
+        // AcceptsMouse 가 꺼져 있으면 관전 중이다. 시점은 복제로 들어온다.
+        if (!mouseLook || !AcceptsMouse || _boardView || _follow == null) return;
 
         // 커서가 풀려 있으면(ESC) 화면 밖 작업 중이다. 그때는 안 돈다.
         if (lockCursor && Cursor.lockState != CursorLockMode.Locked) return;
 
-        float mx = Input.GetAxis("Mouse X");
-        float my = Input.GetAxis("Mouse Y");
+        // ⚠ 마우스도 새 Input System 으로 읽는다. 레거시 축은 같은 프로젝트 안에서도
+        //   빌드에 따라 조용히 0 이 나오는 일이 있어, 화면이 안 돌아가는 원인이 된다.
+        //   장치가 없으면(서버 · 창 없는 실행) 예전 경로로 떨어진다. (광산 서버화)
+        Mouse mouse = Mouse.current;
+
+        float mx, my;
+
+        if (mouse != null)
+        {
+            // 레거시 Mouse X/Y 는 픽셀의 0.1 배로 들어온다. 감도 값을 그대로 쓰려면 맞춰준다.
+            Vector2 delta = mouse.delta.ReadValue() * 0.1f;
+            mx = delta.x;
+            my = delta.y;
+        }
+        else
+        {
+            mx = Input.GetAxis("Mouse X");
+            my = Input.GetAxis("Mouse Y");
+        }
 
         _yaw += mx * sensitivityX;
         _pitch += (invertY ? my : -my) * sensitivityY;
@@ -182,7 +244,9 @@ public class MineCamera : MonoBehaviour
 
         if (zoomStep > 0f)
         {
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            float scroll = mouse != null
+                ? mouse.scroll.ReadValue().y * 0.01f
+                : Input.GetAxis("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.0001f)
             {
                 _distance = Mathf.Clamp(_distance - scroll * zoomStep,
@@ -202,7 +266,7 @@ public class MineCamera : MonoBehaviour
     {
         if (!mouseLook || !lockCursor) return;
 
-        bool wantLock = !_boardView && _follow != null;
+        bool wantLock = !_boardView && _follow != null && AcceptsMouse;
 
         if (!wantLock)
         {
@@ -214,7 +278,9 @@ public class MineCamera : MonoBehaviour
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape))
+        Keyboard keys = Keyboard.current;
+
+        if (keys != null ? keys.escapeKey.wasPressedThisFrame : Input.GetKeyDown(KeyCode.Escape))
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -222,7 +288,11 @@ public class MineCamera : MonoBehaviour
         }
 
         // 풀려 있을 때 화면을 누르면 다시 잠근다.
-        if (Cursor.lockState != CursorLockMode.Locked && Input.GetMouseButtonDown(0))
+        bool clicked = Mouse.current != null
+            ? Mouse.current.leftButton.wasPressedThisFrame
+            : Input.GetMouseButtonDown(0);
+
+        if (Cursor.lockState != CursorLockMode.Locked && clicked)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;

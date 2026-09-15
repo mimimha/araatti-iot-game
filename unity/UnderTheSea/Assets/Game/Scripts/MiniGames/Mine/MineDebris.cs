@@ -125,10 +125,19 @@ public class MineDebris : MonoBehaviour
         return mesh;
     }
 
+    /// <summary>
+    /// 조각에 쓸 머티리얼. **못 만들면 null 을 돌려준다.**
+    ///
+    /// ⚠ Dedicated Server 빌드에는 셰이더가 들어 있지 않다 (Dedicated Server Optimizations).
+    ///   그대로 두면 <c>Shader.Find</c> 가 null 을 돌려주고 <c>new Material(null)</c> 이
+    ///   예외를 던져 <c>Awake</c> 가 중간에 끊긴다. 부스러기는 연출이라 서버에는 없어도 된다.
+    ///   (광산 서버화 1단계 — Warriors 에서 같은 함정을 겪었다)
+    /// </summary>
     private Material MakeMaterial()
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Lit");
         if (shader == null) shader = Shader.Find("Sprites/Default");
+        if (shader == null) return null;
 
         return new Material(shader) { color = pieceColor };
     }
