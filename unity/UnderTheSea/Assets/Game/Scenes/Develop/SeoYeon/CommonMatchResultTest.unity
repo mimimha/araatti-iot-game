@@ -1216,6 +1216,7 @@ MonoBehaviour:
   resultPanel: {fileID: 4409838298004388952}
   configs: {fileID: 344475020}
   showDebugControls: 1
+  startQueueOnPlay: 1
   toggleKey: 94
   debugRoot: {fileID: 766834482}
   addPlayerButton: {fileID: 0}

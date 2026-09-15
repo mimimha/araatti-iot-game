@@ -24,21 +24,23 @@ UI 프리팹 하나, 코드 한 벌을 세 게임이 재사용하고, 게임마�
 ```csharp
 using MiniGames.Common;
 
-// 검 포탈
-CommonMatchingUI.Current.Show(swordConfig);    // 1~2인, 혼자 시작 가능
+// 실제 게임 — 서버 대기열에 들어간다. 첫 응답이 올 때까지 조타 로딩 화면이 보인다.
+CommonMatchingUI.Current.BeginQueue(swordConfig);    // 검  1~2인
+CommonMatchingUI.Current.BeginQueue(miningConfig);   // 광산 1~4인
+CommonMatchingUI.Current.BeginQueue(shipConfig);     // 배  4인 고정
 
-// 광산 포탈
-CommonMatchingUI.Current.Show(miningConfig);   // 1~4인, 혼자 시작 가능
-
-// 배 포탈
-CommonMatchingUI.Current.Show(shipConfig);     // 4인 고정, 다 모이면 자동 시작
+// 서버 없이 매칭 판만 바로 띄울 때 (오프라인 테스트)
+CommonMatchingUI.Current.Show(swordConfig);
 ```
 
 - `CommonMatchingUI` 는 프리팹 루트에 붙어 있고 `Current` 로 찾거나 인스펙터 참조로 잡습니다.
-- `Show(config)` 한 번이면 슬롯 수(2 or 4)·시작 조건·안내 문구가 그 게임 것으로 바뀝니다.
+- `BeginQueue(config)` 흐름: 전체 화면 남색 대기 화면(조타 회전) → `INetworkService.JoinMiniGameQueue` →
+  **최소 5초 AND 서버의 첫 `OnQueueUpdated`** 를 모두 만족하면 가운데서 원형으로 열리며(0.85초) 매칭 판이 나옵니다.
+  열린 순간부터 30초 자동 시작을 다시 셉니다. 서버 응답이 없으면 계속 대기합니다.
+- 슬롯 수(2 or 4)·시작 조건·안내 문구는 config 값만 보고 바뀝니다.
 - 포탈에서 열 거라면 `CommonMatchingUI.showOnStart` 를 **끄고** `Hide()` 로 닫습니다.
-- 프리팹 안 `Systems/MatchFlow.config` 에 기본 설정을 넣어 두면 `Show` 없이도 그 게임 매칭이 됩니다
-  (미니게임 씬 안에 프리팹을 두는 경우).
+- 흐름 조정은 프리팹 루트의 `MatchingQueueCoordinator`, 대기 화면은 `Canvas/QueueLoadingPanel`(`QueueLoadingPresenter`,
+  원형 전환 셰이더 `Art/Shaders/UI/CircularRevealCutout.shader`) 입니다. 값: `minimumLoadingSeconds` 5, `circularRevealSeconds` 0.85.
 
 ### 실제 씬에 붙일 때 바꿀 값 (테스트용 기본값이 켜져 있음)
 
@@ -49,6 +51,15 @@ CommonMatchingUI.Current.Show(shipConfig);     // 4인 고정, 다 모이면 자
 | `Systems/SceneTransitionService` | `stubOnly` | true | 씬 이동 연결 후 **false** |
 | `Systems/SceneTransitionService` | `lobbySceneName` | "Lobby" | 실제 로비 씬 이름 |
 | 씬의 `Debug/MatchDebugControls` (`MatchResultTestRig`) | — | 있음 | **놓지 않음** |
+
+### 네트워크 구현체 (Fake ↔ Fusion)
+
+`NetworkServiceBootstrap` 이 Play 시작 때 하나를 만듭니다. **기본은 어디서나 Fusion** 입니다.
+- 서버 없이 대기열 흐름만 보려면 메뉴 `Tools ▸ 아라아띠 ▸ 네트워크 ▸ 에디터에서 Fake 네트워크 사용` 을 켭니다
+  (EditorPrefs — 내 PC 에만 적용, 저장소에 안 올라감. 바꾸면 Play 재시작).
+- 매칭 테스트 씬은 이 스위치와 무관하게 `MatchResultTestRig.useFakeNetworkInTestScene` 으로 스스로 Fake 를 세웁니다.
+- `FakeNetworkService` 는 대기열 요청 5초 뒤 첫 응답을 내고, 1.2초마다 테스트 플레이어를 정원까지 채웁니다.
+  게임 시작은 흉내 내지 않습니다 — 화면 규칙(30초 자동 시작 / [게임 시작])이 정합니다.
 
 ## 2. MiniGameConfig — 게임별 차이는 여기만
 
@@ -100,7 +111,7 @@ PlayerRoster.ClearPlayers();                                                    
 | 게임 | [게임 시작] 활성 · 자동 시작 시계 | 안내 문구 |
 |---|---|---|
 | 검 · 광산 | `ReadyCount >= 1` (MinPlayers) 이면 활성, 제목 아래 "30초 후 자동 시작" | — |
-| 배 | `ReadyCount == 4` (MaxPlayers) 이면 활성 + 30초 시계 | 4명 미만이면 버튼 위에 "4명의 플레이어가 모두 모여야 시작할 수 있습니다." |
+| 배 | `ReadyCount == 4` (MaxPlayers) 이면 활성 + 30초 시계 | 4명 미만이면 제목 아래에 "4명의 플레이어가 모두 모여야 시작할 수 있습니다." |
 
 카운트다운은 `MatchFlow.countdownSeconds` = **5초**, 화면에 5 → 4 → 3 → 2 → 1 → "시작!".
 제목은 매칭 중 "플레이어를 매칭 중입니다" + 튀는 점 셋, 카운트다운 중 "게임이 곧 시작됩니다" 로 바뀌고,
@@ -174,9 +185,9 @@ CommonMatchUI                   CommonMatchingUI  ← Show(config) / Hide()
     ├── MatchPanel              MatchPanelPresenter
     │   ├── HeaderArea          GameTitle("광산 미니게임", 작게·금색) + Title("플레이어를 매칭 중입니다")
     │   ├── HeaderArea          Dot1~3 — 제목 뒤에서 튀는 점 (제목 글자는 고정)
-    │   ├── StatusArea          MatchStatus(AutoStartText "30초 후 자동 시작") / CountdownStateArea(Number)
+    │   ├── StatusArea          MatchStatus(AutoStartText "30초 후 자동 시작" 또는 배의 인원 안내) / CountdownStateArea(Number)
     │   ├── PlayerSlotArea      Slot_1 ~ Slot_4 (MatchSlotView, MaxPlayers 만큼만 켜짐)
-    │   └── ActionArea          StartHint(배만) + StartButton / CancelButton
+    │   └── ActionArea          StartButton / CancelButton (StartHint 는 비워 둠)
     └── ResultPanel             (결과 흐름 — 이 브랜치 범위 밖)
 ```
 
@@ -207,7 +218,26 @@ CommonMatchUI                   CommonMatchingUI  ← Show(config) / Hide()
 - 테스트 씬은 씬을 열지 않으므로 "시작!" 뒤 가짜 한 판(1.6초)을 돌리고 결과 화면으로 넘어갑니다.
   결과 화면의 [다시 하기] 로 매칭 화면으로 돌아옵니다.
 
-## 9. 서버 / Fusion 담당자가 연결할 것 — 요약
+## 9. 결과 전달 — MiniGameResultGateway
+
+미니게임 씬에는 결과 화면이 없을 수 있습니다. 결과는 UI 를 직접 찾지 말고 Gateway 로 보냅니다.
+
+```csharp
+// 미니게임 → 서버 (전체 결과. 짧은 (bool, int) 오버로드는 기존 코드 호환용)
+NetworkServiceLocator.Current.ReportMiniGameResult(new MiniGameResult(gameId, isClear, score, playTime,
+    extraStatLabel, extraStatValue, rewardId, fragmentObtained: false, playerCount));
+
+// 서버 → 클라이언트 (서버가 검증·보상 판정을 끝낸 값). Fusion 결과 패킷 수신부에서 호출
+FusionNetworkService.ApplyMiniGameResult(settledResult);   // → MiniGameResultGateway.SubmitAuthoritative
+```
+
+- 결과 화면이 준비되기 전에 도착한 결과는 Gateway 가 **한 건** 보관했다가 `MatchFlowController` 가 등록되는 순간 전달합니다.
+- 서버 확정 결과는 `MatchFlowController.CompleteAuthoritativeMiniGame` 이 다시 계산하지 않고 그대로 표시하며,
+  `FragmentObtained` 인 보상만 `RewardService` 로컬 캐시에 반영합니다.
+- 서버 대기열 패킷은 `FusionNetworkService.ApplyMiniGameQueueSnapshot(...)`, 시작 패킷은 `ApplyMiniGameStarting(...)` 로
+  UI 경계에 넘깁니다. 스냅샷을 넘기기 전에 `PlayerRoster` 를 먼저 갱신하세요.
+
+## 10. 서버 / Fusion 담당자가 연결할 것 — 요약
 
 | 할 일 | 함수 / 위치 |
 |---|---|
@@ -217,6 +247,9 @@ CommonMatchUI                   CommonMatchingUI  ← Show(config) / Hide()
 | 연결 상태 | `PlayerRoster.SetConnectionState(id, state)` |
 | 서버 카운트다운 | `MatchFlow.OverrideCountdown(sec)` / `MatchFlowController.StartGame(config)` (시작 자체는 유저 버튼 → `RequestStart`) |
 | Network Scene Load | `SceneTransitionService.LoadMiniGame / LoadLobby` 안쪽, `stubOnly = false` |
+| 대기열 참가/취소 RPC | `FusionNetworkService.JoinMiniGameQueue / LeaveMiniGameQueue` |
+| 대기열 스냅샷 · 시작 패킷 | `FusionNetworkService.ApplyMiniGameQueueSnapshot / ApplyMiniGameStarting` |
+| 결과 제출 · 서버 확정 결과 | `FusionNetworkService.ReportMiniGameResult(MiniGameResult)` / `ApplyMiniGameResult` |
 | Character 정보 | `PlayerEntry.CharacterPresetId`, `MatchSlotView.ShowMember` |
 | 로컬 자동 입장 끄기 | `MatchFlow.joinLocalPlayerOnStart = false` |
 

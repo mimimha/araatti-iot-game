@@ -57,6 +57,15 @@ namespace MiniGames.Common
             return true;
         }
 
+        /// <summary>
+        /// 서버가 이미 지급을 확정한 조각을 로컬 캐시에 반영한다.
+        /// 중복 패킷이 와도 HashSet 덕분에 한 번만 추가된다.
+        /// </summary>
+        public static void ApplyAuthoritativeGrant(string fragmentId)
+        {
+            Grant(fragmentId);
+        }
+
         /// <summary>서버에서 받은 보유 목록으로 통째로 덮어쓴다. 로그인 직후에 쓸 자리.</summary>
         public static void LoadFrom(IEnumerable<string> fragmentIds)
         {

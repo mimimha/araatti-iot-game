@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using MiniGames.Common.UI;
 
@@ -67,6 +68,10 @@ namespace MiniGames.Common
 
         private void OnEnable()
         {
+            // 씬이 막 열린 프레임에는 MatchFlow.Start가 아직 설정을 고르는 중일 수 있다.
+            // 한 프레임 뒤 등록하면 보관된 서버 결과가 초기화에 덮이지 않고 결과 화면으로 간다.
+            StartCoroutine(RegisterResultReceiverAfterSceneReady());
+
             if (flow != null)
             {
                 flow.LaunchRequested += OnLaunchRequested;
@@ -83,6 +88,8 @@ namespace MiniGames.Common
 
         private void OnDisable()
         {
+            MiniGameResultGateway.Unregister(OnResultSubmitted);
+
             if (flow != null)
             {
                 flow.LaunchRequested -= OnLaunchRequested;
@@ -177,6 +184,23 @@ namespace MiniGames.Common
         }
 
         /// <summary>
+        /// 서버가 성공 여부·점수·보상 지급 여부를 확정한 뒤 부르는 진입점.
+        /// 서버 판정을 클라이언트에서 다시 계산하지 않고 그대로 표시한다.
+        /// </summary>
+        public void CompleteAuthoritativeMiniGame(MiniGameResult result)
+        {
+            if (result.FragmentObtained && !string.IsNullOrEmpty(result.RewardId))
+                RewardService.ApplyAuthoritativeGrant(result.RewardId);
+
+            LastResult = result;
+
+            if (flow != null) flow.EnterResult();
+            if (resultPanel != null) resultPanel.Show(result, ResolveConfig(result.GameId));
+
+            ResultShown?.Invoke(result);
+        }
+
+        /// <summary>
         /// 결과 구조체를 직접 만들기 번거로울 때 쓰는 짧은 길.
         /// 인원 수와 보상 id 는 지금 설정에서 알아서 채운다.
         /// </summary>
@@ -223,6 +247,27 @@ namespace MiniGames.Common
         // ------------------------------------------------------------
 
         private void OnLaunchRequested(MiniGameConfig config) => StartGame(config);
+
+        private IEnumerator RegisterResultReceiverAfterSceneReady()
+        {
+            yield return null;
+            if (isActiveAndEnabled) MiniGameResultGateway.Register(OnResultSubmitted);
+        }
+
+        private void OnResultSubmitted(MiniGameResult result, MiniGameResultOrigin origin)
+        {
+            if (origin == MiniGameResultOrigin.Server) CompleteAuthoritativeMiniGame(result);
+            else CompleteMiniGame(result);
+        }
+
+        private MiniGameConfig ResolveConfig(MiniGameId gameId)
+        {
+            MiniGameConfig current = CurrentConfig;
+            if (current != null && current.GameId == gameId) return current;
+
+            MiniGameConfig rosterConfig = PlayerRoster.CurrentGame;
+            return rosterConfig != null && rosterConfig.GameId == gameId ? rosterConfig : current;
+        }
 
         private void OnMatchCancelled()
         {

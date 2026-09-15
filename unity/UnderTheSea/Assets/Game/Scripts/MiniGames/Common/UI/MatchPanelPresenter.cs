@@ -15,9 +15,10 @@ namespace MiniGames.Common.UI
     /// 이미 보여 주고, 같은 뜻을 두 번 쓰면 판이 답답해진다.
     ///
     ///     HeaderArea      작게 "광산 미니게임"  +  크게 "플레이어를 매칭 중입니다" + 튀는 점 셋
-    ///     StatusArea      매칭 중 "30초 후 자동 시작" 한 줄  →  카운트다운이면 큰 숫자로 교체
+    ///     StatusArea      매칭 중 "30초 후 자동 시작" 또는 (배, 인원 부족) "4명이 모두 모여야…" 한 줄
+    ///                     →  카운트다운이면 큰 숫자로 교체
     ///     PlayerSlotArea  파티원 카드 — 두 상태에서 같은 Y
-    ///     ActionArea      (배만) "4명이 모두 모여야…" 한 줄  +  [게임 시작] [매칭 취소]
+    ///     ActionArea      [게임 시작] [매칭 취소]
     ///
     /// 카운트다운은 사람이 [게임 시작] 을 눌러야만 시작한다. 그때 바뀌는 것은 큰 제목의 문구와
     /// StatusArea 의 숫자, 버튼 줄의 표시 여부뿐이고, 파티원 줄은 크기가 고정된 별도 컨테이너라
@@ -40,7 +41,7 @@ namespace MiniGames.Common.UI
         [Header("StatusArea — 매칭 중")]
         [Tooltip("자동 시작 안내를 담는 컨테이너. 카운트다운이 시작되면 꺼진다.")]
         [SerializeField] private GameObject matchStatus;
-        [Tooltip("30초 후 자동 시작. 자동 시작 시계가 돌지 않으면 비어 있다.")]
+        [Tooltip("제목 아래 상태 한 줄. 시계가 돌면 \"30초 후 자동 시작\", 인원이 모자라 못 시작하면(배) 그 이유.")]
         [SerializeField] private TMP_Text autoStartText;
 
         [Header("StatusArea — 카운트다운")]
@@ -62,7 +63,7 @@ namespace MiniGames.Common.UI
         [Tooltip("버튼 줄. 숨겨져도 파티원 줄이 움직이지 않도록 따로 둔다.")]
         [SerializeField] private GameObject actionArea;
 
-        [Tooltip("시작할 수 없는 이유 한 줄. 정원이 차야 하는 게임에서만 글이 나온다.")]
+        [Tooltip("(예전 자리) 버튼 위 안내 글. 이제 이유는 제목 아래 statusText 에 적으므로 비워 둔다.")]
         [SerializeField] private TMP_Text startHintText;
         [SerializeField] private Button startButton;
         [SerializeField] private TMP_Text startButtonLabel;
@@ -230,8 +231,9 @@ namespace MiniGames.Common.UI
         }
 
         /// <summary>
-        /// "30초 후 자동 시작". 자동 시작 시계가 돌 때만 글이 있고, 카운트다운이 시작되면
-        /// 이 줄이 있던 자리에 큰 숫자가 들어오면서 사라진다. 매 프레임 줄어드는 값이라 여기서 쓴다.
+        /// 제목 아래 상태 한 줄. 시계가 돌면 "30초 후 자동 시작", 시계가 돌지 않는 이유가 있으면(배에서
+        /// 4명이 안 찼을 때) 그 이유를 같은 자리에 적는다. 카운트다운이 시작되면 이 자리에 큰 숫자가
+        /// 들어오면서 사라진다. 매 프레임 줄어드는 값이라 여기서 쓴다.
         /// </summary>
         private void WriteAutoStart()
         {
@@ -239,7 +241,9 @@ namespace MiniGames.Common.UI
             if (flow.State != MatchState.Matching) return;
 
             float remaining = flow.AutoStartRemaining;
-            string next = remaining > 0f ? $"{Mathf.CeilToInt(remaining)}초 후 자동 시작" : string.Empty;
+            string next = remaining > 0f
+                ? $"{Mathf.CeilToInt(remaining)}초 후 자동 시작"
+                : flow.Config != null ? flow.Config.StartBlockedHint(PlayerRoster.ActivePlayerCount) : string.Empty;
             if (autoStartText.text != next) autoStartText.text = next;
         }
 
@@ -311,8 +315,8 @@ namespace MiniGames.Common.UI
                 startButtonLabel.color = flow.CanStartMatch() ? startLabelOn : startLabelOff;
             }
 
-            // 왜 못 누르는지는 정원제 게임에서만 한 줄. 혼자서도 되는 게임은 빈 문자열이 온다.
-            if (startHintText != null) startHintText.text = config.StartBlockedHint(count);
+            // 못 누르는 이유는 제목 아래 한 줄(WriteAutoStart)이 맡는다. 버튼 위 자리는 비워 둔다.
+            if (startHintText != null && startHintText.text.Length > 0) startHintText.text = string.Empty;
         }
 
         /// <summary>

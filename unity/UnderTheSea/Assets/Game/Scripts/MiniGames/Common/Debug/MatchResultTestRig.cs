@@ -39,6 +39,12 @@ namespace MiniGames.Common.DebugTools
         [Tooltip("끄면 조작 줄이 화면에서 사라진다. 실제 게임 연결 시 기본값은 false.")]
         [SerializeField] private bool showDebugControls = true;
 
+        [Tooltip("Play 직후 현재 게임으로 5초 대기열 테스트를 자동 시작한다.")]
+        [SerializeField] private bool startQueueOnPlay = true;
+
+        [Tooltip("이 씬에서는 등록된 네트워크가 Fusion 이어도 Fake 로 바꿔 세운다. 서버 없이 대기열 흐름을 보기 위한 것이다.")]
+        [SerializeField] private bool useFakeNetworkInTestScene = true;
+
         [Tooltip("이 키로 조작 줄을 여닫는다.")]
         [SerializeField] private Key toggleKey = Key.F1;
 
@@ -63,6 +69,8 @@ namespace MiniGames.Common.DebugTools
         // [+ Player] 한 번에 두 명씩 들어오게 된다.
         private void Awake()
         {
+            EnsureFakeNetwork();
+
             Bind(addPlayerButton, AddPlayer);
             Bind(removePlayerButton, RemovePlayer);
             Bind(toggleReadyButton, ToggleReadyOfLast);
@@ -108,6 +116,8 @@ namespace MiniGames.Common.DebugTools
         {
             if (playingRoot != null) playingRoot.SetActive(false);
             if (debugRoot != null) debugRoot.SetActive(showDebugControls);
+            if (startQueueOnPlay && matchingUI != null && flow != null && flow.Config != null)
+                matchingUI.BeginQueue(flow.Config);
             RefreshDebugStatus();
         }
 
@@ -115,16 +125,42 @@ namespace MiniGames.Common.DebugTools
         {
             if (debugRoot == null) return;
 
+            bool loading = matchingUI != null && matchingUI.QueueCoordinator != null &&
+                           matchingUI.QueueCoordinator.IsLoadingVisible;
+            bool shouldShow = showDebugControls && !loading;
+            if (debugRoot.activeSelf != shouldShow) debugRoot.SetActive(shouldShow);
+
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || !keyboard[toggleKey].wasPressedThisFrame) return;
 
             showDebugControls = !showDebugControls;
-            debugRoot.SetActive(showDebugControls);
+            debugRoot.SetActive(showDebugControls && !loading);
         }
 
         private static void Bind(Button button, UnityEngine.Events.UnityAction action)
         {
             if (button != null) button.onClick.AddListener(action);
+        }
+
+        /// <summary>
+        /// 테스트 씬은 서버 없이 돌아야 한다. 부트스트랩이 Fusion 을 세웠다면(기본값) 그것을 내리고
+        /// Fake 를 세운다. 에디터 전체 스위치를 건드리지 않으므로 다른 씬의 Fusion 테스트에는 영향이 없다.
+        /// Awake 에서 하는 이유: 프리팹의 MatchingQueueCoordinator 는 BeginQueue 때 다시 서비스를 잡는다.
+        /// </summary>
+        private void EnsureFakeNetwork()
+        {
+            if (!useFakeNetworkInTestScene) return;
+
+            INetworkService current = NetworkServiceLocator.Current;
+            if (current is FakeNetworkService) return;
+
+            if (current is MonoBehaviour host)
+            {
+                UnityEngine.Debug.Log($"[TestRig] 테스트 씬이라 {host.GetType().Name} 대신 FakeNetworkService 를 세웁니다.", this);
+                DestroyImmediate(host.gameObject); // OnDestroy 가 Locator 등록을 푼다
+            }
+
+            new GameObject("NetworkService (Fake, 테스트 씬)").AddComponent<FakeNetworkService>();
         }
 
         // ------------------------------------------------------------
@@ -183,7 +219,10 @@ namespace MiniGames.Common.DebugTools
             if (matchPanel != null) matchPanel.gameObject.SetActive(true);
 
             PlayerRoster.ClearPlayers();
-            if (matchingUI != null) matchingUI.Show(config);   // 포탈과 같은 길. 나(로컬)는 Configure 가 넣는다
+            // 에디터에서는 FakeNetworkService가 5초 뒤 실제 서버와 같은 이벤트를 보낸다.
+            // 따라서 아래 게임 선택 버튼으로 조타 로딩 → 매칭 화면 전체 흐름을 검증한다.
+            if (matchingUI != null && matchingUI.QueueCoordinator != null) matchingUI.BeginQueue(config);
+            else if (matchingUI != null) matchingUI.Show(config);
             else flow.Configure(config);
             RefreshDebugStatus();
         }
