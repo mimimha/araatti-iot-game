@@ -18,6 +18,19 @@ using UnityEngine;
 /// 격자는 이 오브젝트를 **중심**으로 XZ 평면에 놓인다.
 /// 칸 (0,0) 은 -X, -Z 쪽 구석이다.
 /// </summary>
+/// <summary>한 번 휘둘렀을 때 그 칸에 일어난 일. (MINE.md 4장)</summary>
+public enum MineHitResult
+{
+    /// <summary>아무 일도 없었다. 격자 밖이거나 이미 파인 칸.</summary>
+    None,
+
+    /// <summary>금이 갔다. 아직 안 파였다. 단단한 돌을 처음 쳤을 때.</summary>
+    Cracked,
+
+    /// <summary>파였다.</summary>
+    Broke,
+}
+
 public class MineGrid : MonoBehaviour
 {
     [Header("격자")]
@@ -32,7 +45,18 @@ public class MineGrid : MonoBehaviour
              "비워두면 도안 없이 파기만 된다.")]
     [SerializeField] private MineDrawingTarget target;
 
+    [Header("돌 종류 (MINE.md 4장)")]
+    [Tooltip("단단한 돌의 비율. 0.25 면 네 칸 중 하나가 두 번 쳐야 깨진다.\n" +
+             "높이면 한 판에 팔 수 있는 칸이 줄어든다. 7번 밸런싱에서 조정한다.")]
+    [SerializeField, Range(0f, 1f)] private float hardRatio = 0.25f;
+
     private bool[] _dug;
+
+    /// <summary>칸마다 원래 필요한 타격 수. 1 = 무른 돌, 2 = 단단한 돌.</summary>
+    private byte[] _hardness;
+
+    /// <summary>칸마다 남은 타격 수. 0 이면 파인 것이다.</summary>
+    private byte[] _remaining;
 
     private bool[] _targetCells;
     private bool _targetCached;
@@ -49,14 +73,32 @@ public class MineGrid : MonoBehaviour
     /// <summary>지금까지 파인 칸 수.</summary>
     public int DugCount { get; private set; }
 
+    /// <summary>
+    /// 이번 판의 돌 배치를 만든 시드.
+    ///
+    /// ⚠ 배치는 무작위지만 **시드로 만든다.** 네트워크가 붙으면 4명이 각자 무작위로
+    ///   깔게 되어 사람마다 다른 판을 보게 된다. 시드를 나눠 가지면 같은 판이 된다.
+    /// </summary>
+    public int Seed { get; private set; }
+
     /// <summary>이번 판의 목표 도안. 없을 수 있다.</summary>
     public MineDrawingTarget Target => target;
 
     /// <summary>
-    /// 칸 상태가 바뀔 때. (x, y, 파였는가)
-    /// 실제로 바뀐 경우에만 발생한다. 이미 파인 칸을 또 파면 발생하지 않는다.
+    /// 칸 상태가 바뀔 때. (x, y)
+    ///
+    /// 파였을 때만이 아니라 **금이 갔을 때도** 발생한다. 상태가 셋이라 인자로 넘기지
+    /// 않고, 듣는 쪽이 <see cref="IsDug"/> · <see cref="IsCracked"/> 로 물어본다.
     /// </summary>
-    public event Action<int, int, bool> OnCellChanged;
+    public event Action<int, int> OnCellChanged;
+
+    /// <summary>
+    /// 돌을 쳤을 때. (x, y, 깨졌는가)
+    ///
+    /// OnCellChanged 와 따로 두는 이유는 **이펙트 때문**이다. 되메우기나 판 초기화로
+    /// 칸이 바뀔 때는 부스러기가 튀면 안 된다. 이 이벤트는 실제로 친 순간에만 난다.
+    /// </summary>
+    public event Action<int, int, bool> OnCellHit;
 
     /// <summary>도안이 교체될 때. 화면이 이걸 듣고 다시 칠한다.</summary>
     public event Action OnTargetChanged;
@@ -98,6 +140,28 @@ public class MineGrid : MonoBehaviour
         if (_dug != null && _dug.Length == CellCount) return;
 
         _dug = new bool[CellCount];
+        _hardness = new byte[CellCount];
+        _remaining = new byte[CellCount];
+
+        Scatter(Environment.TickCount);
+    }
+
+    /// <summary>
+    /// 단단한 돌을 뿌리고 전부 안 판 상태로 되돌린다.
+    /// 같은 시드면 같은 배치가 나온다.
+    /// </summary>
+    private void Scatter(int seed)
+    {
+        Seed = seed;
+        var rng = new System.Random(seed);
+
+        for (int i = 0; i < CellCount; i++)
+        {
+            _hardness[i] = rng.NextDouble() < hardRatio ? (byte)2 : (byte)1;
+            _remaining[i] = _hardness[i];
+            _dug[i] = false;
+        }
+
         DugCount = 0;
     }
 
@@ -157,46 +221,96 @@ public class MineGrid : MonoBehaviour
         return _targetCells != null && InBounds(x, y) && _targetCells[Index(x, y)];
     }
 
-    /// <summary>판다. 이미 파여 있었으면 false.</summary>
-    public bool Dig(int x, int y) => SetCell(x, y, true);
+    /// <summary>단단한 돌인가. 두 번 쳐야 깨진다.</summary>
+    public bool IsHard(int x, int y)
+    {
+        EnsureAllocated();
+        return InBounds(x, y) && _hardness[Index(x, y)] > 1;
+    }
 
-    /// <summary>되메운다. 안 파여 있었으면 false.</summary>
-    public bool Restore(int x, int y) => SetCell(x, y, false);
+    /// <summary>금이 간 상태인가. 한 번 맞았지만 아직 안 파였다.</summary>
+    public bool IsCracked(int x, int y)
+    {
+        EnsureAllocated();
+        if (!InBounds(x, y)) return false;
 
-    private bool SetCell(int x, int y, bool dug)
+        int i = Index(x, y);
+        return !_dug[i] && _remaining[i] < _hardness[i];
+    }
+
+    /// <summary>
+    /// 한 번 친다. 무른 돌은 바로 파이고, 단단한 돌은 처음에 금만 간다.
+    ///
+    /// ⚠ 금 간 상태는 **턴이 넘어가도 남는다.** 앞사람이 한 번 쳐둔 돌을
+    ///   뒷사람이 한 번만 쳐도 깨진다. 릴레이 게임이므로 흔적이 남는 것이 맞다.
+    /// </summary>
+    public MineHitResult Hit(int x, int y)
+    {
+        EnsureAllocated();
+
+        if (!InBounds(x, y)) return MineHitResult.None;
+
+        int i = Index(x, y);
+        if (_remaining[i] == 0) return MineHitResult.None;   // 이미 파인 칸
+
+        _remaining[i]--;
+
+        if (_remaining[i] > 0)
+        {
+            OnCellChanged?.Invoke(x, y);
+            OnCellHit?.Invoke(x, y, false);
+            return MineHitResult.Cracked;
+        }
+
+        _dug[i] = true;
+        DugCount++;
+        OnCellChanged?.Invoke(x, y);
+        OnCellHit?.Invoke(x, y, true);
+        return MineHitResult.Broke;
+    }
+
+    /// <summary>
+    /// 되메운다. 안 파여 있었으면 false.
+    ///
+    /// ⚠ **단단한 돌은 다시 단단한 돌로 돌아간다.** 되메운 자리를 다시 파려면
+    ///   또 두 번 쳐야 한다. 금 간 상태로 돌려주지 않는다.
+    /// </summary>
+    public bool Restore(int x, int y)
     {
         EnsureAllocated();
 
         if (!InBounds(x, y)) return false;
 
         int i = Index(x, y);
-        if (_dug[i] == dug) return false;
+        if (!_dug[i]) return false;
 
-        _dug[i] = dug;
-        DugCount += dug ? 1 : -1;
-        OnCellChanged?.Invoke(x, y, dug);
+        _dug[i] = false;
+        _remaining[i] = _hardness[i];
+        DugCount--;
+        OnCellChanged?.Invoke(x, y);
         return true;
     }
 
-    /// <summary>전부 안 판 상태로 되돌린다. 판을 새로 시작할 때.</summary>
-    public void ResetAll()
+    /// <summary>
+    /// 판을 새로 시작한다. 돌 배치를 다시 뿌리고 전부 안 판 상태로 되돌린다.
+    /// 같은 시드를 주면 같은 배치가 나온다. 네트워크에서 이 값을 나눠 갖는다.
+    /// </summary>
+    public void ResetAll(int seed)
     {
         EnsureAllocated();
+        Scatter(seed);
 
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                int i = Index(x, y);
-                if (!_dug[i]) continue;
-
-                _dug[i] = false;
-                OnCellChanged?.Invoke(x, y, false);
+                OnCellChanged?.Invoke(x, y);
             }
         }
-
-        DugCount = 0;
     }
+
+    /// <summary>시드를 아무거나 골라 새로 시작한다. 혼자 테스트할 때.</summary>
+    public void ResetAll() => ResetAll(Environment.TickCount);
 
     /// <summary>
     /// 월드 좌표가 어느 칸인지. 격자 밖이면 false 를 돌려주고 x, y 는 믿을 수 없다.
