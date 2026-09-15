@@ -44201,6 +44201,7 @@ MonoBehaviour:
   dugColor: {r: 0.07, g: 0.06, b: 0.055, a: 1}
   crackTint: {r: 1, g: 1, b: 1, a: 1}
   drawingColor: {r: 0.06, g: 0.055, b: 0.05, a: 1}
+  hintDugColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
 --- !u!114 &1014668933
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -60099,7 +60100,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6351146626264523729, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       propertyPath: m_Space
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6351146626264523729, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       propertyPath: m_JumpHeight
@@ -60107,7 +60108,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6351146626264523729, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       propertyPath: m_RotateSpeed
-      value: 0
+      value: 720
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -60122,6 +60123,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3123900836210005380, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1398097744}
+    - targetCorrespondingSourceObject: {fileID: 3123900836210005380, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1398097756}
   m_SourcePrefab: {fileID: 100100000, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
 --- !u!1 &1398097735 stripped
 GameObject:
@@ -60176,6 +60180,26 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1004989182472588391, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
   m_PrefabInstance: {fileID: 1398097734}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1398097756
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1398097735}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9070f45910533dc45ade8d2c3572f6e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MineMoveInput
+  mover: {fileID: 0}
+  cam: {fileID: 0}
+  lookAhead: 10
+  lookHeight: 1
+  horizontalAxis: Horizontal
+  verticalAxis: Vertical
+  jumpButton: Jump
+  runKey: 304
 --- !u!1 &1399845531
 GameObject:
   m_ObjectHideFlags: 0
@@ -92489,6 +92513,16 @@ MonoBehaviour:
   followOffset: {x: 0, y: 4.5, z: -7.5}
   lookHeight: 1
   followSmoothing: 0.12
+  mouseLook: 1
+  sensitivityX: 1.5
+  sensitivityY: 1
+  invertY: 0
+  minPitch: 2
+  maxPitch: 70
+  minDistance: 3
+  maxDistance: 14
+  zoomStep: 12
+  lockCursor: 1
   boardMargin: 1.15
   minBoardHeight: 5
   transitionSeconds: 0.5
