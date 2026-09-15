@@ -4,10 +4,15 @@ using UnityEngine;
 /// 네트워크 서비스를 게임 시작 시 하나 만들어 둔다.
 ///
 /// **여기가 Fake ↔ Fusion 을 갈아끼우는 유일한 지점이다.**
-/// 아래 <see cref="Active"/> 한 줄만 바꾸면 전환된다. 화면 코드도 씬도 고치지 않는다.
+/// 기본은 어디서나 Fusion 이다. 에디터에서만 메뉴 스위치로 Fake 로 바꿀 수 있고, 그 값은
+/// EditorPrefs(이 PC 에만 저장, 저장소에 안 올라감)에 남는다. 화면 코드와 씬은 같다.
 ///
-///     Active = Implementation.Fusion   실제 Dedicated Server 세션에 접속  ← 지금 설정
-///     Active = Implementation.Fake     서버 없이 화면 흐름만 확인
+///     기본                       → Fusion: 실제 Dedicated Server 세션에 접속
+///     에디터 + 스위치 켬          → Fake:   서버 없이 대기열·매칭 화면 흐름 확인 (첫 응답 5초 지연)
+///     메뉴: Tools ▸ 아라아띠 ▸ 네트워크 ▸ 에디터에서 Fake 네트워크 사용
+///
+/// 매칭 테스트 씬(CommonMatchResultTest)은 스위치와 무관하게 <c>MatchResultTestRig</c> 가
+/// 자기 씬 안에서 Fake 를 세운다. 다른 팀원의 로비·Fusion 에디터 테스트에는 영향이 없다.
 ///
 /// 계정 쪽의 <c>AccountServiceBootstrap</c> 과 같은 구조다. (PRD 06 에서 이 방식으로
 /// 계정 서비스를 Fake→HTTP 로 바꿨을 때 화면 코드 diff 가 0 줄이었다)
@@ -35,13 +40,23 @@ public static class NetworkServiceBootstrap
         Fake
     }
 
+    /// <summary>에디터 전용 스위치의 EditorPrefs 키. 메뉴(<c>NetworkImplementationMenu</c>)가 읽고 쓴다.</summary>
+    public const string EditorUseFakePrefKey = "UnderTheSea.Network.UseFakeInEditor";
+
     /// <summary>
-    /// ★ 지금 쓰는 구현체. **이 한 줄이 전환 스위치다.**
-    ///
-    /// const 가 아니라 static readonly 인 이유: const 로 두면 아래 분기 중 한쪽이
-    /// "도달할 수 없는 코드" 경고를 낸다.
+    /// 지금 쓰는 구현체. 빌드에서는 늘 Fusion, 에디터에서는 스위치를 켠 사람만 Fake.
     /// </summary>
-    private static readonly Implementation Active = Implementation.Fusion;
+    public static Implementation Active
+    {
+        get
+        {
+#if UNITY_EDITOR
+            if (UnityEditor.EditorPrefs.GetBool(EditorUseFakePrefKey, false))
+                return Implementation.Fake;
+#endif
+            return Implementation.Fusion;
+        }
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void CreateIfMissing()

@@ -43,3 +43,10 @@ ProjectSettings/Packages/
 # 매번 변경 파일로 잡히므로 추적하지 않습니다.
 # 팀 공통 규칙이나 비기본 임계값을 정하게 되면 이 줄을 지우고 다시 커밋하세요.
 ProjectSettings/ProjectAuditorSettings.asset
+
+# Modular Dungeon Catacombs (Toby Fredson) — 2.9GB 라 저장소에 담지 않습니다.
+# 에셋 스토어에서 언제든 다시 받을 수 있고, 실제로 쓰는 텍스처는
+# Assets/Game/Art/Textures/Mine/ 로 1024 로 줄여 옮겨두었습니다. (ASSETS.md)
+# 팩에서 무언가를 더 쓰게 되면 같은 방식으로 필요한 것만 뽑아 옮깁니다.
+/Assets/Toby Fredson/
+/Assets/Toby Fredson.meta

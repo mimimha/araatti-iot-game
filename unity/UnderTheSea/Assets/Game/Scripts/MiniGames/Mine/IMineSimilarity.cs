@@ -37,6 +37,11 @@ public struct MineSimilarityResult
     /// <summary>
     /// 위치를 맞추려고 판 것을 민 칸 수. 위치를 안 맞추는 방식이면 (0, 0).
     /// 결과 화면에서 "한 칸 밀렸습니다" 같은 말을 만들 때 쓴다.
+    ///
+    /// ⚠ **"가장 잘 맞는 자리" 가 아니다.** 방식마다 어떻게 찾는지가 다르고,
+    ///   <see cref="MineShapeSimilarity"/> 는 무게중심 언저리만 본다.
+    ///   원점이 몇 칸 밀렸는지를 알고 싶으면 이 값을 믿지 말고 직접 밀어봐야 한다.
+    ///   (MineGame.LogAlignmentDiagnosis 가 그렇게 한다)
     /// </summary>
     public Vector2Int Alignment;
 

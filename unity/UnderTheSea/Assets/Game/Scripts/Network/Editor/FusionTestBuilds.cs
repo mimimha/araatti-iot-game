@@ -93,6 +93,21 @@ namespace UnderTheSea.Network.Editor
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
 
         /// <summary>
+        /// 광산 전환용 씬. <b>순서가 중요하다.</b>
+        ///
+        /// 첫 씬이 시작 씬(<c>MineBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
+        /// <c>PeerMode.Multiple</c> 이 동굴과 격자를 두 벌로 만든다.
+        /// </summary>
+        private static readonly string[] MineScenes =
+        {
+            "Assets/Game/Scenes/Main/MiniGames/MineBoot.unity",
+            "Assets/Game/Scenes/Main/MiniGames/MineNet.unity",
+        };
+
+        private const string MineServerOutput = "Builds/MineServer/AraAtti-MineServer.exe";
+        private const string MineClientOutput = "Builds/MineClient/AraAtti-MineClient.exe";
+
+        /// <summary>
         /// QA 클라이언트는 <b>반드시 Development Build</b> 로 만든다.
         ///
         /// <c>-devjoin</c> 은 <c>FusionDevEntry</c> 안에서 <c>DEVELOPMENT_BUILD</c> 로 막혀 있다.
@@ -155,6 +170,34 @@ namespace UnderTheSea.Network.Editor
             ExitWith(Build(
                 ShipCoopClientOutput, StandaloneBuildSubtarget.Player,
                 ShipCoopScenes, ClientOptions));
+        }
+
+        [MenuItem(MenuRoot + "광산 서버 빌드 (Dedicated Server)")]
+        public static void BuildMineServer()
+        {
+            ExitIfCommandLine(Build(
+                MineServerOutput, StandaloneBuildSubtarget.Server, MineScenes, BuildOptions.None));
+        }
+
+        [MenuItem(MenuRoot + "광산 클라이언트 빌드")]
+        public static void BuildMineClient()
+        {
+            ExitIfCommandLine(Build(
+                MineClientOutput, StandaloneBuildSubtarget.Player, MineScenes, ClientOptions));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildMineServerFromCommandLine()
+        {
+            ExitWith(Build(
+                MineServerOutput, StandaloneBuildSubtarget.Server, MineScenes, BuildOptions.None));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildMineClientFromCommandLine()
+        {
+            ExitWith(Build(
+                MineClientOutput, StandaloneBuildSubtarget.Player, MineScenes, ClientOptions));
         }
 
         [MenuItem(MenuRoot + "정상 흐름 클라이언트 빌드 (Boot 부터)")]

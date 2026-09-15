@@ -19,6 +19,12 @@ namespace Warriors
         [SerializeField] private WarriorsRhythmBattle rhythm;
         [SerializeField] private WarriorsCombatHud combatHud;
         [SerializeField] private MonoBehaviour attackInputSource;   // WarriorsInputRouter
+        [SerializeField] private GameObject rhythmJudgementChip;
+        [SerializeField] private GameObject rewardRoot;
+        [SerializeField] private UnityEngine.UI.Image resultRule;
+        [SerializeField] private TMP_Text rewardNameText;
+        [SerializeField] private TMP_Text rewardHeadingText;
+        [SerializeField] private UnityEngine.UI.Image rewardGem;
 
         [Header("Top HUD")]
         [SerializeField] private GameObject standardHud;
@@ -46,6 +52,8 @@ namespace Warriors
 
         [Header("Round intro")]
         [SerializeField] private GameObject roundIntroRoot;
+        [SerializeField] private TMP_Text roundIntroBadge;
+        [SerializeField] private RectTransform roundIntroCard;
         [SerializeField] private TMP_Text roundIntroTitle;
         [SerializeField] private TMP_Text roundIntroBody;
         [SerializeField] private CanvasGroup roundIntroGroup;
@@ -62,6 +70,8 @@ namespace Warriors
         [SerializeField] private GameObject rhythmRoot;
         [SerializeField] private TMP_Text rhythmRoundText;
         [SerializeField] private TMP_Text rhythmTimeText;
+        [SerializeField] private TMP_Text rhythmHpText;
+        [SerializeField] private Image rhythmHpFill;
         [SerializeField] private TMP_Text rhythmBossText;
         [SerializeField] private Image rhythmBossFill;
         [SerializeField] private TMP_Text rhythmScoreText;
@@ -70,6 +80,8 @@ namespace Warriors
         [SerializeField] private TMP_Text rhythmJudgementText;
         [SerializeField] private RectTransform[] rhythmNotes;
         [SerializeField] private TMP_Text[] rhythmNoteGlyphs;
+        [SerializeField] private Color rhythmNoteColor = new(.043f, .09f, .18f, .92f);
+        [SerializeField] private Color rhythmSuccessfulColor = new(.2f, .9f, .48f, 1f);
 
         [Header("Final overlay")]
         [SerializeField] private GameObject finalRoot;
@@ -90,6 +102,7 @@ namespace Warriors
         private float lastAttackUntil;
         private UnityEngine.UI.Image[] monsterCardFills, attackCardFills;
         private Color[] monsterCardBase, attackCardBase;
+        private Image[] rhythmNoteFills;
 
         private void Awake()
         {
@@ -174,7 +187,10 @@ namespace Warriors
             SetActive(standardHud, !isRhythm && !isFinalOverlay);
             // The player strip lives outside StandardHUD so it survives the rhythm round,
             // but the result screen should be clean.
-            SetActive(playerStatusRoot, !isFinalOverlay);
+            // A solo run has nothing to compare, and the health it would show is already
+            // on the HP card - so the strip is a second player's worth of chrome with no
+            // second player. It appears only when there is someone to tell apart.
+            SetActive(playerStatusRoot, !isFinalOverlay && ResolveConnectedPlayers() > 1);
             SetActive(rhythmRoot, isRhythm);
             SetActive(finalRoot, isFinalOverlay);
 
@@ -184,6 +200,7 @@ namespace Warriors
             SetActive(monsterGuideRoot, monsterRound && !isFinalOverlay);
             SetActive(attackGuideRoot, !monsterRound && !isFinalOverlay);
 
+            TrackReachedRound();
             UpdateRoundIntro(isFinalOverlay);
             UpdateGuidePulse();
             UpdateSharedFeedback(isFinalOverlay);
@@ -202,7 +219,7 @@ namespace Warriors
                 ? flow.TentacleSuccesses / (float)Mathf.Max(1, flow.TentacleSuccessesRequired)
                 : score.Progress;
 
-            Set(roundText, tentacle ? "ROUND 2  ·  촉수 절단" : "ROUND 1  ·  해변 방어");
+            Set(roundText, tentacle ? "ROUND 2  ·  크라켄 등장" : "ROUND 1  ·  몬스터 습격");
             Set(timeText, $"{secondsLeft / 60:00}:{secondsLeft % 60:00}");
             Set(hpText, $"HP  {hp}");
             SetFill(hpFill, hp / (float)Mathf.Max(1, maxHp));
@@ -213,28 +230,60 @@ namespace Warriors
             Set(scoreText, score.Score.ToString("N0"));
             Set(comboText, $"COMBO  {(combo != null ? combo.Combo : 0)}");
             int activePlayers = ResolveConnectedPlayers();
+            // Health is one shared pool, so putting it on both rows drew the same bar twice
+            // and said nothing about either player. What differs between them is what each
+            // one has personally connected with, so that is what the strip shows.
+            int landedTotal = 0;
+            for (int i = 0; i < activePlayers; i++) landedTotal += LandedHitsOf(i);
+
             for (int i = 0; i < playerStateTexts.Length; i++)
             {
+                // Empty slots are hidden rather than parked on WAIT.  The battle never waits
+                // for an absent player, so a row that says WAIT for the whole run is a lie.
                 bool active = i < activePlayers;
-                Set(playerStateTexts[i], $"{i + 1}P   {(active ? "READY" : "WAIT")}");
-                if (i < playerStateFills.Length) SetFill(playerStateFills[i], active ? hp / (float)Mathf.Max(1, maxHp) : 0f);
+                SetActive(RowOf(playerStateTexts[i], playerStatusRoot), active);
+                if (!active) continue;
+                int landed = LandedHitsOf(i);
+                Set(playerStateTexts[i], $"{i + 1}P   적중 {landed}");
+                if (i < playerStateFills.Length)
+                    SetFill(playerStateFills[i], landedTotal > 0 ? landed / (float)landedTotal : 0f);
             }
         }
 
         /// <summary>
-        /// READY/WAIT must reflect the players that actually exist in the scene.
-        /// flow.ActivePlayerCount is the gameplay slot count and is pinned to the
-        /// configured 4P maximum, so every slot would read READY in a solo test.
+        /// The slot count must reflect the players that actually exist in the scene rather
+        /// than a configured maximum, otherwise a solo run shows a second player who is not
+        /// there.
         /// </summary>
-        private int ResolveConnectedPlayers()
+        /// <summary>
+        /// The same roster the flow counts from, so the strip and the round can never
+        /// disagree about how many people are playing. It replaced a half second polling
+        /// scan, which also meant the strip lagged a join by up to half a second.
+        /// </summary>
+        private int ResolveConnectedPlayers() =>
+            Mathf.Clamp(Mathf.Max(1, WarriorsPlayers.Count), 1, WarriorsPlayers.Max);
+
+        /// <summary>
+        /// Matched on the player id the combat itself reports rather than on scan order, which
+        /// is not stable and would let the two rows swap places mid run.
+        /// </summary>
+        private int LandedHitsOf(int playerIndex)
         {
-            if (Time.unscaledTime >= nextPlayerScanTime)
-            {
-                nextPlayerScanTime = Time.unscaledTime + .5f;
-                int found = FindObjectsByType<WarriorsPlayerCombat>(FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length;
-                connectedPlayers = Mathf.Clamp(found, 1, 4);
-            }
-            return connectedPlayers;
+            WarriorsPlayerCombat combat = WarriorsPlayers.ForId(playerIndex);
+            return combat != null ? combat.LandedHits : 0;
+        }
+
+        /// <summary>
+        /// The row a HUD element belongs to, found by walking up to the direct child of
+        /// <paramref name="root"/>, so the prefab can nest these however it likes.
+        /// </summary>
+        private static GameObject RowOf(Component child, GameObject root)
+        {
+            if (child == null) return null;
+            if (root == null) return child.gameObject;
+            Transform current = child.transform;
+            while (current != null && current.parent != root.transform) current = current.parent;
+            return current != null ? current.gameObject : child.gameObject;
         }
 
         /// <summary>
@@ -247,34 +296,51 @@ namespace Warriors
             if (flow.Phase != introPhase)
             {
                 introPhase = flow.Phase;
-                string title = null, body = null, objective = null;
+                string title = null, body = null, objective = null, badge = null;
+                // The same round is a different problem depending on how many are
+                // playing: one player answers a two tentacle pattern in sequence, two
+                // answer it at once. The brief has to say which game this is.
+                bool solo = ResolveConnectedPlayers() <= 1;
                 switch (flow.Phase)
                 {
                     case WarriorsBattlePhase.NormalBattle:
+                        badge = "ROUND 1";
                         title = "해변으로 몬스터들이 몰려오고 있습니다!";
                         body = "몬스터 종류에 맞는 공격으로 처치하세요!";
-                        objective = "몬스터에 맞는 공격으로 처치하세요";
+                        objective = "몬스터에 맞는 공격으로 해변을 지키세요!";
                         break;
                     case WarriorsBattlePhase.KrakenTentaclePhase:
+                        badge = "ROUND 2";
                         title = "크라켄이 섬을 공격하기 시작했습니다!";
-                        body = "촉수의 표시와 같은 공격을 사용하세요!";
-                        objective = "촉수의 표시와 같은 공격을 사용하세요";
+                        body = solo
+                            ? "표시에 맞는 공격으로, 고리가 닫히기 전에 차례대로 잘라내세요!"
+                            : "하나씩 나눠 맡아 동시에 잘라내면 보너스가 들어옵니다!";
+                        objective = solo
+                            ? "고리가 닫히기 전에 촉수를 잘라내세요!"
+                            : "촉수를 하나씩 맡아 동시에 잘라내세요!";
                         break;
                     case WarriorsBattlePhase.FinalKrakenPhase:
+                        badge = "ROUND 3";
                         title = "크라켄이 마지막 공격을 준비합니다!";
-                        body = "내려오는 공격 아이콘을 타이밍에 맞춰 공격하세요!";
-                        objective = "공격 아이콘을 타이밍에 맞춰 공격하세요";
+                        body = solo
+                            ? "내려오는 아이콘을 판정선에 맞추어 3연타하세요!"
+                            : "각자의 줄을 3연타하면 둘이 함께 마무리합니다!";
+                        objective = "판정선에 맞춰 연속 공격하세요!";
                         break;
                 }
 
                 if (title == null) { introUntil = 0f; objectiveLabel = string.Empty; }
                 else
                 {
+                    Set(roundIntroBadge, badge);
                     Set(roundIntroTitle, title);
                     Set(roundIntroBody, body);
                     objectiveLabel = objective;
                     Set(objectiveText, objective);
                     introUntil = Time.unscaledTime + roundIntroSeconds;
+                    // Keep the briefing above every regular HUD panel regardless of the
+                    // prefab's authored sibling order.
+                    roundIntroRoot?.transform.SetAsLastSibling();
                 }
             }
 
@@ -289,7 +355,8 @@ namespace Warriors
                 const float outro = .4f;
                 float a = Mathf.Clamp01(remaining / outro);
                 roundIntroGroup.alpha = a;
-                roundIntroRoot.transform.localScale = Vector3.one * Mathf.Lerp(.9f, 1f, a);
+                Transform scaled = roundIntroCard != null ? roundIntroCard : roundIntroRoot.transform;
+                scaled.localScale = Vector3.one * Mathf.Lerp(.9f, 1f, a);
             }
 
             bool showObjective = !finalOverlayVisible && !show && !string.IsNullOrEmpty(objectiveLabel);
@@ -413,21 +480,36 @@ namespace Warriors
         private void UpdateRhythmHud()
         {
             int secondsLeft = Mathf.CeilToInt(score.RemainingSeconds);
-            Set(rhythmRoundText, "ROUND 3  ·  최후의 일격");
-            Set(rhythmTimeText, $"TIME  {secondsLeft / 60:00}:{secondsLeft % 60:00}");
-            Set(rhythmBossText, "크라켄  ·  최종 전투");
+            Set(rhythmRoundText, "ROUND 3  ·  최종 결전");
+            Set(rhythmTimeText, $"{secondsLeft / 60:00}:{secondsLeft % 60:00}");
+            // ROUND 3 is the round that actually hits back - the counter takes ten off
+            // the player - and it was the one round with no health on screen at all.
+            int hp = playerHealth != null ? playerHealth.CurrentHealth : 100;
+            int maxHp = playerHealth != null ? playerHealth.MaxHealth : 100;
+            Set(rhythmHpText, $"HP  {hp}");
+            SetFill(rhythmHpFill, hp / (float)Mathf.Max(1, maxHp));
+            // ROUND 1 and 2 put a number on the centre panel; the boss bar was the one
+            // round that gave a colour and nothing to read. The percentage matches the
+            // fill, so the line and the bar say the same thing.
+            Set(rhythmBossText, $"크라켄   {flow.FinalKrakenHealthPercent}%");
             SetFill(rhythmBossFill, flow.FinalKrakenHealthPercent / 100f);
-            Set(rhythmScoreText, $"SCORE  {score.Score:N0}");
+            Set(rhythmScoreText, score.Score.ToString("N0"));
             Set(rhythmComboText, $"COMBO  {rhythm.Combo}");
-            Set(rhythmJudgementText, Korean(rhythm.ActiveJudgement));
+            string judgement = Korean(rhythm.ActiveJudgement);
+            Set(rhythmJudgementText, judgement);
+            // The chip is only a backing for the word, so it comes and goes with it rather
+            // than sitting on the lane as an empty box.
+            SetActive(rhythmJudgementChip, !string.IsNullOrEmpty(judgement));
 
             rhythm.CopyVisibleNotes(visibleNotes);
+            CacheRhythmNoteFills();
 
-            // Notes are authored across the 4P slot count, but the lane only needs as many
-            // columns as there are players actually here. Solo play therefore reads as one
-            // clean central column instead of four columns spilling outside the lane.
-            int playerCount = Mathf.Clamp(ResolveConnectedPlayers(), 1, 4);
+            // One lane per player who is actually here: solo reads as a single central
+            // column, a pair as one column each.
+            int playerCount = Mathf.Clamp(ResolveConnectedPlayers(), 1, WarriorsPlayers.Max);
             const float laneGap = 96f;
+            const float noteSpawnY = 250f;
+            float hitLineY = ResolveHitLineY();
             float width = laneGap * (playerCount - 1);
             if (rhythmHitLine != null) rhythmHitLine.sizeDelta = new Vector2(Mathf.Max(180f, width + 140f), 5f);
 
@@ -438,9 +520,65 @@ namespace Warriors
                 if (!visible) continue;
                 WarriorsRhythmNoteView note = visibleNotes[i];
                 float x = playerCount <= 1 ? 0f : -width * .5f + Mathf.Min(note.PlayerIndex, playerCount - 1) * laneGap;
-                float y = Mathf.Lerp(250f, -110f, note.Travel);
+                // Travel 1 is the moment the note is due, so it has to be exactly on the line
+                // then - the two used to disagree, and the player had to swing when the note
+                // was already well past it. Unclamped so a missed note keeps falling through
+                // instead of stopping dead on the line.
+                float y = Mathf.LerpUnclamped(noteSpawnY, hitLineY, note.Travel);
                 rhythmNotes[i].anchoredPosition = new Vector2(x, y);
-                if (i < rhythmNoteGlyphs.Length) Set(rhythmNoteGlyphs[i], Glyph(note.Type));
+                // The icon never changes colour on the way down: the player reads the shape,
+                // not a colour cue, and a colour that shifts near the line invites pressing
+                // early.
+                if (i < rhythmNoteFills.Length && rhythmNoteFills[i] != null)
+                    rhythmNoteFills[i].color = rhythmNoteColor;
+                if (i < rhythmNoteGlyphs.Length && rhythmNoteGlyphs[i] != null)
+                {
+                    Set(rhythmNoteGlyphs[i], Glyph(note.Type));
+                    rhythmNoteGlyphs[i].color = Color.white;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Where the judgement line sits, measured in the space the notes are positioned in.
+        /// The line and the notes share a parent but not an anchor - the line hangs off the
+        /// bottom of the track, the notes off its centre - so the line's own anchoredPosition
+        /// is not a number a note can be moved to. Converting through world space keeps the
+        /// two in agreement no matter how the prefab is laid out.
+        /// </summary>
+        private float ResolveHitLineY()
+        {
+            if (rhythmHitLine == null || rhythmNotes == null || rhythmNotes.Length == 0) return -180f;
+            RectTransform reference = rhythmNotes[0];
+            if (reference == null || reference.parent == null) return -180f;
+            return reference.parent.InverseTransformPoint(rhythmHitLine.position).y;
+        }
+
+        private void CacheRhythmNoteFills()
+        {
+            if (rhythmNotes == null) return;
+            if (rhythmNoteFills != null && rhythmNoteFills.Length == rhythmNotes.Length) return;
+            rhythmNoteFills = new Image[rhythmNotes.Length];
+            for (int i = 0; i < rhythmNotes.Length; i++)
+                if (rhythmNotes[i] != null)
+                    rhythmNoteFills[i] = rhythmNotes[i].GetComponent<Image>();
+        }
+
+        /// <summary>
+        /// The phase becomes Clear or Failed the moment the run ends, so the round the
+        /// player was actually in is gone by the time the result card is drawn. It is
+        /// recorded here while play is still going.
+        /// </summary>
+        private int reachedRound = 1;
+
+        private void TrackReachedRound()
+        {
+            switch (flow.Phase)
+            {
+                case WarriorsBattlePhase.NormalBattle: reachedRound = 1; break;
+                case WarriorsBattlePhase.KrakenTentaclePhase: reachedRound = 2; break;
+                case WarriorsBattlePhase.FinalKrakenPhase:
+                case WarriorsBattlePhase.FinalSwingPhase: reachedRound = 3; break;
             }
         }
 
@@ -452,18 +590,63 @@ namespace Warriors
             // the run has actually ended.
             SetActive(retryButtonRoot, !swing);
 
-            Set(finalEyebrowText, swing ? Korean(flow.FinalSwingTitle) : string.Empty);
-            Set(finalTitleText, swing ? Korean(flow.FinalSwingLabel) : clear ? "승리!" : Korean(flow.FailureLabel));
+            // One line of context above the verdict. During the swing it is the prompt the
+            // flow supplies; once the run is over it simply says which way it went.
+            string eyebrow = swing ? Korean(flow.FinalSwingTitle)
+                : clear ? "미션 성공" : "미션 실패";
+            Set(finalEyebrowText, eyebrow);
+            if (finalEyebrowText != null) SetActive(finalEyebrowText.gameObject, !string.IsNullOrEmpty(eyebrow));
+            // GAME OVER / TIME OVER are left as they are: translating only the losing
+            // verdict left a Korean word facing an English one across the same slot.
+            Set(finalTitleText, swing ? Korean(flow.FinalSwingLabel)
+                : clear ? "GAME CLEAR" : flow.FailureLabel);
+
+            // Win or lose, the verdict and the rule under it carry the same accent, so the
+            // card reads as one thing rather than a gold frame around a red word.
+            Color accent = swing ? SwingAccent : clear ? ClearAccent : FailAccent;
+            if (finalTitleText != null) finalTitleText.color = accent;
+            if (finalEyebrowText != null) finalEyebrowText.color = accent;
+            if (resultRule != null) resultRule.color = accent;
 
             if (swing && flow.FinalSwingLabel == "SWING!")
                 Set(finalDetailText, $"지금, 모두 함께 공격하세요!   {flow.SuccessfulSwingPlayerCount} / {flow.ActivePlayerCount}");
-            else if (clear)
+            else if (!swing)
             {
-                int elapsed = Mathf.FloorToInt(score.ElapsedSeconds);
-                Set(finalDetailText, $"최종 점수   {score.Score:N0}\n플레이 시간   {elapsed / 60:00}:{elapsed % 60:00}\n몬스터 처치   {score.Kills}");
+                // A loss used to end on a bare GAME OVER with nothing under it, which left
+                // the player no sense of how the run had actually gone. The same three
+                // numbers appear either way; only the last line differs.
+                int elapsed = Mathf.FloorToInt(score.TotalElapsedSeconds);
+                // Laid out as label on the left and value on the right rather than as four
+                // centred sentences, so the numbers line up in a column and can be read down
+                // the card. <pos> does that inside the one text object the card already has.
+                string roundValue = clear ? $"ROUND {reachedRound}  클리어" : $"ROUND {reachedRound}";
+                Set(finalDetailText,
+                    $"최종 점수<pos=58%>{score.Score:N0}\n플레이 시간<pos=58%>{elapsed / 60:00}:{elapsed % 60:00}\n몬스터 처치<pos=58%>{score.Kills}\n{(clear ? "최종 라운드" : "도달 라운드")}<pos=58%>{roundValue}");
             }
             else Set(finalDetailText, string.Empty);
+
+            // The shard is what the whole run is for, so it stays on the card either way:
+            // claimed in full colour on a win, dimmed and unclaimed on a loss. Hiding it on
+            // a defeat left a hole in the card and said nothing about what had been at stake.
+            SetActive(rewardRoot, !swing);
+            if (!swing)
+            {
+                Set(rewardHeadingText, clear ? "획득한 보상" : "놓친 보상");
+                Set(rewardNameText, clear ? "바다의 심장 조각" : "획득 실패");
+                if (rewardGem != null)
+                    rewardGem.color = clear ? Color.white : new Color(.34f, .42f, .56f, .5f);
+                if (rewardNameText != null)
+                    rewardNameText.color = clear
+                        ? new Color(.85f, .97f, 1f, 1f)
+                        : new Color(.58f, .66f, .78f, 1f);
+            }
         }
+
+        // Gold for a win, red for a loss, plain white while the co-op swing is still
+        // live - the colour is the first thing read, before any of the words are.
+        private static readonly Color ClearAccent = new(1f, .82f, .35f, 1f);
+        private static readonly Color FailAccent = new(1f, .42f, .38f, 1f);
+        private static readonly Color SwingAccent = new(.95f, .97f, 1f, 1f);
 
         private static string Glyph(WarriorsAttackDirection type) => type switch
         {

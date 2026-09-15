@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using MiniGames.Common;
 using UnityEngine;
 
 /// <summary>
@@ -40,6 +41,9 @@ public class FakeNetworkService : MonoBehaviour, INetworkService
     [SerializeField] private string failReason = "서버에 연결할 수 없습니다.";
 
     [Header("미니게임 대기열")]
+    [Tooltip("대기열 요청 뒤 첫 서버 패킷을 흉내 내기까지 기다리는 시간")]
+    [SerializeField, Range(0f, 15f)] private float queueResponseDelay = 5f;
+
     [Tooltip("필요 인원")]
     [SerializeField] private int requiredPlayers = 4;
 
@@ -159,29 +163,46 @@ public class FakeNetworkService : MonoBehaviour, INetworkService
     public void JoinMiniGameQueue(string miniGameName)
     {
         StopQueue();
+        PlayerRoster.ClearPlayers();
         _queueRoutine = StartCoroutine(FillQueue(miniGameName));
     }
 
     private IEnumerator FillQueue(string miniGameName)
     {
-        // 나 한 명으로 시작해서 가짜 플레이어가 한 명씩 들어온다.
-        int current = 1;
-        OnQueueUpdated?.Invoke(miniGameName, current, requiredPlayers);
+        // 실제 서버의 최초 대기열 패킷을 기다리는 상황을 그대로 흉내 낸다.
+        yield return WaitUnscaled(queueResponseDelay);
 
-        while (current < requiredPlayers)
+        // 나 한 명으로 시작해서 가짜 플레이어가 한 명씩 들어온다.
+        int targetPlayers = ResolveRequiredPlayers(miniGameName);
+        int current = 1;
+        PlayerRoster.RegisterNextTestPlayer(isLocal: true);
+        OnQueueUpdated?.Invoke(miniGameName, current, targetPlayers);
+
+        while (current < targetPlayers)
         {
             yield return WaitUnscaled(fakeJoinInterval);
             current++;
-            OnQueueUpdated?.Invoke(miniGameName, current, requiredPlayers);
+            PlayerRoster.RegisterNextTestPlayer();
+            OnQueueUpdated?.Invoke(miniGameName, current, targetPlayers);
         }
 
+        // Fake는 명단까지만 채운다. 게임 시작은 실제 화면 규칙과 동일하게
+        // 30초 자동 시작 또는 [게임 시작] 버튼이 결정한다.
         _queueRoutine = null;
-        OnMiniGameStarting?.Invoke(miniGameName);
     }
 
     public void LeaveMiniGameQueue()
     {
         StopQueue();
+        PlayerRoster.ClearPlayers();
+    }
+
+    private int ResolveRequiredPlayers(string miniGameName)
+    {
+        if (string.Equals(miniGameName, MiniGameId.Sword.ToString(), StringComparison.OrdinalIgnoreCase)) return 2;
+        if (string.Equals(miniGameName, MiniGameId.Mining.ToString(), StringComparison.OrdinalIgnoreCase)) return 4;
+        if (string.Equals(miniGameName, MiniGameId.Ship.ToString(), StringComparison.OrdinalIgnoreCase)) return 4;
+        return Mathf.Max(1, requiredPlayers);
     }
 
     private void StopQueue()
@@ -195,7 +216,29 @@ public class FakeNetworkService : MonoBehaviour, INetworkService
 
     public void ReportMiniGameResult(bool success, int score)
     {
-        Debug.Log($"[FakeNetworkService] 미니게임 결과 보고 — 성공: {success}, 점수: {score}", this);
+        MiniGameConfig config = PlayerRoster.CurrentGame;
+        ReportMiniGameResult(new MiniGameResult(
+            config != null ? config.GameId : MiniGameId.Sword,
+            success,
+            score,
+            0f,
+            config != null ? config.ExtraStatLabel : null,
+            string.Empty,
+            config != null ? config.FragmentId : null,
+            fragmentObtained: false,
+            playerCount: PlayerRoster.ActivePlayerCount));
+    }
+
+    public void ReportMiniGameResult(MiniGameResult result)
+    {
+        string rewardId = !string.IsNullOrEmpty(result.RewardId)
+            ? result.RewardId
+            : PlayerRoster.CurrentGame != null ? PlayerRoster.CurrentGame.FragmentId : null;
+
+        bool obtained = result.IsClear && !RewardService.Has(rewardId);
+        MiniGameResult settled = result.WithReward(rewardId, obtained);
+        Debug.Log($"[FakeNetworkService] 미니게임 결과 확정 — 성공: {settled.IsClear}, 점수: {settled.Score}", this);
+        MiniGameResultGateway.SubmitAuthoritative(settled);
     }
 
     // ------------------------------------------------------------
