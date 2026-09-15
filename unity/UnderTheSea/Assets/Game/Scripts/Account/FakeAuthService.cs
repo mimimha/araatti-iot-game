@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace UnderTheSea.Account
@@ -157,43 +156,17 @@ namespace UnderTheSea.Account
         }
 
         // ------------------------------------------------------------
-        // 검증 — 서버(server/AraAtti.Api)의 규칙과 같게 맞춘다
+        // 검증 — 규칙과 문구는 CredentialRules 한 곳에 있다 (서버와 같게 맞춘 것)
         // ------------------------------------------------------------
-
-        private static readonly Regex EmailPattern =
-            new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
-
-        private const int MinimumPasswordLength = 8;
 
         private static string Validate(string email, string password)
         {
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                return "이메일을 입력해 주세요.";
-            }
-
-            if (!EmailPattern.IsMatch(email.Trim()))
-            {
-                return "이메일 형식이 올바르지 않습니다.";
-            }
-
-            if (string.IsNullOrWhiteSpace(password))
-            {
-                return "비밀번호를 입력해 주세요.";
-            }
-
-            if (password.Length < MinimumPasswordLength)
-            {
-                return $"비밀번호는 {MinimumPasswordLength}자 이상이어야 합니다.";
-            }
-
-            return null;
+            return CredentialRules.Validate(email, password);
         }
 
-        /// <summary>대소문자를 섞어 입력해도 같은 계정으로 찾도록 맞춘다. (서버도 같다)</summary>
         private static string Normalize(string email)
         {
-            return email.Trim().ToLowerInvariant();
+            return CredentialRules.Normalize(email);
         }
 
         /// <summary>
