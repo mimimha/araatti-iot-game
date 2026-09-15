@@ -2,6 +2,7 @@ using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 배 모델을 얹고, 그 위에 **걸어다닐 바닥과 작업 자리를 놓는다.** (SHIPCOOP.md 4장)
@@ -398,17 +399,23 @@ public static class ShipCoopDeckLayout
         BuildDecks(root, log);
         BuildStairs(root, log);
         BuildWalls(root, log);
+        BuildAftBulkhead(root, log);
         CoverTheHold(root, log);
         MoveSea(log);
         MatchLobbySky(log);
         BuildSky(log);
         MoveStations(log);
+        EnsureCargoVisuals(log);
+        DressBoxes(log);
+        DressDumps(log);
+        DressHullDamagePrefab(log);
         MovePlayers(log);
         AttachCharacters(log);
         SizeHeldVisual(log);
         SetUpCarryPose(log);
         SetUpPortraits(log);
         SetUpReefRocks(log);
+        ShipCoopSeaProps.SetUp(log);
 
         EditorSceneManager.MarkAllScenesDirty();
 
@@ -416,6 +423,38 @@ public static class ShipCoopDeckLayout
         log.AppendLine("씬을 저장해야 남습니다. (Ctrl+S)");
 
         Debug.Log(log.ToString());
+    }
+
+    /// <summary>배치 도구가 다루는 씬. 네트워크 씬(ShipCoop.unity)은 이 씬을 복사해 만든다. (ShipCoopSceneSetup)</summary>
+    private const string TestScenePath = "Assets/Game/Scenes/Develop/MinHwa/ShipCoopTest.unity";
+
+    /// <summary>
+    /// 커맨드라인용. 씬을 열어 배치하고 **저장까지** 한다. 실패하면 종료 코드 1.
+    ///
+    /// 에디터를 열지 않고 배치를 다시 돌릴 때 쓴다.
+    /// <code>
+    ///   Unity.exe -batchmode -quit -projectPath &lt;경로&gt; -executeMethod ShipCoopDeckLayout.BuildFromCommandLine
+    /// </code>
+    /// 이어서 네트워크 씬을 다시 만들려면 <c>ShipCoopSceneSetup.BuildAllFromCommandLine</c> 을 돌린다.
+    /// </summary>
+    public static void BuildFromCommandLine()
+    {
+        Scene scene = EditorSceneManager.OpenScene(TestScenePath, OpenSceneMode.Single);
+
+        Build();
+
+        // 도구가 만들거나 고친 에셋(재질 · 설정 · 프리팹)도 함께 저장한다. 씬만 저장하면 SetDirty 한 것이 날아간다.
+        AssetDatabase.SaveAssets();
+
+        bool saved = EditorSceneManager.SaveScene(scene);
+        Debug.Log(saved
+            ? $"[배 모델과 갑판 배치] 저장했습니다 — {TestScenePath}"
+            : $"[배 모델과 갑판 배치] ⚠ 저장에 실패했습니다 — {TestScenePath}");
+
+        if (Application.isBatchMode)
+        {
+            EditorApplication.Exit(saved ? 0 : 1);
+        }
     }
 
     // ------------------------------------------------------------
@@ -463,6 +502,8 @@ public static class ShipCoopDeckLayout
         ship.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         ship.transform.localScale = Vector3.one;
 
+        MakeShipMeshesReadable(ship, log);
+
         int on = 0;
 
         foreach (Collider hit in ship.GetComponentsInChildren<Collider>(true))
@@ -484,6 +525,50 @@ public static class ShipCoopDeckLayout
         TurnOffShipParts(ship, log);
         MoveShipCannon(ship, log);
         SpinTheWheel(ship, log);
+    }
+
+    /// <summary>
+    /// 🪨 배 메시의 **Read/Write 를 켠다.**
+    ///
+    /// 암초(<c>Reef.MeasureShip</c>)는 선체 메시의 정점을 읽어 z 마다 실제 반폭을 잽니다. 에디터에서는
+    /// 모든 메시가 읽히지만 **빌드에서는 Read/Write 가 꺼진 메시의 정점이 빈 배열**로 오고, 콘솔에
+    /// "Not allowed to access vertices on mesh 'StylShip_*'" 가 찍힙니다. 반폭이 전부 0 이 되어 필요 간격이
+    /// 바위 반폭만 남으니 옆구리를 긁고 지나가는 바위도 "안 닿음" 이었습니다 — **빌드(멀티)에서만 암초가
+    /// 쉬웠던 이유**입니다.
+    ///
+    /// FBX 의 ModelImporter 설정이라 씬이 아니라 그 FBX 의 .meta 가 바뀝니다. 한 번 켜지면 다음부터는 건드리지 않습니다.
+    /// </summary>
+    private static void MakeShipMeshesReadable(GameObject ship, StringBuilder log)
+    {
+        var done = new System.Collections.Generic.HashSet<string>();
+
+        foreach (MeshFilter part in ship.GetComponentsInChildren<MeshFilter>(true))
+        {
+            Mesh mesh = part.sharedMesh;
+
+            if (mesh == null)
+            {
+                continue;
+            }
+
+            string path = AssetDatabase.GetAssetPath(mesh);
+
+            if (string.IsNullOrEmpty(path) || !done.Add(path))
+            {
+                continue;
+            }
+
+            ModelImporter importer = AssetImporter.GetAtPath(path) as ModelImporter;
+
+            if (importer == null || importer.isReadable)
+            {
+                continue;
+            }
+
+            importer.isReadable = true;
+            importer.SaveAndReimport();
+            log.AppendLine($"  🪨 배 메시의 Read/Write 를 켰습니다 — {path} (암초가 빌드에서도 선체 폭을 읽는다)");
+        }
     }
 
     /// <summary>
@@ -668,14 +753,19 @@ public static class ShipCoopDeckLayout
     }
 
     // ------------------------------------------------------------
-    // 선창 바닥 — **격자창 아래로 바다가 비치는 것**을 막는다
+    // 선창 바닥 — **선체 안으로 바다가 비치는 것**을 막는다
     //
-    // ⚠ 중간갑판 한가운데 격자창(화물칸 뚜껑)은 아래가 비칩니다.
+    // ⚠ 중간갑판 한가운데 격자창(화물칸 뚜껑)은 아래가 비칩니다. 뱃머리 · 배 뒤도 위가 트여 있습니다.
     //    그 아래에 아무것도 없으면 **바다 판이 그대로 보여서, 배 안에 물이
     //    차 있는 것처럼** 보입니다. 침수 게이지가 0인데도요.
     //
     //    진짜 배에는 그 아래에 선창 바닥이 있습니다. 모델에는 없으니 깔아줍니다.
     //    배 안쪽이라 밖에서는 선체에 가려 안 보입니다.
+    //
+    // ⚠ **네모 상자가 아니라 선체 모양대로 잰 판입니다.** (ShipCoopHoldFloorMesh)
+    //    폭 10.3 · 길이 35 상자는 뱃머리 쪽 9.5m 와 배 뒤 2.2m, 양옆 0.45m 를 못 덮어 **배 앞부분에 물이 찬 것처럼**
+    //    보였습니다. 선체보다 크게 하면 좁아지는 뱃머리에서 배 밖으로 튀어나옵니다. 그래서 그 높이에서 레이로 선체를
+    //    재서 폭을 맞춥니다. 선체를 못 재면(배가 없거나 콜라이더가 꺼짐) 예전 상자로 돌아갑니다.
     // ------------------------------------------------------------
 
     private const string HoldFloorName = "Hold_Floor";
@@ -693,27 +783,37 @@ public static class ShipCoopDeckLayout
         }
 
         // 배와 같은 나무색을 쓴다. 따로 재질을 만들면 혼자 겉돈다.
-        Material wood = null;
-
-        foreach (Renderer r in ship.GetComponentsInChildren<Renderer>(true))
-        {
-            if (r.name == "DeckMid" && r.sharedMaterial != null)
-            {
-                wood = r.sharedMaterial;
-                break;
-            }
-        }
+        Material wood = FindShipWood();
 
         Transform floor = FindOrCreateBox(root, HoldFloorName);
-
-        floor.localScale = new Vector3(DeckWidth, DeckThickness, AftBackZ * -1f + ForeFrontZ);
-        floor.localPosition = new Vector3(CenterX, HoldFloorY, (AftBackZ + ForeFrontZ) * 0.5f);
+        Undo.RecordObject(floor, "배 모델과 갑판 배치");
         floor.localRotation = Quaternion.identity;
+
+        // 선체를 재서 그 모양대로 만든다. 못 재면 예전 상자.
+        Mesh shaped = ShipCoopHoldFloorMesh.CreateOrOverwrite(ship, HoldFloorY, CenterX, out ShipCoopHoldFloorMesh.Report measured);
+        MeshFilter filter = floor.GetComponent<MeshFilter>();
+
+        if (shaped != null && filter != null)
+        {
+            // 메시 점이 월드 좌표다. 루트는 원점에 있으니(FindOrCreateRoot) 자리 · 배율을 1 로 둔다.
+            Undo.RecordObject(filter, "배 모델과 갑판 배치");
+            filter.sharedMesh = shaped;
+            floor.localPosition = Vector3.zero;
+            floor.localScale = Vector3.one;
+        }
+        else
+        {
+            floor.localScale = new Vector3(DeckWidth, DeckThickness, AftBackZ * -1f + ForeFrontZ);
+            floor.localPosition = new Vector3(CenterX, HoldFloorY, (AftBackZ + ForeFrontZ) * 0.5f);
+            log.AppendLine("  ⚠ 선체를 레이로 못 재서 선창 바닥을 예전 상자로 깝니다 (뱃머리 · 배 뒤가 안 가려집니다)");
+        }
 
         if (wood != null)
         {
             Renderer draw = floor.GetComponent<Renderer>();
+            Undo.RecordObject(draw, "배 모델과 갑판 배치");
             draw.sharedMaterial = wood;
+            draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             draw.enabled = true;
         }
 
@@ -727,7 +827,11 @@ public static class ShipCoopDeckLayout
             bump.enabled = false;
         }
 
-        log.AppendLine($"  선창 바닥을 y {HoldFloorY:F1} 에 깔았습니다. (격자창 아래로 바다가 비치는 것을 막음)");
+        log.AppendLine(shaped != null
+            ? $"  선창 바닥을 y {HoldFloorY:F1} 에 선체 모양대로 깔았습니다 — z {measured.MinZ:F1}~{measured.MaxZ:F1}, " +
+              $"{measured.Slices}구간(그중 {measured.Filled}칸은 레이가 빗나가 앞뒤에서 이어 그림), " +
+              $"가장 넓은 곳 {measured.Widest:F1}m ({shaped.name}). 선체 안으로 바다가 비치는 것을 막음"
+            : $"  선창 바닥을 y {HoldFloorY:F1} 에 상자로 깔았습니다. (격자창 아래로 바다가 비치는 것을 막음)");
     }
 
     /// <summary>
@@ -901,6 +1005,188 @@ public static class ShipCoopDeckLayout
         wall.localRotation = Quaternion.identity;
 
         HideButKeepCollider(wall);
+    }
+
+    // ------------------------------------------------------------
+    // 뒷계단 사이를 막는 격벽 — 뒷갑판 밑으로 들어가 바다에 빠지는 길
+    // ------------------------------------------------------------
+
+    private const string BulkheadName = "Wall_AftBulkhead";
+    private const string UnderAftFloorName = "Floor_UnderAft";
+    private const float BulkheadThickness = 0.3f;
+
+    /// <summary>
+    /// 격벽을 뒷갑판 가장자리(<see cref="MidBackZ"/>)에서 뱃머리 쪽으로 이만큼 뺀다.
+    ///
+    /// 가장자리에 딱 붙이면 배 모델의 선미루 앞벽과 겹쳐 무늬가 깨지고, 움푹한 곳에 들어가
+    /// 잘 보이지 않았다. 0.5m 빼면 겹침에서 벗어나 판자 무늬가 제대로 보이고, 중간갑판은 거의 그대로다.
+    /// (1.5m 로 해 봤더니 너무 앞으로 나와 보여 0.5m 로 줄였다)
+    /// 계단이 중간갑판에 닿는 끝(<see cref="AftStairRun"/> = 4.0)까지 뺄 수 있지만
+    /// 그만큼 중간갑판이 좁아진다.
+    /// </summary>
+    private const float BulkheadForward = 0.5f;
+
+    /// <summary>
+    /// 격벽 재질 — **선체 안쪽 판자 무늬.**
+    ///
+    /// 선체 재질(<c>M_Ship_Hull_01</c>)의 텍스처는 여러 부위가 한 장에 모인 아틀라스라
+    /// 그대로 입히면 창문·쇠테까지 다 나온다. 그래서 선체 재질을 복사한 뒤 타일링·오프셋으로
+    /// **창문 없는 가로 판자 구역**(<see cref="BulkheadUvRect"/>)만 보이게 한다.
+    /// 갑판 바닥 무늬(DeckMid)와 단색도 해 봤지만, 벽은 벽 무늬여야 배와 한 덩어리로 읽혔다.
+    /// </summary>
+    private const string HullMaterialPath = "Assets/Game/Prefabs/PirateShip/M_Ship_Hull_01.mat";
+    private const string BulkheadMaterialPath = "Assets/Game/Art/Materials/ShipCoop/BulkheadPlanks.mat";
+
+    /// <summary>
+    /// 선체 텍스처(1024²) 안에서 창문이 없는 가로 판자 구역. UV 기준(왼쪽 아래 원점).
+    /// 픽셀로는 x 195~365, y 96~164 (왼쪽 위 원점). 가로세로 비 2.5 : 1.
+    /// </summary>
+    private static readonly Rect BulkheadUvRect = new Rect(0.190f, 0.840f, 0.166f, 0.066f);
+
+    /// <summary>
+    /// 겉면을 위아래 몇 장으로 나눌지. 큐브 한 면에 구역이 한 번 늘어나 붙으므로,
+    /// 5.8 × 4.8m 한 장이면 판자가 세로로 2배 늘어난다. 2장(각 5.8 × 2.4m, 비 2.4)이면
+    /// 구역 비율(2.5)과 거의 같아 왜곡이 없다. 막는 콜라이더는 이와 별개로 한 장이다.
+    /// </summary>
+    private const int BulkheadSlabs = 2;
+
+    /// <summary>
+    /// 뒷계단 두 개 사이, **뒷갑판 밑으로 들어가는 입구를 보이는 나무 벽으로 막는다.**
+    ///
+    /// 중간갑판 바닥은 z <see cref="MidBackZ"/> 에서 끝나고 뒷갑판 바닥은 그보다 4.5m 위다.
+    /// 두 계단 사이(폭 5.8m)로 걸어 들어가면 밟을 것이 없어 선체 안으로 떨어지고,
+    /// 선체 안에는 바닥이 없어 **바다까지 떨어진다.** 바다에 빠지면 돌아올 길이 없다. (BuildWalls 참고)
+    ///
+    /// 보이지 않는 벽으로만 막으면 "왜 안 가지지?" 가 된다. 배와 같은 나무 재질을 입혀
+    /// 선미루 격벽처럼 보이게 한다. 배 모델의 이 자리에는 원래 상자·통 장식이 있었지만
+    /// 계단 통행을 막아 꺼 두었다. (<see cref="RemoveFromShip"/>)
+    ///
+    /// 그래도 어떤 틈으로든 들어간 사람이 바다로 떨어지지는 않도록,
+    /// 뒷갑판 밑 전체에 **보이지 않는 바닥**도 한 장 깐다. 걸어서 돌아올 수 있으면 벌이 아니다.
+    /// </summary>
+    private static void BuildAftBulkhead(Transform root, StringBuilder log)
+    {
+        // 계단 안쪽 가장자리 사이를 막는다. 캡슐 반지름이 0.5m 라 틈이 몇 cm 남아도 못 지나간다.
+        float innerHalf = StairOffsetX - StairWidth * 0.5f;
+        float width = innerHalf * 2f;
+
+        // 중간갑판 바닥 밑에서 뒷갑판 바닥 높이까지. 아래로 갑판 두께만큼 더 내려 발밑 틈을 없앤다.
+        float bottom = MidSurfaceY - DeckThickness;
+        float top = AftSurfaceY;
+
+        float wallZ = MidBackZ + BulkheadForward;
+
+        // 예전 버전 정리 — 보이지 않는 큐브 한 장 + 콜라이더 없는 겉면 그룹.
+        Transform oldWall = root.Find(BulkheadName);
+        if (oldWall != null && oldWall.GetComponent<Collider>() != null)
+        {
+            Undo.DestroyObjectImmediate(oldWall.gameObject);
+        }
+        RemoveChild(root, BulkheadName + "_Skin");
+
+        // 격벽은 위아래 몇 장의 판으로 만든다. **판마다 콜라이더를 둔다.** 막는 것도 이 판들이 한다.
+        //
+        // ⚠ 콜라이더가 있어야 카메라가 가릴 때 숨겨 준다. ShipCoopCamera 는 카메라와 사람 사이에
+        //    걸린 **콜라이더**를 찾아 그 렌더러를 끄기 때문에, 콜라이더 없는 판은 화면을 통째로 막았다.
+        //    이제 사람 뒤에서 뱃머리를 볼 때는 사라지고, 카메라를 돌려 고물 쪽을 보면 다시 나온다.
+        Material planks = GetOrCreateBulkheadPlanks(log);
+        Transform skin = FindOrCreateGroup(root, BulkheadName);
+        float slabHeight = (top - bottom) / BulkheadSlabs;
+
+        for (int i = 0; i < BulkheadSlabs; i++)
+        {
+            Transform slab = FindOrCreateBox(skin, $"Slab_{i}");
+            slab.localScale = new Vector3(width, slabHeight, BulkheadThickness);
+            slab.localPosition = new Vector3(CenterX, bottom + slabHeight * (i + 0.5f), wallZ);
+            slab.localRotation = Quaternion.identity;
+
+            Renderer draw = slab.GetComponent<Renderer>();
+            if (planks != null && draw != null)
+            {
+                Undo.RecordObject(draw, "배 모델과 갑판 배치");
+                draw.sharedMaterial = planks;
+                draw.enabled = true;
+            }
+        }
+
+        // 예전에 slab 수가 더 많았다면 남는 것을 치운다.
+        for (int i = skin.childCount - 1; i >= BulkheadSlabs; i--)
+        {
+            Undo.DestroyObjectImmediate(skin.GetChild(i).gameObject);
+        }
+
+        // 카메라가 벽 뒤(고물 쪽)에서 벽 앞의 사람을 볼 때 벽을 감추는 규칙. (ShipCoopBulkhead 참고)
+        if (skin.GetComponent<ShipCoopBulkhead>() == null)
+        {
+            Undo.AddComponent<ShipCoopBulkhead>(skin.gameObject);
+        }
+
+        if (planks == null)
+        {
+            log.AppendLine("  ⚠ 선체 재질을 못 찾아 격벽이 기본 회색으로 남습니다.");
+        }
+
+        // 안전 바닥. 뒷갑판 밑 전체를 중간갑판 높이로 덮는다. 보이지 않고 밟히기만 한다.
+        Transform floor = FindOrCreateBox(root, UnderAftFloorName);
+        floor.localScale = new Vector3(DeckWidth, DeckThickness, AftLength);
+        floor.localPosition = new Vector3(CenterX, MidSurfaceY - DeckThickness * 0.5f, AftCenterZ);
+        floor.localRotation = Quaternion.identity;
+        HideButKeepCollider(floor);
+
+        log.AppendLine($"  격벽 뒷계단 사이 x {CenterX - width * 0.5f:F1} ~ {CenterX + width * 0.5f:F1}, " +
+                       $"y {bottom:F1} ~ {top:F1}, z {wallZ:F1}  (선체 판자 무늬 {BulkheadSlabs}장) · 뒷갑판 밑 안전 바닥 y {MidSurfaceY:F2}");
+    }
+
+    /// <summary>
+    /// 선체 재질을 복사해 창문 없는 판자 구역만 보이게 타일링·오프셋을 건 재질.
+    /// 없으면 만들고, 있으면 구역 값만 다시 맞춘다. (상수를 고치고 다시 돌려도 반영되게)
+    /// </summary>
+    private static Material GetOrCreateBulkheadPlanks(StringBuilder log)
+    {
+        Material made = AssetDatabase.LoadAssetAtPath<Material>(BulkheadMaterialPath);
+
+        if (made == null)
+        {
+            Material hull = AssetDatabase.LoadAssetAtPath<Material>(HullMaterialPath);
+
+            if (hull == null)
+            {
+                log.AppendLine($"  ⚠ 선체 재질을 못 찾음: {HullMaterialPath}");
+                return null;
+            }
+
+            made = new Material(hull);
+            AssetDatabase.CreateAsset(made, BulkheadMaterialPath);
+            log.AppendLine($"  격벽 재질을 선체 재질에서 복사해 만들었습니다 — {BulkheadMaterialPath}");
+        }
+
+        // URP/Lit 의 _BaseMap 이 [MainTexture] 라 mainTextureScale/Offset 이 그대로 먹는다.
+        made.mainTextureScale = new Vector2(BulkheadUvRect.width, BulkheadUvRect.height);
+        made.mainTextureOffset = new Vector2(BulkheadUvRect.x, BulkheadUvRect.y);
+        EditorUtility.SetDirty(made);
+
+        return made;
+    }
+
+    /// <summary>배와 같은 나무 판자 재질. 중간갑판(DeckMid) 것을 그대로 쓴다. 따로 만들면 혼자 겉돈다.</summary>
+    private static Material FindShipWood()
+    {
+        GameObject ship = GameObject.Find(ShipName);
+
+        if (ship == null)
+        {
+            return null;
+        }
+
+        foreach (Renderer r in ship.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r.name == "DeckMid" && r.sharedMaterial != null)
+            {
+                return r.sharedMaterial;
+            }
+        }
+
+        return null;
     }
 
     private static Transform FindOrCreateRoot()
@@ -1499,7 +1785,13 @@ public static class ShipCoopDeckLayout
                     //    x -1.95 에 있었더니 좌현 계단 입구를 막아서 지나갈 때마다
                     //    걸렸습니다. 계단은 x -2.79 와 +4.89 에 폭 1.9m 로 있으니,
                     //    그 사이(x -1.84 ~ 3.94)의 한가운데가 x 1.05 입니다.
-                    where = new Vector3(CenterX, MidSurfaceY + BoxLift, ForeStairZ - 1.6f);
+                    //
+                    // ⚠ 앞뒤로는 **앞갑판 벽에 붙입니다.** (MidFrontZ 에서 AmmoNookDepth 만큼 앞)
+                    //    예전 자리(z 6.0)에 상자 + 화약통 한 쌍을 놓으니 뒤쪽 통이 주 돛대(z 4.4)와
+                    //    10cm 차이로 붙어서 돛대 밧줄이 통을 관통해 보였습니다.
+                    //    계단 사이 한가운데는 앞갑판 벽으로 막힌 막다른 자리라 벽에 붙여도
+                    //    통행을 막지 않고, 돛대와는 2m 넘게 떨어집니다.
+                    where = new Vector3(CenterX, MidSurfaceY + BoxLift, MidFrontZ - AmmoNookDepth);
                     label = "📦 포탄 상자";
                     break;
                 case Cargo.Plank:
@@ -1518,15 +1810,1199 @@ public static class ShipCoopDeckLayout
             Undo.RecordObject(boxes[i].transform, "배 모델과 갑판 배치");
             boxes[i].transform.position = where;
 
-            // ⚠ 포탄 상자만 **가로로 늘립니다.** 계단 사이에 홀로 놓이니
-            //    작은 정육면체는 갑판에 파묻혀 보입니다. 넓적해야 "상자" 로 읽힙니다.
-            if (boxes[i].Kind == Cargo.Ammo)
+            // ⚠ 큐브 크기는 1 로 둡니다. 예전에는 포탄 상자만 (2.2, 0.7, 0.9) 로 넓적하게 늘렸는데,
+            //    이제 큐브 위에 배 소품을 얹으므로(DressBoxes) 그 값이 자식 모델에 곱해져 찌그러집니다.
+            //    "넓적하게" 는 상자와 화약통 두 개를 나란히 놓는 것으로 대신합니다.
+            if (boxes[i].transform.localScale != Vector3.one)
             {
-                boxes[i].transform.localScale = new Vector3(2.2f, 0.7f, 0.9f);
+                boxes[i].transform.localScale = Vector3.one;
             }
 
             log.AppendLine($"    {label,-14}  {Describe(where)}");
         }
+    }
+
+    // ------------------------------------------------------------
+    // 보급 상자 — 큐브 위에 배 소품을 얹는다
+    //
+    // ⚠ 큐브를 지우거나 갈아끼우지 않습니다. AmmoBox 컴포넌트와 콜라이더가 붙어 있고
+    //    PlaceBoxes 가 FindObjectsByType<AmmoBox> 로 찾습니다. 캐릭터를 큐브 위에
+    //    씌운 것과 같은 방식으로 — 큐브는 두고 **자식으로 모델을 얹고 겉만 감춥니다.**
+    //    (AttachCharacters, SHIPCOOP.md 4장 "캐릭터는 큐브 위에 씌웁니다")
+    //
+    //    세 상자 모두 Synty PolygonGeneric 소품입니다. 같은 아틀라스(Generic_01_A)라 서로 색이 맞고,
+    //    URP 에서 정상이라 **자기 재질을 그대로 둡니다.** (Synty/PolygonGeneric 은 ASSETS.md 의 Nature Biomes 줄이 덮습니다)
+    //    문법은 하나입니다 — **안에 든 것을 보여 준다.** 포탄 궤짝은 뚜껑을 열어, 자재 궤짝은 격자 사이로,
+    //    물 자리는 웅덩이 그 자체로.
+    //
+    //    처음에는 StylShip(배와 같은 FBX) 상자 · 통 · 팰릿을 얹었는데, 뚜껑이 없고 안이 안 보여 바꿨습니다.
+    //    StylShip 재질은 Built-in RP 라 URP 에서 마젠타로 나오니 다시 쓸 때는 M_Ship_Props_01 로 덮어써야 합니다.
+    // ------------------------------------------------------------
+
+    private const string ChestPath = "Assets/Synty/PolygonGeneric/Prefabs/Props/SM_Gen_Prop_Chest_01.prefab";
+
+    /// <summary>궤짝 프리팹 안의 뚜껑. 원점이 힌지에 있어 로컬 X 로 -100° 돌리면 열린다. (SupplyChestLid)</summary>
+    private const string ChestLidName = "SM_Gen_Prop_Chest_01_Lid_01";
+
+    /// <summary>
+    /// 포탄 궤짝 배율. 원본은 0.97 × 0.76 × 0.60m(닫힘). 2배면 가로 1.9m, 닫힘 높이 1.5m 로
+    /// 키 3m 캐릭터의 허리쯤이고, 앞계단 두 개 사이 5.8m 틈을 혼자 채운다.
+    /// 예전에 큐브를 2.2m 로 넓적하게 늘린 이유(작은 상자는 그 틈에서 파묻혀 보임)를 이 배율이 대신한다.
+    /// 열리면 뚜껑까지 높이 2.06m · 깊이 1.94m 가 된다.
+    /// </summary>
+    private const float ChestScale = 2.0f;
+
+    /// <summary>궤짝의 y 회전. 열린 뚜껑이 고물(-z)을 향하는 값. 넣어 보고 정했다. (0 이면 반대로 열렸다)</summary>
+    private const float ChestYaw = 180f;
+
+    // ------------------------------------------------------------
+    // 🪵 자재 상자 — 옆·위가 뚫린 격자 궤짝 안에 판자 묶음을 세운다
+    //
+    //    포탄 궤짝(뚜껑을 열면 포탄이 보인다)과 같은 문법이다: **안에 든 것을 보여 준다.**
+    //    격자 궤짝은 뚜껑이 없어 늘 보이므로 SupplyChestLid 는 붙이지 않는다.
+    //    Crate_02 · Plank_02 는 포탄 궤짝과 같은 Synty 아틀라스라 색이 맞고, 자기 재질을 그대로 쓴다.
+    // ------------------------------------------------------------
+
+    private const string PlankCratePath = "Assets/Synty/PolygonGeneric/Prefabs/Props/SM_Gen_Prop_Crate_02.prefab";
+    private const string PlankModelPath = "Assets/Synty/PolygonGeneric/Prefabs/Props/SM_Gen_Prop_Plank_02.prefab";
+
+    /// <summary>
+    /// 격자 궤짝 배율. 원본 0.90 × 0.88 × 1.37m 는 키 3m 사람에게 무릎 높이라 파묻혀 보인다.
+    /// 1.3배(높이 1.14m)면 허리 아래로 보이고, 예전 팰릿(발자국 2.36m)보다는 작다.
+    /// </summary>
+    private const float PlankCrateScale = 1.3f;
+
+    // ------------------------------------------------------------
+    // 🪵 궤짝은 원본 메시 그대로 — 판자는 **위에 쌓는다**
+    //
+    //    한때 판자를 궤짝 **안에 세웠다.** Crate_02 는 옆이 격자여도 윗면까지 한 덩어리 메시라 판자가
+    //    뚜껑을 뚫고 나와서, 메시를 읽어 윗면 삼각형을 뺀 사본(…_Open.asset)을 만들어 씌웠다.
+    //    그런데 윗모서리 테두리까지 같이 잘려 벽이 낮은 어정쩡한 상자가 됐고, 보는 사람도
+    //    "상자 이상하다" 고 했다. 그 옆에 기대 세우는 것도 해 봤는데 그건 더 어색했다.
+    //
+    //    지금은 뚜껑을 그대로 두고 판자를 **위에 눕혀 쌓는다.** 부두에 자재를 쌓아 둔 그림이고,
+    //    메시 사본이 없으니 도구 밖에서 관리할 파일도 없다. 예전 사본이 씬에 남아 있으면 되돌린다. (CloseTheCrate)
+    // ------------------------------------------------------------
+
+    /// <summary>자재 궤짝의 메시를 프리팹 원본으로 되돌린다. 예전 도구가 남긴 "뚜껑 없는 사본" 오버라이드를 지운다.</summary>
+    private static void CloseTheCrate(Transform crate)
+    {
+        MeshFilter filter = crate.GetComponentInChildren<MeshFilter>(true);
+        MeshFilter source = filter != null ? PrefabUtility.GetCorrespondingObjectFromSource(filter) : null;
+
+        if (filter == null || source == null || filter.sharedMesh == source.sharedMesh)
+        {
+            return;
+        }
+
+        Undo.RecordObject(filter, "배 모델과 갑판 배치");
+        filter.sharedMesh = source.sharedMesh;
+    }
+
+    /// <summary>
+    /// 궤짝 위에 눕혀 쌓는 판자. (x 오프셋, z 오프셋, y 회전, 층) — 궤짝 중심 기준.
+    ///
+    /// 판자는 긴 축이 x 인 1.77m 메시(두께 0.11m)다. y 로 90° 쯤 돌려 궤짝의 긴 축(z)과 나란히 눕힌다.
+    /// 궤짝(1.3배, z 1.37m)보다 길어 앞뒤로 0.2m 씩 삐져나오는데, 그게 "쌓아 둔 자재" 로 읽힌다.
+    /// 아래층 둘을 나란히, 그 위 하나를 가운데에. 각도를 몇 도씩 다르게 두는 이유 — 딱 맞추면 복사해 붙인 것처럼 보인다.
+    /// </summary>
+    private static readonly Vector4[] PlankBundle =
+    {
+        new Vector4(-0.20f,  0.03f, 94f, 0f),
+        new Vector4( 0.20f, -0.04f, 87f, 0f),
+        new Vector4( 0.00f,  0.00f, 99f, 1f),
+    };
+
+    private static void DressPlankBundle(Transform cube, Transform crate, StringBuilder log)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlankModelPath);
+
+        if (prefab == null)
+        {
+            log.AppendLine($"    ⚠ 판자 프리팹을 못 찾음: {PlankModelPath}");
+            return;
+        }
+
+        Transform bundle = FindOrCreateGroup(cube, "Prop_Planks");
+
+        // 궤짝 윗면. 궤짝을 먼저 앉힌(Seat) 뒤에 재야 맞는다.
+        float top = BoundsOf(crate).max.y;
+        float layerHeight = 0f;
+
+        for (int i = 0; i < PlankBundle.Length; i++)
+        {
+            string name = $"Plank_{i}";
+            Transform plank = bundle.Find(name);
+
+            if (plank == null)
+            {
+                GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                made.name = name;
+                Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+                plank = made.transform;
+                plank.SetParent(bundle, false);
+            }
+
+            foreach (Collider bump in plank.GetComponentsInChildren<Collider>(true))
+            {
+                Undo.DestroyObjectImmediate(bump);
+            }
+
+            Vector4 spec = PlankBundle[i];
+
+            Undo.RecordObject(plank, "배 모델과 갑판 배치");
+            plank.localScale = Vector3.one;
+            plank.localRotation = Quaternion.Euler(0f, spec.z, 0f);
+
+            // 밑면이 궤짝 윗면(또는 아래층 판자 위)에 닿고, 가운데가 궤짝 중심에서 조금씩 벗어난 자리에 오게.
+            Seat(plank, cube, new Vector2(spec.x, spec.y), top);
+
+            if (layerHeight <= 0f)
+            {
+                // 눕힌 판자 한 장의 두께. y 회전은 두께를 바꾸지 않으니 한 번만 잰다.
+                layerHeight = BoundsOf(plank).size.y;
+            }
+
+            if (spec.w > 0f)
+            {
+                Seat(plank, cube, new Vector2(spec.x, spec.y), top + spec.w * layerHeight);
+            }
+        }
+
+        for (int i = bundle.childCount - 1; i >= PlankBundle.Length; i--)
+        {
+            Undo.DestroyObjectImmediate(bundle.GetChild(i).gameObject);
+        }
+    }
+
+
+    // ------------------------------------------------------------
+    // 궤짝 안의 포탄 — 장식이다. 들고 다니는 포탄(DroppedCargo 의 Cargo.Ammo)과 같은 물건으로 보여야 한다.
+    //   색   (0.15, 0.15, 0.18)  DroppedCargo 와 같다
+    //   크기 0.7m 가 원본이지만 궤짝 안폭이 2배에서 1.9m 라 셋을 나란히 두려면 0.6m 로 줄인다
+    //   개수 4 — 아랫줄 3 + 그 위 1. 재고(stock)에 따라 줄이지 않는다. 기본이 무한(-1)이라 의미가 없다
+    //   뚜껑이 닫히면 가려지고 열리면 보인다. 이것이 "집었다" 는 피드백이다
+    // ------------------------------------------------------------
+
+    private const string AmmoBallMaterialPath = "Assets/Game/Art/Materials/ShipCoop/AmmoBall.mat";
+    private static readonly Color AmmoBallColor = new Color(0.15f, 0.15f, 0.18f);
+    private const float AmmoBallDiameter = 0.6f;
+
+    /// <summary>궤짝 바닥판 두께만큼 띄운다. 원본 약 10cm × 2배.</summary>
+    private const float AmmoBallFloor = 0.2f;
+
+    /// <summary>포탄 자리. (x, 높이층, z) — 궤짝 중심 기준, 높이층은 0 이 바닥줄 · 1 이 그 위.</summary>
+    private static readonly Vector3[] AmmoBallSpots =
+    {
+        new Vector3(-0.62f, 0f, 0f),
+        new Vector3(0f, 0f, 0f),
+        new Vector3(0.62f, 0f, 0f),
+        new Vector3(0f, 1f, 0f),
+    };
+
+    /// <summary>
+    /// 포탄 상자 큐브(= 상자 + 화약통 한 쌍의 가운데)를 앞갑판 벽(<see cref="MidFrontZ"/>)에서
+    /// 이만큼 앞에 둔다. 한 쌍의 앞뒤 길이가 약 2.9m 라 1.75 면 상자 앞면이 벽에서 약 0.3m,
+    /// 통 뒷면이 주 돛대에서 약 2.2m 떨어진다.
+    /// </summary>
+    private const float AmmoNookDepth = 1.75f;
+
+    /// <summary>
+    /// 보급 상자 3종의 큐브 위에 배 소품을 얹는다. PlaceBoxes 뒤에 돈다.
+    ///
+    /// 여러 번 돌려도 같은 결과다 — 이미 얹혀 있으면 그것을 다시 맞추고, 새로 만들지 않는다.
+    /// 상자 3개 모두 중간갑판에 있어 발 높이는 <see cref="MidSurfaceY"/> 다.
+    /// </summary>
+    private static void DressBoxes(StringBuilder log)
+    {
+        AmmoBox[] boxes = Object.FindObjectsByType<AmmoBox>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        log.AppendLine();
+        log.AppendLine("  상자 모델:");
+
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            Transform cube = boxes[i].transform;
+
+            // 큐브는 두고 겉만 감춘다. 콜라이더와 AmmoBox 는 그대로 살아서 집기 판정을 맡는다.
+            HideButKeepCollider(cube);
+
+            switch (boxes[i].Kind)
+            {
+                case Cargo.Ammo:
+                {
+                    // 예전 버전(상자 + 화약통)이 남아 있으면 치운다.
+                    RemoveChild(cube, "Prop_Box");
+                    RemoveChild(cube, "Prop_Barrel");
+
+                    // 궤짝은 자기 재질을 그대로 쓴다. (paint 를 넘기지 않는다)
+                    Transform chest = DressWith(cube, "Prop_Chest", ChestPath, null, ChestScale, log);
+
+                    if (chest == null)
+                    {
+                        break;
+                    }
+
+                    Transform lid = chest.Find(ChestLidName);
+
+                    // ⚠ 열린 뚜껑이 **고물(-z) 쪽**을 향해야 한다. 궤짝이 앞갑판 벽에 붙어 있어서
+                    //    뱃머리 쪽으로 열리면 뚜껑이 앞갑판 바닥을 뚫고, 계단에서 내려오는 사람 시야도 가린다.
+                    //    힌지 위치(로컬 -z)로 추론했더니 반대로 열렸다. 실제로 넣어 보고 맞춘 값이다.
+                    chest.localRotation = Quaternion.Euler(0f, ChestYaw, 0f);
+
+                    Seat(chest, cube, Vector2.zero, MidSurfaceY);
+                    DressAmmoBalls(cube, log);
+                    AttachLid(cube, lid, log);
+
+                    log.AppendLine($"    📦 포탄 상자      궤짝(뚜껑 {(lid != null ? "연결" : "⚠ 없음")}), 배율 {ChestScale:F1}, 포탄 {AmmoBallSpots.Length}개");
+                    break;
+                }
+
+                case Cargo.Plank:
+                {
+                    // 예전 팰릿은 치우고, 격자 궤짝 + 위에 쌓은 판자로.
+                    RemoveChild(cube, "Prop_Pallet");
+
+                    Transform crate = DressWith(cube, "Prop_Crate2", PlankCratePath, null, PlankCrateScale, log);
+
+                    if (crate == null)
+                    {
+                        break;
+                    }
+
+                    // 긴 축(z 1.37m)이 통로와 나란해야 통로 폭을 덜 먹는다. 우현 통로는 z 방향이라 돌리지 않는다.
+                    crate.localRotation = Quaternion.identity;
+                    CloseTheCrate(crate);
+                    Seat(crate, cube, Vector2.zero, MidSurfaceY);
+                    DressPlankBundle(cube, crate, log);
+
+                    log.AppendLine($"    🪵 자재 상자      격자 궤짝 {PlankCrateScale:F1}배 + 위에 쌓은 판자 {PlankBundle.Length}장");
+                    break;
+                }
+
+                default:
+                {
+                    // 🌊 물 고인 곳. 예전에 얹은 통은 치우고 갑판에 물 웅덩이를 깐다.
+                    RemoveChild(cube, "Prop_Barrel");
+                    DressPuddle(cube, log);
+                    break;
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 🌊 물 고인 곳 — 양동이 상자 자리에 깐 물 웅덩이
+    //
+    //    "양동이 상자" 는 이름과 달리 상자가 아니라 **갑판에 고인 바닷물**이다. 여기서 물을 퍼 담는다.
+    //    바다와 같은 물 셰이더를 써야 "새어 들어온 바닷물" 로 읽힌다. 파란 판을 깔면 페인트로 보인다.
+    //    콜라이더는 없다 — 집기는 부모 큐브 기준 거리다.
+    //
+    //    ⚠ **Quad 를 안 쓴다.** 네모는 끝이 직선으로 잘려 물이 아니라 타일처럼 보였다. 두 장을 어긋나게 겹쳐 봤지만
+    //       모서리가 그대로 남았다. 그래서 가장자리가 울퉁불퉁한 둥근 메시(ShipCoopPuddleMesh, Puddle_01.asset) 한 장으로 깐다.
+    //       지름은 예전 Quad 와 같은 1.6m 다. 셰이더가 가장자리에서 이상하면(거품 · 투명도) 재질을 그때 정한다 — 지금은 SeaWater.
+    // ------------------------------------------------------------
+
+    private const string PuddleMaterialPath = "Assets/Game/Art/Materials/ShipCoop/SeaWater.mat";
+
+    /// <summary>바다 물 셰이더가 작은 판에서 이상하면(가장자리 거품 · 투명도) 이걸로 바꾼다.</summary>
+    private const string PuddleFallbackMaterialPath = "Assets/Synty/PNB_Core/Materials/Water_Mat_Basic.mat";
+
+    /// <summary>true 면 대체 재질을 쓴다. 바다 셰이더가 웅덩이에서 깨질 때 켠다.</summary>
+    private const bool PuddleUseFallback = false;
+
+    /// <summary>갑판 윗면에서 이만큼 띄운다. 같은 높이면 z-fighting 으로 깜빡인다.</summary>
+    private const float PuddleLift = 0.02f;
+
+    /// <summary>예전 Quad 웅덩이의 자식 이름. 남아 있으면 치운다.</summary>
+    private static readonly string[] RetiredPuddleSheets = { "Sheet_0", "Sheet_1" };
+
+    private static void DressPuddle(Transform cube, StringBuilder log)
+    {
+        string path = PuddleUseFallback ? PuddleFallbackMaterialPath : PuddleMaterialPath;
+        Material water = AssetDatabase.LoadAssetAtPath<Material>(path);
+
+        if (water == null)
+        {
+            log.AppendLine($"    ⚠ 웅덩이 재질을 못 찾음: {path}");
+            return;
+        }
+
+        // 메시는 매번 다시 만들어 같은 파일에 덮어쓴다. 시드가 고정이라 모양은 같고, 파일이 늘어나지 않는다.
+        Mesh shape = ShipCoopPuddleMesh.CreateOrOverwrite();
+
+        if (shape == null)
+        {
+            log.AppendLine("    ⚠ 웅덩이 메시를 못 만들었습니다");
+            return;
+        }
+
+        Transform group = FindOrCreateGroup(cube, "Prop_Puddle");
+
+        // 예전 Quad 두 장은 치운다.
+        for (int i = 0; i < RetiredPuddleSheets.Length; i++)
+        {
+            RemoveChild(group, RetiredPuddleSheets[i]);
+        }
+
+        Transform puddle = group.Find("Puddle");
+
+        if (puddle == null)
+        {
+            GameObject made = new GameObject("Puddle", typeof(MeshFilter), typeof(MeshRenderer));
+            Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+            puddle = made.transform;
+            puddle.SetParent(group, false);
+        }
+
+        Undo.RecordObject(puddle, "배 모델과 갑판 배치");
+        // 메시가 이미 위(+y)를 보는 xz 평면이라 돌리지 않는다. 큐브 중심은 갑판에서 BoxLift 위에 있다.
+        puddle.localRotation = Quaternion.identity;
+        puddle.localPosition = new Vector3(0f, PuddleLift - BoxLift, 0f);
+        puddle.localScale = Vector3.one;
+
+        MeshFilter filter = puddle.GetComponent<MeshFilter>();
+        if (filter == null)
+        {
+            filter = Undo.AddComponent<MeshFilter>(puddle.gameObject);
+        }
+
+        Undo.RecordObject(filter, "배 모델과 갑판 배치");
+        filter.sharedMesh = shape;
+
+        MeshRenderer draw = puddle.GetComponent<MeshRenderer>();
+        if (draw == null)
+        {
+            draw = Undo.AddComponent<MeshRenderer>(puddle.gameObject);
+        }
+
+        Undo.RecordObject(draw, "배 모델과 갑판 배치");
+        draw.sharedMaterial = water;
+        draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        draw.enabled = true;
+
+        log.AppendLine($"    🌊 물 고인 곳      둥근 웅덩이 지름 {ShipCoopPuddleMesh.Diameter:F1}m ({shape.name}), 재질 {System.IO.Path.GetFileNameWithoutExtension(path)}");
+    }
+
+    // ------------------------------------------------------------
+    // 🌊 뱃전 — 물 버리는 곳. **난간에 바로 버린다. 소품이 없다.**
+    //
+    //    ⚠ 한때 긴 상자(Crate_01)를 난간을 따라 놓았는데 뺐다. 물을 "상자에" 버리는 것으로 읽혔다 —
+    //       뱃전은 난간 너머 바다로 버리는 곳이다. 배 난간이 이미 있으니 그게 표식이다.
+    //       예전 씬에 남은 Prop_Crate 는 치운다. 버리는 판정은 부모 큐브 기준 ReachRange 그대로.
+    //    스플래시(💦)는 큐브 바깥(+x) 난간 높이에서 배 밖 위로 뿜는다.
+    // ------------------------------------------------------------
+
+    /// <summary>스플래시 자리 — 큐브 중심에서 바깥(+x) · 위로 이만큼(m). 난간 윗단 높이(키 3m 배)쯤.</summary>
+    private static readonly Vector3 SplashOffset = new Vector3(0.9f, 0.7f, 0f);
+
+    // 💦 물 튀는 파티클. 세 팩 어디에도 없어서 직접 만든다. 연출 전용.
+    private const string SplashPrefabPath = "Assets/Game/Prefabs/MiniGames/ShipCoop/FX_WaterSplash.prefab";
+    private const string SplashMaterialPath = "Assets/Game/Art/Materials/ShipCoop/WaterSplash.mat";
+    private static readonly Color SplashColorA = new Color(0.35f, 0.65f, 0.90f, 0.85f);
+    private static readonly Color SplashColorB = new Color(0.60f, 0.85f, 1.00f, 0.55f);
+
+    private static void DressDumps(StringBuilder log)
+    {
+        WaterDumpPoint[] rails = Object.FindObjectsByType<WaterDumpPoint>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        if (rails.Length == 0)
+        {
+            return;
+        }
+
+        GameObject splashPrefab = EnsureSplashPrefab(log);
+
+        log.AppendLine();
+        log.AppendLine("  뱃전:");
+
+        for (int i = 0; i < rails.Length; i++)
+        {
+            Transform cube = rails[i].transform;
+            HideButKeepCollider(cube);
+
+            // 예전 상자 소품. 남아 있으면 치운다 — 난간에 바로 버린다.
+            RemoveChild(cube, "Prop_Crate");
+
+            AttachSplash(cube, splashPrefab, log);
+
+            log.AppendLine($"    🌊 {cube.name,-12}  소품 없음(난간에 버림), 스플래시 붙임, {Describe(cube.position)}");
+        }
+    }
+
+    /// <summary>💦 파티클을 큐브 바깥쪽(+x) 난간 높이에 자식으로 넣고 WaterDumpSplash 에 연결한다.</summary>
+    private static void AttachSplash(Transform cube, GameObject splashPrefab, StringBuilder log)
+    {
+        WaterDumpSplash fx = cube.GetComponent<WaterDumpSplash>();
+
+        if (fx == null)
+        {
+            fx = Undo.AddComponent<WaterDumpSplash>(cube.gameObject);
+        }
+
+        if (splashPrefab == null)
+        {
+            return;
+        }
+
+        Transform burst = cube.Find("FX_Splash");
+
+        if (burst == null)
+        {
+            GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(splashPrefab);
+            made.name = "FX_Splash";
+            Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+            burst = made.transform;
+            burst.SetParent(cube, false);
+        }
+
+        // 큐브 중심에서 바깥(+x) · 난간 높이. 여기서 배 밖 위로 뿜는다.
+        Undo.RecordObject(burst, "배 모델과 갑판 배치");
+        burst.position = cube.position + SplashOffset;
+        burst.rotation = Quaternion.LookRotation(new Vector3(1f, 1f, 0f).normalized, Vector3.back);
+
+        ParticleSystem system = burst.GetComponent<ParticleSystem>();
+
+        if (system == null)
+        {
+            log.AppendLine($"    ⚠ {cube.name} 의 FX_Splash 에 ParticleSystem 이 없습니다.");
+            return;
+        }
+
+        SerializedObject so = new SerializedObject(fx);
+        so.FindProperty("splash").objectReferenceValue = system;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// 💦 물 튀는 파티클 프리팹. 없으면 만든다.
+    ///
+    /// 한 번에 30~40개, 크기 0.15~0.35m (키 3m 세계라 작지 않게), 0.5~0.7초, 중력으로 떨어진다.
+    /// 뿜는 방향은 오브젝트의 +z 라, 붙이는 쪽(AttachSplash)이 배 바깥 + 위를 보게 돌린다. 루프 없음.
+    /// </summary>
+    private static GameObject EnsureSplashPrefab(StringBuilder log)
+    {
+        GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(SplashPrefabPath);
+
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        Material spray = GetOrCreateSplashMaterial(log);
+
+        GameObject go = new GameObject("FX_WaterSplash");
+        ParticleSystem system = go.AddComponent<ParticleSystem>();
+
+        ParticleSystem.MainModule main = system.main;
+        main.duration = 0.7f;
+        main.loop = false;
+        main.playOnAwake = false;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.7f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
+        main.startColor = new ParticleSystem.MinMaxGradient(SplashColorA, SplashColorB);
+        main.gravityModifier = 1.2f;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 64;
+
+        ParticleSystem.EmissionModule emission = system.emission;
+        emission.rateOverTime = 0f;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 30, 40) });
+
+        ParticleSystem.ShapeModule shape = system.shape;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 30f;
+        shape.radius = 0.25f;
+
+        ParticleSystem.SizeOverLifetimeModule size = system.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0.3f));
+
+        ParticleSystemRenderer draw = go.GetComponent<ParticleSystemRenderer>();
+        draw.renderMode = ParticleSystemRenderMode.Billboard;
+        draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        if (spray != null)
+        {
+            draw.sharedMaterial = spray;
+        }
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, SplashPrefabPath);
+        Object.DestroyImmediate(go);
+
+        log.AppendLine($"  💦 물 튀는 파티클 프리팹을 만들었습니다 — {SplashPrefabPath}");
+        return prefab;
+    }
+
+    /// <summary>URP Particles/Unlit + 유니티 기본 원형 파티클 텍스처. 새 텍스처는 만들지 않는다.</summary>
+    private static Material GetOrCreateSplashMaterial(StringBuilder log)
+    {
+        Material made = AssetDatabase.LoadAssetAtPath<Material>(SplashMaterialPath);
+
+        if (made != null)
+        {
+            return made;
+        }
+
+        Shader particles = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+
+        if (particles == null)
+        {
+            log.AppendLine("  ⚠ URP Particles/Unlit 셰이더를 못 찾아 스플래시가 기본 재질로 남습니다.");
+            return null;
+        }
+
+        made = new Material(particles);
+        made.SetFloat("_Surface", 1f);
+        made.SetFloat("_Blend", 0f);
+        made.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        made.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        made.SetFloat("_ZWrite", 0f);
+        made.SetFloat("_Cull", 0f);
+        made.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        made.SetOverrideTag("RenderType", "Transparent");
+        made.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        made.SetTexture("_BaseMap", AssetDatabase.GetBuiltinExtraResource<Texture2D>("Default-Particle.psd"));
+        made.SetColor("_BaseColor", Color.white);
+
+        AssetDatabase.CreateAsset(made, SplashMaterialPath);
+        log.AppendLine($"  💦 스플래시 재질을 만들었습니다 — {SplashMaterialPath}");
+        return made;
+    }
+
+    // ------------------------------------------------------------
+    // 🔧 수리 지점(파손 지점) 프리팹 — 빨간 큐브 대신 **세 겹**
+    //
+    //    HullDamage.Spawn 이 사건 때 Instantiate 하는 프리팹이라 씬에는 없다. 프리팹을 열어 자식을 얹는다.
+    //
+    //      🪵 판자 덮기   Plank_02 (들고 다니는 것과 같은 프리팹 · 같은 배율) hitsToRepair 장. 망치질마다 한 장
+    //      🪵 조각        Plank_01 ×5, 0.42배(≈0.7m). 구멍 가장자리 반지름 0.55 에서 바깥으로 15~35° 들림. 망치질마다 하나씩 눕는다
+    //      🕳 구멍        Quad + HullHole.mat   (Grunge_04 흰 마스크를 검게 틴트. 지름 1.5m)
+    //
+    //    ⚠ **붉은 표식(Circle_Soft_01 · HullMarker.mat)은 뺐다.** 붉게 칠한 원이 갑판 위에 떠 있어 게임 그림과 겉돌았다.
+    //       솟은 조각이 멀리서도 "여기 부서졌다" 를 말한다. 예전 "Marker" 자식이 남아 있으면 치우고 HullMarker.mat 은 지운다.
+    //    ⚠ **균열 데칼(Decal_Crack_01)은 뺐다.** 바닥에 붙은 데칼은 위에서 내려보는 카메라에 얼룩으로 보였다.
+    //       조각이 위로 솟아야 "부서졌다" 가 보인다. 예전 "Crack" 자식이 남아 있으면 치우고 HullCrack.mat 은 지운다.
+    //    ⚠ **물 자국 겹(Quad + HullLeak.mat)은 뺐다.** 웅덩이(퍼는 곳)와 같이 보여서 퍼야 할 곳과 막아야 할 곳이 헷갈렸다.
+    //       예전에 만든 프리팹에 "Leak" 자식이 남아 있으면 치우고, HullLeak.mat 파일이 있으면 지운다.
+    //    ⚠ 조각의 축(빈 부모 Shard_i)은 **안쪽 끝**에 둔다. 조각 원점이 가운데면 들 때 안쪽 끝이 갑판에 묻힌다.
+    //       흔들림 · 들림은 HullDamageVisual.ShardYaw/ShardLift — Random 이 아니라 번호로. 네 명이 같은 모양을 본다.
+    //    ⚠ 루트 · 콜라이더 · RepairTask 는 건드리지 않는다. 큐브 MeshRenderer 만 끈다. HullDamagePoint.mat 도 그대로 둔다.
+    //    ⚠ 루트 배율이 (0.7, 0.6, 0.7) 이다. 자식 "Visual" 에 역배율을 넣어 그 아래는 m 단위로 잡는다.
+    //       루트는 갑판에서 DamageLift 위에 놓이므로 Visual 을 그만큼 내려 갑판 윗면에 맞춘다. (런타임에 한 번 더 맞춘다)
+    //    ⚠ **Synty 데칼 재질은 그대로 못 쓴다.** 텍스처로 URP 투명 재질을 새로 만든다. Synty 원본 재질은 고치지 않는다.
+    //       (셰이더그래프 URP 타깃이 Decal 이라 Decal Renderer Feature 가 없는 PC_Renderer 에서 마젠타. 틴트도 바꿔야 한다)
+    //    여러 번 돌려도 같은 결과다 — 있는 자식은 값만 다시 맞춘다.
+    // ------------------------------------------------------------
+
+    private const string HullDamagePrefabPath = "Assets/Game/Prefabs/MiniGames/ShipCoop/HullDamagePoint.prefab";
+    private const string HoleTexturePath = "Assets/Synty/PolygonGeneric/Textures/Decals/Generic_Decal_Grunge_04.png";
+    private const string HoleMaterialPath = "Assets/Game/Art/Materials/ShipCoop/HullHole.mat";
+    private const string ShardModelPath = "Assets/Synty/PolygonGeneric/Prefabs/Props/SM_Gen_Prop_Plank_01.prefab";
+
+    /// <summary>예전 재질들. 이제 안 쓴다 — 남아 있으면 지운다.</summary>
+    private const string RetiredLeakMaterialPath = "Assets/Game/Art/Materials/ShipCoop/HullLeak.mat";
+    private const string RetiredCrackMaterialPath = "Assets/Game/Art/Materials/ShipCoop/HullCrack.mat";
+    private const string RetiredMarkerMaterialPath = "Assets/Game/Art/Materials/ShipCoop/HullMarker.mat";
+
+    /// <summary>예전 자식들. 프리팹에 남아 있으면 치운다.</summary>
+    private static readonly string[] RetiredDamageChildren = { "Leak", "Crack", "Marker" };
+
+    // 3m 사람 기준 크기(m). 조각은 구멍 가장자리(반지름 0.55)에서 바깥으로.
+    private const float HoleSize = 1.5f;
+
+    // 갑판 윗면 기준 높이(m). Z-파이팅이 보이면 0.01 씩 더 벌린다.
+    // (표식 +0.02 · 물 자국 +0.04 자리는 비워 둔다 — 간격을 메우려고 옮기지 않는다)
+    private const float HoleLift = 0.03f;
+
+    /// <summary>구멍 색. 거의 검정 — 갑판 아래 어둠. 순검정은 데칼 마스크의 부드러운 가장자리가 죽는다.</summary>
+    private static readonly Color HoleTint = new Color(0.05f, 0.04f, 0.04f, 1f);
+
+    /// <summary>판자 밑면을 균열보다 이만큼 위에. (판자 두께는 모델 것 그대로 — Plank_02 는 0.11m)</summary>
+    private const float PatchPlankGap = 0.01f;
+
+    /// <summary>판자 사이 간격(m). 폭 0.28 짜리를 0.27 마다 놓아 살짝 겹친다. 5장이면 1.36m — 균열 1.2m 를 덮는다.</summary>
+    private const float PatchPlankSpacing = 0.27f;
+
+    /// <summary>판자마다 다른 각도(°)와 x 밀림(m). 똑같이 놓으면 복사해 붙인 것처럼 보인다. 장수가 더 많으면 돌려 쓴다.</summary>
+    private static readonly float[] PatchPlankYaws = { 4f, -7f, 6f, -8f, 5f, -5f, 7f, -4f };
+    private static readonly float[] PatchPlankNudges = { 0.03f, -0.06f, 0.05f, -0.04f, 0.07f, -0.03f, 0.04f, -0.07f };
+
+
+    private static void DressHullDamagePrefab(StringBuilder log)
+    {
+        GameObject plankPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlankModelPath);
+
+        if (plankPrefab == null)
+        {
+            log.AppendLine($"  ⚠ 판자 프리팹을 못 찾아 수리 지점을 건너뜁니다 — {PlankModelPath}");
+            return;
+        }
+
+        Material holePaint = GetOrCreateDecalMaterial(HoleMaterialPath, HoleTexturePath, "Universal Render Pipeline/Unlit", HoleTint, 3001, log);
+
+        // 물 자국 · 균열 · 표식 재질은 은퇴했다. 남아 있으면 지운다 — 프리팹이 더 참조하지 않으니 안전하다.
+        foreach (string retired in new[] { RetiredLeakMaterialPath, RetiredCrackMaterialPath, RetiredMarkerMaterialPath })
+        {
+            if (AssetDatabase.LoadAssetAtPath<Material>(retired) != null)
+            {
+                AssetDatabase.DeleteAsset(retired);
+                log.AppendLine($"  🗑 예전 수리 지점 재질을 지웠습니다 — {retired}");
+            }
+        }
+
+        GameObject shardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ShardModelPath);
+
+        if (shardPrefab == null)
+        {
+            log.AppendLine($"  ⚠ 조각 프리팹을 못 찾음: {ShardModelPath} — 조각 없이 만듭니다");
+        }
+
+        ShipCoopCargoVisuals visuals = AssetDatabase.LoadAssetAtPath<ShipCoopCargoVisuals>(CargoVisualsPath);
+        float plankScale = visuals != null ? visuals.plankScale : 1f;
+
+        GameObject root = PrefabUtility.LoadPrefabContents(HullDamagePrefabPath);
+
+        if (root == null)
+        {
+            log.AppendLine($"  ⚠ 수리 지점 프리팹을 못 열었습니다: {HullDamagePrefabPath}");
+            return;
+        }
+
+        try
+        {
+            // 빨간 큐브는 끈다. 지우지 않는다 — 콜라이더 · 메시 필터와 한 몸이라 루트를 건드리게 된다.
+            MeshRenderer cube = root.GetComponent<MeshRenderer>();
+            if (cube != null)
+            {
+                cube.enabled = false;
+            }
+
+            RepairTask task = root.GetComponent<RepairTask>();
+            int hits = 5;
+
+            if (task != null)
+            {
+                SerializedProperty hitsProperty = new SerializedObject(task).FindProperty("hitsToRepair");
+                if (hitsProperty != null)
+                {
+                    hits = Mathf.Max(1, hitsProperty.intValue);
+                }
+            }
+
+            Vector3 rootScale = root.transform.localScale;
+            Transform visual = ChildOf(root.transform, "Visual");
+            visual.localRotation = Quaternion.identity;
+            visual.localScale = new Vector3(1f / rootScale.x, 1f / rootScale.y, 1f / rootScale.z);
+            visual.localPosition = new Vector3(0f, -DamageLift / rootScale.y, 0f);
+
+            Renderer hole = MakeDecal(visual, "Hole", holePaint, HoleSize, HoleLift);
+
+            // 예전 겹들. 프리팹에 남아 있으면 치운다. (Undo 없이 — 프리팹 내용물 안이다)
+            foreach (string retiredName in RetiredDamageChildren)
+            {
+                Transform retired = visual.Find(retiredName);
+                if (retired != null)
+                {
+                    Object.DestroyImmediate(retired.gameObject);
+                    log.AppendLine($"  🗑 수리 지점의 예전 겹({retiredName})을 치웠습니다");
+                }
+            }
+
+            Transform pile = ChildOf(visual, "Planks");
+            pile.localPosition = Vector3.zero;
+            pile.localRotation = Quaternion.identity;
+            pile.localScale = Vector3.one;
+
+            GameObject[] planks = new GameObject[hits];
+
+            for (int i = 0; i < hits; i++)
+            {
+                string name = $"Plank_{i}";
+                Transform plank = pile.Find(name);
+
+                if (plank == null)
+                {
+                    GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(plankPrefab, pile);
+                    made.name = name;
+                    plank = made.transform;
+                }
+
+                foreach (Collider bump in plank.GetComponentsInChildren<Collider>(true))
+                {
+                    Object.DestroyImmediate(bump);
+                }
+
+                // 가운데부터 바깥으로: z 0, +1, -1, +2, -2 … × 간격. 켜지는 순서도 이 순서라 가운데가 먼저 덮인다.
+                int ring = (i + 1) / 2;
+                float side = i % 2 == 0 ? 1f : -1f;
+                float z = ring * side * PatchPlankSpacing;
+                float x = PatchPlankNudges[i % PatchPlankNudges.Length];
+                float yaw = PatchPlankYaws[i % PatchPlankYaws.Length];
+
+                plank.localScale = Vector3.one * plankScale;
+                plank.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                plank.localPosition = Vector3.zero;
+
+                // 밑면이 균열 위, 가운데가 (x, z) 에. 프리팹 원점이 어디든 bounds 로 맞추면 맞는다.
+                Bounds box = BoundsOf(plank);
+                Vector3 want = visual.TransformPoint(new Vector3(x, HoleLift + PatchPlankGap, z));
+                plank.position += new Vector3(want.x - box.center.x, want.y - box.min.y, want.z - box.center.z);
+
+                // 처음엔 전부 꺼져 있다. HullDamageVisual 이 망치질 수만큼 켠다.
+                plank.gameObject.SetActive(false);
+                planks[i] = plank.gameObject;
+            }
+
+            // hitsToRepair 가 줄었으면 남는 장은 치운다.
+            for (int i = hits; ; i++)
+            {
+                Transform extra = pile.Find($"Plank_{i}");
+                if (extra == null)
+                {
+                    break;
+                }
+                Object.DestroyImmediate(extra.gameObject);
+            }
+
+            // 🪵 조각 — 구멍 가장자리에서 바깥으로 들린 판자 조각. 축(빈 부모)은 안쪽 끝에.
+            Transform shardGroup = ChildOf(visual, "Shards");
+            shardGroup.localPosition = Vector3.zero;
+            shardGroup.localRotation = Quaternion.identity;
+            shardGroup.localScale = Vector3.one;
+
+            Transform[] shards = new Transform[HullDamageVisual.ShardCount];
+
+            for (int i = 0; i < HullDamageVisual.ShardCount; i++)
+            {
+                Transform pivot = ChildOf(shardGroup, $"Shard_{i}");
+                float yaw = HullDamageVisual.ShardYaw(i);
+
+                // 축을 구멍 가장자리에, 먼저 돌리지 않은 채로 둔다. 조각을 축에 맞춘 뒤에 돌린다.
+                Vector3 outward = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+                pivot.localRotation = Quaternion.identity;
+                pivot.localScale = Vector3.one;
+                pivot.localPosition = outward * HullDamageVisual.ShardRadius + Vector3.up * HoleLift;
+
+                Transform piece = pivot.Find("Piece");
+
+                if (piece == null && shardPrefab != null)
+                {
+                    GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(shardPrefab, pivot);
+                    made.name = "Piece";
+                    piece = made.transform;
+                }
+
+                if (piece != null)
+                {
+                    foreach (Collider bump in piece.GetComponentsInChildren<Collider>(true))
+                    {
+                        Object.DestroyImmediate(bump);
+                    }
+
+                    piece.localRotation = Quaternion.identity;
+                    piece.localScale = Vector3.one * HullDamageVisual.ShardScale;
+                    piece.localPosition = Vector3.zero;
+
+                    // 조각의 **안쪽 끝(x 최소)** 이 축에, 밑면이 축 높이에, z 가운데가 축 선에. 그래야 들 때 안쪽 끝이 갑판 위에 남는다.
+                    // (축이 아직 안 돌아 있어 월드 축 = 축 로컬 축이다)
+                    Bounds box = BoundsOf(piece);
+                    piece.position += pivot.position - new Vector3(box.min.x, box.min.y, box.center.z);
+                }
+
+                // 이제 돈다 — Ry(yaw) · Rz(lift). 런타임(HullDamageVisual.SetShard)과 같은 식. 프리팹은 "다 들린" 상태로 저장한다.
+                pivot.localRotation = Quaternion.Euler(0f, yaw, HullDamageVisual.ShardLift(i));
+                shards[i] = pivot;
+            }
+
+            HullDamageVisual view = root.GetComponent<HullDamageVisual>();
+            if (view == null)
+            {
+                view = root.AddComponent<HullDamageVisual>();
+            }
+
+            SerializedObject data = new SerializedObject(view);
+            data.FindProperty("repair").objectReferenceValue = task;
+            data.FindProperty("visual").objectReferenceValue = visual;
+            data.FindProperty("hole").objectReferenceValue = hole;
+
+            SerializedProperty list = data.FindProperty("planks");
+            list.arraySize = hits;
+            for (int i = 0; i < hits; i++)
+            {
+                list.GetArrayElementAtIndex(i).objectReferenceValue = planks[i];
+            }
+
+            SerializedProperty shardList = data.FindProperty("shards");
+            shardList.arraySize = shards.Length;
+            for (int i = 0; i < shards.Length; i++)
+            {
+                shardList.GetArrayElementAtIndex(i).objectReferenceValue = shards[i];
+            }
+
+            data.ApplyModifiedPropertiesWithoutUndo();
+
+            PrefabUtility.SaveAsPrefabAsset(root, HullDamagePrefabPath);
+            log.AppendLine($"  🔧 수리 지점 프리팹 — 구멍 {HoleSize:F1}m · " +
+                           $"조각 {shards.Length}개(배율 {HullDamageVisual.ShardScale:F2}, 반지름 {HullDamageVisual.ShardRadius:F2}, 들림 {HullDamageVisual.ShardLiftMin:F0}~{HullDamageVisual.ShardLiftMax:F0}°) · " +
+                           $"판자 {hits}장(배율 {plankScale:F1}), 큐브 렌더러 끔 → {HullDamagePrefabPath}");
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    /// <summary>위를 보는 Quad 하나. 있으면 값만 다시 맞춘다.</summary>
+    private static Renderer MakeDecal(Transform parent, string name, Material paint, float size, float lift)
+    {
+        Transform quad = parent.Find(name);
+
+        if (quad == null)
+        {
+            GameObject made = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            made.name = name;
+            quad = made.transform;
+            quad.SetParent(parent, false);
+        }
+
+        foreach (Collider bump in quad.GetComponents<Collider>())
+        {
+            Object.DestroyImmediate(bump);
+        }
+
+        // 유니티 Quad 는 -z 를 보는 판이다. x 로 90° 돌리면 위(+y)를 본다.
+        quad.localPosition = new Vector3(0f, lift, 0f);
+        quad.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        quad.localScale = new Vector3(size, size, 1f);
+
+        Renderer draw = quad.GetComponent<Renderer>();
+
+        if (paint != null)
+        {
+            draw.sharedMaterial = paint;
+        }
+
+        draw.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return draw;
+    }
+
+    /// <summary>이름으로 자식을 찾고, 없으면 빈 것을 만든다. (Undo 없이 — 프리팹 내용물 안에서 쓴다)</summary>
+    private static Transform ChildOf(Transform parent, string name)
+    {
+        Transform found = parent.Find(name);
+
+        if (found != null)
+        {
+            return found;
+        }
+
+        GameObject made = new GameObject(name);
+        made.transform.SetParent(parent, false);
+        return made.transform;
+    }
+
+    /// <summary>
+    /// 텍스처 하나를 얹은 URP 투명 재질. 있으면 그대로 쓴다 (손으로 고친 값을 존중한다).
+    /// 균열은 Lit(갑판 조명을 받는다), 표식은 Unlit(어디서나 같은 붉은색).
+    /// </summary>
+    private static Material GetOrCreateDecalMaterial(string path, string texturePath, string shaderName, Color tint, int queue, StringBuilder log)
+    {
+        Material made = AssetDatabase.LoadAssetAtPath<Material>(path);
+
+        if (made != null)
+        {
+            return made;
+        }
+
+        Shader shader = Shader.Find(shaderName);
+
+        if (shader == null)
+        {
+            log.AppendLine($"  ⚠ '{shaderName}' 셰이더를 못 찾아 {path} 를 만들지 못했습니다.");
+            return null;
+        }
+
+        Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+
+        if (texture == null)
+        {
+            log.AppendLine($"  ⚠ 텍스처를 못 찾음: {texturePath}");
+        }
+
+        made = new Material(shader);
+        made.SetFloat("_Surface", 1f);
+        made.SetFloat("_Blend", 0f);
+        made.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        made.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        made.SetFloat("_ZWrite", 0f);
+        made.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        made.SetOverrideTag("RenderType", "Transparent");
+        made.renderQueue = queue;
+        made.SetTexture("_BaseMap", texture);
+        made.SetColor("_BaseColor", tint);
+
+        AssetDatabase.CreateAsset(made, path);
+        log.AppendLine($"  🎨 수리 지점 재질을 만들었습니다 — {path}");
+        return made;
+    }
+
+    // ------------------------------------------------------------
+    // 🎒 들고 다니는 물건의 모양 설정 — Resources 에 하나
+    //
+    //    CarryTask(들고 있을 때)와 DroppedCargo(놓았을 때)가 런타임에 Resources 로 읽는다.
+    //    씬 플레이어와 네트워크 프리팹이 같은 설정을 쓰므로 씬에 손댈 것이 없다.
+    // ------------------------------------------------------------
+
+    private const string CargoVisualsPath = "Assets/Game/Resources/" + ShipCoopCargoVisuals.ResourceName + ".asset";
+    private const string BucketModelPath = "Assets/QuaterniusPirateKit/Prop_Bucket.fbx";
+    private const string BucketMaterialPath = "Assets/Game/Art/Materials/Fishing/QuaterniusPirateURP.mat";
+
+    private static void EnsureCargoVisuals(StringBuilder log)
+    {
+        ShipCoopCargoVisuals visuals = AssetDatabase.LoadAssetAtPath<ShipCoopCargoVisuals>(CargoVisualsPath);
+        bool fresh = visuals == null;
+
+        if (fresh)
+        {
+            visuals = ScriptableObject.CreateInstance<ShipCoopCargoVisuals>();
+            AssetDatabase.CreateAsset(visuals, CargoVisualsPath);
+        }
+
+        GameObject bucket = AssetDatabase.LoadAssetAtPath<GameObject>(BucketModelPath);
+        Material paint = AssetDatabase.LoadAssetAtPath<Material>(BucketMaterialPath);
+        GameObject plank = AssetDatabase.LoadAssetAtPath<GameObject>(PlankModelPath);
+
+        if (bucket == null) log.AppendLine($"  ⚠ 양동이 모델을 못 찾음: {BucketModelPath}");
+        else log.AppendLine($"  🪣 양동이 원본 — 루트 회전 {bucket.transform.localEulerAngles}, 루트 배율 {bucket.transform.localScale}, " +
+                            $"크기 {BoundsOf(bucket.transform).size} (런타임은 루트 회전을 그대로 두고 높이만 맞춘다)");
+        if (paint == null) log.AppendLine($"  ⚠ 양동이 재질을 못 찾음: {BucketMaterialPath}");
+        if (plank == null) log.AppendLine($"  ⚠ 판자 모델을 못 찾음: {PlankModelPath}");
+
+        Undo.RecordObject(visuals, "배 모델과 갑판 배치");
+        visuals.bucketModel = bucket;
+        visuals.bucketMaterial = paint;
+        visuals.plankModel = plank;
+        EditorUtility.SetDirty(visuals);
+
+        log.AppendLine($"  🎒 물건 모양 설정 {(fresh ? "을 만들고" : "을")} 채웠습니다 — {CargoVisualsPath} " +
+                       $"(양동이 높이 {visuals.bucketHeight:F2}m × 배율 {visuals.bucketScale:F1}, 판자 배율 {visuals.plankScale:F1})");
+    }
+
+    /// <summary>궤짝 안에 포탄 구를 놓는다. 콜라이더 없이, 큐브의 자식으로. 여러 번 돌려도 같은 자리다.</summary>
+    private static void DressAmmoBalls(Transform cube, StringBuilder log)
+    {
+        Material ink = GetOrCreateAmmoBallMaterial(log);
+        Transform tray = FindOrCreateGroup(cube, "Prop_Ammo");
+        float radius = AmmoBallDiameter * 0.5f;
+
+        for (int i = 0; i < AmmoBallSpots.Length; i++)
+        {
+            string name = $"Ball_{i}";
+            Transform ball = tray.Find(name);
+
+            if (ball == null)
+            {
+                GameObject made = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                made.name = name;
+                Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+                ball = made.transform;
+                ball.SetParent(tray, false);
+            }
+
+            Collider bump = ball.GetComponent<Collider>();
+            if (bump != null)
+            {
+                Undo.DestroyObjectImmediate(bump);
+            }
+
+            Vector3 spot = AmmoBallSpots[i];
+
+            // 큐브 중심은 갑판에서 BoxLift 만큼 위다. 공은 궤짝 바닥판 위에 놓고, 윗층은 한 개 지름만큼 올린다.
+            float centreFromDeck = AmmoBallFloor + radius + spot.y * AmmoBallDiameter;
+
+            Undo.RecordObject(ball, "배 모델과 갑판 배치");
+            ball.localScale = Vector3.one * AmmoBallDiameter;
+            ball.localPosition = new Vector3(spot.x, centreFromDeck - BoxLift, spot.z);
+            ball.localRotation = Quaternion.identity;
+
+            Renderer draw = ball.GetComponent<Renderer>();
+            if (ink != null && draw != null)
+            {
+                Undo.RecordObject(draw, "배 모델과 갑판 배치");
+                draw.sharedMaterial = ink;
+            }
+        }
+
+        // 개수를 줄였으면 남는 공을 치운다.
+        for (int i = tray.childCount - 1; i >= AmmoBallSpots.Length; i--)
+        {
+            Undo.DestroyObjectImmediate(tray.GetChild(i).gameObject);
+        }
+    }
+
+    /// <summary>포탄 구의 재질. DroppedCargo 는 런타임에 색만 칠하지만, 씬에 놓는 것은 에셋이 있어야 한다.</summary>
+    private static Material GetOrCreateAmmoBallMaterial(StringBuilder log)
+    {
+        Material made = AssetDatabase.LoadAssetAtPath<Material>(AmmoBallMaterialPath);
+
+        if (made != null)
+        {
+            return made;
+        }
+
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+
+        if (lit == null)
+        {
+            log.AppendLine("  ⚠ URP/Lit 셰이더를 못 찾아 포탄 구가 기본 재질로 남습니다.");
+            return null;
+        }
+
+        made = new Material(lit);
+        made.SetColor("_BaseColor", AmmoBallColor);
+        made.SetFloat("_Smoothness", 0.35f);
+        AssetDatabase.CreateAsset(made, AmmoBallMaterialPath);
+        log.AppendLine($"  포탄 구 재질을 만들었습니다 — {AmmoBallMaterialPath}");
+        return made;
+    }
+
+    /// <summary>뚜껑 표현 컴포넌트를 큐브(AmmoBox)에 붙이고 뚜껑 참조를 채운다. 이미 있으면 참조만 다시 맞춘다.</summary>
+    private static void AttachLid(Transform cube, Transform lid, StringBuilder log)
+    {
+        SupplyChestLid flap = cube.GetComponent<SupplyChestLid>();
+
+        if (flap == null)
+        {
+            flap = Undo.AddComponent<SupplyChestLid>(cube.gameObject);
+        }
+
+        if (lid == null)
+        {
+            log.AppendLine($"    ⚠ 궤짝에서 뚜껑({ChestLidName})을 못 찾았습니다. 열고 닫히지 않습니다.");
+            return;
+        }
+
+        SerializedObject so = new SerializedObject(flap);
+        so.FindProperty("lid").objectReferenceValue = lid;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void RemoveChild(Transform parent, string name)
+    {
+        Transform old = parent.Find(name);
+
+        if (old != null)
+        {
+            Undo.DestroyObjectImmediate(old.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// 프리팹 하나를 큐브의 자식으로 얹는다. 같은 이름의 자식이 이미 있으면 그것을 쓴다.
+    ///
+    /// <code>
+    ///   콜라이더   뗀다. 집기 판정은 거리로 하고, 걸려 넘어지면 안 된다. (DroppedCargo 와 같은 이유)
+    ///   재질       URP 것으로 덮어쓴다. 프리팹 기본 재질은 URP 에서 마젠타다.
+    /// </code>
+    /// </summary>
+    private static Transform DressWith(Transform cube, string childName, string prefabPath,
+                                       Material paint, float scale, StringBuilder log)
+    {
+        Transform child = cube.Find(childName);
+
+        if (child == null)
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+
+            if (prefab == null)
+            {
+                log.AppendLine($"    ⚠ 소품 프리팹을 못 찾음: {prefabPath}");
+                return null;
+            }
+
+            GameObject made = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            made.name = childName;
+            Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+
+            child = made.transform;
+            child.SetParent(cube, false);
+        }
+
+        Undo.RecordObject(child, "배 모델과 갑판 배치");
+        child.localRotation = Quaternion.identity;
+        child.localScale = Vector3.one * scale;
+
+        foreach (Collider bump in child.GetComponentsInChildren<Collider>(true))
+        {
+            Undo.DestroyObjectImmediate(bump);
+        }
+
+        foreach (Renderer draw in child.GetComponentsInChildren<Renderer>(true))
+        {
+            Undo.RecordObject(draw, "배 모델과 갑판 배치");
+
+            // paint 가 null 이면 프리팹 재질을 그대로 둔다. (Synty 궤짝)
+            if (paint != null)
+            {
+                Material[] coats = draw.sharedMaterials;
+
+                for (int i = 0; i < coats.Length; i++)
+                {
+                    coats[i] = paint;
+                }
+
+                draw.sharedMaterials = coats;
+            }
+
+            draw.enabled = true;
+        }
+
+        return child;
+    }
+
+    /// <summary>
+    /// 소품을 제자리에 앉힌다.
+    ///
+    /// ⚠ 프리팹 루트가 메시 한가운데가 아니다. 그냥 자식으로 넣으면 큐브 옆 허공에 뜬다.
+    ///    렌더러 bounds 를 재서 **밑면이 갑판에 닿고**, 가운데가 큐브 중심에서
+    ///    <paramref name="offsetXZ"/> 만큼 떨어진 곳에 오도록 옮긴다.
+    /// </summary>
+    private static void Seat(Transform prop, Transform cube, Vector2 offsetXZ, float deckY)
+    {
+        if (prop == null)
+        {
+            return;
+        }
+
+        // 매번 0 에서 다시 재야 여러 번 돌려도 같은 자리에 온다.
+        prop.localPosition = Vector3.zero;
+
+        Bounds box = BoundsOf(prop);
+        Vector3 want = new Vector3(cube.position.x + offsetXZ.x, deckY + box.extents.y, cube.position.z + offsetXZ.y);
+
+        prop.position += want - box.center;
+    }
+
+    /// <summary>자식 렌더러 전체를 감싸는 월드 bounds.</summary>
+    private static Bounds BoundsOf(Transform t)
+    {
+        Renderer[] draws = t.GetComponentsInChildren<Renderer>(true);
+
+        if (draws.Length == 0)
+        {
+            return new Bounds(t.position, Vector3.zero);
+        }
+
+        Bounds box = draws[0].bounds;
+
+        for (int i = 1; i < draws.Length; i++)
+        {
+            box.Encapsulate(draws[i].bounds);
+        }
+
+        return box;
     }
 
     /// <summary>

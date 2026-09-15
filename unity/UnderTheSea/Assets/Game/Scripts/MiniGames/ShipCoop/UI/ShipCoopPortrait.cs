@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// 🧑 HUD 프로필 사진을 **그 사람이 실제로 쓰는 캐릭터**로 찍는다. (SHIPCOOP.md 9장)
@@ -96,6 +98,67 @@ public class ShipCoopPortrait : MonoBehaviour
         Retake();
     }
 
+    // ------------------------------------------------------------
+    // ⚠ **나중에 온 사람도 찍습니다.**
+    //
+    //    Start 에서 한 번만 찍었는데, 네트워크에서는 플레이어가 HUD 보다 **뒤에** 스폰됩니다.
+    //    (씬이 뜬 뒤 Fusion 이 스폰한다) 그래서 클라이언트 화면의 왼쪽 아래 프로필이 비어 있었다.
+    //    반 초마다 사람을 훑어서 사진이 없는 사람만 찍는다. 외형이 아직 감춰져 있으면
+    //    (NetworkPlayerAppearance 가 준비될 때까지 forceRenderingOff) 다음 차례로 미룬다 —
+    //    감춰진 채 찍으면 빈 사진이 나온다.
+    // ------------------------------------------------------------
+
+    [Header("나중에 온 사람")]
+    [Tooltip("이 간격(초)으로 새 사람이 있는지 본다. 매 프레임 훑을 일은 아니다.")]
+    [SerializeField, Min(0.1f)] private float pollSeconds = 0.5f;
+
+    private float _nextPoll;
+
+    private void Update()
+    {
+        if (_layer < 0 || _studio == null || Time.unscaledTime < _nextPoll)
+        {
+            return;
+        }
+
+        _nextPoll = Time.unscaledTime + pollSeconds;
+
+        TaskWorker[] crew = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude,
+                                                          FindObjectsSortMode.None);
+
+        for (int i = 0; i < crew.Length; i++)
+        {
+            if (_shots.ContainsKey(crew[i].name) || !IsReady(crew[i]))
+            {
+                continue;
+            }
+
+            // 촬영장 자리는 지금까지 찍은 수로 — 이미 선 사람과 겹치지 않는다.
+            Shoot(crew[i], _shots.Count);
+        }
+    }
+
+    /// <summary>외형이 화면에 보이는 상태인지. 감춰져 있으면(forceRenderingOff) 아직이다.</summary>
+    private static bool IsReady(TaskWorker who)
+    {
+        Renderer[] draws = who.GetComponentsInChildren<Renderer>(false);
+
+        if (draws.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < draws.Length; i++)
+        {
+            if (draws[i].forceRenderingOff)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>전원의 사진을 다시 찍는다. 옷을 갈아입었을 때 부르면 된다.</summary>
     public void Retake()
     {
@@ -189,8 +252,22 @@ public class ShipCoopPortrait : MonoBehaviour
         cam.targetTexture = shot;
 
         // ⚠ 한 번만 찍고 끕니다. 매 프레임 도는 카메라 네 대는 공짜가 아닙니다.
-        cam.Render();
+        //    URP 에서는 Camera.Render() 대신 렌더 요청을 낸다. 지원하지 않는 환경이면 예전 방식.
         cam.enabled = false;
+
+        UniversalRenderPipeline.SingleCameraRequest request = new UniversalRenderPipeline.SingleCameraRequest
+        {
+            destination = shot,
+        };
+
+        if (RenderPipeline.SupportsRenderRequest(cam, request))
+        {
+            RenderPipeline.SubmitRenderRequest(cam, request);
+        }
+        else
+        {
+            cam.Render();
+        }
 
         _shots[who.name] = shot;
     }

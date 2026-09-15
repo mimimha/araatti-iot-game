@@ -21,6 +21,13 @@ using UnityEngine;
 ///    이동 코드를 붙잡고 "지금 달리는 중?" 을 물어보면, 서버가 붙어서 이동이
 ///    `PlayerMovement` 로 넘어갈 때 이 파일도 같이 고쳐야 합니다. (11장)
 ///    대신 **실제로 움직인 거리**를 재서 씁니다. 누가 움직였든 상관없습니다.
+///
+/// ⚠ 다만 **네트워크에서는 재는 것만으로 모자랍니다.**
+///
+///    원격 캐릭터의 자리는 Fusion 이 보간해서 채웁니다. 이 스크립트가 재는 프레임 간
+///    차이가 실제 이동과 어긋나서, 남의 화면에서는 자리만 움직이고 다리는 가만히 있습니다.
+///    그래서 네트워크 쪽에서는 `DriveMotion` 으로 **서버가 확정한 속도**를 넣어 줍니다.
+///    넣어 주지 않으면 예전처럼 스스로 잽니다. 혼자 하는 씬은 하나도 안 바뀝니다.
 /// </summary>
 public class ShipCoopCharacter : MonoBehaviour
 {
@@ -112,6 +119,26 @@ public class ShipCoopCharacter : MonoBehaviour
     private Vector2 _axis;
     private float _state;
 
+    /// <summary>밖에서 넣어 준 속도와 그 프레임. 안 들어오면 스스로 잰다.</summary>
+    private Vector3 _drivenVelocity;
+
+    private int _drivenFrame = -1;
+
+    /// <summary>
+    /// **이 캐릭터가 지금 어디로 얼마나 빨리 가는지**를 밖에서 알려준다. (m/s, 월드 기준)
+    ///
+    /// 네트워크에서 쓴다. 서버가 확정한 속도를 모든 화면이 그대로 받아 애니메이션을 굴리면,
+    /// 내 화면과 남의 화면에서 같은 사람이 같은 걸음을 걷는다.
+    ///
+    /// 매 프레임 불러야 한다. 끊기면 다음 프레임부터 스스로 재는 쪽으로 돌아간다.
+    /// </summary>
+    public void DriveMotion(Vector3 worldVelocity)
+    {
+        worldVelocity.y = 0f;
+        _drivenVelocity = worldVelocity;
+        _drivenFrame = Time.frameCount;
+    }
+
     private void Awake()
     {
         if (animator == null)
@@ -147,10 +174,23 @@ public class ShipCoopCharacter : MonoBehaviour
         moved.y = 0f;
         _wasAt = transform.position;
 
-        float speed = moved.magnitude / deltaTime;
+        Vector3 heading;
+        float speed;
+
+        // 넣어 준 값이 있으면 그것을 믿는다. 없으면 예전처럼 잰 값을 쓴다.
+        if (_drivenFrame >= Time.frameCount - 1)
+        {
+            heading = _drivenVelocity.sqrMagnitude > 0.0001f ? _drivenVelocity.normalized : Vector3.zero;
+            speed = _drivenVelocity.magnitude;
+        }
+        else
+        {
+            heading = moved.normalized;
+            speed = moved.magnitude / deltaTime;
+        }
 
         // 몸 기준으로 바꾼다. 우리 캐릭터는 가는 쪽을 보고 걸으므로 거의 앞(+z)이다.
-        Vector3 local = transform.InverseTransformDirection(moved.normalized) * Mathf.Clamp01(speed / walkSpeed);
+        Vector3 local = transform.InverseTransformDirection(heading) * Mathf.Clamp01(speed / walkSpeed);
 
         Vector2 wantAxis = new Vector2(local.x, local.z);
         float wantState = speed > runSpeed ? 1f : 0f;

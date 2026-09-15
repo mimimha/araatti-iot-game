@@ -67,6 +67,28 @@ namespace UnderTheSea.Network.Editor
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
 
+        /// <summary>
+        /// ShipCoop Dedicated Server 전환용 씬.
+        ///
+        /// ⚠ Lobby 를 거치지 않는다. 서버와 클라이언트 모두 <b>이 씬 하나만</b> 담는다.
+        ///    그래서 두 빌드의 Scene List 가 같은 경로 하나로 맞는다.
+        ///    (Fusion 은 씬을 경로가 아니라 목록 번호로 주고받는다)
+        /// </summary>
+        /// <summary>
+        /// ShipCoop 빌드에 담을 씬. <b>순서가 중요하다.</b>
+        ///
+        /// 첫 씬이 시작 씬(<c>ShipCoopBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
+        /// Fusion 이 같은 씬을 한 벌 더 열어 배와 HUD 가 두 개가 된다.
+        /// </summary>
+        private static readonly string[] ShipCoopScenes =
+        {
+            "Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity",
+            "Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity",
+        };
+
+        private const string ShipCoopServerOutput = "Builds/ShipCoopServer/AraAtti-ShipCoopServer.exe";
+        private const string ShipCoopClientOutput = "Builds/ShipCoopClient/AraAtti-ShipCoopClient.exe";
+
         /// <summary>정상 흐름(Boot → Title → Login → ChannelSelect → Lobby) 확인용 빌드.</summary>
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
 
@@ -116,6 +138,38 @@ namespace UnderTheSea.Network.Editor
         public static void BuildClientFromCommandLine()
         {
             ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions));
+        }
+
+        [MenuItem(MenuRoot + "ShipCoop 서버 빌드 (Dedicated Server)")]
+        public static void BuildShipCoopServer()
+        {
+            ExitIfCommandLine(Build(
+                ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                ShipCoopScenes, BuildOptions.None));
+        }
+
+        [MenuItem(MenuRoot + "ShipCoop 클라이언트 빌드")]
+        public static void BuildShipCoopClient()
+        {
+            ExitIfCommandLine(Build(
+                ShipCoopClientOutput, StandaloneBuildSubtarget.Player,
+                ShipCoopScenes, ClientOptions));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildShipCoopServerFromCommandLine()
+        {
+            ExitWith(Build(
+                ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                ShipCoopScenes, BuildOptions.None));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildShipCoopClientFromCommandLine()
+        {
+            ExitWith(Build(
+                ShipCoopClientOutput, StandaloneBuildSubtarget.Player,
+                ShipCoopScenes, ClientOptions));
         }
 
         [MenuItem(MenuRoot + "광산 서버 빌드 (Dedicated Server)")]

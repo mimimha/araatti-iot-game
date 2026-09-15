@@ -27,6 +27,12 @@ EditorBuildSettings:
     path: Assets/Game/Scenes/Main/MiniGames/Warriors.unity
     guid: c5d9d2bc801680547b98675e05f1ca55
   - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity
+    guid: 9bf32db0f3cb26a47b4c7b14f5fda6be
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity
+    guid: ce15162c4adf5ea43be8d14523953b3d
+  - enabled: 1
     path: Assets/Game/Scenes/Main/MiniGames/MineBoot.unity
     guid: 97d734dacf18e7a4f9078ca82dc16df6
   - enabled: 1

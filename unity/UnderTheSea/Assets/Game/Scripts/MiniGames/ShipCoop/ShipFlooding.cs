@@ -85,6 +85,17 @@ public class ShipFlooding : MonoBehaviour
     }
 
     /// <summary>ShipCoopGame 이 항해 중일 때만 불러준다.</summary>
+    /// <summary>
+    /// **물이 찬 정도와 새는 곳 수를 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// <c>Tick</c> · <c>Add</c> · <c>Dump</c> 는 스스로 계산하는 쪽이라 복제에 쓰면 두 번 센다.
+    /// </summary>
+    public void ShowState(float level01, int leakingPoints)
+    {
+        Level01 = Mathf.Clamp01(level01);
+        LeakingPoints = Mathf.Max(0, leakingPoints);
+    }
+
     public void Tick(float deltaTime)
     {
         LeakingPoints = CountLeakingPoints();
