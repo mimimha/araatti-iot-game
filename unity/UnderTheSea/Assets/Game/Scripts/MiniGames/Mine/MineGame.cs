@@ -346,6 +346,12 @@ public class MineGame : MonoBehaviour
         digger.MarkHintUsed();
 
         _hintTimer = hintSeconds;
+
+        // ⚠ 보는 동안에는 판을 건드리지 못한다. 카메라가 올라가 발밑이 안 보이는데,
+        //   그 상태에서 휘둘러 파이면 어디를 팠는지도 모르고 파인다.
+        //   되메우기도 같은 이유로 막힌다. 그림을 보는 동안 판은 멈춰 있는다.
+        //   입력은 MineDigger 가 계속 읽어서 버린다. TickHint 가 다시 켜준다.
+        digger.DiggingAllowed = false;
         if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
 
         // 어두우면 색을 바꿔봐야 안 보인다. 힌트 동안에는 판을 밝힌다. (MINE.md 6장)
@@ -374,8 +380,18 @@ public class MineGame : MonoBehaviour
         if (view != null) view.SetOverlay(MineOverlay.None);
         if (vision != null) vision.SetLit(false);   // 다시 어두워지고 랜턴이 켜진다
 
-        if (cameraRig != null && CurrentDigger != null)
-            cameraRig.FollowPlayer(CurrentDigger.transform);   // 다시 광산 안으로
+        if (CurrentDigger != null)
+        {
+            // 힌트 동안 막아둔 손을 돌려준다.
+            //
+            // 턴이 넘어가면서 힌트가 끝난 경우에는 여기까지 오지 않는다.
+            // Enter* 가 _hintTimer 를 0 으로 지우고 SetOnlyDiggerActive 로
+            // 누가 팔지를 다시 정하기 때문에, 남은 true 가 새는 일은 없다.
+            CurrentDigger.DiggingAllowed = true;
+
+            if (cameraRig != null)
+                cameraRig.FollowPlayer(CurrentDigger.transform);   // 다시 광산 안으로
+        }
     }
 
     // ------------------------------------------------------------

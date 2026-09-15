@@ -116,7 +116,11 @@ public class MineDigger : MonoBehaviour
         bool restore = _controller.Left.ConsumeButton1Press();
         bool hint = _controller.Left.ConsumeButton2Press();
 
-        if (!DiggingAllowed) return;    // 여기서 버린다
+        // ⚠ 여기서 버린다. 스윙만이 아니라 **복구·힌트 요청도 같이 버려진다.**
+        //   힌트를 보는 동안 MineGame 이 이 스위치를 내리는데, 그때 되메우기까지
+        //   막히는 것은 의도한 것이다. 발밑이 안 보이는 채로 판이 바뀌면 안 된다.
+        //   되메우기를 힌트 중에도 받고 싶어지면 이 return **위에서** 적어야 한다.
+        if (!DiggingAllowed) return;
 
         if (swung) Dig();
 
