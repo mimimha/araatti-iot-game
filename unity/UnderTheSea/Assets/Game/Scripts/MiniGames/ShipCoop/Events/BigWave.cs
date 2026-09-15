@@ -120,7 +120,7 @@ public class BigWave : VoyageEvent
         _helm = FindHelm();
 
         PushSide = randomSide
-            ? (Random.value < 0.5f ? -1f : 1f)
+            ? (Dice.NextDouble() < 0.5 ? -1f : 1f)   // 서버 씨앗으로. 기계마다 다른 쪽이 나오면 안 된다 (11장)
             : Mathf.Sign(fixedSide == 0f ? 1f : fixedSide);
 
         if (_helm == null)

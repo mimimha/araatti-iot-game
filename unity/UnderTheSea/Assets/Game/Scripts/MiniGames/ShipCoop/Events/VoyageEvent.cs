@@ -189,6 +189,32 @@ public abstract class VoyageEvent : MonoBehaviour
     /// <summary>지금 단계로 들어온 뒤 지난 시간 (초)</summary>
     public float Elapsed { get; private set; }
 
+    /// <summary>
+    /// 이번 발생의 주사위 씨앗. **서버가 정하고 클라이언트가 받는다.** (11장)
+    ///
+    /// 사건이 무작위를 쓰면(암초의 방향 · 바위 종류 · 돌려 놓는 각도, 파도의 방향) 기계마다 다른 값이 나온다.
+    /// 서버는 좌현 바위로 판정하는데 클라이언트 화면에는 우현의 다른 바위가 떠 있으면, 서버가 부딪혀 지운 순간
+    /// 클라이언트 바위는 배 한복판에 있거나 빈 바다에 있다 — **배를 뚫고 들어오거나 허공에서 사라진다.**
+    /// 그래서 씨앗 하나를 단계와 함께 복제하고(<c>ShipCoopEventSync</c>), 무작위는 전부 <see cref="Dice"/> 에서 뽑는다.
+    /// 혼자 하는 씬에서는 Begin 이 스스로 씨앗을 뽑으니 예전과 같다.
+    /// </summary>
+    public int Seed { get; private set; }
+
+    /// <summary>이번 발생의 주사위. <see cref="Seed"/> 로 만든다. <c>OnWarn</c> 부터 쓸 수 있다. <c>UnityEngine.Random</c> 대신 이것을 쓴다.</summary>
+    protected System.Random Dice { get; private set; } = new System.Random(0);
+
+    /// <summary>ShowStage 가 서버 씨앗을 미리 넣어 두었는가. Begin 이 보고 지운다.</summary>
+    private bool _seedPreset;
+
+    /// <summary>
+    /// 단계 · 시간 · 씨앗 말고 <b>하나 더</b> 복제할 값. 기본은 없다(0).
+    /// 적선은 맞힌 발수(<c>Hits</c>)를 여기 실어 클라이언트의 적선 모양이 휘청 · 격파를 그릴 수 있게 한다.
+    /// </summary>
+    public virtual int SyncExtra => 0;
+
+    /// <summary>클라이언트가 복제된 <see cref="SyncExtra"/> 를 받는다. 기본은 무시한다.</summary>
+    public virtual void ShowExtra(int value) { }
+
     /// <summary>제한 시간 (초). 0 이면 제한이 없다.</summary>
     public float Duration => duration;
 
@@ -294,6 +320,15 @@ public abstract class VoyageEvent : MonoBehaviour
         ActiveEvents.Add(this);
         Elapsed = 0f;
 
+        // 무작위 씨앗. 서버(혹은 혼자 하는 씬)는 여기서 뽑고, 클라이언트는 ShowStage 가 넣어 둔 서버 값을 쓴다.
+        if (!_seedPreset)
+        {
+            Seed = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+        }
+
+        _seedPreset = false;
+        Dice = new System.Random(Seed);
+
         // 예고부터 시작한다. 이 동안에는 아무것도 깎지 않고 알림만 띄운다.
         if (warnSeconds > 0f)
         {
@@ -324,16 +359,32 @@ public abstract class VoyageEvent : MonoBehaviour
     /// 같은 단계로 맞추기만 한다. 그래야 늦게 들어온 사람도 <b>지금 벌어지고 있는 일</b>을
     /// 처음부터 본 것처럼 이어서 볼 수 있다.
     /// </summary>
-    public void ShowStage(Stage stage, float elapsed)
+    /// <param name="seed">서버가 이번 발생에 쓴 주사위 씨앗. 같은 씨앗이면 같은 바위 · 같은 방향이 나온다.</param>
+    /// <param name="extra">사건이 <see cref="SyncExtra"/> 로 내준 값. 적선의 Hits.</param>
+    public void ShowStage(Stage stage, float elapsed, int seed, int extra)
     {
+        // ⚠ **값을 먼저 받고 단계를 처리한다.** 단계가 None 이면 아래에서 Cancel → OnHide 로 빠지는데,
+        //    그 OnHide 가 이 값을 봐야 하는 경우가 있다. (암초: 부딪혔는지 피했는지 — 그걸 알아야
+        //    바위를 지울지 흘려보낼지 정한다) 나중에 받으면 이미 늦는다.
+        ShowExtra(extra);
+
         if (stage == Stage.None)
         {
             Cancel();
             return;
         }
 
+        // 서버가 같은 사건을 끝내고 곧바로 다시 시작했는데 그 사이 프레임을 못 봤으면 씨앗이 바뀌어 있다.
+        // 그대로 두면 옛 바위로 새 사건을 그린다. 끝내고 새로 시작한다.
+        if (IsActive && seed != Seed)
+        {
+            Cancel();
+        }
+
         if (!IsActive)
         {
+            Seed = seed;
+            _seedPreset = true;
             Begin();
         }
 
