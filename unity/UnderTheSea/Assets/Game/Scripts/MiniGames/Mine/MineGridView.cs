@@ -130,6 +130,11 @@ public class MineGridView : MonoBehaviour
     [Tooltip("도안을 보여줄 때 그림이 되는 칸의 색. 무른 돌 바탕 위의 검은 돌.")]
     [SerializeField] private Color drawingColor = new Color(0.06f, 0.055f, 0.05f);
 
+    [Tooltip("도안을 보여주는 동안 **이미 판 칸**의 색.\n" +
+             "검은 도안과 하얀 바탕 사이의 회색이어야 한다.\n" +
+             "dugColor 를 그대로 쓰면 도안과 같은 검정이라 힌트 때 둘이 안 갈린다.")]
+    [SerializeField] private Color hintDugColor = new Color(0.6f, 0.6f, 0.6f);
+
     private MineGrid _grid;
     private Transform[] _cells;
 
@@ -437,7 +442,17 @@ public class MineGridView : MonoBehaviour
         // 도안 보기 — 무른 돌 바탕에 검은 돌로 그림만. 돌 종류는 감춘다.
         bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
 
-        if (dug) return dugColor;
+        // ⚠ 판 칸을 dugColor 로 칠하면 도안과 **똑같은 검정**이 된다.
+        //   (dugColor 0.07 · drawingColor 0.06 — 눈으로는 둘 다 그냥 검정이다.)
+        //   공개 7초에는 아직 아무것도 안 파여 문제가 없었지만, 힌트는 턴 중간에 뜨므로
+        //   이미 판 칸이 있다. 그러면 어디가 도안이고 어디가 내가 판 구멍인지 갈리지 않는다.
+        //
+        //   그래서 도안을 보는 동안만 판 칸을 중간 회색으로 뺀다. 세 단계로 읽힌다 —
+        //     흰색 = 바탕 · 회색 = 내가 판 곳 · 검정 = 아직 남은 도안
+        //   도안 안의 회색은 제대로 판 곳이고, 밖의 회색은 잘못 판 곳이다.
+        //
+        // 결과 화면은 그대로 둔다. 거기서는 판 칸 자체가 그림이므로 검정이 맞다.
+        if (dug) return hintDugColor;
         return isTarget ? drawingColor : intactColor;
     }
 
