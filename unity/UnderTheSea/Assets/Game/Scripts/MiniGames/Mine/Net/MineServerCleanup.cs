@@ -57,7 +57,19 @@ namespace Mine.Net
             count += DisableAll<MineDebugHud>("개발용 HUD");
 
             // 광산 연출
-            count += DisableAll<MineGridView>("격자 화면");
+            // ⚠ <b>MineGridView 는 끄지 않는다.</b> 그리기만 하는 부품이 아니다.
+            //
+            //   칸 400개는 <c>PrimitiveType.Cube</c> 라 콜라이더를 같이 달고 나오고,
+            //   칸이 파이면 <c>OnCellChanged</c> 로 그 블록을 <c>digDepth</c> 만큼 내린다.
+            //   그 내려간 블록이 곷 캐릭터가 내려설 바닥이다.
+            //
+            //   이것을 끄면 <c>OnDisable</c> 이 그 구독을 끊어, 서버의 블록은
+            //   처음 높이에 그대로 멈춰 선다. 화면에는 구멍이 보이는데
+            //   서버 바닥은 평평해서 <b>캐릭터가 구멍으로 내려서지 않는다.</b>
+            //   실측해서 확인한 문제다.
+            //
+            //   서버는 -nographics 라 렌더러가 실제로 그리지 않는다.
+            //   남는 비용은 GameObject 와 콜라이더뿐이다.
             count += DisableAll<MineVision>("어둠과 랜턴");
             count += DisableAll<MineCursor>("발밑 표시");
             count += DisableAll<MineDebris>("부스러기");
