@@ -34,15 +34,33 @@ namespace Warriors
 
             if (localPlayer == null) return;
             Transform playerTransform = localPlayer.transform;
+            IPlayerController playerController = localPlayer.GetComponent<IPlayerController>()
+                ?? localPlayer.GetComponentInParent<IPlayerController>();
+            if (playerController == null)
+            {
+                // 기존 테스트 씬에는 공용 컨트롤러가 없으므로 키보드 폴백을 한 번만 붙인다.
+                // 실제 IoT 구현체가 플레이어에 있으면 이 경로는 타지 않는다.
+                KeyboardPlayerController keyboardController =
+                    localPlayer.gameObject.AddComponent<KeyboardPlayerController>();
+                keyboardController.SetControlProfile(KeyboardControlProfile.Warriors);
+                playerController = keyboardController;
+            }
+
+            MonoBehaviour controllerSource = playerController as MonoBehaviour;
             WarriorsKeyboardInput keyboardInput = localPlayer.GetComponent<WarriorsKeyboardInput>();
             WarriorsInputRouter inputRouter = FindFirstObjectByType<WarriorsInputRouter>(FindObjectsInactive.Include);
             if (keyboardInput != null)
             {
+                keyboardInput.ConfigurePlayerController(controllerSource);
                 inputRouter?.Configure(keyboardInput);
                 localPlayer.GetComponent<WarriorsPlayerCombat>()?.BindInputSource(keyboardInput);
             }
+            localPlayer.ConfigurePlayerController(controllerSource);
             FindFirstObjectByType<WarriorsEnemySpawner>(FindObjectsInactive.Include)?.BindPlayer(playerTransform);
-            FindFirstObjectByType<WarriorsThirdPersonCamera>(FindObjectsInactive.Include)?.Configure(playerTransform);
+            WarriorsThirdPersonCamera followCamera =
+                FindFirstObjectByType<WarriorsThirdPersonCamera>(FindObjectsInactive.Include);
+            followCamera?.Configure(playerTransform);
+            followCamera?.ConfigurePlayerController(controllerSource);
             FindFirstObjectByType<WarriorsGameFlow>(FindObjectsInactive.Include)?.BindPlayersRoot(playersRoot);
         }
     }

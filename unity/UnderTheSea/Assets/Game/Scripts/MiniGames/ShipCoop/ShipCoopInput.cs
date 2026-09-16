@@ -165,7 +165,9 @@ public static class ShipCoopInput
     /// <summary>🔨 망치질. 오른손을 내리치는 동작.</summary>
     public static bool ConsumeSwing(IPlayerController controller)
     {
-        return controller != null && controller.Right.ConsumeSwing();
+        return controller != null
+               && controller.Right.TryConsumeMotion(out HandMotion motion)
+               && motion.Type == HandMotionType.VerticalSwing;
     }
 
     // ------------------------------------------------------------

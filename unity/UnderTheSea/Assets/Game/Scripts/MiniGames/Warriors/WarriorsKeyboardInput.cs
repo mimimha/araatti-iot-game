@@ -1,12 +1,12 @@
 using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Warriors
 {
     /// <summary>
-    /// IoT 장치 없이 전투를 검증하기 위한 로컬 입력 구현이다.
-    /// IoT 입력 구현도 IWarriorsInputSource를 통해 같은 공격 요청을 전달한다.
+    /// 이름은 기존 호환을 위해 KeyboardInput이지만 키보드를 직접 읽지 않는다.
+    /// IPlayerController의 양손 입력을 무쌍 공격 방향으로 번역한다.
+    /// KeyboardPlayerController를 실제 IoT 구현체로 교체해도 이 코드는 그대로 쓴다.
     /// </summary>
     public sealed class WarriorsKeyboardInput : MonoBehaviour, IWarriorsInputSource, IWarriorsPlayerInputSource
     {
@@ -21,43 +21,72 @@ namespace Warriors
         /// </summary>
         [SerializeField, Range(0, 1)] private int playerId;
 
+        [Tooltip("IPlayerController 구현체. 비우면 같은 오브젝트와 부모에서 찾는다.")]
+        [SerializeField] private MonoBehaviour playerControllerSource;
+
+        private IPlayerController playerController;
+
         public int PlayerId => playerId;
 
         public WarriorsAttackDirection? LastRequestedAttack { get; private set; }
 
+        private void Awake() => ResolvePlayerController();
+
+        public void ConfigurePlayerController(MonoBehaviour source)
+        {
+            playerControllerSource = source;
+            ResolvePlayerController();
+        }
+
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
-            {
-                return;
-            }
+            if (playerController == null) ResolvePlayerController();
+            if (playerController == null) return;
 
-            if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
-            {
-                RequestAttack(WarriorsAttackDirection.HorizontalSlash);
-            }
+            // 어느 손인지가 아니라 IMU가 판정한 실제 동작 종류로 공격을 정한다.
+            // 한 기기 모드에서는 Left와 Right가 같은 객체이므로 두 번째 호출은 false다.
+            if (TryConsumeAttack(playerController.Left)) return;
+            TryConsumeAttack(playerController.Right);
+        }
 
-            if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
-            {
-                RequestAttack(WarriorsAttackDirection.VerticalSlash);
-            }
+        private bool TryConsumeAttack(IHandDevice hand)
+        {
+            if (hand == null || !hand.TryConsumeMotion(out HandMotion motion)) return false;
 
-            if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+            switch (motion.Type)
             {
-                RequestAttack(WarriorsAttackDirection.Thrust);
+                case HandMotionType.HorizontalSwing:
+                    RequestAttack(WarriorsAttackDirection.HorizontalSlash, motion.Strength);
+                    return true;
+                case HandMotionType.VerticalSwing:
+                    RequestAttack(WarriorsAttackDirection.VerticalSlash, motion.Strength);
+                    return true;
+                case HandMotionType.Thrust:
+                    RequestAttack(WarriorsAttackDirection.Thrust, motion.Strength);
+                    return true;
+                default:
+                    return false;
             }
         }
 
-        public void RequestAttack(WarriorsAttackDirection direction)
+        private void ResolvePlayerController()
+        {
+            playerController = playerControllerSource as IPlayerController
+                ?? GetComponent<IPlayerController>()
+                ?? GetComponentInParent<IPlayerController>();
+        }
+
+        public void RequestAttack(WarriorsAttackDirection direction) => RequestAttack(direction, 1f);
+
+        private void RequestAttack(WarriorsAttackDirection direction, float strength)
         {
             LastRequestedAttack = direction;
             PlayerAttackRequested?.Invoke(new WarriorsAttackInput(
                 playerId,
                 direction,
-                1f,
+                strength,
                 Time.realtimeSinceStartupAsDouble));
-            AttackRequested?.Invoke(direction, 1f);
+            AttackRequested?.Invoke(direction, strength);
         }
     }
 }
