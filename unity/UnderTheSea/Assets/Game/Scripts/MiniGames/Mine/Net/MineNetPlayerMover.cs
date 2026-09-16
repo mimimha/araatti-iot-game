@@ -219,8 +219,10 @@ namespace Mine.Net
             // 실제로 얼마나 움직였는지는 입력과 상관없이 매 틱 잰다.
             MeasureMotion();
 
-            // ⚠ **지금 턴인 사람만 몸을 굴린다.** 관전자는 여기서 걸러진다.
-            bool mine = _who != null && _who.IsMyTurn;
+            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 관전자는 여기서 걸러진다.
+            //   목표 공개(7초) 중에도 첫 턴을 받을 사람은 여기를 통과한다 —
+            //   미리 자리를 잡게 하려는 것이다. 파는 것은 MineNetPlayerActions 가 따로 막는다.
+            bool mine = _who != null && _who.CanMoveNow;
 
             SetSimulated(mine);
 

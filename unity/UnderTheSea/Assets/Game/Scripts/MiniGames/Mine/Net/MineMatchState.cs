@@ -147,6 +147,19 @@ namespace Mine.Net
         /// <summary>지금 목표 그림을 보여 줘야 하는가. 공개 시간이거나 힌트 중이다.</summary>
         public bool ShowingTarget => Phase == MineMatchPhase.Reveal || HintLeft > 0f;
 
+        /// <summary>
+        /// 목표를 보여 주는 동안 <b>미리 움직여 볼 수 있는 자리.</b> 아니면 -1.
+        ///
+        /// 공개가 끝나면 <see cref="DriveReveal"/> 가 <c>OpenTurnFrom(0)</c> 로
+        /// 첫 턴을 여므로, 미리 움직일 수 있는 사람도 그 0번이다.
+        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 첫 턴은
+        /// 앞사람이 없어 <c>TakeTurnAt</c> 으로 옥기지 않기 때문이다.
+        ///
+        /// ⚠ <b>힐트는 여기 해당하지 않는다.</b> 힐트 중에도 <c>ShowingTarget</c> 은
+        ///   참이지만 그때는 <c>Phase</c> 가 <c>Turn</c> 이라 본인은 이미 움직일 수 있다.
+        /// </summary>
+        public int WarmupSlot => Phase == MineMatchPhase.Reveal ? 0 : -1;
+
         /// <summary>이미 시작했는가. 늦게 들어온 사람이 다시 시작시키면 안 된다.</summary>
         public bool HasStarted => Phase >= MineMatchPhase.Reveal;
 
