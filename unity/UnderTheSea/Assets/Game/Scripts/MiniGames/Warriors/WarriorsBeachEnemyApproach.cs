@@ -71,10 +71,11 @@ namespace Warriors
             float playerDistance = playerOffset.magnitude;
             Vector3 toPlayer = playerDistance > .001f ? playerOffset / playerDistance : transform.forward;
 
-            // Brief knockback after a hit, never a sustained retreat.
+            // 맞고 밀려나는 구간. 걷는 속도의 세 배로 물러나야 "맞았다" 가 눈에 보인다.
+            // 1.2배였을 때는 그냥 잠깐 멈춘 것처럼 보였다. 시간이 짧아(최대 0.25초) 멀리 날아가진 않는다.
             if (Time.time < retreatUntil)
             {
-                position -= toPlayer * (moveSpeed * 1.2f * deltaTime);
+                position -= toPlayer * (moveSpeed * 3.2f * deltaTime);
                 position.y = groundHeight;
                 transform.position = position;
                 return;

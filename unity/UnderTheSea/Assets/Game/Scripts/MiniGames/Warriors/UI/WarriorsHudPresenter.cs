@@ -68,6 +68,12 @@ namespace Warriors
         public int NetworkLocalLane { get; set; } = -1;
 
         /// <summary>
+        /// 지금 판정선을 번쩍여야 하는 레인. -1 이면 아무 줄도 반응하지 않는다.
+        /// <c>WarriorsPhase3Director</c> 가 정타를 본 동안(0.08~0.12초)만 채워 준다.
+        /// </summary>
+        public int NetworkRhythmPulseLane { get; set; } = -1;
+
+        /// <summary>
         /// 네트워크 매치가 이 HUD 를 몰고 있는가. (Warriors 네트워크 전환)
         ///
         /// 켜지면 라운드 · 목표 · 점수 · 결과를 아래 Network* 값에서 읽는다. 원래 읽던
@@ -172,11 +178,14 @@ namespace Warriors
         [SerializeField] private Color rhythmMissedColor = new(.32f, .12f, .12f, .85f);
 
         [Header("Rhythm note colours by attack — same hues as the monster cards")]
-        [SerializeField] private Color rhythmHorizontalColor = new(.2f, .55f, .95f, .95f);   // 물고기 · 가로베기 · 파랑
-        [SerializeField] private Color rhythmVerticalColor = new(.9f, .33f, .3f, .95f);      // 게 · 세로베기 · 빨강
+        // **바다 배경 위에서 순간적으로 갈려야 한다.** 이전 값(.2/.55/.95 등, 알파 .95)은
+        // 링이 얇아서 색이 화면에서 거의 사라졌다. 셋 다 채도를 최대로 올리고 알파를 1 로 둔다.
+        // 색을 갖는 것은 **링과 기호뿐이고 가운데는 여전히 알파 0** 이다(RingSprite).
+        [SerializeField] private Color rhythmHorizontalColor = new(.11f, .62f, 1f, 1f);      // 물고기 · 가로베기 · 파랑
+        [SerializeField] private Color rhythmVerticalColor = new(1f, .22f, .22f, 1f);        // 게 · 세로베기 · 빨강
         // 찌르기는 **노랑**이다. 보라로 두었더니 판정선(청록)·가로베기(파랑)와 한 계열로 뭉쳐
         // 세 종류가 한눈에 갈리지 않았다. 파랑 · 빨강 · 노랑이 서로 가장 멀다.
-        [SerializeField] private Color rhythmThrustColor = new(1f, .82f, .25f, .95f);        // 해파리 · 찌르기 · 노랑
+        [SerializeField] private Color rhythmThrustColor = new(1f, .86f, .08f, 1f);          // 해파리 · 찌르기 · 노랑
 
         [Header("Final overlay")]
         [SerializeField] private GameObject finalRoot;
@@ -437,7 +446,7 @@ namespace Warriors
 
             // 매치 안내가 있으면 그쪽이 먼저다. 대기 · 카운트다운 · 결과에만 쓰인다.
             Set(roundText, string.IsNullOrEmpty(MatchNotice)
-                ? (tentacle ? "ROUND 2  ·  크라켄 등장" : "ROUND 1  ·  몬스터 습격")
+                ? (tentacle ? "ROUND 2  ·  크라켄의 등장" : "ROUND 1  ·  몬스터 습격")
                 : MatchNotice);
             Set(timeText, string.IsNullOrEmpty(MatchDetail)
                 ? $"{secondsLeft / 60:00}:{secondsLeft % 60:00}"
@@ -477,8 +486,7 @@ namespace Warriors
         /// The slot count must reflect the players that actually exist in the scene rather
         /// than a configured maximum, otherwise a solo run shows a second player who is not
         /// there.
-        /// </summary>
-        /// <summary>
+        ///
         /// The same roster the flow counts from, so the strip and the round can never
         /// disagree about how many people are playing. It replaced a half second polling
         /// scan, which also meant the strip lagged a join by up to half a second.
@@ -513,8 +521,7 @@ namespace Warriors
         /// Each round asks the player to do something different, so every round opens with a
         /// two line brief: what is happening, then what to press. Driven purely off the phase
         /// the battle flow reports - no gameplay state is touched here.
-        /// </summary>
-        /// <summary>
+        ///
         /// 네트워크 라운드(1~3)를 소개 문구를 고르는 페이즈 값으로 옮긴다. 0(대기)은 소개가 없는 값으로.
         /// 서버가 라운드를 바꾸는 순간 두 화면이 같은 소개를 본다 — 서버도 그동안 게임을 붙잡아 둔다.
         /// </summary>
@@ -871,30 +878,53 @@ namespace Warriors
                 // 멀리 있을수록 작다. 다만 스폰 지점에서도 무엇인지는 읽혀야 하므로
                 // 트랙 비율(0.60)을 그대로 쓰지 않고 0.80~1.30 으로 눌러 쓴다.
                 // 프리팹 노트가 90px 이라 판정선에서 117px, 스폰에서 72px 이 된다.
-                float noteScale = Mathf.LerpUnclamped(.80f, 1.30f, note.Travel);
-                rhythmNotes[i].localScale = Vector3.one * noteScale * (mine ? 1f : .92f);
+                float noteScale = Mathf.LerpUnclamped(.80f, 1.30f, Mathf.Clamp01(note.Travel));
 
-                // **속을 공격 색으로 가득 채우고 기호는 흰색이다.**
-                //
-                // 한때 속을 비우고 기호에만 색을 줘 봤는데, 실제 화면에서 바다 · 모래 · 크라켄 위에
-                // 얹히니 거의 보이지 않았다. 노트는 배경에서 가장 먼저 눈에 들어와야 하는 것이라
-                // 채운 원이 맞다. 대신 트랙 바닥을 옅게 두어 노트만 도드라지게 한다.
-                Color tone = note.IsSuccessfulHit ? rhythmSuccessfulColor
-                    : note.IsMissed ? rhythmMissedColor
-                    : NoteColor(note.Type);
-                tone.a *= alpha;
+                // **색은 링과 기호만 갖는다. 가운데는 비어 있다.**
+                Color tone = note.IsMissed ? rhythmMissedColor : NoteColor(note.Type);
+
+                // **맞으면 터진다.** 그냥 사라지면 "쳤다" 는 결과가 화면에 남지 않는다.
+                // 판정된 뒤 잠깐(clearSeconds) 더 살아 있는 동안 링을 키우면서 지운다.
+                float burst = note.IsSuccessfulHit ? Mathf.Clamp01((note.Travel - 1f) / .30f) : 0f;
+                float pop = 1f + burst * 1.1f;             // 1.0 -> 2.1 배로 퍼진다
+                float fade = note.IsSuccessfulHit ? 1f - burst : 1f;
+
+                tone.a *= alpha * fade;
+
+                // **터지는 방향이 공격 방향을 따른다.** 셋 다 똑같이 부풀기만 하면 무엇으로
+                // 깼는지가 결과에 남지 않는다. 가로베기는 좌우로 늘어나며 찢어지고, 세로베기는
+                // 위아래로, 찌르기는 사방으로 고르게 퍼진다. 기호(↔ ↕ ⊙)와 같은 방향이다.
+                Vector3 spread = BurstSpread(note.Type, burst);
+
+                rhythmNotes[i].localScale = new Vector3(
+                    noteScale * pop * spread.x * (mine ? 1f : .92f),
+                    noteScale * pop * spread.y * (mine ? 1f : .92f),
+                    1f);
 
                 if (i < rhythmNoteFills.Length && rhythmNoteFills[i] != null)
                 {
                     Image disc = rhythmNoteFills[i];
-                    if (disc.type == Image.Type.Sliced) disc.fillCenter = true;
+
+                    // 프리팹의 꽉 찬 원판 대신 코드로 그린 링을 쓴다. 가운데 알파 = 0.
+                    if (disc.sprite != RingSprite())
+                    {
+                        disc.sprite = RingSprite();
+                        disc.type = Image.Type.Simple;
+                    }
+
                     disc.color = tone;
                 }
 
                 if (i < rhythmNoteGlyphs.Length && rhythmNoteGlyphs[i] != null)
                 {
                     Set(rhythmNoteGlyphs[i], Glyph(note.Type));
-                    rhythmNoteGlyphs[i].color = new Color(1f, 1f, 1f, alpha);
+
+                    // **기호도 링과 같은 색이다.** 흰색으로 두었더니 정작 제일 먼저 보는 것이
+                    // 무채색이라 색으로 종류를 읽을 단서가 얇은 링 하나뿐이었다.
+                    // 다만 바다 위에서 파랑이 묻히지 않도록 흰색을 조금 섞어 한 단계 밝게 쓴다.
+                    Color glyphTone = Color.Lerp(tone, Color.white, .25f);
+                    glyphTone.a = alpha * fade;
+                    rhythmNoteGlyphs[i].color = glyphTone;
                 }
             }
         }
@@ -1014,13 +1044,22 @@ namespace Warriors
                 Color judgeColor = tint;
                 judgeColor.a = .98f * dim;
 
-                Paint(lane.judge, new Vector2(bottom * 2f + 20f, 9f), new Vector2(x, hitLineY), judgeColor);
+                // **정타가 나면 그 줄의 판정선만 번쩍인다.** 노트가 터지는 것은 노트가 있던
+                // 자리에서 일어나므로, 정작 "선에 맞췄다" 는 것은 선 자체가 말해 줘야 한다.
+                // 맞은 줄 하나만 반응해야 누가 맞췄는지 읽힌다.
+                float lineHeight = 9f;
+                if (NetworkRhythmPulseLane == i)
+                {
+                    judgeColor = Color.Lerp(judgeColor, Color.white, .75f);
+                    judgeColor.a = 1f;
+                    lineHeight = 17f;
+                }
 
-                // 판정선 바로 아래 "P1" · "P2".
-                lane.label.rectTransform.sizeDelta = new Vector2(bottom * 2f, 48f);
-                lane.label.rectTransform.anchoredPosition = new Vector2(x, hitLineY - 44f);
-                lane.label.text = $"P{i + 1}";
-                lane.label.color = new Color(tint.r, tint.g, tint.b, .95f * dim);
+                Paint(lane.judge, new Vector2(bottom * 2f + 20f, lineHeight), new Vector2(x, hitLineY), judgeColor);
+
+                // "P1" · "P2" 글자는 두지 않는다. 캐릭터가 좌우에 서 있고 트랙도 좌우로 갈려 있어
+                // 글자로 한 번 더 알려 줄 이유가 없다. 트랙 색이 이미 두 사람을 구분한다.
+                lane.label.gameObject.SetActive(false);
             }
         }
 
@@ -1062,6 +1101,65 @@ namespace Warriors
         private static Color TrackTint(int lane) => lane == 0
             ? new Color(.36f, .86f, 1f, 1f)
             : new Color(1f, .78f, .28f, 1f);
+
+        /// <summary>노트에 쓰는 **가운데가 완전히 빈 링**. 한 번 만들어 계속 쓴다.</summary>
+        private static Sprite ringSprite;
+
+        /// <summary>
+        /// **링 스프라이트를 코드로 그린다. 가운데 알파는 정확히 0 이다.**
+        ///
+        /// 프리팹의 노트는 <c>RoundControl.png</c> 라는 <b>꽉 찬 원판</b>을 쓰고 있었다.
+        /// 그 스프라이트는 <c>spriteBorder</c> 가 (0,0,0,0) 이라 9-슬라이스가 아니어서,
+        /// <c>Image.fillCenter = false</c> 로는 가운데를 비울 수 없다. 설정으로는 불가능한 구조였다.
+        ///
+        /// 그래서 픽셀을 직접 그린다. 중심에서의 거리가 <c>Inner</c> 보다 가까우면 알파가 0 이므로
+        /// 가운데로 뒤의 크라켄과 바다가 그대로 비친다. 색은 링과 기호만 갖는다.
+        /// </summary>
+        private static Sprite RingSprite()
+        {
+            if (ringSprite != null) return ringSprite;
+
+            const int Size = 128;
+            const float Outer = 62f;
+
+            // **링 두께 = 62 - 36 = 26px** (텍스처 128 기준).
+            // 노트는 프리팹 90px 을 0.80~1.30 배로 그리므로 화면에서 72~117px 이고,
+            // 링은 26/128 × 그 값 = **약 15~24px** 로 찍힌다.
+            // 이전 값(Inner 45, 두께 17px → 화면 9.6~15.5px)은 스폰 지점에서 색이 거의
+            // 사라져 파랑/빨강/노랑이 순간적으로 구분되지 않았다.
+            // 안쪽(반지름 36 이내)은 여전히 **전부 알파 0** 이다.
+            const float Inner = 36f;
+
+            Texture2D texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            Vector2 centre = new Vector2(Size * .5f - .5f, Size * .5f - .5f);
+            Color32[] pixels = new Color32[Size * Size];
+
+            for (int y = 0; y < Size; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x, y), centre);
+
+                    // 바깥 경계와 안쪽 경계 중 가까운 쪽으로 1px 만 부드럽게. 나머지는 0 또는 1.
+                    float alpha = Mathf.Clamp01(Mathf.Min(Outer - distance, distance - Inner));
+
+                    pixels[y * Size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+
+            ringSprite = Sprite.Create(texture, new Rect(0f, 0f, Size, Size), new Vector2(.5f, .5f), 100f);
+            ringSprite.name = "WarriorsNoteRing";
+
+            return ringSprite;
+        }
 
         private static TMP_Text MakeLaneLabel(Transform parent, string name)
         {
@@ -1187,9 +1285,16 @@ namespace Warriors
                 // Laid out as label on the left and value on the right rather than as four
                 // centred sentences, so the numbers line up in a column and can be read down
                 // the card. <pos> does that inside the one text object the card already has.
-                string roundValue = clear ? $"ROUND {reachedRound}  클리어" : $"ROUND {reachedRound}";
-                Set(finalDetailText,
-                    $"최종 점수<pos=58%>{finalScore:N0}\n플레이 시간<pos=58%>{elapsed / 60:00}:{elapsed % 60:00}\n몬스터 처치<pos=58%>{kills}\n{(clear ? "최종 라운드" : "도달 라운드")}<pos=58%>{roundValue}");
+                // 클리어하면 라운드 줄을 빼낸다. 세 라운드를 다 끝내야만 나오는 화면에서
+                // "최종 라운드  ROUND 3  클리어" 는 바로 위 GAME CLEAR 를 한 번 더 말하는 것뿐이고,
+                // 그만큼 정작 읽혀야 할 보상에서 눈을 뺏는다. 진 판에서는 어디까지 갔는지가
+                // 실제 정보이므로 그대로 둔다.
+                string detail =
+                    $"최종 점수<pos=58%>{finalScore:N0}\n플레이 시간<pos=58%>{elapsed / 60:00}:{elapsed % 60:00}\n몬스터 처치<pos=58%>{kills}";
+
+                if (!clear) detail += $"\n도달 라운드<pos=58%>ROUND {reachedRound}";
+
+                Set(finalDetailText, detail);
             }
             else Set(finalDetailText, string.Empty);
 
@@ -1207,6 +1312,20 @@ namespace Warriors
                     rewardNameText.color = clear
                         ? new Color(.85f, .97f, 1f, 1f)
                         : new Color(.58f, .66f, .78f, 1f);
+
+                // **이긴 판에서는 보상이 이 화면의 주인공이다.** 판을 끝까지 끌고 온 이유가
+                // 조각이므로, 숫자 나열과 같은 크기로 조용히 앉아 있으면 안 된다. 진 판에서는
+                // 얻지 못한 것을 키울 이유가 없으니 원래 크기로 둔다.
+                if (rewardRoot != null)
+                {
+                    RectTransform rewardRect = rewardRoot.transform as RectTransform;
+                    if (rewardRect != null)
+                        rewardRect.localScale = Vector3.one * (clear ? 1.18f : 1f);
+                }
+
+                // 조각 이름은 보상 칸에서 제일 먼저 읽혀야 한다.
+                if (rewardNameText != null)
+                    rewardNameText.fontStyle = clear ? FontStyles.Bold : FontStyles.Normal;
             }
         }
 
@@ -1222,6 +1341,32 @@ namespace Warriors
             WarriorsAttackDirection.VerticalSlash => "↕",
             _ => "⊙"
         };
+
+        /// <summary>
+        /// 노트가 깨질 때 <b>어느 쪽으로</b> 늘어나는가. 공격 종류마다 다르다.
+        ///
+        ///   ↔ 가로베기  좌우로 찢어진다 (가로 1.9배 · 세로 0.45배)
+        ///   ↕ 세로베기  위아래로 갈라진다
+        ///   ⊙ 찌르기    사방으로 고르게 (원형 burst)
+        ///
+        /// <paramref name="burst"/> 는 0(판정된 순간) → 1(다 사라짐).
+        /// </summary>
+        private static Vector3 BurstSpread(WarriorsAttackDirection type, float burst)
+        {
+            if (burst <= 0f) return Vector3.one;
+
+            // 부드럽게 붙어야 판정 순간에 툭 튀지 않는다.
+            float k = Mathf.SmoothStep(0f, 1f, burst);
+
+            return type switch
+            {
+                WarriorsAttackDirection.HorizontalSlash =>
+                    new Vector3(Mathf.Lerp(1f, 1.9f, k), Mathf.Lerp(1f, .45f, k), 1f),
+                WarriorsAttackDirection.VerticalSlash =>
+                    new Vector3(Mathf.Lerp(1f, .45f, k), Mathf.Lerp(1f, 1.9f, k), 1f),
+                _ => Vector3.one,   // 찌르기는 pop 이 이미 사방으로 키운다
+            };
+        }
 
         /// <summary>공격 종류의 색. 아래 안내 카드(물고기 · 게 · 해파리)와 같은 계열이다.</summary>
         private Color NoteColor(WarriorsAttackDirection type) => type switch

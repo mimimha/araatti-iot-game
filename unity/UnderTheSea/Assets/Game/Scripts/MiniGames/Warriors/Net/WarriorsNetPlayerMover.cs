@@ -172,9 +172,42 @@ namespace Warriors.Net
         /// 클라이언트는 그 함수를 부르지 않으므로 여기서 같은 파라미터를 넣는다.
         /// 이름은 <c>WarriorsLocalPlayerController</c> 가 쓰는 것과 같아야 한다.
         /// </summary>
+        /// <summary>쓰러진 캐릭터가 눕는 각도. 90도까지 가면 바닥을 뚫는다.</summary>
+        private const float DownTilt = 78f;
+
+        /// <summary>
+        /// **쓰러지면 실제로 쓰러져 보이게 한다.**
+        ///
+        /// HP 가 0 이 되어 <c>IsDown</c> 인데도 캐릭터가 멀쩡히 서 있어, 조작하지 않는 쪽이
+        /// 죽었는지 살았는지 화면으로 알 수 없었다. 쓰러짐 애니메이션 클립이 없으므로
+        /// 모델을 옆으로 눕힌다. 새 애셋을 만들지 않고 보이는 결과를 낸다.
+        ///
+        /// ⚠ <b>몸통(자식)만 돌린다.</b> 루트를 돌리면 서버가 보내 주는 회전과 싸운다.
+        /// </summary>
+        private void ShowDownPose()
+        {
+            if (animator == null) return;
+
+            Transform body = animator.transform;
+
+            // 애니메이터가 루트에 붙어 있으면 여기서 돌릴 수 없다. 루트 회전은 NetworkTransform 이
+            // 매 틱 덮어써서 싸우게 된다. 그 경우에는 자세를 바꾸지 않고 넘어간다.
+            if (body == transform) return;
+
+            bool down = life != null && life.IsDown;
+
+            Quaternion target = down
+                ? Quaternion.Euler(DownTilt, 0f, 0f)
+                : Quaternion.identity;
+
+            body.localRotation = Quaternion.RotateTowards(
+                body.localRotation, target, 240f * Time.deltaTime);
+        }
+
         public override void Render()
         {
             ClearTrailsAfterTeleport();
+            ShowDownPose();
 
             if (animator == null || HasStateAuthority)
             {
