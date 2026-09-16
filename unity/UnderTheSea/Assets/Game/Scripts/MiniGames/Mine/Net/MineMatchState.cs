@@ -202,6 +202,9 @@ namespace Mine.Net
 
             Crew = Runner.ActivePlayers.Count();
 
+            // 판은 기다리는 동안 미리 깔아 둔다. 카운트다운 중에도 모두가 같은 돌 배치를 봐야 한다.
+            EnsureBoardOpen();
+
             if (IsOver) return;
 
             TickHint();
@@ -281,6 +284,32 @@ namespace Mine.Net
                 crew[i].AssignSlot(i < MineNet.MaxCrew ? i : -1);
             }
         }
+        /// <summary>
+        /// 판이 아직 안 깔렸으면 깔고 시드를 복제한다. <b>한 번만 한다.</b>
+        ///
+        /// ⚠ <b>기다리는 동안 미리 깔아야 한다.</b>
+        ///
+        ///   <see cref="MineGrid"/> 는 Awake 에서 <c>Scatter(Environment.TickCount)</c> 로
+        ///   돌을 뿌린다. 그 값은 PC 마다 다르므로 <b>클라이언트마다 배치가 다르다.</b>
+        ///   예전에는 시작할 때서야 공통 시드를 보냈기 때문에, 카운트다운 10초 동안
+        ///   서로 다른 판을 보다가 시작 순간에 같아졌다. 실측해서 확인한 문제다.
+        ///
+        /// ⚠ 시드를 한 번 정하면 판이 끝날 때까지 바꾸지 않는다.
+        ///   중간에 다시 깔면 플레이어 눈앞에서 판이 통째로 바뀐다.
+        ///
+        /// 기다리는 동안에는 아무도 파지 못한다 — <c>CurrentSlot</c> 이 -1 이라
+        /// <c>MineNetPlayerActions</c> 가 전부 걸러낸다. 그래서 미리 깔아도 안전하다.
+        /// </summary>
+        private void EnsureBoardOpen()
+        {
+            if (BoardSeed != 0) return;
+            if (MineGridSync.Current == null) return;
+
+            BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
+            MineGridSync.Current.ServerOpenBoard(BoardSeed);
+        }
+
+
 
         /// <summary>
         /// **참가자를 굳히고 첫 턴을 연다.**
@@ -302,15 +331,13 @@ namespace Mine.Net
             TotalRestores = RosterSize * restoresPerPlayer;
             RestoresLeft = TotalRestores;
 
-            // 돌 배치 시드. 2단계에서 격자가 이 값을 받아 네 명이 같은 판을 본다.
-            BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
-
             CurrentSlot = -1;
             HintLeft = 0f;
             HintSlot = -1;
 
-            // 판을 깐다. 시드와 도안이 복제되어 모두가 같은 격자를 만든다.
-            if (MineGridSync.Current != null) MineGridSync.Current.ServerOpenBoard(BoardSeed);
+            // 판은 기다리는 동안 이미 깔렸다. 여기서는 혹시 못 깔았을 때를 대비한다.
+            // 이미 깔렸으면 아무것도 하지 않는다 — 시드가 바뀌면 시작 순간 판이 바뀐다.
+            EnsureBoardOpen();
 
             Phase = MineMatchPhase.Reveal;
             RevealLeft = revealSeconds;
