@@ -159,12 +159,30 @@ public static class ShipCoopInput
 
         // ⚠ 둘 다 읽는 순간 사라진다. `||` 의 단축 평가에 기대면 안 된다.
         //    버튼이 눌린 프레임에 휘두름이 남아 있으면 다음 프레임에 한 번 더 친다.
-        bool swung = controller.Right.TryConsumeMotion(out HandMotion motion)
-                     && motion.Type == HandMotionType.VerticalSwing;
-
+        bool swung = ConsumeSwingMotion(controller);
         bool pressed = controller.Right.ConsumeButton2Press();
 
         return swung || pressed;
+    }
+
+    /// <summary>
+    /// 🔨 내리치기 **동작만.** 면버튼 2 는 보지 않는다.
+    ///
+    /// ⚠ 네트워크로 실어 보낼 때는 반드시 이쪽을 쓴다. (<c>ShipCoopInputProvider</c>)
+    ///
+    /// <see cref="ConsumeSwing"/> 을 실어 보내면 **면버튼 2 까지 휘두름으로 둔갑합니다.**
+    /// 그러면 대포에서 K 로 쏠 때마다 서버의 휘두름 깃발이 함께 켜지는데, 대포 쪽은
+    /// 그것을 가져가지 않아 그대로 쌓입니다. 나중에 파손 지점에 붙는 순간 쌓여 있던 것이
+    /// 공짜 망치질로 터집니다.
+    ///
+    /// 면버튼은 눌림 상태로 따로 가고, **누른 순간은 서버가 직접 계산합니다.**
+    /// 그래서 여기서 같이 보낼 이유가 없습니다.
+    /// </summary>
+    public static bool ConsumeSwingMotion(IPlayerController controller)
+    {
+        return controller != null
+               && controller.Right.TryConsumeMotion(out HandMotion motion)
+               && motion.Type == HandMotionType.VerticalSwing;
     }
 
     // ------------------------------------------------------------
