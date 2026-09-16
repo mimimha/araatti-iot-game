@@ -3434,6 +3434,7 @@ MonoBehaviour:
   interactLabel: {fileID: 2939046953050800177}
   interactGauge: {fileID: 1838330582842589919}
   interactIcon: {fileID: 8374072290764272003}
+  interactKeycap: {fileID: 1413547523595568308}
   taskIconHelm: {fileID: 21300000, guid: 946c044cc2954224bc55d56b18400f1d, type: 3}
   taskIconSails: {fileID: 21300000, guid: 3c903ee50fae42bbbcc6d173211848fc, type: 3}
   taskIconCannon: {fileID: 21300000, guid: f377bff9dc29429eb7f45c582f4a2e02, type: 3}

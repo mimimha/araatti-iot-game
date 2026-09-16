@@ -26,7 +26,7 @@ public readonly struct HandMotion
 /// IoT 기기 1대가 주는 것.
 ///
 /// 기기 하나의 구성
-///   조이스틱 1개 · 버튼 2개 · IMU 센서 · 압력센서 · 진동 모터
+///   조이스틱 1개 · 버튼 2개 · IMU 센서 · 진동 모터
 ///
 /// 플레이어는 이 기기를 **양손에 하나씩 2대** 드는 것을 기본으로 합니다.
 /// 다만 1대만 들 수도 있습니다. (IPlayerController 참고)
@@ -41,12 +41,6 @@ public interface IHandDevice
 
     /// <summary>IMU 회전(yaw). -1 ~ +1. 손목을 비트는 정도.</summary>
     float Rotation { get; }
-
-    /// <summary>
-    /// 압력센서 HOLD 판정.
-    /// 힘의 세기를 그대로 쓰지 않고, 일정 이상 강하게 쥐면 true 가 된다.
-    /// </summary>
-    bool Grip { get; }
 
     /// <summary>버튼 1 을 지금 누르고 있는지</summary>
     bool Button1 { get; }

@@ -182,6 +182,16 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("무슨 작업인지 보여주는 그림. 자리에 따라 바뀐다.")]
     [SerializeField] private Image interactIcon;
 
+    /// <summary>
+    /// 오른쪽 아래 키캡에 적히는 글자. 상황에 따라 바뀐다.
+    ///
+    /// ⚠ 연결하지 않으면 씬에 적혀 있는 글자가 그대로 남는다. 예전에는 연결이 없어
+    ///    **무엇을 하든 "Space" 로 고정**돼 있었고, 대포에 붙은 사람이 Space 를 눌러
+    ///    아무 일도 안 일어나는 것을 보게 됐다.
+    /// </summary>
+    [Tooltip("오른쪽 아래 키캡 글자. 자리에 따라 Space · K · J L 로 바뀐다.")]
+    [SerializeField] private TextMeshProUGUI interactKeycap;
+
     [Header("작업 그림")]
     [SerializeField] private Sprite taskIconHelm;
     [SerializeField] private Sprite taskIconSails;
@@ -634,19 +644,20 @@ public class ShipCoopHud : MonoBehaviour
         if (current != null)
         {
             Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current),
-                 TwoSidedGauge(current));
+                 TwoSidedGauge(current), KeyOf(current));
             return;
         }
 
+        // 붙기 전이다. 키는 키캡이 말해주므로 이름에 또 적지 않는다.
         if (nearby != null)
         {
-            Show($"{nearby.DisplayName}  —  Space", -1f, IconOf(nearby));
+            Show(nearby.DisplayName, -1f, IconOf(nearby));
             return;
         }
 
         // 포탄 상자는 자리(TaskBase)가 아니라서 Nearby 에 잡히지 않는다.
-        // 그래서 상자 앞에 서면 아무 안내도 안 떴다. 무거운 포탄은 쥐어야 들리므로
-        // 자리에 붙는 것과 키가 다르다. 그 차이를 여기서 알려준다.
+        // 그래서 상자 앞에 서면 아무 안내도 안 떴다.
+        // 자리에 붙는 것과 같은 키를 쓰지만, 무엇이 나오는지는 말해줘야 한다.
         // 상자마다 나오는 것이 다르다. 무엇이 나오는지 말해주지 않으면
         // 갑판에 색깔 큐브만 놓여 있고 무슨 상자인지 알 수가 없다.
         if (carry != null)
@@ -672,9 +683,35 @@ public class ShipCoopHud : MonoBehaviour
         interactPanel.SetActive(false);
     }
 
+    /// <summary>붙기 · 집기 · 놓기. 자리에 붙기 전에는 언제나 이 키다.</summary>
+    private const string KeyInteract = "Space";
+
     private void Show(string text, float gauge01, Sprite icon)
     {
-        Show(text, gauge01, icon, false);
+        Show(text, gauge01, icon, false, KeyInteract);
+    }
+
+    private void Show(string text, float gauge01, Sprite icon, bool twoSided)
+    {
+        Show(text, gauge01, icon, twoSided, KeyInteract);
+    }
+
+    /// <summary>
+    /// 그 자리에서 **실제로 일하는** 키. 키캡에 그대로 나간다.
+    ///
+    /// ⚠ 자리에 **붙는** 키(Space)와 붙은 다음에 **일하는** 키는 다르다.
+    ///    붙고 나면 Space 는 그 자리에서 할 일이 없다.
+    /// </summary>
+    private static string KeyOf(TaskBase task)
+    {
+        switch (task)
+        {
+            case CannonTask _: return "K";
+            case RepairTask _: return "K";
+            case HelmTask _: return "J  L";
+            case SailTask _: return "J  L";
+            default: return KeyInteract;
+        }
     }
 
     // ------------------------------------------------------------
@@ -698,13 +735,18 @@ public class ShipCoopHud : MonoBehaviour
 
     /// <param name="gauge01">0~1. 양쪽으로 차는 것은 -1~+1 이고 부호가 방향이다.</param>
     /// <param name="twoSided">가운데(위)에서 좌우로 갈라져 차는가.</param>
-    private void Show(string text, float gauge01, Sprite icon, bool twoSided)
+    private void Show(string text, float gauge01, Sprite icon, bool twoSided, string key)
     {
         interactPanel.SetActive(true);
 
         if (interactLabel != null)
         {
             interactLabel.text = text;
+        }
+
+        if (interactKeycap != null)
+        {
+            interactKeycap.text = key;
         }
 
         if (interactIcon != null)
@@ -785,9 +827,9 @@ public class ShipCoopHud : MonoBehaviour
     /// <summary>
     /// 자리에 붙은 다음에 무엇을 눌러야 하는지.
     ///
-    /// 붙기 전에는 "— Space" 가 뜨는데, 붙고 나면 자리 이름만 남아서
+    /// 붙기 전에는 키캡이 Space 를 보여주는데, 붙고 나면 자리 이름만 남아서
     /// **거기서 뭘 해야 하는지 화면에 아무 데도 없었습니다.**
-    /// 특히 대포는 붙어야만 X 가 먹기 때문에, 안 붙고 X 를 누르면
+    /// 특히 대포는 붙어야만 K 가 먹기 때문에, 안 붙고 K 를 누르면
     /// 아무 일도 안 일어나고 이유도 안 보입니다.
     ///
     /// 대포는 포탄 수까지 함께 띄웁니다. 없으면 쏘는 게 아니라 날라야 합니다.
@@ -805,7 +847,8 @@ public class ShipCoopHud : MonoBehaviour
             return "구멍부터 막아라 — 퍼내도 다시 찬다";
         }
 
-        return "Shift + Space";
+        // 키는 키캡이 말한다. 제목이 이미 "… 집기" 라 더 붙일 말이 없다.
+        return null;
     }
 
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
@@ -814,13 +857,19 @@ public class ShipCoopHud : MonoBehaviour
         switch (carry.Carrying)
         {
             case Cargo.Ammo:
-                return carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로";
+                return carry.FindLoadableCannon() != null ? "싣기" : "대포로";
 
+            // ⚠ "빨간 지점으로" 가 아니라 "**자재가 필요한** 빨간 지점으로" 다.
+            //    이미 자재를 받은 지점 앞에 서 있으면 건네기가 안 되고 Space 는
+            //    갑판에 내려놓는다. 그냥 "빨간 지점으로" 라고 하면 이미 그 앞에 서 있는
+            //    사람에게 거기로 가라고 말하는 셈이라 고장 난 줄 안다.
             case Cargo.Plank:
-                return carry.FindPointWantingPlank() != null ? "Shift 를 놓아 건네기" : "빨간 파손 지점으로";
+                return carry.FindPointWantingPlank() != null
+                    ? "건네기"
+                    : "자재가 필요한 빨간 지점으로";
 
             case Cargo.Water:
-                return carry.FindReachableDump() != null ? "Shift 를 놓아 버리기" : "파란 뱃전으로";
+                return carry.FindReachableDump() != null ? "버리기" : "파란 뱃전으로";
 
             default:
                 return null;
@@ -837,16 +886,19 @@ public class ShipCoopHud : MonoBehaviour
     {
         switch (task)
         {
+            // 키 이름은 키캡이 말한다. 여기는 **무엇을 하는지**만 적는다.
             case CannonTask cannon:
                 return cannon.Ammo > 0
-                    ? $"X 로 발사  ·  포탄 {cannon.Ammo}/{cannon.MaxAmmo}"
+                    ? $"연타해서 발사  ·  포탄 {cannon.Ammo}/{cannon.MaxAmmo}"
                     : "포탄이 없다 — 상자에서 날라라";
 
             // 자재가 없으면 두드려도 안 먹는다. 그 말을 안 하면 고장 난 줄 안다.
             case RepairTask repair:
-                return repair.CanHammer ? "F 를 연타" : "자재가 필요하다 — 갈색 상자에서";
-            case HelmTask _: return "A · D 로 꺾기";
-            case SailTask _: return "D 로 당기기";
+                return repair.CanHammer ? "연타해서 수리" : "자재가 필요하다 — 갈색 상자에서";
+
+            // 조타와 돛은 두 키가 서로 반대 방향이라 어느 쪽이 무엇인지 적어준다.
+            case HelmTask _: return "J 좌 · L 우";
+            case SailTask _: return "L 당기기 · J 풀기";
             default: return null;
         }
     }

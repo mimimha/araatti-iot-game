@@ -73,22 +73,19 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     /// </summary>
     public enum ShipCoopButton
     {
-        /// <summary>왼손 압력센서 HOLD</summary>
-        LeftGrip = 0,
-
-        /// <summary>오른손 압력센서 HOLD</summary>
-        RightGrip = 1,
+        // 0 · 1 은 비어 있습니다. 압력센서(쥐기)가 있던 자리인데 장치에서 빠졌습니다.
+        // 뒤의 번호를 당기지 않은 이유는 위의 ⚠ 와 같습니다.
 
         /// <summary>왼손 버튼 1 — 도움 요청</summary>
         LeftButton1 = 2,
 
-        /// <summary>왼손 버튼 2 — 달리기</summary>
+        /// <summary>왼손 버튼 2 — 달리기 (장치가 토글을 들고 있다)</summary>
         LeftButton2 = 3,
 
-        /// <summary>오른손 버튼 1 — 붙기 · 집기 / 놓기</summary>
+        /// <summary>오른손 버튼 1 — 붙기 · 집기 · 놓기 · 장전</summary>
         RightButton1 = 4,
 
-        /// <summary>오른손 버튼 2 — 대포 발사</summary>
+        /// <summary>오른손 버튼 2 — 대포 발사 · 망치질</summary>
         RightButton2 = 5,
 
         /// <summary>
