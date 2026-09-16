@@ -103,6 +103,43 @@ namespace UnderTheSea.Network
             }
         }
 
+        /// <summary>
+        /// **기본 외형으로 확정한다.** 서버에서만 통한다.
+        ///
+        /// 파츠 없음 + 흰색으로 <c>[Networked]</c> 를 채우고 <see cref="AppearanceReady"/> 를 켠다.
+        /// 받는 쪽은 파츠가 0개이므로 <b>프리팹에 원래 들어 있던 모습 그대로</b> 보인다.
+        /// (<c>CharacterAppearanceApplier</c> 를 거쳐 입은 것이 없으면 벗길 것도 없다)
+        ///
+        /// 제출이 이미 반영된 뒤에 부르면 아무것도 하지 않는다. 사람의 외형을 덮지 않는다.
+        ///
+        /// ⚠ <b>이 컴포넌트는 스스로 이것을 부르지 않는다.</b> "몇 초 뒤에 포기한다" 는 정책을
+        ///    여기 두지 않기 때문이다. 부를지 말지는 부르는 쪽이 정한다.
+        ///
+        ///    <c>Login → Lobby</c> 정상 경로에는 부르는 곳이 <b>하나도 없다.</b>
+        ///    거기서는 사람이 만든 외형이 늦더라도 끝까지 기다리는 것이 맞다.
+        ///    지금 부르는 곳은 로그인을 거치지 않는 ShipCoop 직접 접속
+        ///    (<c>ShipCoopDefaultAppearance</c>) 하나뿐이다.
+        /// </summary>
+        public void ConfirmDefaultAppearance(string because)
+        {
+            if (!HasStateAuthority)
+            {
+                Debug.LogWarning(
+                    "[NetworkPlayerAppearance] 기본 외형 확정은 서버만 할 수 있습니다. 무시합니다.", this);
+                return;
+            }
+
+            if (AppearanceReady)
+            {
+                return;
+            }
+
+            Debug.Log(
+                $"[NetworkPlayerAppearance] {Object.InputAuthority} 를 기본 외형으로 확정합니다. ({because})", this);
+
+            WriteState(new string[CharacterAppearanceCodec.SlotCount], "#FFFFFF");
+        }
+
         public override void Render()
         {
             if (changes == null)

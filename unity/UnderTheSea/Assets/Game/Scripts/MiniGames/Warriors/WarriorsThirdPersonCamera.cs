@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Warriors
 {
@@ -12,6 +11,9 @@ namespace Warriors
         [SerializeField] private float followSharpness = 12f;
         [SerializeField] private float yaw;
         [SerializeField] private float pitch = 12f;
+        [Tooltip("IPlayerController 구현체. 비우면 추적 대상에서 찾는다.")]
+        [SerializeField] private MonoBehaviour playerControllerSource;
+        private IPlayerController playerController;
         private float shakeAmount;
 
         /// <summary>
@@ -59,12 +61,9 @@ namespace Warriors
             }
 
             if (target == null) return;
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null)
-            {
-                RotateOrbit((keyboard.rightArrowKey.isPressed ? 1f : 0f) - (keyboard.leftArrowKey.isPressed ? 1f : 0f),
-                    (keyboard.upArrowKey.isPressed ? 1f : 0f) - (keyboard.downArrowKey.isPressed ? 1f : 0f), Time.deltaTime);
-            }
+            if (playerController == null) ResolvePlayerController();
+            Vector2 look = playerController != null ? playerController.Look : Vector2.zero;
+            RotateOrbit(look.x, look.y, Time.deltaTime);
 
             Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
             Vector3 focus = target.position + Vector3.up * 1.4f;
@@ -78,7 +77,27 @@ namespace Warriors
             transform.LookAt(focus);
         }
 
-        public void Configure(Transform value) => target = value;
+        public void Configure(Transform value)
+        {
+            target = value;
+            ResolvePlayerController();
+        }
+
+        public void ConfigurePlayerController(MonoBehaviour source)
+        {
+            playerControllerSource = source;
+            ResolvePlayerController();
+        }
+
+        private void ResolvePlayerController()
+        {
+            playerController = playerControllerSource as IPlayerController;
+            if (playerController != null || target == null) return;
+
+            playerController = target.GetComponent<IPlayerController>()
+                ?? target.GetComponentInParent<IPlayerController>()
+                ?? target.GetComponentInChildren<IPlayerController>();
+        }
 
         public void SnapToTarget(float targetYaw)
         {

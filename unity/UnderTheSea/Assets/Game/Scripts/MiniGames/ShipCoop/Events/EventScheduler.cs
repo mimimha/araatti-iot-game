@@ -97,6 +97,7 @@ public class EventScheduler : MonoBehaviour
         if (game != null)
         {
             game.Finished += HandleGameFinished;
+            game.Restarted += ResetSchedule;
         }
     }
 
@@ -105,10 +106,22 @@ public class EventScheduler : MonoBehaviour
         if (game != null)
         {
             game.Finished -= HandleGameFinished;
+            game.Restarted -= ResetSchedule;
         }
     }
 
     private void Start()
+    {
+        ResetSchedule();
+    }
+
+    /// <summary>
+    /// 사건 시계를 처음으로 되돌린다. 판이 새로 시작될 때도 부른다.
+    ///
+    /// 이걸 안 하면 다시 시작한 판에서 출항하자마자 사건이 터진다 — 시계가 아까 그대로라
+    /// 다음 사건 시각이 이미 지나 있기 때문이다. 처음 출항할 때처럼 유예 시간을 다시 준다.
+    /// </summary>
+    private void ResetSchedule()
     {
         _elapsed = 0f;
         _nextEventTime = graceSeconds;

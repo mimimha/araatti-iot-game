@@ -120,7 +120,7 @@ public class BigWave : VoyageEvent
         _helm = FindHelm();
 
         PushSide = randomSide
-            ? (Random.value < 0.5f ? -1f : 1f)
+            ? (Dice.NextDouble() < 0.5 ? -1f : 1f)   // 서버 씨앗으로. 기계마다 다른 쪽이 나오면 안 된다 (11장)
             : Mathf.Sign(fixedSide == 0f ? 1f : fixedSide);
 
         if (_helm == null)
@@ -309,7 +309,7 @@ public class BigWave : VoyageEvent
                 : $"정면으로 맞춰라  ({heading:F0}°)";
         }
 
-        string turn = heading > 0f ? "A" : "D";
+        string turn = heading > 0f ? "J" : "L";
         return $"{turn} 로 정면으로!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)";
     }
 

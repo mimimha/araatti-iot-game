@@ -5,4 +5,5 @@
 - `../../GIT_CONVENTION.md` — 브랜치 이름, 커밋 메시지, Merge Request 규칙
 - `CONVENTION.md` — Unity 파일과 폴더를 어디에 두는가
 - `GAME_STRUCTURE.md` — 각자 만든 것을 어떻게 이어붙이는가 (씬 흐름, 네트워크, 담당별 규격)
+- `IOT_INPUT.md` — IoT 장치가 구현할 입력 규격 (ShipCoop)
 - `ASSETS.md` — 사용한 외부 에셋 기록

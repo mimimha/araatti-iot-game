@@ -751,6 +751,9 @@ Assets/Game/Scripts/
 
 ### `IoT/` 는 세 명이 함께 쓰는 폴더입니다
 
+> 배 협동 게임(ShipCoop) 쪽 입력 규격은 `IOT_INPUT.md` 에 따로 정리했습니다.
+> 지금 키보드가 하는 일 · 손마다 필요한 센서 · 진동 · 하지 말아야 할 것이 들어 있습니다.
+
 **미니게임 세 개가 같은 IoT 컨트롤러 하나를 씁니다.**
 같은 센서(IMU · 압력센서 · 버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
 플레이어가 손에 쥐는 장치는 하나입니다.
@@ -765,20 +768,32 @@ Assets/Game/Scripts/IoT/
 ```
 
 ```csharp
-// 컨트롤러 1대 = 플레이어 1명
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing, // 실제 가로 휘두르기
+    VerticalSwing,   // 실제 세로 휘두르기
+    Thrust,          // 실제 찌르기
+}
+
+// 기기 1대 = 손 하나
+public interface IHandDevice
+{
+    Vector2 Stick { get; }
+    float Tilt { get; }
+    float Rotation { get; }
+    bool Grip { get; }
+    bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 동작 + 세기
+    void Vibrate(float strength, float seconds);
+}
+
+// 플레이어 1명 = 왼손 + 오른손
 public interface IPlayerController
 {
-    // 입력 (장치 → 게임)
-    float Tilt      { get; }   // IMU 기울기  -1 ~ +1
-    float Rotation  { get; }   // IMU 회전    -1 ~ +1
-    bool  Button    { get; }   // 물리 버튼 (누르고 있는지)
-    bool  Grip      { get; }   // 압력센서 HOLD 판정
-    bool  ConsumeButtonPress();// 버튼이 새로 눌렸는지 1회
-    bool  ConsumeSwing();      // IMU 제스처(휘두르기) 1회
-
-    // 출력 (게임 → 장치)
-    void Vibrate(float strength, float seconds);   // 진동 모터
-    void SetLed(Color color);                      // LED
+    IHandDevice Left { get; }
+    IHandDevice Right { get; }
+    Vector2 Move { get; }
+    Vector2 Look { get; }
 }
 ```
 

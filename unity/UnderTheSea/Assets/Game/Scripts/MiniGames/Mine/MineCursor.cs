@@ -114,8 +114,56 @@ public class MineCursor : MonoBehaviour
         _filter.sharedMesh = _mesh;
     }
 
+    // ------------------------------------------------------------
+    // 네트워크 전환용 덧붙임 (광산 서버화 3단계)
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 밖에서 칸을 정해 주는 중인가. 켜지면 <see cref="follow"/> 를 보지 않는다.
+    ///
+    /// 네트워크에서는 **서버가 고른 칸**을 그대로 가리켜야 한다. 각자 자기 화면의
+    /// 캐릭터 자리로 계산하면, 보간된 자리 때문에 칸 경계에서 한 칸씩 어긋난다.
+    /// 그러면 표시된 칸과 실제로 파이는 칸이 달라진다.
+    /// </summary>
+    public bool DrivenExternally { get; private set; }
+
+    /// <summary>
+    /// 서버가 정한 칸을 가리킨다. (-1, -1) 이면 판 밖이라 숨긴다.
+    ///
+    /// 혼자 하는 씬에서는 아무도 부르지 않으므로 예전 그대로 발밑을 따라간다.
+    /// </summary>
+    public void ShowCell(int x, int y)
+    {
+        DrivenExternally = true;
+
+        if (grid == null || _renderer == null) return;
+
+        bool inside = grid.InBounds(x, y);
+        Cell = inside ? new Vector2Int(x, y) : new Vector2Int(-1, -1);
+
+        if (!inside)
+        {
+            if (hideOutside) _renderer.enabled = false;
+            return;
+        }
+
+        _renderer.enabled = true;
+
+        Vector3 surface = view != null ? view.CellSurface(x, y) : grid.CellToWorld(x, y);
+        transform.position = surface + Vector3.up * lift;
+    }
+
+    /// <summary>다시 발밑을 따라가게 한다.</summary>
+    public void ReleaseExternalDrive()
+    {
+        DrivenExternally = false;
+    }
+
     private void LateUpdate()
     {
+        // 밖에서 칸을 정해 주는 중이면 스스로 계산하지 않는다.
+        if (DrivenExternally) return;
+
         if (grid == null || follow == null || _renderer == null) return;
 
         // 캐릭터는 Update 에서 움직인다. LateUpdate 라야 한 프레임 안 밀린다.

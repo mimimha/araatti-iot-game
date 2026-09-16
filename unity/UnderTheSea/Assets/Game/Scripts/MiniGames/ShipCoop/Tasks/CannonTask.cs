@@ -8,8 +8,8 @@ using UnityEngine;
 /// 이것이 "포탄 좀 가져와!" 가 나오는 지점이고, 운반이 이 게임의 접착제인 이유입니다.
 ///
 /// 입력
-///   발사 → ShipCoopInput.ConsumeFire. 키보드는 X.
-///   조준 → 오른손 스틱. 조준용 입력을 따로 두지 않습니다. (7장)
+///   발사 → ShipCoopInput.ConsumeFire. 오른손 면버튼 2. 키보드는 K.
+///   조준 → 오른손 스틱(마우스 우클릭 드래그). 조준용 입력을 따로 두지 않습니다. (7장)
 ///
 /// 비웠을 때 적선이 계속 포격해 배가 깎이는 것은 적선 쪽(순서 4번 EnemyShip)이 합니다.
 /// 대포가 스스로 피해를 주지는 않습니다.
@@ -94,6 +94,26 @@ public class CannonTask : TaskBase
         Ammo += loaded;
         AmmoChanged?.Invoke(Ammo, maxAmmo);
         return loaded;
+    }
+
+    /// <summary>
+    /// **포탄 수를 밖에서 정해 준다.** 네트워크에서 서버가 정한 결과를 화면에 옮길 때 쓴다.
+    ///
+    /// 싣고 쏘는 판정은 서버에서만 돈다. 클라이언트는 이 값을 복제받아 여기로 넣는다.
+    /// 그래야 "포탄 1/3" 안내와 게이지가 나른 사람 화면에도 같이 바뀐다.
+    /// 값이 같으면 아무 일도 하지 않으므로 매 프레임 불러도 된다.
+    /// </summary>
+    public void ShowAmmo(int ammo)
+    {
+        int clamped = Mathf.Clamp(ammo, 0, maxAmmo);
+
+        if (clamped == Ammo)
+        {
+            return;
+        }
+
+        Ammo = clamped;
+        AmmoChanged?.Invoke(Ammo, maxAmmo);
     }
 
     protected override void Work(float deltaTime)
