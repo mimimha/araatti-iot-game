@@ -89,6 +89,17 @@ public class MineHud : MonoBehaviour
     [SerializeField] private Color waitLabel = new Color(0.65f, 0.65f, 0.7f);
     [SerializeField] private Color hintReady = new Color(1f, 0.82f, 0.35f);
     [SerializeField] private Color hintUsed = new Color(0.45f, 0.45f, 0.5f);
+
+    // 남의 힌트 동안 화면을 덮는 한마디에 쓰는 값. 셋 다 코드에만 둔다.
+    //
+    // [SerializeField] 로 두면 안 된다. 덮개는 프리팹이 아니라 코드가 만드는데,
+    // 필드를 직렬화하는 순간 프리팹의 임포트 결과에 값이 한 번 박히고 그 값이 이긴다.
+    // 여기 적은 초기값을 고쳐도 프리팹을 다시 저장하지 않는 한 무시된다 —
+    // 실제로 알파를 세 번 바꿨는데 화면은 계속 첫 값(검정 불투명)이었다.
+    private const float CenterNoticeFontSize = 90f;
+    private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
+    private static readonly Color CenterNoticeLabelColor = new Color(1f, 0.92f, 0.78f, 1f);
+
     [SerializeField] private Color successColor = new Color(0.55f, 0.92f, 0.62f);
     [SerializeField] private Color failColor = new Color(0.95f, 0.55f, 0.5f);
 
@@ -184,7 +195,22 @@ public class MineHud : MonoBehaviour
     /// <summary>"82점 · 유사도 82.4%" 같은 두 줄.</summary>
     public string NetworkResultDetail { get; set; }
 
+    /// <summary>
+    /// 화면 한가운데에 띄울 한마디. 빈 문자열이면 안 띄운다.
+    ///
+    /// 남이 힌트를 보는 동안 관전자에게 "힌트타임" 을 알리는 데 쓴다.
+    ///
+    /// ⚠ 카운트다운 숫자와 <b>같은 오브젝트</b>를 쓴다. 둘은 겹치지 않는다 —
+    ///   카운트다운은 시작 전(Countdown), 힌트는 턴 중(Turn)에만 나온다.
+    ///   글자라서 숫자용 크기(220pt)로는 화면을 넘치므로 크기를 바꿔 쓴다.
+    /// </summary>
+    public string NetworkCenterNotice { get; set; }
+
     private bool _hidUnwired;
+
+    /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
+    private GameObject _noticeRoot;
+    private TMP_Text _noticeLabel;
 
     /// <summary>
     /// 아직 서버에 연결되지 않은 칸을 감춘다. **1단계 한정이다.**
@@ -227,6 +253,8 @@ public class MineHud : MonoBehaviour
             if (counting) countdownText.text = NetworkCountdown.ToString();
         }
 
+        DrawCenterNotice();
+
         // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
         SetActive(resultPanel, NetworkResultShow);
 
@@ -239,6 +267,82 @@ public class MineHud : MonoBehaviour
         if (phaseText != null) phaseText.text = NetworkPhaseText ?? string.Empty;
         if (turnText != null) turnText.text = NetworkTurnText ?? string.Empty;
         if (timeText != null) timeText.text = string.IsNullOrEmpty(NetworkTimeText) ? "--:--" : NetworkTimeText;
+    }
+
+    /// <summary>
+    /// 남이 힌트를 보는 동안 <b>화면 전체를 덮고</b> 한마디를 띄운다.
+    ///
+    /// 관전자가 남의 힌트를 공짜로 같이 보지 못하게 하는 것이 목적이라, 반투명이 아니라
+    /// <b>불투명으로 덮는다.</b> 판도 캐릭터도 보이면 안 된다.
+    ///
+    /// ⚠ 이 덮개는 <b>실행 중에 만든다.</b> 프리팹에 넣지 않은 이유가 있다 —
+    ///   이 캔버스 프리팹을 고치면 그것을 담은 씬마다 RectTransform 오버라이드가
+    ///   붙어 씬이 매번 더러워진다. 실제로 겪은 문제다. 덮개는 전면을 채우는 사각형과
+    ///   가운데 글자뿐이라 코드로 만드는 편이 값이 싸다.
+    /// </summary>
+    private void DrawCenterNotice()
+    {
+        bool show = !string.IsNullOrEmpty(NetworkCenterNotice);
+
+        if (!show)
+        {
+            if (_noticeRoot != null) SetActive(_noticeRoot, false);
+            return;
+        }
+
+        EnsureNoticeOverlay();
+        if (_noticeRoot == null) return;
+
+        SetActive(_noticeRoot, true);
+
+        // 항상 맨 위에 둔다. 다른 칸이 나중에 켜져도 덮개가 가려지면 안 된다.
+        _noticeRoot.transform.SetAsLastSibling();
+
+        if (_noticeLabel != null && _noticeLabel.text != NetworkCenterNotice)
+        {
+            _noticeLabel.text = NetworkCenterNotice;
+        }
+    }
+
+    /// <summary>덮개를 한 번만 만든다. 전면 사각형 + 가운데 글자 둘뿐이다.</summary>
+    private void EnsureNoticeOverlay()
+    {
+        if (_noticeRoot != null) return;
+
+        var back = new GameObject("CenterNotice", typeof(RectTransform));
+        back.transform.SetParent(transform, false);
+
+        var backRect = (RectTransform)back.transform;
+        backRect.anchorMin = Vector2.zero;
+        backRect.anchorMax = Vector2.one;
+        backRect.offsetMin = Vector2.zero;
+        backRect.offsetMax = Vector2.zero;
+
+        var image = back.AddComponent<Image>();
+        image.color = CenterNoticeBackdrop;
+        image.raycastTarget = false;   // 누를 것이 없다. 아래 칸의 클릭을 막을 이유도 없다.
+
+        var labelGo = new GameObject("Label", typeof(RectTransform));
+        labelGo.transform.SetParent(back.transform, false);
+
+        var labelRect = (RectTransform)labelGo.transform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var label = labelGo.AddComponent<TextMeshProUGUI>();
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontSize = CenterNoticeFontSize;
+        label.color = CenterNoticeLabelColor;
+        label.raycastTarget = false;
+
+        // 글꼴은 이미 쓰고 있는 것을 빌린다. 한글이 나와야 하므로 기본 글꼴로는 안 된다.
+        TMP_Text donor = countdownText != null ? countdownText : timeText;
+        if (donor != null && donor.font != null) label.font = donor.font;
+
+        _noticeRoot = back;
+        _noticeLabel = label;
     }
 
     private void Update()

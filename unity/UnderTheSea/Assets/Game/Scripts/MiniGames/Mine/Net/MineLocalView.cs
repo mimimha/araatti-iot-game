@@ -30,6 +30,7 @@ namespace Mine.Net
         private MineVision _vision;
         private MineGridView _board;
         private MineCursor _cursor;
+        private MineHud _hud;
 
         private int _shownSlot = int.MinValue;
         private bool? _shownTarget;
@@ -44,6 +45,7 @@ namespace Mine.Net
             _vision = FindAnyObjectByType<MineVision>();
             _board = FindAnyObjectByType<MineGridView>();
             _cursor = FindAnyObjectByType<MineCursor>(FindObjectsInactive.Include);
+            _hud = FindAnyObjectByType<MineHud>(FindObjectsInactive.Include);
 
             if (_camera == null)
             {
@@ -135,9 +137,23 @@ namespace Mine.Net
                 return;
             }
 
-            bool showTarget = match.ShowingTarget;
+            // ⚠ 목표를 보여 주는 두 경우를 <b>갈라서</b> 다룬다.
+            //
+            //   공개(7초)  판이 시작하기 전이니 모두가 같이 본다.
+            //   힌트      그 사람이 자기 한 번을 쓴 것이다. <b>쓴 사람만 본다.</b>
+            //
+            //   예전에는 둘 다 <c>ShowingTarget</c> 하나로 묶어 모두에게 탑뷰를 보였다.
+            //   그러면 관전자가 남의 힌트를 공짜로 같이 본다.
+            bool showTarget = match.Phase == MineMatchPhase.Reveal
+                             || (match.HintLeft > 0f && _who != null && _who.Slot == match.HintSlot);
 
-            // ⚠ **목표를 보는 동안에는 모두가 같은 화면을 본다.** 공개 7초도, 힌트도 같다.
+            // 남이 힌트를 보는 동안에는 보던 시점 그대로 두고 글자만 알려 준다.
+            if (_hud != null)
+            {
+                _hud.NetworkCenterNotice = (match.HintLeft > 0f && !showTarget) ? "힌트타임" : string.Empty;
+            }
+
+            // ⚠ **목표를 보는 사람만** 탑뷰로 바뀐다. 공개 7초는 모두, 힌트는 쓴 사람만이다.
             //    탑뷰 + 밝히기 + 도안 켜기가 함께 움직여야 한다. 셋 중 하나라도 빠지면
             //    반쪽이 된다. (MINE.md 6장)
             if (showTarget)
