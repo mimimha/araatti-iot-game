@@ -755,7 +755,7 @@ Assets/Game/Scripts/
 > 지금 키보드가 하는 일 · 손마다 필요한 센서 · 진동 · 하지 말아야 할 것이 들어 있습니다.
 
 **미니게임 세 개가 같은 IoT 컨트롤러 하나를 씁니다.**
-같은 센서(IMU · 압력센서 · 버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
+같은 센서(IMU · 면버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
 플레이어가 손에 쥐는 장치는 하나입니다.
 
 그래서 컨트롤러 인터페이스는 특정 미니게임의 것이 아니라 **공용 경계**입니다.
@@ -782,7 +782,10 @@ public interface IHandDevice
     Vector2 Stick { get; }
     float Tilt { get; }
     float Rotation { get; }
-    bool Grip { get; }
+    bool Button1 { get; }
+    bool Button2 { get; }
+    bool ConsumeButton1Press();                   // 누른 순간만 한 번
+    bool ConsumeButton2Press();
     bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 동작 + 세기
     void Vibrate(float strength, float seconds);
 }
@@ -792,10 +795,16 @@ public interface IPlayerController
 {
     IHandDevice Left { get; }
     IHandDevice Right { get; }
+    bool HasTwoDevices { get; }                   // 1대만 들면 거짓. 게임이 조작을 줄인다
     Vector2 Move { get; }
     Vector2 Look { get; }
+    void VibrateBoth(float strength, float seconds);
 }
 ```
+
+> ⚠ **압력센서(`Grip`)는 없앴습니다.** 기기가 면버튼 4개 + 스틱 2개로 정해지면서
+> 쥐기를 살리려면 버튼 하나를 내줘야 했습니다. 하던 일은 "집기 우선" 규칙과
+> "상호작용 한 번 더" 로 나눠 처리합니다. 자세한 것은 `IOT_INPUT.md` 2장.
 
 **규칙**
 
