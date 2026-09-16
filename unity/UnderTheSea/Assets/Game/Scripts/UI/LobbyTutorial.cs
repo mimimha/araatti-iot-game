@@ -97,6 +97,16 @@ public class LobbyTutorial : MonoBehaviour
     private const string ProgressName = "Progress";
     private const string ProgressTrackName = "ProgressTrack";
 
+    /// <summary>
+    /// 건너뛰기 버튼의 이름. 교체 프리팹에만 있고, 없으면 그 기능이 조용히 빠진다.
+    ///
+    /// ⚠ 이 버튼을 누를 수 있으려면 <b>버튼 쪽에 <see cref="CanvasGroup"/> 을 하나 더 달고
+    ///    <c>ignoreParentGroups</c> 를 켜야 한다.</b> 안내 전체는 클릭을 안 받게
+    ///    막아 두었기 때문이다(<c>blocksRaycasts = false</c>). 그러지 않으면 눌러도
+    ///    아무 일도 일어나지 않는다.
+    /// </summary>
+    private const string SkipButtonName = "SkipButton";
+
     // 문구는 짧게 둔다. 화면 구석에서 한눈에 읽혀야 한다.
     private const string MoveText = "이동";
     /// <summary>
@@ -169,6 +179,18 @@ public class LobbyTutorial : MonoBehaviour
     private static readonly Vector2 LabelPosBeside = new Vector2(132f, 18f);
     private static readonly Vector2 LabelSizeAlone = new Vector2(420f, 96f);
     private static readonly Vector2 LabelPosAlone = new Vector2(0f, 12f);
+
+    // 교체 프리팹이 글자 칸을 좌우로 늘려 둔 경우의 **왼쪽 여백**.
+    // 키 그림이 있을 때는 그림을 피해 들어가고, 없을 때는 판 끝까지 쓴다.
+    private const float LabelInsetBeside = 208f;
+    private const float LabelInsetAlone = 32f;
+
+    /// <summary>글자 칸이 좌우로 늘어나 있는가. 늘어나 있으면 여백만 조절해도 된다.</summary>
+    private static bool IsStretchedSideways(RectTransform rect)
+    {
+        return Mathf.Approximately(rect.anchorMin.x, 0f)
+               && Mathf.Approximately(rect.anchorMax.x, 1f);
+    }
 
     private GameObject keyGroup;
     private GameObject mouseGroup;
@@ -387,6 +409,13 @@ public class LobbyTutorial : MonoBehaviour
         progressTrack = FindChild(ProgressTrackName)
                         ?? (progress != null ? progress.gameObject : null);
 
+        Button skip = FindByName<Button>(SkipButtonName);
+
+        if (skip != null)
+        {
+            skip.onClick.AddListener(Skip);
+        }
+
         // 점프 키는 자기 그룹에서 찾는다. 이동 키와 목록이 섞이면 안 된다.
         if (jumpGroup != null)
         {
@@ -433,6 +462,41 @@ public class LobbyTutorial : MonoBehaviour
     {
         Keyboard keyboard = Keyboard.current;
         return keyboard != null && Application.isFocused && pick(keyboard).isPressed;
+    }
+
+    /// <summary>건너뛰기를 이미 눌렀는가. 두 번 눌려도 한 번만 먹는다.</summary>
+    private bool skipping;
+
+    /// <summary>
+    /// 건너뛰기. 남은 단계를 버리고 바로 끝낸다.
+    ///
+    /// <b>본 것으로 친다.</b> 다음에 로비에 들어와도 다시 뜨지 않는다.
+    /// 건너뛴 사람은 이미 조작을 안다는 뜻이고, 매번 다시 띄우면 그 버튼이 무의미해진다.
+    /// 다시 보고 싶으면 개발자 메뉴에 <c>Tools/아라아띠/튜토리얼 다시 보기</c> 가 있다.
+    /// </summary>
+    public void Skip()
+    {
+        if (skipping)
+        {
+            return;
+        }
+
+        skipping = true;
+
+        // ⚠ 돌고 있던 단계를 반드시 멈춘다. 안 멈추면 사라지는 중에도
+        //    다음 단계가 켜지면서 한 번 깜빡인다.
+        StopAllCoroutines();
+
+        StartCoroutine(FinishNow());
+    }
+
+    private IEnumerator FinishNow()
+    {
+        yield return FadeTo(0f);
+
+        MarkDone(CurrentCharacterId);
+
+        Destroy(gameObject);
     }
 
     /// <summary>안내 순서. 한 단계를 해내면 다음으로 넘어간다.</summary>
@@ -788,6 +852,17 @@ public class LobbyTutorial : MonoBehaviour
         {
             labelRect.sizeDelta = hasGraphic ? LabelSizeBeside : LabelSizeAlone;
             labelRect.anchoredPosition = hasGraphic ? LabelPosBeside : LabelPosAlone;
+        }
+        else if (labelRect != null && IsStretchedSideways(labelRect))
+        {
+            // 교체 프리팹이 글자 칸을 **좌우로 늘려** 두었다면, 그림이 빠진 단계에서
+            // 왼쪽 여백만 줄여 준다. 그림 자리까지 글자가 물려받는다.
+            //
+            // 늘려 두지 않았다면 그쪽이 자리를 직접 정한 것이니 건드리지 않는다.
+            // 좌우로 늘린 칸은 "남는 만큼 쓰겠다" 는 뜻이라고 본다.
+            Vector2 offset = labelRect.offsetMin;
+            offset.x = hasGraphic ? LabelInsetBeside : LabelInsetAlone;
+            labelRect.offsetMin = offset;
         }
 
         SetProgress(0f);
