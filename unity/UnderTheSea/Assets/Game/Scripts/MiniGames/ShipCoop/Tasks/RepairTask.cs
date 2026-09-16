@@ -21,7 +21,7 @@ public class RepairTask : TaskBase
 {
     [Header("자재")]
     [Tooltip("켜면 누군가 자재(판자)를 날라 와야 망치질을 시작할 수 있다.\n\n" +
-             "수리가 '붙어서 F 연타' 한 단계였던 것이 '집기 → 운반 → 망치질' 세 단계가 된다.\n" +
+             "수리가 '붙어서 K 연타' 한 단계였던 것이 '집기 → 운반 → 망치질' 세 단계가 된다.\n" +
              "혼자서도 되지만 둘이면 훨씬 빠르다. 운반이 게임의 동사가 되는 자리다. (4장)")]
     [SerializeField] private bool needsPlank = true;
 
