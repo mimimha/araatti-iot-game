@@ -109,7 +109,19 @@ namespace Mine.Net
         /// </summary>
         public override void Render()
         {
-            if (!Object.HasInputAuthority || _camera == null) return;
+            if (!Object.HasInputAuthority) return;
+
+            // 내가 몇 번인지는 판이 어떤 상태든 늘 띄워 둔다.
+            // 창이 뜬 순서로는 알 수 없다 — 창은 프로세스가 시작한 순서, 슬롯은
+            // 서버에 붙은 순서다. 접속이 늦으면 먼저 띄운 창이 P2 가 된다.
+            if (_hud != null)
+            {
+                _hud.NetworkSelfText = _who != null && _who.Slot >= 0
+                    ? $"나 = P{_who.Slot + 1}"
+                    : "나 = 관전";
+            }
+
+            if (_camera == null) return;
 
             MineMatchState match = MineMatchState.Current;
             if (match == null) return;

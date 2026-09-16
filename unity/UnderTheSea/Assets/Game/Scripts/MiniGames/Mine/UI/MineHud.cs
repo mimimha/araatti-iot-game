@@ -100,6 +100,10 @@ public class MineHud : MonoBehaviour
     private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
     private static readonly Color CenterNoticeLabelColor = new Color(1f, 0.92f, 0.78f, 1f);
 
+    // 내가 몇 번인지 적어 두는 딱지. 위와 같은 이유로 코드에만 둔다.
+    private const float SelfLabelFontSize = 30f;
+    private static readonly Color SelfLabelColor = new Color(1f, 0.85f, 0.5f, 0.95f);
+
     [SerializeField] private Color successColor = new Color(0.55f, 0.92f, 0.62f);
     [SerializeField] private Color failColor = new Color(0.95f, 0.55f, 0.5f);
 
@@ -206,11 +210,25 @@ public class MineHud : MonoBehaviour
     /// </summary>
     public string NetworkCenterNotice { get; set; }
 
+    /// <summary>
+    /// 이 화면의 주인이 몇 번인가. "나 = P1" 처럼 짧게 넣는다. 빈 문자열이면 안 띄운다.
+    ///
+    /// ⚠ <b>창이 뜬 순서와 슬롯 번호는 다르다.</b> 슬롯은 서버에 붙은 순서로 정해지고
+    ///   (<c>MineMatchState.ReseatWaitingCrew</c> 가 <c>JoinTick</c> 으로 줄 세운다),
+    ///   창 위치는 프로세스가 시작한 순서로 정한다. 둘은 접속 지연 때문에 어긋난다 —
+    ///   먼저 띄운 창이 나중에 붙어 왼쪽 창이 P2 가 된 판이 실제로 나왔다.
+    ///   그래서 화면에 적어 두지 않으면 누가 누구인지 알 방법이 없다.
+    /// </summary>
+    public string NetworkSelfText { get; set; }
+
     private bool _hidUnwired;
 
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
     private TMP_Text _noticeLabel;
+
+    /// <summary>실행 중에 만든 "나 = P1" 딱지.</summary>
+    private TMP_Text _selfLabel;
 
     /// <summary>
     /// 아직 서버에 연결되지 않은 칸을 감춘다. **1단계 한정이다.**
@@ -254,6 +272,7 @@ public class MineHud : MonoBehaviour
         }
 
         DrawCenterNotice();
+        DrawSelfLabel();
 
         // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
         SetActive(resultPanel, NetworkResultShow);
@@ -343,6 +362,50 @@ public class MineHud : MonoBehaviour
 
         _noticeRoot = back;
         _noticeLabel = label;
+    }
+
+    /// <summary>화면 왼쪽 위에 내가 몇 번인지 띄운다.</summary>
+    private void DrawSelfLabel()
+    {
+        if (string.IsNullOrEmpty(NetworkSelfText))
+        {
+            if (_selfLabel != null) SetActive(_selfLabel, false);
+            return;
+        }
+
+        EnsureSelfLabel();
+        if (_selfLabel == null) return;
+
+        SetActive(_selfLabel, true);
+        if (_selfLabel.text != NetworkSelfText) _selfLabel.text = NetworkSelfText;
+    }
+
+    /// <summary>딱지를 한 번만 만든다. 왼쪽 위 구석은 비어 있다.</summary>
+    private void EnsureSelfLabel()
+    {
+        if (_selfLabel != null) return;
+
+        var go = new GameObject("SelfSlot", typeof(RectTransform));
+        go.transform.SetParent(transform, false);
+
+        var rect = (RectTransform)go.transform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(18f, -14f);
+        rect.sizeDelta = new Vector2(220f, 44f);
+
+        var label = go.AddComponent<TextMeshProUGUI>();
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.fontSize = SelfLabelFontSize;
+        label.color = SelfLabelColor;
+        label.raycastTarget = false;
+
+        // 글꼴은 이미 쓰고 있는 것을 빌린다. 한글이 나와야 한다.
+        TMP_Text donor = timeText != null ? timeText : countdownText;
+        if (donor != null && donor.font != null) label.font = donor.font;
+
+        _selfLabel = label;
     }
 
     private void Update()
