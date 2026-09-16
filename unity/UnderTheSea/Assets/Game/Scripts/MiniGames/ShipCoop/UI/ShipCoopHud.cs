@@ -645,8 +645,8 @@ public class ShipCoopHud : MonoBehaviour
         }
 
         // 포탄 상자는 자리(TaskBase)가 아니라서 Nearby 에 잡히지 않는다.
-        // 그래서 상자 앞에 서면 아무 안내도 안 떴다. 무거운 포탄은 쥐어야 들리므로
-        // 자리에 붙는 것과 키가 다르다. 그 차이를 여기서 알려준다.
+        // 그래서 상자 앞에 서면 아무 안내도 안 떴다.
+        // 자리에 붙는 것과 같은 키를 쓰지만, 무엇이 나오는지는 말해줘야 한다.
         // 상자마다 나오는 것이 다르다. 무엇이 나오는지 말해주지 않으면
         // 갑판에 색깔 큐브만 놓여 있고 무슨 상자인지 알 수가 없다.
         if (carry != null)
@@ -805,7 +805,7 @@ public class ShipCoopHud : MonoBehaviour
             return "구멍부터 막아라 — 퍼내도 다시 찬다";
         }
 
-        return "Shift + Space";
+        return "Space";
     }
 
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
@@ -814,13 +814,13 @@ public class ShipCoopHud : MonoBehaviour
         switch (carry.Carrying)
         {
             case Cargo.Ammo:
-                return carry.FindLoadableCannon() != null ? "Shift 를 놓아 싣기" : "대포로";
+                return carry.FindLoadableCannon() != null ? "Space 로 싣기" : "대포로";
 
             case Cargo.Plank:
-                return carry.FindPointWantingPlank() != null ? "Shift 를 놓아 건네기" : "빨간 파손 지점으로";
+                return carry.FindPointWantingPlank() != null ? "Space 로 건네기" : "빨간 파손 지점으로";
 
             case Cargo.Water:
-                return carry.FindReachableDump() != null ? "Shift 를 놓아 버리기" : "파란 뱃전으로";
+                return carry.FindReachableDump() != null ? "Space 로 버리기" : "파란 뱃전으로";
 
             default:
                 return null;
