@@ -173,8 +173,11 @@ public class ShipCoopCamera : MonoBehaviour
     // 난간을 목록에 넣었더니 **사방 난간이 통째로 없어졌습니다.**
     // (난간 한 층이 메시 하나라 앞쪽만 감출 수가 없습니다)
     //
-    // 그래서 **매 프레임 카메라에서 사람에게 선을 그어보고**, 거기 걸리는 것만
-    // 감춥니다. 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    // 그래서 **매 프레임 카메라에서 선을 그어보고**, 거기 걸리는 것만 감춥니다.
+    // 카메라를 돌려 비켜나면 바로 돌아옵니다.
+    //
+    // 선은 **둘**입니다. 사람에게 하나, 카메라가 담는 갑판 한가운데에 하나.
+    // 사람 하나만 보면 "사람은 안 가리는데 화면은 다 가리는" 것을 놓칩니다.
     // ------------------------------------------------------------
 
     [Header("눈앞을 가리는 것 (카메라를 돌리면 돌아온다)")]
@@ -234,43 +237,25 @@ public class ShipCoopCamera : MonoBehaviour
             return;
         }
 
-        Vector3 target = worker.transform.position + Vector3.up * blockAimHeight;
-        Vector3 toTarget = target - transform.position;
-        float far = toTarget.magnitude;
-
-        if (far < 0.5f)
-        {
-            return;
-        }
-
         _stillBlocking.Clear();
 
-        // 사람 바로 앞에서 멈춘다. 사람 자신이나 사람이 든 물건은 안 감춘다.
-        RaycastHit[] hits = Physics.SphereCastAll(
-            transform.position, blockRadius, toTarget / far, far - blockRadius,
-            ~0, QueryTriggerInteraction.Ignore);
+        // ① 사람을 가리는 것.
+        CollectBlockers(worker.transform.position + Vector3.up * blockAimHeight, worker);
 
-        for (int i = 0; i < hits.Length; i++)
-        {
-            Transform what = hits[i].collider.transform;
-
-            if (what == worker.transform || what.IsChildOf(worker.transform))
-            {
-                continue;
-            }
-
-            if (MustStayVisible(what.name))
-            {
-                continue;
-            }
-
-            Renderer draw = hits[i].collider.GetComponent<Renderer>();
-
-            if (draw != null)
-            {
-                _stillBlocking.Add(draw);
-            }
-        }
+        // ② 카메라가 담고 있는 **갑판 한가운데**(_pivot)를 가리는 것.
+        //
+        // ⚠ 사람만 보면 놓치는 것이 있다. 뒷갑판 앞면(Wall_AftBulkhead) 처럼
+        //    카메라 바로 앞에 선 큰 벽은, 사람이 앞으로 걸어가면 카메라→사람 선이
+        //    벽 위로 올라가면서 "안 가린다" 로 판정된다. 그 순간 벽이 도로 켜지고
+        //    화면 아래를 통째로 먹는다. 걸어다니는 내내 벽이 깜빡이게 된다.
+        //
+        //    카메라가 벽 뒤에 서 있는 동안 그 벽은 갑판 한가운데를 계속 가리므로,
+        //    여기까지 보면 숨은 채로 유지된다.
+        //
+        // ⚠ 겨냥점은 _pivot 이다. LateUpdate 가 쓰는 lookAt 이 아니다.
+        //    lookAt 은 lookAhead(기본 6m)만큼 앞을 보는 점이라 선이 너무 높게 지나가
+        //    벽 위를 스쳐 간다. 실제로 그렇게 해봤더니 위쪽 슬래브를 놓쳤다.
+        CollectBlockers(_pivot, worker);
 
         // 이제 안 가리는 것은 도로 켠다.
         for (int i = _blocking.Count - 1; i >= 0; i--)
@@ -296,6 +281,51 @@ public class ShipCoopCamera : MonoBehaviour
 
             draw.enabled = false;
             _blocking.Add(draw);
+        }
+    }
+
+    /// <summary>
+    /// 카메라에서 <paramref name="target"/> 까지 굵은 선을 긋고, 거기 걸리는 것을
+    /// <see cref="_stillBlocking"/> 에 모은다. 켜고 끄는 것은 부르는 쪽이 한다.
+    ///
+    /// 여러 번 불러 **합집합**을 만드는 것을 전제로 한다. 그래서 여기서는
+    /// <see cref="_stillBlocking"/> 를 비우지 않는다.
+    /// </summary>
+    private void CollectBlockers(Vector3 target, TaskWorker worker)
+    {
+        Vector3 toTarget = target - transform.position;
+        float far = toTarget.magnitude;
+
+        if (far < 0.5f)
+        {
+            return;
+        }
+
+        // 목표 바로 앞에서 멈춘다. 사람 자신이나 사람이 든 물건은 안 감춘다.
+        RaycastHit[] hits = Physics.SphereCastAll(
+            transform.position, blockRadius, toTarget / far, far - blockRadius,
+            ~0, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Transform what = hits[i].collider.transform;
+
+            if (what == worker.transform || what.IsChildOf(worker.transform))
+            {
+                continue;
+            }
+
+            if (MustStayVisible(what.name))
+            {
+                continue;
+            }
+
+            Renderer draw = hits[i].collider.GetComponent<Renderer>();
+
+            if (draw != null)
+            {
+                _stillBlocking.Add(draw);
+            }
         }
     }
 
