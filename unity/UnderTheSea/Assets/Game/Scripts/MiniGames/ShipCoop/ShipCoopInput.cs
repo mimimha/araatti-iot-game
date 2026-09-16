@@ -146,6 +146,9 @@ public static class ShipCoopInput
     /// 서로 다투지 않습니다. 부르는 쪽이 이미 자리로 갈려 있습니다.
     ///
     /// IMU 가 휘두름을 잡아 주면 그쪽으로도 됩니다. 없어도 버튼으로 다 됩니다.
+    ///
+    /// 동작 판정은 <see cref="IHandDevice.TryConsumeMotion"/> 이 합니다. 어느 손인지로
+    /// 추측하지 않고 센서가 내놓은 종류를 그대로 봅니다. 배가 쓰는 것은 **내리치기**뿐입니다.
     /// </summary>
     public static bool ConsumeSwing(IPlayerController controller)
     {
@@ -154,9 +157,11 @@ public static class ShipCoopInput
             return false;
         }
 
-        // ⚠ 둘 다 Consume 이라 `||` 의 단축 평가에 기대면 안 된다.
+        // ⚠ 둘 다 읽는 순간 사라진다. `||` 의 단축 평가에 기대면 안 된다.
         //    버튼이 눌린 프레임에 휘두름이 남아 있으면 다음 프레임에 한 번 더 친다.
-        bool swung = controller.Right.ConsumeSwing();
+        bool swung = controller.Right.TryConsumeMotion(out HandMotion motion)
+                     && motion.Type == HandMotionType.VerticalSwing;
+
         bool pressed = controller.Right.ConsumeButton2Press();
 
         return swung || pressed;

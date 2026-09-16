@@ -1,6 +1,12 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public enum KeyboardControlProfile
+{
+    Shared,
+    Warriors,
+}
+
 /// <summary>
 /// IoT 기기 없이 키보드와 마우스로 게임을 만들고 테스트하기 위한 컨트롤러.
 ///
@@ -9,6 +15,10 @@ using UnityEngine.InputSystem;
 ///
 /// **부품 하나에 키 하나**로 맞춰 두었습니다. 키보드로 확인한 것이 기기에서 그대로 됩니다.
 /// 배치를 바꾸려면 IOT_INPUT.md 를 먼저 고치세요. 네 미니게임이 함께 지키는 표입니다.
+///
+///   [프로필]
+///     Shared      광산·배 협동용 기존 배치
+///     Warriors    이동 WASD · 카메라 방향키 · 공격 1 / 2 / 3
 ///
 ///   [왼손 기기]
 ///     W A S D       조이스틱     이동
@@ -41,6 +51,10 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 {
+    [Header("키 배치 프로필")]
+    [Tooltip("Shared는 광산·배, Warriors는 무쌍의 기존 WASD·방향키·1/2/3 배치를 유지한다.")]
+    [SerializeField] private KeyboardControlProfile controlProfile = KeyboardControlProfile.Shared;
+
     [Header("축 입력이 0 에서 1 까지 가는 속도")]
     [Tooltip("실제 기기는 손목을 기울인 만큼 값이 들어오지만, 키보드는 켜짐/꺼짐뿐이라 " +
              "천천히 차오르게 만들어야 조작감이 비슷해진다.")]
@@ -105,23 +119,55 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
     private void Awake()
     {
+        BuildHands();
+    }
+
+    public void SetControlProfile(KeyboardControlProfile profile)
+    {
+        if (controlProfile == profile && _left != null && _right != null) return;
+        controlProfile = profile;
+        BuildHands();
+    }
+
+    private void BuildHands()
+    {
+        bool warriors = controlProfile == KeyboardControlProfile.Warriors;
+
         _left = new KeyboardHand(
             axisSpeed,
             logDeviceOutput,
             "왼손",
+            // 이동은 이제 두 게임 다 W A S D 다. (IOT_INPUT.md 1장)
             stickUp: Key.W, stickDown: Key.S,
             stickLeft: Key.A, stickRight: Key.D,
-            button1: Key.C, button2: Key.None,
-            swing: Key.None);
+            button1: Key.C,
+
+            // 배는 왼손 면버튼 2 가 달리기 토글이라 키가 아니라 밖에서 채운다.
+            // 무쌍은 develop 그대로 V 다.
+            button2: warriors ? Key.V : Key.None);
 
         _right = new KeyboardHand(
             axisSpeed,
             logDeviceOutput,
             "오른손",
-            stickUp: Key.None, stickDown: Key.None,
-            stickLeft: Key.None, stickRight: Key.None,
-            button1: Key.Space, button2: Key.K,
-            swing: Key.None);
+            // 배의 오른손 스틱은 키가 없다. 마우스 우클릭 드래그가 Update 에서 채운다.
+            stickUp: warriors ? Key.UpArrow : Key.None,
+            stickDown: warriors ? Key.DownArrow : Key.None,
+            stickLeft: warriors ? Key.LeftArrow : Key.None,
+            stickRight: warriors ? Key.RightArrow : Key.None,
+            button1: Key.Space,
+            button2: warriors ? Key.None : Key.K,
+
+            // 동작(IMU) 흉내는 무쌍만 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
+            // 따로 키를 두지 않는다. ShipCoopInput.ConsumeSwing 이 둘 다 받는다.
+            horizontalMotion: warriors ? Key.Digit1 : Key.None,
+            alternateHorizontalMotion: warriors ? Key.Numpad1 : Key.None,
+            verticalMotion: warriors ? Key.Digit2 : Key.None,
+            alternateVerticalMotion: warriors ? Key.Numpad2 : Key.None,
+            secondAlternateVerticalMotion: warriors ? Key.F : Key.None,
+            thrustMotion: warriors ? Key.Digit3 : Key.None,
+            alternateThrustMotion: warriors ? Key.Numpad3 : Key.None,
+            secondAlternateThrustMotion: warriors ? Key.X : Key.None);
 
         // 1대만 들었을 때. 스틱은 왼손 것, 면버튼은 오른손 것을 단다.
         _single = new KeyboardHand(
@@ -130,8 +176,8 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             "한 대",
             stickUp: Key.W, stickDown: Key.S,
             stickLeft: Key.A, stickRight: Key.D,
-            button1: Key.Space, button2: Key.K,
-            swing: Key.None);
+            button1: Key.Space,
+            button2: warriors ? Key.None : Key.K);
     }
 
     private void Update()
@@ -145,17 +191,29 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
         Keyboard keyboard = Keyboard.current;
 
-        // 키보드로는 두 손을 따로 기울일 수 없다. J / L 을 양손이 함께 쓴다.
+        // ⚠ 무쌍은 develop 이 하던 그대로 둔다. 배만 새 배치를 쓴다.
+        //    무쌍을 드래그 카메라로 옮기는 것은 7장에서 서연 담당으로 잡혀 있다.
+        bool warriors = controlProfile == KeyboardControlProfile.Warriors;
+
+        // 키보드로는 두 손을 따로 기울일 수 없다. 한 쌍을 양손이 함께 쓴다.
         float target = 0f;
 
         if (keyboard != null)
         {
-            if (keyboard.jKey.isPressed) { target -= 1f; }
-            if (keyboard.lKey.isPressed) { target += 1f; }
-
-            if (keyboard.leftShiftKey.wasPressedThisFrame || keyboard.rightShiftKey.wasPressedThisFrame)
+            if (warriors)
             {
-                _sprintOn = !_sprintOn;
+                if (keyboard.aKey.isPressed) { target -= 1f; }
+                if (keyboard.dKey.isPressed) { target += 1f; }
+            }
+            else
+            {
+                if (keyboard.jKey.isPressed) { target -= 1f; }
+                if (keyboard.lKey.isPressed) { target += 1f; }
+
+                if (keyboard.leftShiftKey.wasPressedThisFrame || keyboard.rightShiftKey.wasPressedThisFrame)
+                {
+                    _sprintOn = !_sprintOn;
+                }
             }
         }
 
@@ -164,8 +222,14 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         //    쌓여 있던 것이 한꺼번에 터져 나온다.
         if (twoDevices)
         {
-            _left.Tick(keyboard, target, Time.deltaTime, forceButton2: _sprintOn, stickOverride: null);
-            _right.Tick(keyboard, target, Time.deltaTime, forceButton2: false, stickOverride: ReadDrag());
+            _left.Tick(keyboard, target, Time.deltaTime,
+                forceButton2: !warriors && _sprintOn,
+                stickOverride: null);
+
+            // 무쌍의 오른손 스틱은 방향키다. 배만 마우스 드래그로 채운다.
+            _right.Tick(keyboard, target, Time.deltaTime,
+                forceButton2: false,
+                stickOverride: warriors ? (Vector2?)null : ReadDrag());
             return;
         }
 
@@ -222,7 +286,14 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         private readonly Key _stickRight;
         private readonly Key _button1;
         private readonly Key _button2;
-        private readonly Key _swing;
+        private readonly Key _horizontalMotion;
+        private readonly Key _alternateHorizontalMotion;
+        private readonly Key _verticalMotion;
+        private readonly Key _alternateVerticalMotion;
+        private readonly Key _secondAlternateVerticalMotion;
+        private readonly Key _thrustMotion;
+        private readonly Key _alternateThrustMotion;
+        private readonly Key _secondAlternateThrustMotion;
 
         private float _axis;
         private Vector2 _stick;
@@ -230,12 +301,18 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         private bool _button2Held;
         private bool _button1Pressed;
         private bool _button2Pressed;
-        private bool _swung;
+        private HandMotion _motion;
+        private bool _hasMotion;
 
         public KeyboardHand(
             float axisSpeed, bool log, string label,
             Key stickUp, Key stickDown, Key stickLeft, Key stickRight,
-            Key button1, Key button2, Key swing)
+            Key button1, Key button2,
+            Key horizontalMotion = Key.None, Key alternateHorizontalMotion = Key.None,
+            Key verticalMotion = Key.None, Key alternateVerticalMotion = Key.None,
+            Key secondAlternateVerticalMotion = Key.None,
+            Key thrustMotion = Key.None, Key alternateThrustMotion = Key.None,
+            Key secondAlternateThrustMotion = Key.None)
         {
             _axisSpeed = axisSpeed;
             _log = log;
@@ -246,7 +323,14 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             _stickRight = stickRight;
             _button1 = button1;
             _button2 = button2;
-            _swing = swing;
+            _horizontalMotion = horizontalMotion;
+            _alternateHorizontalMotion = alternateHorizontalMotion;
+            _verticalMotion = verticalMotion;
+            _alternateVerticalMotion = alternateVerticalMotion;
+            _secondAlternateVerticalMotion = secondAlternateVerticalMotion;
+            _thrustMotion = thrustMotion;
+            _alternateThrustMotion = alternateThrustMotion;
+            _secondAlternateThrustMotion = secondAlternateThrustMotion;
         }
 
         public Vector2 Stick => _stick;
@@ -276,6 +360,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
                 _stick = stickOverride ?? Vector2.zero;
                 _button1Held = false;
                 _button2Held = forceButton2;
+                _hasMotion = false;
                 return;
             }
 
@@ -305,7 +390,24 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
             if (WasPressedThisFrame(keyboard, _button1)) { _button1Pressed = true; }
             if (WasPressedThisFrame(keyboard, _button2)) { _button2Pressed = true; }
-            if (WasPressedThisFrame(keyboard, _swing)) { _swung = true; }
+
+            if (WasPressedThisFrame(keyboard, _horizontalMotion) ||
+                WasPressedThisFrame(keyboard, _alternateHorizontalMotion))
+            {
+                SetMotion(HandMotionType.HorizontalSwing);
+            }
+            else if (WasPressedThisFrame(keyboard, _verticalMotion) ||
+                     WasPressedThisFrame(keyboard, _alternateVerticalMotion) ||
+                     WasPressedThisFrame(keyboard, _secondAlternateVerticalMotion))
+            {
+                SetMotion(HandMotionType.VerticalSwing);
+            }
+            else if (WasPressedThisFrame(keyboard, _thrustMotion) ||
+                     WasPressedThisFrame(keyboard, _alternateThrustMotion) ||
+                     WasPressedThisFrame(keyboard, _secondAlternateThrustMotion))
+            {
+                SetMotion(HandMotionType.Thrust);
+            }
         }
 
         public bool ConsumeButton1Press()
@@ -322,11 +424,19 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             return pressed;
         }
 
-        public bool ConsumeSwing()
+        public bool TryConsumeMotion(out HandMotion motion)
         {
-            bool swung = _swung;
-            _swung = false;
-            return swung;
+            motion = _motion;
+            bool hasMotion = _hasMotion;
+            _hasMotion = false;
+            _motion = default;
+            return hasMotion;
+        }
+
+        private void SetMotion(HandMotionType type)
+        {
+            _motion = new HandMotion(type, 1f);
+            _hasMotion = true;
         }
 
         // 키보드에는 진동 모터가 없다. 부르는 쪽이 신경 쓰지 않도록 조용히 받아준다.

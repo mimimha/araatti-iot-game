@@ -161,11 +161,31 @@ public interface IHandDevice
 
     bool ConsumeButton1Press();      // 아래 주의 참고
     bool ConsumeButton2Press();
-    bool ConsumeSwing();             // 휘두름(IMU). 있으면 망치질의 대체 입력
+
+    // IMU 가 판정한 동작 1회. 배는 이 중 VerticalSwing 만 씁니다.
+    bool TryConsumeMotion(out HandMotion motion);
 
     void Vibrate(float strength, float seconds);
 }
+
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing,   // 가로 휘두르기 — 무쌍이 씁니다
+    VerticalSwing,     // 세로 내리치기 — 배의 망치질
+    Thrust,            // 찌르기 — 무쌍이 씁니다
+}
+
+public readonly struct HandMotion
+{
+    public HandMotionType Type     { get; }   // 무슨 동작인가
+    public float          Strength { get; }   // 0 ~ 1
+}
 ```
+
+> ⚠ `HandMotionType` · `HandMotion` 은 **무쌍 · 광산과 함께 쓰는 것**입니다.
+> 배는 `VerticalSwing` 하나만 보지만, 장치는 네 종류를 구분해 줘야 합니다.
+> 여기를 줄이면 무쌍의 가로베기 · 찌르기가 죽습니다.
 
 ### 손마다 무엇이 필요한가
 
@@ -181,10 +201,15 @@ public interface IHandDevice
 달리기 토글은 **장치가 상태를 들고 있으면 됩니다.** 켜져 있는 동안 `Button2` 를 계속 참으로
 돌려주면 게임 쪽은 아무것도 몰라도 됩니다.
 
-### 휘두름(IMU)은 선택입니다
+### 휘두름(IMU)은 배에서는 선택입니다
 
-망치질은 오른손 면버튼 2 로 됩니다. IMU 로 휘두름을 잡을 수 있으면 **같은 동작의 대체 입력**으로
-`ConsumeSwing` 을 채워 주세요. 못 해도 게임은 그대로 돌아갑니다.
+망치질은 오른손 면버튼 2 로 됩니다. IMU 로 내리치기를 잡을 수 있으면 **같은 동작의 대체 입력**으로
+`TryConsumeMotion` 이 `VerticalSwing` 을 돌려주면 됩니다. 못 해도 배는 그대로 돌아갑니다.
+
+**다만 무쌍은 이것이 주 입력입니다.** 가로베기 · 세로베기 · 찌르기가 전부 여기로 들어옵니다.
+그래서 `TryConsumeMotion` 자체는 빼면 안 됩니다.
+
+동작의 종류는 **센서가 판정해서** 알려주세요. 어느 손인지로 추측하지 않습니다.
 
 ### ⚠ `Consume...` 은 **한 번만 참입니다**
 
