@@ -26,6 +26,19 @@ public static class SceneFlowDevMenu
         Debug.Log($"[SceneFlowDevMenu] \"{before}\" 를 지웠습니다. 다음 로그인부터 CharacterCreate 가 나옵니다.");
     }
 
+    [MenuItem(MenuRoot + "튜토리얼 다시 보기")]
+    private static void ClearTutorial()
+    {
+        if (!LobbyTutorial.Seen)
+        {
+            Debug.Log("[SceneFlowDevMenu] 아직 튜토리얼을 끝까지 본 적이 없습니다. 이미 다음 로비 입장에서 나옵니다.");
+            return;
+        }
+
+        LobbyTutorial.ClearSeen();
+        Debug.Log("[SceneFlowDevMenu] 튜토리얼 기록을 지웠습니다. 다음 로비 입장부터 다시 나옵니다.");
+    }
+
     [MenuItem(MenuRoot + "저장된 캐릭터 이름 보기")]
     private static void ShowCharacter()
     {
