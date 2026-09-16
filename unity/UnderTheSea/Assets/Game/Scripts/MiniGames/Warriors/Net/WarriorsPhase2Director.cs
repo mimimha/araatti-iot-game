@@ -71,10 +71,13 @@ namespace Warriors.Net
         [SerializeField, Min(1)] private int hitsPerTentacle = 1;
 
         [Tooltip("올라온 촉수에 답할 수 있는 시간(초). 넘기면 반격당한다.")]
-        [SerializeField, Min(.5f)] private float answerSeconds = 4.5f;
+        [SerializeField, Min(.5f)] private float answerSeconds = 3.2f;
 
-        [Tooltip("촉수가 내려간 뒤 다음 촉수가 설 때까지의 틈(초).")]
-        [SerializeField, Min(0f)] private float gapSeconds = .6f;
+        [Tooltip("두 팔이 함께 섰을 때 더 주는 시간(초). 하나씩 차례로 베야 하니 조금 더 준다.")]
+        [SerializeField, Min(0f)] private float twinExtraSeconds = .9f;
+
+        [Tooltip("한 패턴의 팔이 모두 내려간 뒤 다음 패턴까지의 틈(초).")]
+        [SerializeField, Min(0f)] private float gapSeconds = .35f;
 
         [Tooltip("잘린 촉수가 쓰러지는 연출을 보여 주는 시간(초).")]
         [SerializeField, Min(0f)] private float defeatShowSeconds = .35f;
@@ -103,22 +106,40 @@ namespace Warriors.Net
         // 서버만 쓰는 것
         // ------------------------------------------------------------
 
-        /// <summary>담당자 한 명의 진행 상황. 복제하지 않는다 — 결과만 Slots 에 담긴다.</summary>
-        private struct Duty
+        /// <summary>한 사람 몫의 팔 수. 1P 는 0·1번, 2P 는 2·3번.</summary>
+        private const int ArmsPerPlayer = SlotCount / WarriorsPlayers.Max;
+
+        /// <summary>
+        /// 팔(자리) 하나의 서버 타이머. **자리마다 하나씩** — 한 사람이 두 팔을 동시에 상대하는
+        /// 패턴이 있어서, 사람 단위로 타이머를 들면 안 된다.
+        /// </summary>
+        private struct Arm
         {
-            public int Slot;            // 지금 맡고 있는 자리. 없으면 -1
             public TickTimer Answer;    // 답할 시간
             public TickTimer Retire;    // 잘린 뒤 내려가기까지
-            public TickTimer Gap;       // 다음 촉수까지의 틈
-            public int LastSlot;        // 직전에 쓴 자리. 같은 팔만 계속 나오지 않게
         }
 
+        /// <summary>담당자 한 명의 패턴 진행. 복제하지 않는다 — 결과만 Slots 에 담긴다.</summary>
+        private struct Duty
+        {
+            public bool Active;         // 지금 패턴의 팔이 하나라도 서 있거나 내려가는 중인가
+            public TickTimer Gap;       // 다음 패턴까지의 틈
+            public int LastSlot;        // 직전에 혼자 선 자리. 같은 팔만 계속 나오지 않게
+            public int Patterns;        // 이 사람이 받은 패턴 수. 두 번째부터 하나 · 둘 · 하나 · 둘 …
+        }
+
+        private readonly Arm[] arms = new Arm[SlotCount];
         private readonly Duty[] duties = new Duty[WarriorsPlayers.Max];
 
         private WarriorsMatchState match;
         private IReadOnlyList<WarriorsTarget> tentacles;
         private bool stageOpen;
+        private bool placed;          // 2페이즈 자리 배치를 했는가 (소개 카드 시작 순간)
         private int nextSerial = 1;
+
+        // 일시정지. 틱 타이머는 멈추지 않으므로 멈춘 틱 수만큼 되돌려 준다.
+        private bool paused;
+        private int pauseStartTick;
 
         // 클라이언트가 "달라졌는가" 를 재는 자리. 복제되지 않는 각자의 기억이다.
         private readonly int[] shownSerial = new int[SlotCount];
@@ -136,8 +157,7 @@ namespace Warriors.Net
 
             for (int i = 0; i < duties.Length; i++)
             {
-                duties[i].Slot = -1;
-                duties[i].LastSlot = -1;
+                duties[i] = new Duty { LastSlot = -1, Gap = TickTimer.None };
             }
 
             // 담당이 아닌 촉수는 아예 맞지 않게 한다. **모든 PC 에서 단다** —
@@ -214,7 +234,22 @@ namespace Warriors.Net
         {
             if (!HasStateAuthority || match == null) return;
 
-            bool wantStage = match.Phase == WarriorsMatchPhase.Phase2;
+            bool inPhase2 = match.Phase == WarriorsMatchPhase.Phase2;
+
+            // 자리 배치는 **소개 카드가 뜨는 순간** 한다. 카드를 읽는 3초 동안 두 사람이 이미 크라켄 앞에
+            // 서 있어야 카드가 사라졌을 때 바로 촉수를 상대할 수 있다. 촉수는 카드가 끝난 뒤 선다.
+            if (inPhase2 && !placed)
+            {
+                placed = true;
+                PlaceEveryone();
+            }
+            else if (!inPhase2)
+            {
+                placed = false;
+            }
+
+            // 라운드 소개 화면(3초)이 끝난 뒤에 무대를 연다. 두 화면이 소개를 읽는 동안 촉수가 먼저 서면 안 된다.
+            bool wantStage = inPhase2 && !match.InIntro;
 
             if (wantStage != stageOpen)
             {
@@ -226,10 +261,55 @@ namespace Warriors.Net
 
             if (!stageOpen) return;
 
+            // 멈춘 동안 답할 시간이 흘러 버리면 재개하자마자 반격을 맞는다.
+            // 그래서 풀릴 때 멈춘 틱 수만큼 모든 타이머를 뒤로 미룬다.
+            bool wantPause = match.IsPaused;
+
+            if (wantPause != paused)
+            {
+                paused = wantPause;
+
+                if (paused) pauseStartTick = Runner.Tick;
+                else ShiftTimers(Runner.Tick - pauseStartTick);
+            }
+
+            if (paused) return;
+
             for (int index = 0; index < duties.Length; index++)
             {
                 DriveDuty(index);
             }
+        }
+
+        /// <summary>돌고 있는 타이머를 <paramref name="ticks"/> 만큼 뒤로 미룬다.</summary>
+        private void ShiftTimers(int ticks)
+        {
+            if (ticks <= 0) return;
+
+            for (int i = 0; i < arms.Length; i++)
+            {
+                arms[i].Answer = Shift(arms[i].Answer, ticks);
+                arms[i].Retire = Shift(arms[i].Retire, ticks);
+            }
+
+            for (int i = 0; i < duties.Length; i++)
+            {
+                duties[i].Gap = Shift(duties[i].Gap, ticks);
+            }
+
+            // 촉수 위의 시간 표시(Time.time 기준)는 서버에서 timeScale 로 이미 멈춰 있었다.
+            Debug.Log($"[WarriorsPhase2] 일시정지 {ticks}틱만큼 촉수 타이머를 뒤로 미뤘습니다.");
+        }
+
+        private TickTimer Shift(TickTimer timer, int ticks)
+        {
+            if (!timer.IsRunning) return timer;
+
+            int? remaining = timer.RemainingTicks(Runner);
+            if (!remaining.HasValue) return timer;
+
+            // 멈추기 직전에 남아 있던 만큼(= 지금 남은 것 + 멈춘 시간)으로 새로 잡는다.
+            return TickTimer.CreateFromTicks(Runner, Mathf.Max(0, remaining.Value + ticks));
         }
 
         // ------------------------------------------------------------
@@ -244,19 +324,15 @@ namespace Warriors.Net
             for (int i = 0; i < SlotCount; i++)
             {
                 Slots.Set(i, new WarriorsTentacleSlot { Owner = -1 });
+                arms[i] = default;
             }
 
             for (int i = 0; i < duties.Length; i++)
             {
-                duties[i].Slot = -1;
-                duties[i].LastSlot = -1;
-                duties[i].Gap = TickTimer.None;
-                duties[i].Retire = TickTimer.None;
-                duties[i].Answer = TickTimer.None;
+                duties[i] = new Duty { LastSlot = -1, Gap = TickTimer.None };
             }
 
             StageOpen = true;
-            PlaceEveryone();
 
             int leftovers = FindObjectsByType<WarriorsNetEnemy>(
                 FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
@@ -276,7 +352,7 @@ namespace Warriors.Net
 
             for (int i = 0; i < duties.Length; i++)
             {
-                duties[i].Slot = -1;
+                duties[i].Active = false;
             }
 
             StageOpen = false;
@@ -320,54 +396,87 @@ namespace Warriors.Net
         // ------------------------------------------------------------
 
         /// <summary>
-        /// 담당자 한 명분을 한 틱 진행한다.
+        /// 담당자 한 명분을 한 틱 진행한다. **패턴 단위**다 — 팔 하나, 또는 두 팔이 함께 선다.
         ///
         /// <code>
-        ///   쓰러졌다        서 있던 팔을 내리고 더 올리지 않는다
-        ///   팔이 없다       틈이 지났으면 새로 하나 올린다
-        ///   팔이 잘렸다     팀 합계를 올리고, 쓰러지는 모습을 보여 준 뒤 내린다
-        ///   시간이 지났다   담당자가 맞는다. 팔은 그냥 내려간다
-        ///   맞는 중이다     남은 타격 수를 옮기고 약점을 다시 뽑는다
+        ///   쓰러졌다          서 있던 팔을 모두 내리고 더 올리지 않는다
+        ///   팔이 서 있다      팔마다 따로 본다 (잘렸나 · 시간이 지났나 · 맞는 중인가)
+        ///   모두 내려갔다     패턴 하나가 끝났다. 잠깐 쉰다
+        ///   틈이 지났다       다음 패턴을 세운다. 두 번째부터 하나 · 둘 · 하나 · 둘 …
         /// </code>
+        ///
+        /// 예전에는 사람마다 팔 하나씩만 차례로 섰다. 원본(WarriorsKrakenBoss)은 패턴마다 1~2개가
+        /// 함께 서는 구조였고, 그쪽이 훨씬 급하고 재미있다. 두 팔이 서면 답할 시간을 조금 더 준다.
         /// </summary>
         private void DriveDuty(int index)
         {
             WarriorsPlayerLife life = FindLife(index);
             bool away = life == null || !life.IsLive || life.IsDown;
+            int first = FirstSlotOf(index);
 
             if (away)
             {
                 // 쓰러진 사람의 촉수는 올리지 않는다. 서 있던 것은 조용히 내린다.
-                if (duties[index].Slot >= 0)
+                bool lowered = false;
+
+                for (int slot = first; slot < first + ArmsPerPlayer; slot++)
                 {
-                    LowerSlot(duties[index].Slot, 0);
-                    duties[index].Slot = -1;
-                    Debug.Log($"[WarriorsPhase2] {index + 1}P 가 쓰러져 그쪽 촉수를 내렸습니다.");
+                    if (Slots.Get(slot).Up != 1) continue;
+                    LowerSlot(slot, 0);
+                    lowered = true;
                 }
 
+                if (lowered) Debug.Log($"[WarriorsPhase2] {index + 1}P 가 쓰러져 그쪽 촉수를 내렸습니다.");
+
+                duties[index].Active = false;
                 return;
             }
 
-            int slot = duties[index].Slot;
+            bool anyStanding = false;
 
-            if (slot < 0)
+            for (int slot = first; slot < first + ArmsPerPlayer; slot++)
             {
-                if (duties[index].Gap.IsRunning && !duties[index].Gap.Expired(Runner)) return;
+                if (Slots.Get(slot).Up != 1) continue;
 
-                RaiseFor(index);
+                anyStanding = true;
+                DriveArm(index, slot, life);
+            }
+
+            if (anyStanding) return;
+
+            if (duties[index].Active)
+            {
+                // 이 패턴의 팔이 모두 내려갔다. 잠깐 쉬고 다음 패턴으로.
+                duties[index].Active = false;
+                duties[index].Patterns++;
+                duties[index].Gap = TickTimer.CreateFromSeconds(Runner, gapSeconds);
                 return;
             }
 
+            if (duties[index].Gap.IsRunning && !duties[index].Gap.Expired(Runner)) return;
+
+            RaiseFor(index);
+        }
+
+        /// <summary>
+        /// 서 있는 팔 하나를 한 틱 진행한다.
+        ///
+        /// <code>
+        ///   잘렸다          팀 합계를 올리고, 쓰러지는 모습을 보여 준 뒤 내린다
+        ///   시간이 지났다   담당자가 맞는다. 팔은 그냥 내려간다
+        ///   맞는 중이다     남은 타격 수를 옮기고 약점을 다시 뽑는다
+        /// </code>
+        /// </summary>
+        private void DriveArm(int index, int slot, WarriorsPlayerLife life)
+        {
             WarriorsTentacleSlot state = Slots.Get(slot);
 
             // 잘린 촉수가 쓰러지는 모습을 다 보여 줬다. 이제 내린다.
             if (state.Result != 0)
             {
-                if (duties[index].Retire.IsRunning && !duties[index].Retire.Expired(Runner)) return;
+                if (arms[slot].Retire.IsRunning && !arms[slot].Retire.Expired(Runner)) return;
 
                 LowerSlot(slot, state.Result);
-                duties[index].Slot = -1;
-                duties[index].Gap = TickTimer.CreateFromSeconds(Runner, gapSeconds);
                 return;
             }
 
@@ -375,7 +484,7 @@ namespace Warriors.Net
 
             if (tentacle == null)
             {
-                duties[index].Slot = -1;
+                LowerSlot(slot, 0);
                 return;
             }
 
@@ -389,8 +498,8 @@ namespace Warriors.Net
                 tentacle.SetAttackEnabled(false);
                 tentacle.ClearStrikeWindow();
 
-                duties[index].Retire = TickTimer.CreateFromSeconds(Runner, defeatShowSeconds);
-                duties[index].Answer = TickTimer.None;
+                arms[slot].Retire = TickTimer.CreateFromSeconds(Runner, defeatShowSeconds);
+                arms[slot].Answer = TickTimer.None;
 
                 if (match != null) match.ReportPhase2Hit();
 
@@ -399,23 +508,18 @@ namespace Warriors.Net
             }
 
             // 시간을 놓쳤는가. 담당자만 맞는다 — 원본처럼 한 사람에게 몰지 않는다.
-            if (duties[index].Answer.Expired(Runner))
+            if (arms[slot].Answer.Expired(Runner))
             {
-                state.Result = 2;
-                Slots.Set(slot, state);
-
                 tentacle.SetAttackEnabled(false);
                 tentacle.ClearStrikeWindow();
 
                 WarriorsHealth health = life.GetComponent<WarriorsHealth>();
                 if (health != null) health.TryApplyDamage(missDamage);
 
-                duties[index].Retire = TickTimer.None;
-                duties[index].Answer = TickTimer.None;
+                arms[slot].Retire = TickTimer.None;
+                arms[slot].Answer = TickTimer.None;
 
                 LowerSlot(slot, 2);
-                duties[index].Slot = -1;
-                duties[index].Gap = TickTimer.CreateFromSeconds(Runner, gapSeconds);
 
                 Debug.Log($"[WarriorsPhase2] {index + 1}P 가 {slot}번 촉수를 놓쳐 {missDamage} 피해를 입었습니다.");
                 return;
@@ -441,13 +545,39 @@ namespace Warriors.Net
             Slots.Set(slot, state);
         }
 
-        /// <summary>담당자 몫으로 촉수 하나를 세운다.</summary>
+        /// <summary>담당자 몫으로 패턴 하나를 세운다. 팔 하나, 또는 두 번째 패턴부터 번갈아 두 팔.</summary>
         private void RaiseFor(int index)
         {
-            int slot = PickSlot(index);
-            WarriorsTarget tentacle = TentacleAt(slot);
+            int first = FirstSlotOf(index);
+            bool twin = duties[index].Patterns > 0 && duties[index].Patterns % 2 == 1;
+            float answer = twin ? answerSeconds + twinExtraSeconds : answerSeconds;
+            int raised = 0;
 
-            if (tentacle == null) return;
+            if (twin)
+            {
+                for (int slot = first; slot < first + ArmsPerPlayer; slot++)
+                {
+                    if (RaiseSlot(index, slot, answer)) raised++;
+                }
+            }
+            else
+            {
+                int slot = PickSlot(index);
+                if (RaiseSlot(index, slot, answer)) raised++;
+                duties[index].LastSlot = slot;
+            }
+
+            if (raised == 0) return;
+
+            duties[index].Active = true;
+            duties[index].Gap = TickTimer.None;
+        }
+
+        /// <summary>촉수 하나를 세운다. 약점 · 타격 수 · 반격 시간은 <c>WarriorsTarget</c> 의 원래 규칙 그대로다.</summary>
+        private bool RaiseSlot(int index, int slot, float answer)
+        {
+            WarriorsTarget tentacle = TentacleAt(slot);
+            if (tentacle == null) return false;
 
             WarriorsAttackDirection weakness = (WarriorsAttackDirection)WarriorsRun.Range(0, 3);
 
@@ -455,7 +585,7 @@ namespace Warriors.Net
             tentacle.ConfigureAsBossPart(hitsPerTentacle);
             tentacle.ConfigureRequiredDirection(weakness);
             tentacle.SetAttackEnabled(true);
-            tentacle.BeginStrikeWindow(answerSeconds);
+            tentacle.BeginStrikeWindow(answer);
 
             Slots.Set(slot, new WarriorsTentacleSlot
             {
@@ -467,12 +597,13 @@ namespace Warriors.Net
                 Result = 0,
             });
 
-            duties[index].Slot = slot;
-            duties[index].LastSlot = slot;
-            duties[index].Answer = TickTimer.CreateFromSeconds(Runner, answerSeconds);
-            duties[index].Retire = TickTimer.None;
-            duties[index].Gap = TickTimer.None;
+            arms[slot].Answer = TickTimer.CreateFromSeconds(Runner, answer);
+            arms[slot].Retire = TickTimer.None;
+            return true;
         }
+
+        /// <summary>이 사람 구역의 첫 자리. 1P 는 0, 2P 는 2.</summary>
+        private static int FirstSlotOf(int index) => Mathf.Clamp(index, 0, WarriorsPlayers.Max - 1) * ArmsPerPlayer;
 
         /// <summary>
         /// 담당 구역에서 자리 하나를 고른다.
@@ -483,11 +614,10 @@ namespace Warriors.Net
         /// </summary>
         private int PickSlot(int index)
         {
-            int half = SlotCount / 2;
-            int first = Mathf.Clamp(index, 0, 1) * half;
-            int pick = first + WarriorsRun.Range(0, half);
+            int first = FirstSlotOf(index);
+            int pick = first + WarriorsRun.Range(0, ArmsPerPlayer);
 
-            if (pick == duties[index].LastSlot) pick = first + (pick - first + 1) % half;
+            if (pick == duties[index].LastSlot) pick = first + (pick - first + 1) % ArmsPerPlayer;
 
             return pick;
         }

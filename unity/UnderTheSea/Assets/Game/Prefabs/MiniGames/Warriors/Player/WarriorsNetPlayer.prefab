@@ -209,8 +209,8 @@ CharacterController:
   m_Height: 1.2
   m_Radius: 0.35
   m_SlopeLimit: 45
-  m_StepOffset: 1.2
-  m_SkinWidth: 0.0001
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.035
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.6, z: 0}
 --- !u!114 &8207123538238297393
@@ -331,6 +331,7 @@ MonoBehaviour:
   maxHealth: 100
   immortalForTesting: 0
   incomingDamageMultiplier: 1
+  damageCooldownSeconds: 1.2
 --- !u!114 &7133207740046103965
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -464,7 +465,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b97da983f24e82346b3627fc2fc7e23d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsPlayerLife
-  startingLives: 4
+  startingLives: 1
   _Lives: 0
   _IsDown:
     RawValue: 0

@@ -77,6 +77,9 @@ namespace Warriors.Net
                 return;
             }
 
+            // 일시정지 중에는 자리를 그대로 둔다. 중력도 걷기도 쉰다.
+            if (WarriorsMatchState.PausedNow) return;
+
             Vector2 axis = Vector2.zero;
 
             // 쓰러진 사람은 움직이지 않는다. 부활은 없다.
@@ -122,11 +125,44 @@ namespace Warriors.Net
             bool wasEnabled = capsule != null && capsule.enabled;
             if (wasEnabled) capsule.enabled = false;
 
-            transform.SetPositionAndRotation(position, rotation);
+            // NetworkTransform 에 "순간이동" 이라고 알린다. 그냥 자리를 대입하면 클라이언트가
+            // 해변에서 크라켄 앞까지의 거리를 보간해 캐릭터가 미끄러져 날아간다.
+            NetworkTransform net = GetComponent<NetworkTransform>();
+
+            if (net != null) net.Teleport(position, rotation);
+            else transform.SetPositionAndRotation(position, rotation);
 
             if (wasEnabled) capsule.enabled = true;
 
             MoveAxis = Vector2.zero;
+        }
+
+        /// <summary>한 프레임에 이만큼(m) 넘게 움직였으면 걸어온 것이 아니라 옮겨진 것이다.</summary>
+        private const float TeleportDistance = 3f;
+
+        private Vector3 lastRenderPosition;
+        private bool hasRenderPosition;
+
+        /// <summary>
+        /// 순간이동 뒤 칼의 잔상(TrailRenderer)을 지운다. **모든 화면에서.**
+        ///
+        /// 2페이즈 자리 배치로 캐릭터가 해변에서 크라켄 앞으로 뛰면, 칼끝의 잔상이 옛 자리와 새 자리를
+        /// 잇는 긴 선으로 남는다. 실측으로 확인했다. 옮겨진 프레임에 잔상만 비운다.
+        /// </summary>
+        private void ClearTrailsAfterTeleport()
+        {
+            Vector3 now = transform.position;
+
+            if (hasRenderPosition && (now - lastRenderPosition).sqrMagnitude > TeleportDistance * TeleportDistance)
+            {
+                foreach (TrailRenderer trail in GetComponentsInChildren<TrailRenderer>(true))
+                {
+                    if (trail != null) trail.Clear();
+                }
+            }
+
+            lastRenderPosition = now;
+            hasRenderPosition = true;
         }
 
         /// <summary>
@@ -138,6 +174,8 @@ namespace Warriors.Net
         /// </summary>
         public override void Render()
         {
+            ClearTrailsAfterTeleport();
+
             if (animator == null || HasStateAuthority)
             {
                 return;

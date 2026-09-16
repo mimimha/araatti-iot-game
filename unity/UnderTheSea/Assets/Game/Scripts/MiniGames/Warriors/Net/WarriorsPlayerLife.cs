@@ -40,6 +40,21 @@ namespace Warriors.Net
         public int PlayerIndex { get; private set; }
 
         /// <summary>
+        /// 지금 HP. **서버가 깎고 모두가 본다.**
+        ///
+        /// <c>WarriorsHealth</c> 는 복제되지 않는 일반 컴포넌트라 클라이언트에서는 늘 100 이었다.
+        /// 그래서 HUD 가 "맞아도 안 닳는" 것처럼 보였다. 서버 값을 여기로 실어 보내고,
+        /// 클라이언트는 <see cref="MirrorHealth"/> 로 자기 <c>WarriorsHealth</c> 에 같은 변화를 낸다 —
+        /// 그러면 HUD · 피격 플래시 · 콤보 초기화가 원본 이벤트 경로 그대로 돈다.
+        /// </summary>
+        [Networked]
+        public int Hp { get; private set; }
+
+        /// <summary>최대 HP. 0 이면 서버가 아직 채우지 않은 것이라 읽지 않는다.</summary>
+        [Networked]
+        public int MaxHp { get; private set; }
+
+        /// <summary>
         /// 이 목숨을 **읽어도 되는가.**
         ///
         /// ⚠ 세션에서 빠진 캐릭터는 스폰이 풀린 뒤에도 잠깐 씬에 남는다.
@@ -51,14 +66,106 @@ namespace Warriors.Net
         public bool IsLive => Object != null && Object.IsValid;
 
         private WarriorsHealth health;
+        private WarriorsPlayerCombat combat;
 
         public override void Spawned()
         {
             health = GetComponent<WarriorsHealth>();
+            combat = GetComponent<WarriorsPlayerCombat>();
+
+            SyncPlayerId();
+
+            // 내 캐릭터의 HP 를 HUD 에 붙인다. HUD 는 원래 "처음 찾은 캐릭터" 를 읽어서
+            // 두 사람이 있으면 상대의 HP 를 보여 주는 일이 있었다.
+            if (HasInputAuthority)
+            {
+                WarriorsHudPresenter hud = FindFirstObjectByType<WarriorsHudPresenter>(FindObjectsInactive.Include);
+                if (hud != null) hud.BindLocalHealth(health);
+            }
 
             if (!HasStateAuthority)
             {
                 return;
+            }
+
+            Lives = startingLives;
+            IsDown = false;
+
+            if (health != null)
+            {
+                Hp = health.CurrentHealth;
+                MaxHp = health.MaxHealth;
+            }
+        }
+
+        /// <summary>
+        /// 복제된 번호를 <c>WarriorsPlayerCombat</c> 에도 넣는다. 모든 PC 에서.
+        ///
+        /// 프리팹에는 0 이 박혀 있어 두 사람이 모두 1P 로 등록됐고, HUD 의 "2P 적중" 줄이
+        /// 늘 비어 있었다. 번호는 서버가 스폰 직후 정하므로 첫 스냅숏에 같이 온다.
+        /// </summary>
+        private void SyncPlayerId()
+        {
+            if (combat == null) combat = GetComponent<WarriorsPlayerCombat>();
+            if (combat != null && combat.PlayerId != PlayerIndex) combat.ConfigurePlayerId(PlayerIndex);
+        }
+
+        /// <summary>
+        /// **클라이언트가 서버 HP 를 자기 <c>WarriorsHealth</c> 에 그대로 옮긴다.**
+        ///
+        /// 깎였으면 그만큼 <c>TryApplyDamage</c> — 피격 플래시와 콤보 초기화가 원본 경로로 난다.
+        /// 목숨을 잃고 다시 찼으면 <c>ResetHealth</c>. 회복이면 <c>Heal</c>.
+        /// 판정은 전부 서버 것이고 이것은 화면용 사본이다.
+        /// </summary>
+        private void MirrorHealth()
+        {
+            int current = health.CurrentHealth;
+            if (Hp == current) return;
+
+            if (Hp < current)
+            {
+                // 무적 창을 무시한다 — 이미 서버가 그 판정을 거친 결과를 그대로 그리는 것이다.
+                health.TryApplyDamage(current - Hp, ignoreCooldown: true);
+                return;
+            }
+
+            if (current <= 0)
+            {
+                // 새 목숨. 가득 채운 뒤 서버 값까지 내린다(같은 틱에 이미 맞았을 수 있다).
+                health.ResetHealth();
+                if (Hp < health.MaxHealth) health.TryApplyDamage(health.MaxHealth - Hp, ignoreCooldown: true);
+                return;
+            }
+
+            health.Heal(Hp - current);
+        }
+
+        public override void Render()
+        {
+            SyncPlayerId();
+
+            if (HasStateAuthority || health == null || MaxHp <= 0) return;
+
+            MirrorHealth();
+        }
+
+        /// <summary>
+        /// **새 판을 위해 되살린다.** 결과 화면의 [다시 하기] 를 받은 서버가 부른다.
+        ///
+        /// 판 안에서의 부활이 아니다 — 끝난 판을 처음부터 다시 할 때만 쓴다.
+        /// 이걸 빼면 새 판이 시작하자마자 둘 다 <see cref="IsDown"/> 이라 그 자리에서 다시 실패한다.
+        /// </summary>
+        public void ResetForNewMatch()
+        {
+            if (!HasStateAuthority) return;
+
+            if (health == null) health = GetComponent<WarriorsHealth>();
+
+            if (health != null)
+            {
+                health.ResetHealth();
+                Hp = health.CurrentHealth;
+                MaxHp = health.MaxHealth;
             }
 
             Lives = startingLives;
@@ -86,7 +193,13 @@ namespace Warriors.Net
         /// </summary>
         public override void FixedUpdateNetwork()
         {
-            if (!HasStateAuthority || IsDown || health == null) return;
+            if (!HasStateAuthority || health == null) return;
+
+            // 서버 HP 를 매 틱 실어 보낸다. Down 이어도 0 이 보여야 한다.
+            Hp = health.CurrentHealth;
+            MaxHp = health.MaxHealth;
+
+            if (IsDown) return;
             if (!health.IsDead) return;
 
             Lives = Mathf.Max(0, Lives - 1);
@@ -95,6 +208,7 @@ namespace Warriors.Net
             {
                 // 아직 목숨이 남았다. 다시 세운다.
                 health.ResetHealth();
+                Hp = health.CurrentHealth;
                 Debug.Log($"[WarriorsLife] {Object.InputAuthority} 목숨 {Lives}개 남음", this);
                 return;
             }

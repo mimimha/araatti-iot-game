@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -27,16 +28,26 @@ namespace Warriors.Net
         [SerializeField, Min(0f)] private float despawnDelay = 0.4f;
 
         [Header("타겟 고르기")]
-        [Tooltip("이 간격(초)마다 가장 가까운 생존자를 다시 고른다. 매 틱 고르면 낭비다.")]
+        [Tooltip("이 간격(초)마다 쫓을 사람을 다시 고른다. 매 틱 고르면 낭비다.")]
         [SerializeField, Min(0.05f)] private float retargetInterval = 0.25f;
+
+        [Tooltip("이미 그 사람을 노리는 몬스터 한 마리마다 더해지는 가상 거리(m). 클수록 두 사람에게 고르게 나뉜다.")]
+        [SerializeField, Min(0f)] private float spreadPerHunter = 3f;
+
+        [Tooltip("지금 대상보다 이만큼(m) 더 나은 후보가 있을 때만 갈아탄다. 두 사람 사이에서 왔다갔다하지 않게.")]
+        [SerializeField, Min(0f)] private float switchMargin = 1.5f;
 
         /// <summary>쓰러졌는가. 서버가 정하고 모두가 같은 순간에 연출을 낸다.</summary>
         [Networked] public NetworkBool Defeated { get; private set; }
+
+        /// <summary>서버에서 살아 움직이는 몬스터들. 누가 누구를 노리는지 세는 데 쓴다.</summary>
+        private static readonly List<WarriorsNetEnemy> Hunting = new List<WarriorsNetEnemy>();
 
         private WarriorsTarget target;
         private WarriorsHealth health;
         private WarriorsBeachEnemyApproach approach;
         private WarriorsEnemyAttack enemyAttack;
+        private WarriorsPlayerLife currentTarget;
 
         private bool shownDefeat;
         private float nextRetargetTime;
@@ -54,12 +65,23 @@ namespace Warriors.Net
                 // 클라이언트는 그리기만 한다. 움직임은 NetworkTransform 이 준다.
                 if (approach != null) approach.enabled = false;
                 if (enemyAttack != null) enemyAttack.enabled = false;
+                return;
             }
+
+            Hunting.Add(this);
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            Hunting.Remove(this);
         }
 
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority) return;
+
+            // 일시정지 중에는 대상도 고르지 않는다. 이동 · 공격 자체는 서버의 timeScale 이 세운다.
+            if (WarriorsMatchState.PausedNow) return;
 
             if (!Defeated && health != null && health.IsDead)
             {
@@ -83,11 +105,18 @@ namespace Warriors.Net
         }
 
         /// <summary>
-        /// 가장 가까운 **살아 있는** 사람을 고른다.
+        /// 쫓을 사람을 고른다. **가깝되, 이미 많이 몰린 사람은 피한다.**
         ///
-        /// 쓰러진 사람은 후보에서 빠진다. 아무도 없으면 대상을 비워
-        /// 몬스터가 제자리에 서 있게 한다. 시체를 계속 쫓게 두면
-        /// 남은 사람이 반대편에서 편하게 정리해 버린다.
+        /// 예전에는 가장 가까운 사람만 골랐다. 두 사람이 나란히 서 있으면 모든 몬스터가
+        /// 몇 cm 더 가까운 한 사람에게 쏠려, 다른 사람은 구경만 했다.
+        /// 그래서 거리에 "이미 그 사람을 노리는 몬스터 수 × <see cref="spreadPerHunter"/>" 를 더해
+        /// 비교한다. 여섯 마리가 1P 에 붙어 있으면 2P 가 18m 안에만 있어도 2P 쪽이 이긴다.
+        ///
+        /// 지금 대상은 <see cref="switchMargin"/> 만큼 유리하게 본다 — 매 0.25초 두 사람 사이를
+        /// 오가며 제자리걸음하지 않게.
+        ///
+        /// 쓰러진 사람은 후보에서 빠진다. 아무도 없으면 대상을 비워 몬스터가 제자리에 서 있게 한다.
+        /// 시체를 계속 쫓게 두면 남은 사람이 반대편에서 편하게 정리해 버린다.
         /// </summary>
         private void Retarget()
         {
@@ -95,19 +124,32 @@ namespace Warriors.Net
                 FindObjectsInactive.Include, FindObjectsSortMode.None);
 
             WarriorsPlayerLife best = null;
-            float bestSqr = float.MaxValue;
+            float bestScore = float.MaxValue;
+            float currentScore = float.MaxValue;
             Vector3 here = transform.position;
+
+            bool keepable = currentTarget != null && currentTarget.IsLive && !currentTarget.IsDown;
 
             foreach (WarriorsPlayerLife one in crew)
             {
                 if (one == null || !one.IsLive || one.IsDown) continue;
 
-                float sqr = (one.transform.position - here).sqrMagnitude;
-                if (sqr >= bestSqr) continue;
+                float distance = Vector3.Distance(one.transform.position, here);
+                int hunters = CountHunting(one);
+                float score = distance + hunters * spreadPerHunter;
 
-                bestSqr = sqr;
+                if (one == currentTarget) currentScore = score;
+
+                if (score >= bestScore) continue;
+
+                bestScore = score;
                 best = one;
             }
+
+            // 지금 대상이 아직 괜찮으면 굳이 갈아타지 않는다.
+            if (keepable && best != currentTarget && bestScore > currentScore - switchMargin) best = currentTarget;
+
+            currentTarget = best;
 
             if (approach != null)
             {
@@ -118,6 +160,20 @@ namespace Warriors.Net
             {
                 enemyAttack.RetargetPlayer(best != null ? best.GetComponent<WarriorsHealth>() : null);
             }
+        }
+
+        /// <summary>나 말고 이 사람을 노리는 몬스터 수.</summary>
+        private int CountHunting(WarriorsPlayerLife life)
+        {
+            int count = 0;
+
+            foreach (WarriorsNetEnemy other in Hunting)
+            {
+                if (other == null || other == this || other.Defeated) continue;
+                if (other.currentTarget == life) count++;
+            }
+
+            return count;
         }
 
         /// <summary>쓰러지는 모습은 모든 화면에서 같은 순간에 난다.</summary>

@@ -65,6 +65,14 @@ namespace Warriors.Net
             // 쓰러진 사람의 입력은 버린다.
             if (life != null && life.IsDown) return;
 
+            // 일시정지 중에는 휘두르지 않는다. 다만 "누르고 있던 것" 은 기억해 둔다 —
+            // 그러지 않으면 멈춘 동안 누른 키가 재개 순간에 한 번 나간다.
+            if (WarriorsMatchState.PausedNow)
+            {
+                PreviousButtons = input.Buttons;
+                return;
+            }
+
             // ⚠ 되돌려 다시 계산하는 틱에서는 "눌린 순간" 을 만들지 않는다.
             //    Fusion 은 같은 틱을 여러 번 굴린다. 그대로 두면 한 번 누른 것이
             //    여러 번 눌린 것으로 처리되어 칼이 두 번 나간다.

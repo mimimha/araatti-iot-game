@@ -48,6 +48,22 @@ namespace Warriors
         public int PlayerId => playerId;
 
         /// <summary>
+        /// 네트워크에서 서버가 정한 사람 번호(0 = 1P)를 받는다. (Warriors 네트워크 전환)
+        ///
+        /// 프리팹에는 0 이 박혀 있어 두 사람이 모두 1P 로 등록되던 것을 바로잡는다.
+        /// <see cref="WarriorsPlayers"/> 는 번호순으로 정렬해 두므로 다시 등록해 순서를 맞춘다.
+        /// 혼자 하는 씬에서는 아무도 부르지 않는다.
+        /// </summary>
+        public void ConfigurePlayerId(int id)
+        {
+            if (playerId == id) return;
+            bool registered = isActiveAndEnabled;
+            if (registered) WarriorsPlayers.Unregister(this);
+            playerId = id;
+            if (registered) WarriorsPlayers.Register(this);
+        }
+
+        /// <summary>
         /// Everything this player has personally connected with. Two player runs share
         /// one health pool, so the player strip used to show the same bar twice; this is
         /// something that actually differs between the two of them.

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fusion;
 using UnityEngine;
@@ -27,6 +28,9 @@ namespace Warriors.Net
 
         private Transform[] spawnPoints;
 
+        /// <summary>지금 자리를 차지한 사람들. 서버만 안다.</summary>
+        private readonly Dictionary<PlayerRef, int> seats = new Dictionary<PlayerRef, int>();
+
         public void PlayerJoined(PlayerRef player)
         {
             Debug.Log(
@@ -48,8 +52,10 @@ namespace Warriors.Net
             Runner.SetPlayerObject(player, spawned);
 
             spawned.GetComponent<WarriorsPlayerLife>()?.AssignIndex(index);
+            // 서버 쪽 등록 목록도 번호를 맞춘다. 클라이언트는 복제된 PlayerIndex 로 각자 맞춘다.
+            spawned.GetComponent<WarriorsPlayerCombat>()?.ConfigurePlayerId(index);
 
-            Debug.Log($"[WarriorsSpawner] {player} 스폰 완료 - {index + 1}P, {position}, Id {spawned.Id}");
+            Debug.Log($"[WarriorsSpawner] {player} 스폰 완료 - {index + 1}P, {position}, 회전 {rotation.eulerAngles.y:F0}°, Id {spawned.Id}");
         }
 
         public void PlayerLeft(PlayerRef player)
@@ -60,6 +66,9 @@ namespace Warriors.Net
 
             if (!Runner.IsServer) return;
 
+            // 자리를 비운다. 다음 사람이 이 자리를 받는다.
+            seats.Remove(player);
+
             NetworkObject spawned = Runner.GetPlayerObject(player);
             if (spawned != null) Runner.Despawn(spawned);
         }
@@ -67,11 +76,27 @@ namespace Warriors.Net
         /// <summary>
         /// 이 사람의 번호. 0 = 1P(왼쪽), 1 = 2P(오른쪽).
         ///
-        /// 최대 2명이라 <c>PlayerId</c> 를 인원 수로 나눈다. 나갔다 들어와도 같은 번호다.
+        /// **비어 있는 가장 낮은 자리**를 준다. 예전에는 <c>PlayerId % 2</c> 였는데,
+        /// Fusion 의 PlayerId 는 들어온 순서대로 계속 올라가서 한 사람이 나갔다 들어오면
+        /// (예: 2 와 4) 두 사람이 모두 1P 가 됐다 — 같은 자리에 겹쳐 서고 같은 레인을 받는다.
         /// </summary>
-        private static int ResolveIndex(PlayerRef player)
+        private int ResolveIndex(PlayerRef player)
         {
-            return Mathf.Abs(player.PlayerId) % WarriorsPlayers.Max;
+            if (seats.TryGetValue(player, out int seat)) return seat;
+
+            for (int i = 0; i < WarriorsPlayers.Max; i++)
+            {
+                if (seats.ContainsValue(i)) continue;
+
+                seats[player] = i;
+                return i;
+            }
+
+            // 정원을 넘었다. 세션 정원이 막아 주지만, 뚫려도 최소한 번호는 준다.
+            int fallback = seats.Count % WarriorsPlayers.Max;
+            seats[player] = fallback;
+            Debug.LogWarning($"[WarriorsSpawner] 자리가 모두 찼는데 {player} 가 들어왔습니다. {fallback + 1}P 를 겹쳐 씁니다.", this);
+            return fallback;
         }
 
         private void ResolveSpawn(int index, PlayerRef player, out Vector3 position, out Quaternion rotation)

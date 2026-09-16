@@ -81,8 +81,8 @@ namespace Warriors.Net
         {
             if (!HasStateAuthority || spawner == null || match == null) return;
 
-            // 1페이즈에만 몬스터가 나온다. 대기 · 카운트다운 중에는 조용해야 한다.
-            bool wantSpawning = match.Phase == WarriorsMatchPhase.Phase1;
+            // 1페이즈에만 몬스터가 나온다. 대기 · 카운트다운 · 라운드 소개 중에는 조용해야 한다.
+            bool wantSpawning = match.Phase == WarriorsMatchPhase.Phase1 && !match.InIntro;
 
             if (wantSpawning == spawningOpened) return;
 

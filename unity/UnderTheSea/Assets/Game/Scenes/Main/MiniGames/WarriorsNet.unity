@@ -364,7 +364,7 @@ MonoBehaviour:
   noteTravelSeconds: 2.2
   noteInterval: 0.9
   goodWindow: 0.2
-  missDamage: 6
+  missDamage: 8
   clearSeconds: 0.35
   _Running:
     RawValue: 0
@@ -425,8 +425,8 @@ MonoBehaviour:
   crewToStart: 2
   countdownSeconds: 10
   phase1TargetKills: 15
-  phase2TargetTentacleHits: 15
-  phase3TargetRhythmHits: 15
+  phase2TargetTentacleHits: 22
+  phase3TargetRhythmHits: 20
   _Phase: 0
   _Countdown: 0
   _Crew: 0

@@ -45,9 +45,14 @@ namespace Warriors.Net
 
                 data.Move = move;
 
-                data.Buttons.Set((int)WarriorsButton.HorizontalSlash, keyboard.digit1Key.isPressed);
-                data.Buttons.Set((int)WarriorsButton.VerticalSlash, keyboard.digit2Key.isPressed);
-                data.Buttons.Set((int)WarriorsButton.Thrust, keyboard.digit3Key.isPressed);
+                // 윗줄 숫자키와 오른쪽 숫자 키패드 둘 다 받는다. WarriorsKeyboardInput(싱글)과 같다 —
+                // 노트북 키패드로 치던 사람이 빌드에서만 공격이 안 되던 원인이다.
+                data.Buttons.Set((int)WarriorsButton.HorizontalSlash,
+                    keyboard.digit1Key.isPressed || keyboard.numpad1Key.isPressed);
+                data.Buttons.Set((int)WarriorsButton.VerticalSlash,
+                    keyboard.digit2Key.isPressed || keyboard.numpad2Key.isPressed);
+                data.Buttons.Set((int)WarriorsButton.Thrust,
+                    keyboard.digit3Key.isPressed || keyboard.numpad3Key.isPressed);
                 data.Buttons.Set((int)WarriorsButton.Dodge, keyboard.leftShiftKey.isPressed);
             }
 
