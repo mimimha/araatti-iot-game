@@ -34,6 +34,27 @@ namespace Warriors
             Debug.Log("[Warriors] 결과 화면 버튼 입력을 위해 EventSystem 을 생성했습니다.");
         }
 
-        private void Restart() => SceneFlow.RestartCurrent();
+        /// <summary>
+        /// 다시 시작한다.
+        ///
+        /// <b>네트워크 판이면 서버에 요청한다.</b> 예전에는 여기서도 <c>SceneFlow.RestartCurrent()</c> 를
+        /// 불렀는데, 그것은 <b>내 씬만</b> 다시 여는 것이라 서버의 판은 끝난 상태로 남았다.
+        /// 결과 화면을 빠져나와도 다시 시작되지 않고 화면만 어긋났다.
+        ///
+        /// 판의 상태는 서버가 들고 있으므로 서버에 되돌려 달라고 부탁한다. 그러면 두 사람이
+        /// 같은 순간에 새 판 대기로 돌아간다. 혼자 하는 씬에는 매치가 없으니 예전 그대로 씬을 다시 연다.
+        /// </summary>
+        private void Restart()
+        {
+            Warriors.Net.WarriorsMatchState match = Warriors.Net.WarriorsMatchState.Current;
+
+            if (match != null && match.Object != null && match.Object.IsValid)
+            {
+                match.Rpc_RequestRestart();
+                return;
+            }
+
+            SceneFlow.RestartCurrent();
+        }
     }
 }

@@ -19,6 +19,12 @@ namespace Warriors
         private Vector3 targetOffset;
         private float retreatUntil;
 
+        /// <summary>내 몸 반지름(월드 기준). <see cref="PushOutOfBodies"/> 가 쓴다.</summary>
+        private float bodyRadius = .6f;
+
+        /// <summary>쫓는 사람의 몸 반지름. 캐릭터의 <c>CharacterController</c> 에서 읽는다.</summary>
+        private float playerRadius = .35f;
+
         /// <summary>
         /// Where this enemy holds its line. The lane offset used to be added on top of
         /// this, which counted the spread twice: the lane already walks each enemy to one
@@ -39,6 +45,9 @@ namespace Warriors
             // so enemies slid past instead of closing in; spacing is separation's job.
             targetOffset = new Vector3(WarriorsRun.Range(-2.2f, 2.2f), 0f, WarriorsRun.Range(-0.9f, 0.9f));
             if (spawnPoint != null) transform.position = spawnPoint.position;
+
+            CacheBodyRadius();
+            CachePlayerRadius();
         }
 
         private void OnDisable() => ActiveEnemies.Remove(this);
@@ -120,7 +129,70 @@ namespace Warriors
             // the player where they could not be seen or answered, so they hold the seaward
             // side. Side to side they still spread as far as the lane offset takes them.
             if (player != null) position.z = Mathf.Max(position.z, player.position.z + seawardMargin);
-            transform.position = position;
+
+            transform.position = PushOutOfBodies(position);
+        }
+
+        /// <summary>
+        /// **겹친 몸을 마지막에 밀어낸다.**
+        ///
+        /// 이 부품은 자리를 <c>transform.position</c> 에 직접 대입한다. 물리 스윕을 거치지 않으므로
+        /// 몬스터에 <c>SphereCollider</c> 가 달려 있어도 <b>아무것도 막아 주지 않는다.</b>
+        /// 실제 2인 플레이에서 몬스터가 플레이어 몸 안까지 들어오고 서로 한 덩어리로 겹쳐 보인 것이
+        /// 이 때문이다. 쫓아가는 힘과 <c>separation</c> 은 둘 다 "미는 힘"이라 겹침을 막아 주지 못한다.
+        ///
+        /// 그래서 계산이 다 끝난 자리에서 한 번 더, <b>겹친 만큼 딱 밀어낸다.</b>
+        /// 힘이 아니라 자리 보정이라 프레임률과 무관하게 겹치지 않는다.
+        ///
+        /// 몬스터끼리는 서로 절반씩만 물러난다. 각자 자기 <c>Advance</c> 에서 밀어내므로
+        /// 양쪽이 전부 물러나면 두 배로 튕겨 나간다.
+        /// </summary>
+        private Vector3 PushOutOfBodies(Vector3 position)
+        {
+            if (player != null)
+            {
+                float need = bodyRadius + playerRadius;
+                Vector3 away = position - player.position;
+                away.y = 0f;
+                float distance = away.magnitude;
+
+                if (distance > .001f && distance < need) position += away / distance * (need - distance);
+            }
+
+            foreach (WarriorsBeachEnemyApproach neighbour in ActiveEnemies)
+            {
+                if (neighbour == null || neighbour == this || !neighbour.isActiveAndEnabled) continue;
+
+                float need = bodyRadius + neighbour.bodyRadius;
+                Vector3 away = position - neighbour.transform.position;
+                away.y = 0f;
+                float distance = away.magnitude;
+
+                if (distance > .001f && distance < need) position += away / distance * ((need - distance) * .5f);
+            }
+
+            position.y = groundHeight;
+            return position;
+        }
+
+        /// <summary>내 몸 반지름. 스폰할 때 몸 콜라이더에서 읽는다.</summary>
+        private void CacheBodyRadius()
+        {
+            SphereCollider body = GetComponentInChildren<SphereCollider>();
+
+            if (body == null) return;
+
+            Vector3 scale = body.transform.lossyScale;
+            bodyRadius = body.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+        }
+
+        /// <summary>쫓는 사람의 몸 반지름을 기억해 둔다. 매 프레임 찾지 않는다.</summary>
+        private void CachePlayerRadius()
+        {
+            if (player == null) return;
+
+            CharacterController capsule = player.GetComponent<CharacterController>();
+            if (capsule != null) playerRadius = capsule.radius;
         }
 
         /// <summary>
@@ -137,6 +209,20 @@ namespace Warriors
             spawnPoint = point;
             groundHeight = height;
             stoppingDistance = 2.2f;
+            CacheBodyRadius();
+            CachePlayerRadius();
+        }
+
+        /// <summary>
+        /// **쫓아갈 사람을 바꾼다.** 서버가 가장 가까운 생존자를 골라 넣는다.
+        ///
+        /// <c>Configure</c> 를 다시 부르면 스폰 지점과 지면 높이까지 덮어써서
+        /// 솟아오르는 연출이 다시 시작된다. 여기서는 대상만 바꾼다.
+        /// </summary>
+        public void RetargetPlayer(Transform playerTarget)
+        {
+            player = playerTarget;
+            CachePlayerRadius();
         }
 
         /// <summary>Short hit reaction. Capped so it can never become a retreat.</summary>

@@ -24,6 +24,15 @@ public static class FusionLaunchArguments
     public const string ModeKey = "-mode";
 
     /// <summary>
+    /// **개발용.** 검 미니게임을 몇 라운드부터 시작할지. (1 · 2 · 3)
+    ///
+    /// 3라운드 화면 하나를 확인하려고 매번 1·2라운드를 다 싸워야 해서 붙였다.
+    /// <b>인자를 주지 않으면 아무것도 달라지지 않는다</b> — 제품 실행 경로는 이 값을 넘기지 않으므로
+    /// 정상 흐름(1라운드부터)이 그대로다.
+    /// </summary>
+    public const string StartPhaseKey = "-startphase";
+
+    /// <summary>
     /// <paramref name="key"/> 다음에 오는 값을 돌려준다. 없으면 <paramref name="fallback"/>.
     ///
     /// 예: <c>-session lobby-ch1</c> → GetString("-session", "기본값") == "lobby-ch1"
@@ -71,6 +80,35 @@ public static class FusionLaunchArguments
         }
 
         return port;
+    }
+
+    /// <summary>
+    /// 정수를 읽는다. 없거나 숫자가 아니면 기본값을 쓰고 경고만 남긴다.
+    /// 읽은 값은 <paramref name="min"/> ~ <paramref name="max"/> 로 조인다.
+    /// </summary>
+    public static int GetInt(string key, int fallback, int min, int max)
+    {
+        string raw = GetString(key, null);
+
+        if (string.IsNullOrEmpty(raw))
+        {
+            return fallback;
+        }
+
+        if (!int.TryParse(raw, out int value))
+        {
+            Debug.LogWarning($"[FusionLaunchArguments] {key} 값 \"{raw}\" 을 숫자로 읽지 못했습니다. 기본값 {fallback} 을 씁니다.");
+            return fallback;
+        }
+
+        int clamped = Mathf.Clamp(value, min, max);
+
+        if (clamped != value)
+        {
+            Debug.LogWarning($"[FusionLaunchArguments] {key} 값 {value} 는 {min}~{max} 밖입니다. {clamped} 로 맞춥니다.");
+        }
+
+        return clamped;
     }
 
     /// <summary>이동 위치를 로그로 남길지. 창이 없는 서버의 동기화를 확인할 때 쓴다.</summary>

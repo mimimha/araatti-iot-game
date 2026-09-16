@@ -48,6 +48,22 @@ namespace Warriors
         public int PlayerId => playerId;
 
         /// <summary>
+        /// 네트워크에서 서버가 정한 사람 번호(0 = 1P)를 받는다. (Warriors 네트워크 전환)
+        ///
+        /// 프리팹에는 0 이 박혀 있어 두 사람이 모두 1P 로 등록되던 것을 바로잡는다.
+        /// <see cref="WarriorsPlayers"/> 는 번호순으로 정렬해 두므로 다시 등록해 순서를 맞춘다.
+        /// 혼자 하는 씬에서는 아무도 부르지 않는다.
+        /// </summary>
+        public void ConfigurePlayerId(int id)
+        {
+            if (playerId == id) return;
+            bool registered = isActiveAndEnabled;
+            if (registered) WarriorsPlayers.Unregister(this);
+            playerId = id;
+            if (registered) WarriorsPlayers.Register(this);
+        }
+
+        /// <summary>
         /// Everything this player has personally connected with. Two player runs share
         /// one health pool, so the player strip used to show the same bar twice; this is
         /// something that actually differs between the two of them.
@@ -240,7 +256,11 @@ namespace Warriors
             bool thrust = direction == WarriorsAttackDirection.Thrust;
             Vector3 center = transform.position + Vector3.up + transform.forward * (thrust ? thrustLength * .5f : 2.25f);
             float queryRadius = thrust ? thrustLength * .55f : attackRadius;
-            int count = Physics.OverlapSphereNonAlloc(center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
+            // ⚠ 정적 Physics.* 는 **기본 물리 씬**에만 묻는다. 네트워크 세션에서는 게임 씬이
+            //    러너 전용 물리 씬에 있어 결과가 늘 0 이 된다. (Warriors 네트워크 전환)
+            //    러너가 없는 싱글 씬에서는 안에서 예전 함수를 그대로 부른다.
+            int count = Warriors.Net.WarriorsNet.OverlapSphere(
+                center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
             float attackAngle = direction == WarriorsAttackDirection.HorizontalSlash ? horizontalAttackAngle
                 : direction == WarriorsAttackDirection.Thrust ? thrustAttackAngle : verticalAttackAngle;
             float halfAngle = attackAngle * .5f;
@@ -272,7 +292,7 @@ namespace Warriors
                 // ROUND 2 is a pattern puzzle rather than a sweep.  One swing may only ever
                 // take the single nearest tentacle, so two tentacles that happen to share a
                 // weakness can never fall to the same slash.
-                if (tentacle.TryReceiveAttack(direction, damage))
+                if (tentacle.TryReceiveAttack(direction, damage, gameObject))
                 {
                     acceptedCount++;
                     tentacle.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
@@ -284,7 +304,7 @@ namespace Warriors
                 // point of the round.
                 foreach (WarriorsTarget target in attackCandidates)
                 {
-                    if (!target.TryReceiveAttack(direction, damage)) continue;
+                    if (!target.TryReceiveAttack(direction, damage, gameObject)) continue;
                     acceptedCount++;
                     target.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
                 }
@@ -311,7 +331,7 @@ namespace Warriors
                 // A tentacle that was just struck is still inside its hit cooldown. Picking it
                 // again would swallow the swing and leave the other tentacle untouchable, so
                 // the nearest one that can actually take the hit wins.
-                if (candidate.CanReceiveAttack(direction))
+                if (candidate.CanReceiveAttack(direction, gameObject))
                 {
                     if (distance >= nearestDistance) continue;
                     nearestDistance = distance;
