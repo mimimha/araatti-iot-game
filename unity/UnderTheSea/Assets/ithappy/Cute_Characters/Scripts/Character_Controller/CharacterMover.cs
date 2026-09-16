@@ -20,6 +20,13 @@ namespace ithappy.Cute_Characters.Controller
         [SerializeField]
         private float m_JumpHeight = 5f;
 
+        // ARA: 원래 MovementHandler 안에 private readonly 1f 로 박혀 있던 값이다.
+        //      광산은 발밑을 깨면 폴짝 뛰는데, 채굴이 1초보다 빠르면
+        //      그 사이의 폴짝이 조용히 사라졌다. 기본값은 1초 그대로라
+        //      다른 캐릭터는 달라지지 않는다.
+        [SerializeField, Min(0f), Tooltip("Seconds before the character may jump again.")]
+        private float m_JumpReload = 1f;
+
         [Header("Animator")]
         [SerializeField]
         private string m_HorizontalID = "Hor";
@@ -55,7 +62,7 @@ namespace ithappy.Cute_Characters.Controller
             m_WalkSpeed = Mathf.Max(m_WalkSpeed, 0f);
             m_RunSpeed = Mathf.Max(m_RunSpeed, m_WalkSpeed);
 
-            m_Movement?.SetStats(m_WalkSpeed / 3.6f, m_RunSpeed / 3.6f, m_RotateSpeed, m_JumpHeight, m_Space);
+            m_Movement?.SetStats(m_WalkSpeed / 3.6f, m_RunSpeed / 3.6f, m_RotateSpeed, m_JumpHeight, m_Space, m_JumpReload);
         }
 
         private void Awake()
@@ -64,7 +71,7 @@ namespace ithappy.Cute_Characters.Controller
             m_Controller = GetComponent<CharacterController>();
             m_Animator = GetComponent<Animator>();
 
-            m_Movement = new MovementHandler(m_Controller, m_Transform, m_WalkSpeed, m_RunSpeed, m_RotateSpeed, m_JumpHeight, m_Space);
+            m_Movement = new MovementHandler(m_Controller, m_Transform, m_WalkSpeed, m_RunSpeed, m_RotateSpeed, m_JumpHeight, m_Space, m_JumpReload);
             m_Animation = new AnimationHandler(m_Animator, m_HorizontalID,  m_VerticalID, m_StateID, m_JumpID);
         }
 
@@ -138,7 +145,7 @@ namespace ithappy.Cute_Characters.Controller
             private Space m_Space;
 
             private readonly float m_Luft = 75f;
-            private readonly float m_JumpReload = 1f;
+            private float m_JumpReload = 1f;
 
             private float m_TargetAngle;
             private bool m_IsRotating = false;
@@ -148,7 +155,7 @@ namespace ithappy.Cute_Characters.Controller
 
             private float m_jumpTimer;
 
-            public MovementHandler(CharacterController controller, Transform transform, float walkSpeed, float runSpeed, float rotateSpeed, float jumpHeight, Space space)
+            public MovementHandler(CharacterController controller, Transform transform, float walkSpeed, float runSpeed, float rotateSpeed, float jumpHeight, Space space, float jumpReload = 1f)
             {
                 m_Controller = controller;
                 m_Transform = transform;
@@ -157,16 +164,18 @@ namespace ithappy.Cute_Characters.Controller
                 m_RunSpeed = runSpeed;
                 m_RotateSpeed = rotateSpeed;
                 m_JumpHeight = jumpHeight;
+                m_JumpReload = jumpReload;
 
                 m_Space = space;
             }
 
-            public void SetStats(float walkSpeed, float runSpeed, float rotateSpeed, float jumpHeight, Space space)
+            public void SetStats(float walkSpeed, float runSpeed, float rotateSpeed, float jumpHeight, Space space, float jumpReload = 1f)
             {
                 m_WalkSpeed = walkSpeed;
                 m_RunSpeed = runSpeed;
                 m_RotateSpeed = rotateSpeed;
                 m_JumpHeight = jumpHeight;
+                m_JumpReload = jumpReload;
 
                 m_Space = space;
             }

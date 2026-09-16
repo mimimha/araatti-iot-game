@@ -63,6 +63,25 @@ namespace Mine.Net
 
         private CharacterMover _mover;
         private MineNetPlayer _who;
+
+        /// <summary>
+        /// 발밑을 깨서 폴짝 뛰라는 요청. <b>프레임 단위로 들고 있는다.</b>
+        ///
+        /// ⚠ <c>MineJump</c> 가 직접 <c>CharacterMover</c> 에 써도 이쪽이 같은 프레임에
+        ///   <c>jump=false</c> 로 덮어쓰면 그만이다. 점프는 매 프레임 읽히는 bool
+        ///   하나라 나중에 쓴 쪽이 이긴다. 그래서 <b>요청을 여기서 들고 있다가</b>
+        ///   이 부품이 직접 <c>jump=true</c> 로 넣는다. 순서 싸움을 없앤다.
+        /// </summary>
+        private bool _hopRequest;
+
+        /// <summary>이 요청을 몇 번째 프레임에 받았는가. 한 프레임만 유지한다.</summary>
+        private int _hopFrame = -1;
+
+        /// <summary>몇 번째 프레임까지 <c>jump=true</c> 를 유지할 것인가.</summary>
+        private int _hopUntilFrame = -1;
+
+        /// <summary>내려설 때까지 폴짝 요청을 몇 프레임까지 들고 있을 것인가.</summary>
+        private const int HopWaitFrames = 60;
         private CharacterController _capsule;
         private Animator _animator;
 
@@ -130,6 +149,17 @@ namespace Mine.Net
         ///    <c>"CharacterController.Move called on inactive controller"</c> 가
         ///    <b>프레임마다</b> 쏟아진다. 실측으로 한 판에 서버 43만 건, 클라이언트 2만 건이었다.
         /// </summary>
+        /// <summary>
+        /// 발밑을 깨졌으니 폴짝 뛰게 한다. <c>MineNetPlayerActions.Dig</c> 가 부른다.
+        ///
+        /// 손맛일 뿐 규칙은 아니다. 파이는 칸도 점수도 바뀌지 않는다.
+        /// </summary>
+        public void RequestHop()
+        {
+            _hopRequest = true;
+            _hopFrame = Time.frameCount;
+        }
+
         public void SetSimulated(bool on)
         {
             if (_simulated == on) return;
@@ -223,6 +253,33 @@ namespace Mine.Net
                 run = turn.Buttons.IsSet((int)MineButton.Run);
                 jump = turn.Buttons.IsSet((int)MineButton.Jump);
             }
+
+            // ⚠ 폴짝은 <b>땅에 붙었을 때만</b> 들어간다.
+            //
+            //   <c>CharacterMover.CaculateGravity</c> 는 <c>m_Controller.isGrounded</c> 가
+            //   참일 때만 점프를 받는다. 그런데 칸을 파면 발밑 블록이
+            //   <c>digDepth</c> 만큼 내려가면서 <b>바로 그 순간 공중에 뜨게 된다.</b>
+            //   그때 요청을 버리면 내려설 때는 이미 요청이 없다.
+            //   그래서 <b>내려설 때까지 들고 있다가</b> 그때 넣는다.
+            //
+            //   한 프레임에 틱이 여러 번 돌 수 있고 <c>CharacterMover</c> 는
+            //   틱이 아니라 프레임마다 읽으므로, 넣기로 정한 뒤에는
+            //   다음 프레임까지 계속 true 를 유지한다.
+            if (_hopRequest)
+            {
+                if (_capsule != null && _capsule.isGrounded)
+                {
+                    _hopRequest = false;
+                    _hopUntilFrame = Time.frameCount + 1;
+                }
+                else if (Time.frameCount - _hopFrame > HopWaitFrames)
+                {
+                    // 너무 오래 기다리지는 않는다. 한참 뒤에 뛰면 어색하다.
+                    _hopRequest = false;
+                }
+            }
+
+            if (Time.frameCount <= _hopUntilFrame) jump = true;
 
             _mover.SetInput(axis, LookTarget(yaw), run, jump);
             MoveAxis = axis;
