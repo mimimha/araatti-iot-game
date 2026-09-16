@@ -443,6 +443,19 @@ public class CarryTask : MonoBehaviour
                 }
 
                 Finish(input, $"자재를 넘겼다 → {point.name}");
+
+                // 넘겼으면 **그 자리에 바로 붙는다.**
+                //
+                // 자재를 들고 여기까지 온 사람은 고치러 온 것이다. 그런데 넘기기와 붙기가
+                // 같은 버튼이라, 손으로 하면 Space 를 두 번 눌러야 했다. 두 번째가 뭘 하는
+                // 버튼인지 화면이 알려주지도 않는다.
+                //
+                // ⚠ Finish 가 HandsBusy 를 내린 **뒤에** 붙어야 한다. 손이 묶여 있는 동안에는
+                //    TaskWorker 가 자리를 잡지 않고 비켜준다.
+                //
+                // 자리가 이미 찼거나(정원 1명) 사거리를 벗어났으면 그냥 안 붙는다.
+                // 자재는 이미 전달됐으므로 헛수고가 되지는 않는다.
+                _worker.Join(point);
                 return true;
 
             case Cargo.Water:
