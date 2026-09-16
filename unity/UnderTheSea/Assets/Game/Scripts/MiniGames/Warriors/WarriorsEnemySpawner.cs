@@ -28,7 +28,8 @@ namespace Warriors
         public void ConfigureForPlayers(int players)
         {
             int extra = Mathf.Clamp(players, 1, WarriorsPlayers.Max) - 1;
-            maxAliveEnemies = 12 + extra * 6;
+            // 2인이면 12. 위 상한 곡선이 이 값의 50% -> 75% -> 100% 로 올라간다 (6 -> 9 -> 12).
+            maxAliveEnemies = 8 + extra * 4;
             spawnCount = new Vector2Int(2 + extra, 5 + extra * 2);
         }
         private readonly List<WarriorsTarget> alive = new();
@@ -129,7 +130,14 @@ namespace Warriors
                 if (score != null && !score.IsRunning) continue;
                 alive.RemoveAll(x => x == null || x.IsDefeated);
 
-                int room = Mathf.Min(maxAliveEnemies - alive.Count, WarriorsRun.Range(spawnCount.x, spawnCount.y + 1));
+                // **화면에 살아 있는 수를 라운드가 흐를수록 늘린다.**
+                //
+                // 예전에는 처음부터 끝까지 같은 상한(2인 18)이었다. 그런데 실제 플레이에서는
+                // 초반이 휑하고 후반에 뭉쳤다. 초반 4~6 · 중반 6~9 · 후반 8~12 로 올려 두면
+                // 처음부터 화면에 적이 보이고, 뒤로 갈수록 몰아치는 느낌이 생긴다.
+                int cap = Mathf.RoundToInt(maxAliveEnemies * (rush ? 1f : progress < midProgress ? .5f : .75f));
+
+                int room = Mathf.Min(cap - alive.Count, WarriorsRun.Range(spawnCount.x, spawnCount.y + 1));
                 if (room <= 0) continue;
 
                 // 한 무리는 **한 자리에서 같이** 나온다. 무리마다 자리가 달라지므로

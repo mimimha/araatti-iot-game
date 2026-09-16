@@ -147,6 +147,29 @@ namespace Warriors.Net
         [Networked] public int FinishKind { get; private set; }
 
         /// <summary>
+        /// 정타가 날 때마다 1씩 오른다. <b>크라켄 리액션을 클라이언트에서 보이게 하는 값이다.</b>
+        ///
+        /// ⚠ 왜 이 값이 있어야 하는가.
+        ///    <c>ReportSwing</c> 은 <c>HasStateAuthority</c> 로 막혀 있어 <b>서버에서만</b> 돈다.
+        ///    거기서 <c>kraken.PlayRhythmHit</c> 를 불러도 그 움찔거림은 서버 프로세스 안에서만
+        ///    일어나고, 데디케이티드 서버는 <c>WarriorsServerCleanup</c> 이 화면 요소를 전부 꺼 두므로
+        ///    <b>아무도 그것을 보지 못한다.</b> "판정은 성공인데 크라켄이 가만히 있다" 가 이것 때문이었다.
+        ///    호출을 연결하는 것만으로는 고쳐지지 않는다.
+        ///    아래 <c>ShowFinalForm</c> 자리에 이미 같은 취지의 주석이 있다 —
+        ///    "서버에서만 세우면 서버에서만 보인다".
+        ///
+        /// 그래서 <b>번호만 복제하고 연출은 각 화면이 스스로 재생한다.</b>
+        /// 피니시 문구가 쓰는 <c>FinishSerial</c> 과 같은 방식이다.
+        /// </summary>
+        [Networked] public int HitSerial { get; private set; }
+
+        /// <summary>마지막 정타의 세기. 1 보통 · 2 강타(묶음을 이어 가는 중).</summary>
+        [Networked] public int HitStrength { get; private set; }
+
+        /// <summary>마지막 정타가 난 레인. 판정선을 그 줄만 번쩍이게 하는 데 쓴다.</summary>
+        [Networked] public int HitLane { get; private set; }
+
+        /// <summary>
         /// 지금 판의 3페이즈 담당. 공격 입력이 여기로 들어온다.
         ///
         /// <c>WarriorsNetPlayerCombat</c> 이 사람마다 <c>GetInput</c> 으로 버튼을 읽는데,
@@ -176,6 +199,14 @@ namespace Warriors.Net
         private int shownFinishSerial;
         private float finishShownUntil;
 
+        // 정타 리액션(화면). -1 은 "아직 한 번도 안 봤다" 는 뜻이다. 접속 직후 서버의 번호를
+        // 그대로 받아 오는데, 그것을 정타로 치면 들어오자마자 크라켄이 한 번 튄다.
+        private int shownHitSerial = -1;
+
+        // 판정선 펄스(화면). 맞은 줄 하나만, 아주 잠깐.
+        private int lanePulseLane = -1;
+        private float lanePulseUntil;
+
         // 내 레인 판정 문구(화면). "좋아요!" · "놓쳤어요" 를 내 노트가 판정된 순간에만 낸다.
         private int localLane = -1;
         private float localLaneCheckAt;
@@ -190,6 +221,12 @@ namespace Warriors.Net
 
         private readonly List<WarriorsRhythmNoteView> shownNotes = new();
         private bool shownStage;
+
+        /// <summary>이 화면이 크라켄을 켜 두었는가. 새 판으로 돌아갈 때 끄는 데 쓴다.</summary>
+        private bool shownKraken;
+
+        /// <summary>이 화면의 카메라. 흔들 때만 쓴다. 서버에는 없다.</summary>
+        private WarriorsThirdPersonCamera arenaCamera;
 
         // 일시정지(화면). 노트가 멈춘 채 보이도록 틱을 붙잡아 둔다.
         private bool renderPaused;
@@ -359,7 +396,9 @@ namespace Warriors.Net
                 note.State = 2;
                 Notes.Set(i, note);
 
-                Punish(note.Lane);
+                // ⚠ 여기서 바로 때리지 않는다. 노트 하나 놓칠 때마다 크라켄이 반격하면
+                //    리듬이 매번 끊기고, 실수 몇 번에 그대로 죽는다.
+                //    묶음이 끝난 뒤 <see cref="SettlePattern"/> 이 성적을 보고 판단한다.
             }
         }
 
@@ -490,7 +529,13 @@ namespace Warriors.Net
 
             for (int lane = 0; lane < laneHits.Length; lane++)
             {
-                if (laneNotes[lane] == 0 || laneHits[lane] < laneNotes[lane]) continue;
+                if (laneNotes[lane] == 0) continue;
+
+                // **묶음 성적으로 반격을 판단한다.** 절반도 못 받았으면 크라켄이 되받아친다.
+                // 노트 하나 놓칠 때마다 때리던 예전 방식은 리듬을 매번 끊고, 몇 번 실수에 바로 죽었다.
+                if (laneHits[lane] * 2 < laneNotes[lane]) Punish(lane);
+
+                if (laneHits[lane] < laneNotes[lane]) continue;
 
                 finishers++;
 
@@ -566,10 +611,23 @@ namespace Warriors.Net
             hit.State = correct ? 1 : 2;
             Notes.Set(best, hit);
 
-            if (!correct)
+            // 틀린 모양으로 휘둘러도 그 자리에서 때리지 않는다. 묶음 성적에 반영될 뿐이다.
+            if (!correct) return;
+
+            // **크라켄이 맞는 것이 보여야 한다.** 묶음을 이어 가는 중이면 더 세게 친다.
+            //
+            // ⚠ 여기서 연출을 직접 재생하지 않는다. 이 메서드는 서버에서만 돌기 때문에
+            //    (위 HasStateAuthority) 여기서 PlayRhythmHit 을 불러 봐야 서버 화면에서만
+            //    일어나고 클라이언트는 아무것도 못 본다. 서버는 체력만 깎고,
+            //    연출은 HitSerial 을 보고 각 화면이 Render 에서 재생한다.
             {
-                Punish(lane);
-                return;
+                bool strong = lane >= 0 && lane < laneHits.Length && laneHits[lane] >= 2;
+
+                if (kraken != null) kraken.ApplyRhythmHitSilently(strong);
+
+                HitStrength = strong ? 2 : 1;
+                HitLane = lane;
+                HitSerial++;
             }
 
             // 묶음 안에서 몇 개를 받았는지 센다. 다 받으면 SettlePattern 이 콤보 피니시로 본다.
@@ -663,7 +721,26 @@ namespace Warriors.Net
                     hud.NetworkRhythmNotes.Clear();
                     hud.NetworkRhythmJudgement = string.Empty;
                     hud.NetworkLocalLane = -1;
+                    hud.NetworkRhythmPulseLane = -1;
                     laneJudgementUntil = 0f;
+                }
+
+                // **새 판으로 돌아갔으면 크라켄을 내린다.**
+                //
+                // ⚠ 실제로 본 증상(2026-09-16 영상). 판이 처음으로 되돌아가 HUD 는
+                //    ROUND 1 · 처치 0 · 03:00 인데 크라켄은 화면에 그대로 서 있었다.
+                //    3페이즈에서 켜 준 것을 아무도 끄지 않았기 때문이다.
+                //    진행 상태는 ROUND 1 인데 보이는 것은 ROUND 3 이라 둘이 섞여 보였다.
+                //
+                // 단, **결과 화면에서는 내리지 않는다.** 쓰러진 크라켄은 결과 직전까지
+                // 보여야 하는 그림이다. 판이 끝난 상태(IsOver)가 아니라 대기/1라운드로
+                // 돌아갔을 때만 치운다.
+                bool backToNewMatch = match != null && !match.IsOver;
+
+                if (backToNewMatch && shownKraken && !HasStateAuthority && kraken != null)
+                {
+                    shownKraken = false;
+                    kraken.gameObject.SetActive(false);
                 }
 
                 return;
@@ -674,7 +751,34 @@ namespace Warriors.Net
             {
                 shownFinishSerial = FinishSerial;
                 finishShownUntil = Time.unscaledTime + 1.1f;
+
+                // **피니시는 한 대와 다르게 끝나야 한다.** 묶음을 다 받아 낸 순간이 제일 센 순간인데
+                // 지금까지는 글자만 떴다. 두 사람이 동시에 해냈으면(TEAM) 한 번 더 크게 친다.
+                if (kraken != null) kraken.PlayRhythmFinish(FinishKind == 2);
+                ShakeArenaCamera(FinishKind == 2 ? .42f : .26f);
             }
+
+            // **정타 리액션.** 서버가 올려 준 번호가 바뀌면 이 화면에서 크라켄을 때린다.
+            // 첫 프레임에 0 -> 값 으로 튀면서 몰아치지 않도록, 처음 본 번호는 재생 없이 맞춰만 둔다.
+            if (HitSerial != shownHitSerial)
+            {
+                bool first = shownHitSerial < 0;
+                shownHitSerial = HitSerial;
+
+                if (!first)
+                {
+                    bool strong = HitStrength == 2;
+                    if (kraken != null) kraken.PlayRhythmHit(strong);
+
+                    // 판정선은 맞은 줄만 반응한다. 두 줄이 같이 번쩍이면 누가 맞췄는지 안 읽힌다.
+                    lanePulseLane = HitLane;
+                    lanePulseUntil = Time.unscaledTime + (strong ? .12f : .08f);
+
+                    if (strong) ShakeArenaCamera(.14f);
+                }
+            }
+
+            hud.NetworkRhythmPulseLane = Time.unscaledTime < lanePulseUntil ? lanePulseLane : -1;
 
             // 피니시가 먼저, 아니면 내 노트의 판정("좋아요!" · "놓쳤어요"). HUD 가 한국어로 옮긴다.
             hud.NetworkRhythmJudgement = Time.unscaledTime < finishShownUntil
@@ -689,6 +793,7 @@ namespace Warriors.Net
             if (!shownStage && !HasStateAuthority && kraken != null)
             {
                 shownStage = true;
+                shownKraken = true;
                 kraken.gameObject.SetActive(true);
                 kraken.ShowFinalForm();
             }
@@ -777,6 +882,26 @@ namespace Warriors.Net
 
             laneJudgement = note.State == 1 ? "GOOD" : "MISS";
             laneJudgementUntil = Time.unscaledTime + (note.State == 1 ? .45f : .6f);
+        }
+
+        /// <summary>
+        /// 이 화면의 카메라를 흔든다. R3 는 <c>FocusArena</c> 로 고정 구도라 카메라가 따라다니지
+        /// 않으므로, 흔들림이 타격의 무게를 대신 전한다.
+        ///
+        /// 서버에는 카메라가 없다(<c>WarriorsServerCleanup</c> 이 껐다). 못 찾으면 그냥 넘어간다.
+        /// </summary>
+        private void ShakeArenaCamera(float amount)
+        {
+            if (HasStateAuthority) return;
+
+            if (arenaCamera == null)
+            {
+                Camera main = Camera.main;
+                if (main != null) arenaCamera = main.GetComponent<WarriorsThirdPersonCamera>();
+                if (arenaCamera == null) return;
+            }
+
+            arenaCamera.Shake(amount);
         }
 
         /// <summary>내 캐릭터의 레인. 입력 권한이 있는 <c>WarriorsPlayerLife</c> 의 번호다. 서버에는 없다(-1).</summary>

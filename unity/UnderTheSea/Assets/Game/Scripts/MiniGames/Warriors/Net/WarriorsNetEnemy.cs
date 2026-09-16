@@ -46,6 +46,9 @@ namespace Warriors.Net
         private WarriorsTarget target;
         private WarriorsHealth health;
         private WarriorsBeachEnemyApproach approach;
+
+        /// <summary>마지막으로 본 HP. 이 값이 줄어든 틱이 "맞은 순간" 이다.</summary>
+        private int lastSeenHealth = int.MinValue;
         private WarriorsEnemyAttack enemyAttack;
         private WarriorsPlayerLife currentTarget;
 
@@ -82,6 +85,21 @@ namespace Warriors.Net
 
             // 일시정지 중에는 대상도 고르지 않는다. 이동 · 공격 자체는 서버의 timeScale 이 세운다.
             if (WarriorsMatchState.PausedNow) return;
+
+            // **맞으면 뒤로 밀린다.** <c>WarriorsBeachEnemyApproach.Retreat</c> 는 만들어져 있었는데
+            // 아무도 부르지 않아, 몬스터가 맞아도 제자리에서 계속 걸어왔다. 손맛이 없던 이유다.
+            // HP 가 줄어든 틱을 잡아 짧게 물러나게 한다. 죽을 때는 조금 더 크게.
+            if (health != null && health.CurrentHealth != lastSeenHealth)
+            {
+                bool dying = health.IsDead;
+
+                if (health.CurrentHealth < lastSeenHealth && approach != null)
+                {
+                    approach.Retreat(dying ? .25f : .12f);
+                }
+
+                lastSeenHealth = health.CurrentHealth;
+            }
 
             if (!Defeated && health != null && health.IsDead)
             {

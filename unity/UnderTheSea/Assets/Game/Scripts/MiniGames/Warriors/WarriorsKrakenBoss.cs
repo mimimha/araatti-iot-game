@@ -35,6 +35,14 @@ namespace Warriors
         private bool tentaclePhaseComplete;
         private readonly HashSet<WarriorsTarget> reactingTentacles = new();
         private WarriorsKrakenTentacleDeformer tentacleDeformer;
+
+        /// <summary>
+        /// 지금 돌고 있는 리듬 타격 연출. 새 타격이 오면 이것을 끊는다.
+        ///
+        /// 겹쳐 돌면 뒤엣것이 <b>이미 밀린 자리</b>를 원래 자리로 기억했다가 거기로 되돌려 놓아,
+        /// 연타할수록 크라켄이 조금씩 밀려난다.
+        /// </summary>
+        private Coroutine impactRoutine;
         private readonly List<WarriorsTarget> activePattern = new();
         private int lastSoloSlot = -1;
         private float firstTentacleDefeatTime = -1f;
@@ -461,15 +469,44 @@ namespace Warriors
         public void PlayRhythmHit(bool strong)
         {
             if (body == null || !isActiveAndEnabled || !body.gameObject.activeInHierarchy) return;
-            StartCoroutine(RhythmImpactRoutine(strong));
+
+            // ⚠ 겹쳐 돌면 안 된다. 앞 코루틴이 몸을 옮겨 놓은 상태에서 다음 코루틴이 시작하면
+            //    그 <b>옮겨진 자리</b>를 원래 자리로 기억한다. 그러면 끝날 때 거기로 되돌려 놓아
+            //    맞을수록 크라켄이 조금씩 밀려 나간다. 빠른 연타에서 실제로 그렇게 된다.
+            if (impactRoutine != null) StopCoroutine(impactRoutine);
+            impactRoutine = StartCoroutine(RhythmImpactRoutine(strong));
             SpawnRhythmImpact(strong);
+        }
+
+        /// <summary>
+        /// **묶음을 다 받아 냈을 때의 큰 리액션.** 한 대 맞은 것과 눈에 띄게 달라야 한다.
+        /// <paramref name="team"/> 이면 두 사람이 동시에 해낸 것이라 한 단계 더 크게 친다.
+        /// </summary>
+        public void PlayRhythmFinish(bool team)
+        {
+            if (body == null || !isActiveAndEnabled || !body.gameObject.activeInHierarchy) return;
+
+            if (impactRoutine != null) StopCoroutine(impactRoutine);
+            impactRoutine = StartCoroutine(RhythmFinishRoutine(team));
+            SpawnRhythmImpact(true);
         }
 
         public void ApplyRhythmHit(bool strong)
         {
+            ApplyRhythmHitSilently(strong);
+            PlayRhythmHit(strong);
+        }
+
+        /// <summary>
+        /// 체력만 깎고 연출은 하지 않는다. <b>서버가 쓰는 쪽이다.</b>
+        ///
+        /// 서버에서 연출을 재생해 봐야 서버 프로세스 안에서만 일어나고 아무도 보지 못한다.
+        /// 연출은 <c>WarriorsPhase3Director</c> 가 복제한 번호를 보고 각 화면이 따로 재생한다.
+        /// </summary>
+        public void ApplyRhythmHitSilently(bool strong)
+        {
             if (FinalFormHealth <= 0) return;
             FinalFormHealth = Mathf.Max(1, FinalFormHealth - (strong ? rhythmHitDamage + 2 : rhythmHitDamage));
-            PlayRhythmHit(strong);
         }
 
         /// <summary>
@@ -489,6 +526,59 @@ namespace Warriors
         {
             FinalFormHealth = 0;
             PlayRhythmHit(true);
+        }
+
+        /// <summary>
+        /// 묶음을 다 받아 냈을 때. 한 대와 다른 점은 <b>세 가지</b>다.
+        ///   1. 잠깐 멈춘다(hit stop) — 때린 순간이 눈에 박히게.
+        ///   2. 뒤로 밀린다 — 흔들기만 하면 "맞았다" 가 아니라 "떨었다" 로 보인다.
+        ///   3. 밀린 자리에서 천천히 돌아온다.
+        /// 끝나면 반드시 원래 자리로 복원하므로 여러 번 나도 자리가 밀리지 않는다.
+        /// </summary>
+        private IEnumerator RhythmFinishRoutine(bool team)
+        {
+            if (body == null) yield break;
+
+            Vector3 originalPosition = body.localPosition;
+            Quaternion originalRotation = body.localRotation;
+            Vector3 originalScale = body.localScale;
+
+            // 1. 히트 스톱. 실시간으로 재므로 Time.timeScale 을 건드리지 않는다 —
+            //    네트워크 게임에서 시간을 늦추면 서버와 어긋난다.
+            body.localScale = originalScale * (team ? .88f : .91f);
+            float stop = team ? .09f : .06f;
+            for (float t = 0f; t < stop; t += Time.unscaledDeltaTime) yield return null;
+
+            // 2. 뒤로(크라켄 기준 뒤 = +Z) 밀린다.
+            float shove = team ? .85f : .55f;
+            float duration = team ? .5f : .4f;
+            float twist = team ? 16f : 11f;
+
+            for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+            {
+                float k = elapsed / duration;
+                // 앞의 1/4 동안 확 밀리고 나머지는 되돌아온다.
+                float push = k < .25f ? k / .25f : 1f - (k - .25f) / .75f;
+                push = Mathf.SmoothStep(0f, 1f, push);
+                float fade = 1f - k;
+
+                body.localPosition = originalPosition
+                    + Vector3.forward * (shove * push)
+                    + UnityEngine.Random.insideUnitSphere * (.1f * fade);
+                body.localRotation = originalRotation
+                    * Quaternion.Euler(-twist * push, 0f, Mathf.Sin(elapsed * 60f) * twist * .4f * fade);
+                body.localScale = originalScale * (1f - .12f * fade);
+                yield return null;
+            }
+
+            if (body != null)
+            {
+                body.localPosition = originalPosition;
+                body.localRotation = originalRotation;
+                body.localScale = originalScale;
+            }
+
+            impactRoutine = null;
         }
 
         private IEnumerator RhythmImpactRoutine(bool strong)
@@ -520,6 +610,8 @@ namespace Warriors
                 body.localRotation = originalRotation;
                 body.localScale = originalScale;
             }
+
+            impactRoutine = null;
         }
 
         private void SpawnRhythmImpact(bool strong)

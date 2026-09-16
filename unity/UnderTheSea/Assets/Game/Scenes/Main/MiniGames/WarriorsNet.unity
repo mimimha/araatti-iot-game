@@ -426,7 +426,7 @@ MonoBehaviour:
   countdownSeconds: 10
   phase1TargetKills: 15
   phase2TargetTentacleHits: 22
-  phase3TargetRhythmHits: 20
+  phase3TargetRhythmHits: 15
   _Phase: 0
   _Countdown: 0
   _Crew: 0
