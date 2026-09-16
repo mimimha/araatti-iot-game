@@ -2,6 +2,12 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public enum KeyboardControlProfile
+{
+    Shared,
+    Warriors,
+}
+
 /// <summary>
 /// IoT 기기 없이 키보드로 게임을 만들고 테스트하기 위한 컨트롤러.
 ///
@@ -9,6 +15,10 @@ using UnityEngine.InputSystem;
 ///    게임 로직은 IPlayerController 만 쓰기 때문에 고칠 필요가 없습니다.
 ///
 /// 키 배치 — 실제 기기의 어느 부품을 대신하는지 함께 적는다.
+///
+///   [프로필]
+///     Shared      광산·배 협동용 기존 배치
+///     Warriors    이동 WASD · 카메라 방향키 · 공격 1 / 2 / 3
 ///
 ///   [왼손 기기]
 ///     방향키        조이스틱     이동
@@ -35,6 +45,10 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 {
+    [Header("키 배치 프로필")]
+    [Tooltip("Shared는 광산·배, Warriors는 무쌍의 기존 WASD·방향키·1/2/3 배치를 유지한다.")]
+    [SerializeField] private KeyboardControlProfile controlProfile = KeyboardControlProfile.Shared;
+
     [Header("축 입력이 0 에서 1 까지 가는 속도")]
     [Tooltip("실제 기기는 손목을 기울인 만큼 값이 들어오지만, 키보드는 켜짐/꺼짐뿐이라 " +
              "천천히 차오르게 만들어야 조작감이 비슷해진다.")]
@@ -64,25 +78,51 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
     private void Awake()
     {
+        BuildHands();
+    }
+
+    public void SetControlProfile(KeyboardControlProfile profile)
+    {
+        if (controlProfile == profile && _left != null && _right != null) return;
+        controlProfile = profile;
+        BuildHands();
+    }
+
+    private void BuildHands()
+    {
+        bool warriors = controlProfile == KeyboardControlProfile.Warriors;
+
         _left = new KeyboardHand(
             axisSpeed,
             logDeviceOutput,
             "왼손",
-            stickUp: Key.UpArrow, stickDown: Key.DownArrow,
-            stickLeft: Key.LeftArrow, stickRight: Key.RightArrow,
+            stickUp: warriors ? Key.W : Key.UpArrow,
+            stickDown: warriors ? Key.S : Key.DownArrow,
+            stickLeft: warriors ? Key.A : Key.LeftArrow,
+            stickRight: warriors ? Key.D : Key.RightArrow,
             grip: Key.LeftShift,
-            button1: Key.C, button2: Key.V,
-            swing: Key.None);
+            button1: Key.C,
+            button2: Key.V);
 
         _right = new KeyboardHand(
             axisSpeed,
             logDeviceOutput,
             "오른손",
-            stickUp: Key.None, stickDown: Key.None,
-            stickLeft: Key.Q, stickRight: Key.E,
+            stickUp: warriors ? Key.UpArrow : Key.None,
+            stickDown: warriors ? Key.DownArrow : Key.None,
+            stickLeft: warriors ? Key.LeftArrow : Key.Q,
+            stickRight: warriors ? Key.RightArrow : Key.E,
             grip: Key.RightShift,
-            button1: Key.Space, button2: Key.X,
-            swing: Key.F);
+            button1: Key.Space,
+            button2: warriors ? Key.None : Key.X,
+            horizontalMotion: warriors ? Key.Digit1 : Key.None,
+            alternateHorizontalMotion: warriors ? Key.Numpad1 : Key.None,
+            verticalMotion: warriors ? Key.Digit2 : Key.F,
+            alternateVerticalMotion: warriors ? Key.Numpad2 : Key.None,
+            secondAlternateVerticalMotion: warriors ? Key.F : Key.None,
+            thrustMotion: warriors ? Key.Digit3 : Key.None,
+            alternateThrustMotion: warriors ? Key.Numpad3 : Key.None,
+            secondAlternateThrustMotion: warriors ? Key.X : Key.None);
     }
 
     private void Update()
@@ -143,7 +183,14 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         private readonly Key _grip;
         private readonly Key _button1;
         private readonly Key _button2;
-        private readonly Key _swing;
+        private readonly Key _horizontalMotion;
+        private readonly Key _alternateHorizontalMotion;
+        private readonly Key _verticalMotion;
+        private readonly Key _alternateVerticalMotion;
+        private readonly Key _secondAlternateVerticalMotion;
+        private readonly Key _thrustMotion;
+        private readonly Key _alternateThrustMotion;
+        private readonly Key _secondAlternateThrustMotion;
 
         private float _axis;
         private Vector2 _stick;
@@ -152,12 +199,18 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         private bool _button2Held;
         private bool _button1Pressed;
         private bool _button2Pressed;
-        private bool _swung;
+        private HandMotion _motion;
+        private bool _hasMotion;
 
         public KeyboardHand(
             float axisSpeed, bool log, string label,
             Key stickUp, Key stickDown, Key stickLeft, Key stickRight,
-            Key grip, Key button1, Key button2, Key swing)
+            Key grip, Key button1, Key button2,
+            Key horizontalMotion = Key.None, Key alternateHorizontalMotion = Key.None,
+            Key verticalMotion = Key.None, Key alternateVerticalMotion = Key.None,
+            Key secondAlternateVerticalMotion = Key.None,
+            Key thrustMotion = Key.None, Key alternateThrustMotion = Key.None,
+            Key secondAlternateThrustMotion = Key.None)
         {
             _axisSpeed = axisSpeed;
             _log = log;
@@ -169,7 +222,14 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             _grip = grip;
             _button1 = button1;
             _button2 = button2;
-            _swing = swing;
+            _horizontalMotion = horizontalMotion;
+            _alternateHorizontalMotion = alternateHorizontalMotion;
+            _verticalMotion = verticalMotion;
+            _alternateVerticalMotion = alternateVerticalMotion;
+            _secondAlternateVerticalMotion = secondAlternateVerticalMotion;
+            _thrustMotion = thrustMotion;
+            _alternateThrustMotion = alternateThrustMotion;
+            _secondAlternateThrustMotion = secondAlternateThrustMotion;
         }
 
         public Vector2 Stick => _stick;
@@ -193,6 +253,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
                 _gripHeld = false;
                 _button1Held = false;
                 _button2Held = false;
+                _hasMotion = false;
                 return;
             }
 
@@ -218,7 +279,24 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
             if (WasPressedThisFrame(keyboard, _button1)) { _button1Pressed = true; }
             if (WasPressedThisFrame(keyboard, _button2)) { _button2Pressed = true; }
-            if (WasPressedThisFrame(keyboard, _swing)) { _swung = true; }
+
+            if (WasPressedThisFrame(keyboard, _horizontalMotion) ||
+                WasPressedThisFrame(keyboard, _alternateHorizontalMotion))
+            {
+                SetMotion(HandMotionType.HorizontalSwing);
+            }
+            else if (WasPressedThisFrame(keyboard, _verticalMotion) ||
+                     WasPressedThisFrame(keyboard, _alternateVerticalMotion) ||
+                     WasPressedThisFrame(keyboard, _secondAlternateVerticalMotion))
+            {
+                SetMotion(HandMotionType.VerticalSwing);
+            }
+            else if (WasPressedThisFrame(keyboard, _thrustMotion) ||
+                     WasPressedThisFrame(keyboard, _alternateThrustMotion) ||
+                     WasPressedThisFrame(keyboard, _secondAlternateThrustMotion))
+            {
+                SetMotion(HandMotionType.Thrust);
+            }
         }
 
         public bool ConsumeButton1Press()
@@ -235,11 +313,19 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             return pressed;
         }
 
-        public bool ConsumeSwing()
+        public bool TryConsumeMotion(out HandMotion motion)
         {
-            bool swung = _swung;
-            _swung = false;
-            return swung;
+            motion = _motion;
+            bool hasMotion = _hasMotion;
+            _hasMotion = false;
+            _motion = default;
+            return hasMotion;
+        }
+
+        private void SetMotion(HandMotionType type)
+        {
+            _motion = new HandMotion(type, 1f);
+            _hasMotion = true;
         }
 
         // 키보드에는 진동 모터가 없다. 부르는 쪽이 신경 쓰지 않도록 조용히 받아준다.

@@ -2002,7 +2002,7 @@ public interface IHandDevice
 
     bool ConsumeButton1Press(); // 버튼 1 이 새로 눌렸는지  붙기 · 집기 / 놓기 · 도움 요청
     bool ConsumeButton2Press(); // 버튼 2 이 새로 눌렸는지  발사
-    bool ConsumeSwing();        // IMU 내리치기 1회         망치질
+    bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 가로·세로·찌르기 + 세기
 
     // 출력 (게임 → 장치)
     void Vibrate(float strength, float seconds);
@@ -2022,6 +2022,9 @@ public interface IPlayerController
     void VibrateBoth(float strength, float seconds);
 }
 ```
+
+배의 망치질은 `TryConsumeMotion` 결과 중 `VerticalSwing`만 사용합니다. 가로 휘두르기나
+찌르기는 망치질로 처리하지 않습니다.
 
 **양손이 따로 들어옵니다.** 조타가 "양손 기울기의 평균"인 것이 여기서 나옵니다.
 `Left` 와 `Right` 를 합쳐 게임의 동작으로 바꾸는 해석은 `ShipCoopInput` 한 곳에 모여 있습니다.

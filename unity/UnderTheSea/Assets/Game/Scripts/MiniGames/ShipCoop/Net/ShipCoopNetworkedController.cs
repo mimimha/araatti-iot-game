@@ -190,10 +190,13 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 return had;
             }
 
-            public bool ConsumeSwing()
+            public bool TryConsumeMotion(out HandMotion motion)
             {
                 bool had = swing;
                 swing = false;
+                motion = had
+                    ? new HandMotion(HandMotionType.VerticalSwing, 1f)
+                    : default;
                 return had;
             }
 

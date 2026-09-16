@@ -768,20 +768,32 @@ Assets/Game/Scripts/IoT/
 ```
 
 ```csharp
-// 컨트롤러 1대 = 플레이어 1명
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing, // 실제 가로 휘두르기
+    VerticalSwing,   // 실제 세로 휘두르기
+    Thrust,          // 실제 찌르기
+}
+
+// 기기 1대 = 손 하나
+public interface IHandDevice
+{
+    Vector2 Stick { get; }
+    float Tilt { get; }
+    float Rotation { get; }
+    bool Grip { get; }
+    bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 동작 + 세기
+    void Vibrate(float strength, float seconds);
+}
+
+// 플레이어 1명 = 왼손 + 오른손
 public interface IPlayerController
 {
-    // 입력 (장치 → 게임)
-    float Tilt      { get; }   // IMU 기울기  -1 ~ +1
-    float Rotation  { get; }   // IMU 회전    -1 ~ +1
-    bool  Button    { get; }   // 물리 버튼 (누르고 있는지)
-    bool  Grip      { get; }   // 압력센서 HOLD 판정
-    bool  ConsumeButtonPress();// 버튼이 새로 눌렸는지 1회
-    bool  ConsumeSwing();      // IMU 제스처(휘두르기) 1회
-
-    // 출력 (게임 → 장치)
-    void Vibrate(float strength, float seconds);   // 진동 모터
-    void SetLed(Color color);                      // LED
+    IHandDevice Left { get; }
+    IHandDevice Right { get; }
+    Vector2 Move { get; }
+    Vector2 Look { get; }
 }
 ```
 
