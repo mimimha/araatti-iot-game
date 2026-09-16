@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Fusion;
 using TMPro;
+using UnderTheSea.Account;
 using UnderTheSea.Network;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -65,20 +66,57 @@ public class LobbyTutorial : MonoBehaviour
     /// <summary>있으면 이 프리팹을 쓴다. 없으면 코드로 만든다.</summary>
     private const string ReplacementPrefabPath = "LobbyTutorial";
 
-    /// <summary>끝까지 본 사람을 기억하는 PlayerPrefs 키.</summary>
-    public const string SeenKey = "LobbyTutorialSeen";
+    /// <summary>
+    /// **아직 튜토리얼을 봐야 하는 캐릭터**를 기억하는 PlayerPrefs 키의 앞머리.
+    /// 뒤에 캐릭터 id 가 붙는다. (예: <c>LobbyTutorialPending_17</c>)
+    ///
+    /// ⚠ "봤다" 가 아니라 **"봐야 한다"** 를 적는다. 반대로 하면 이 기능이 생기기 전에
+    ///    만들어진 캐릭터도, 남의 컴퓨터에서 처음 로그인한 캐릭터도 전부 튜토리얼을 본다.
+    ///    캐릭터를 **만든 그 순간**에만 표시를 세워 두면 그런 일이 없다.
+    ///
+    /// 그래서 기록이 없으면 "안 봐도 된다" 로 친다. 처음 보는 캐릭터에게 굳이
+    /// 띄우지 않는 쪽이 안전하다. 튜토리얼은 새로 시작한 사람을 위한 것이다.
+    ///
+    /// ── 나중에 서버로 옮길 때 ─────────────────────────────────
+    ///
+    ///   지금은 **이 컴퓨터에만** 남는다. 캐릭터를 만든 PC 가 아닌 곳에서 로그인하면
+    ///   튜토리얼이 안 뜬다. 어디서든 한 번은 보게 하려면 캐릭터 테이블에 칸이 하나 필요하다.
+    ///
+    ///   갈아끼울 곳은 셋뿐이다. 나머지는 손댈 것이 없다.
+    ///     <see cref="MarkPending"/>   생성할 때 세운다
+    ///     <see cref="Pending"/>       띄울지 묻는다
+    ///     <see cref="MarkDone"/>      끝나면 지운다
+    /// </summary>
+    public const string PendingKeyPrefix = "LobbyTutorialPending_";
 
     // 교체 프리팹에서도 찾아 쓰는 이름들. 바꾸면 프리팹 쪽도 같이 바꿔야 한다.
     private const string LabelName = "Label";
     private const string KeyGroupName = "KeyGroup";
     private const string MouseGroupName = "MouseGroup";
+    private const string JumpGroupName = "JumpGroup";
     private const string ProgressName = "Progress";
     private const string ProgressTrackName = "ProgressTrack";
 
     // 문구는 짧게 둔다. 화면 구석에서 한눈에 읽혀야 한다.
     private const string MoveText = "이동";
-    private const string LookText = "둘러보기";
-    private const string CloseText = "빛나는 문으로 가 보세요";
+    /// <summary>
+    /// 카메라 단계.
+    ///
+    /// ⚠ 다른 단계와 달리 **어떻게** 까지 적는다. 이동과 점프는 키를 그려 두면 끝이지만,
+    ///    카메라는 "오른쪽 버튼을 누른 채로 끈다" 는 동작이라 그림만으로는 안 읽힌다.
+    ///    실제로 마우스만 움직여 보고 아무 일도 안 일어나면 그 자리에서 막힌다.
+    /// </summary>
+    private const string LookText = "둘러보기\n<size=70%>오른쪽 버튼을 누른 채 움직이기</size>";
+    private const string JumpText = "점프";
+
+    /// <summary>
+    /// 마지막 한마디. 조작이 아니라 **무엇을 하러 왔는지**를 말한다.
+    ///
+    /// ⚠ 앞의 것들과 달리 한 문장이라 길다. 그래서 이 단계에서는 키 그림을 끄고
+    ///    글자 칸을 안내 상자 전체로 넓힌다. (<see cref="Show"/>)
+    ///    좁은 칸 그대로 두면 석 줄로 접히면서 아래가 잘린다.
+    /// </summary>
+    private const string CloseText = "다양한 사람들을 만나, 바다의 심장 조각을 함께 모아보세요.";
 
     /// <summary>안내를 넘기기 전에 실제로 움직여야 하는 시간(초).</summary>
     private const float MoveHoldSeconds = 1.2f;
@@ -88,6 +126,15 @@ public class LobbyTutorial : MonoBehaviour
 
     /// <summary>시점을 다 돌렸다고 인정할 누적 각도.</summary>
     private const float LookYawDegrees = 90f;
+
+    /// <summary>
+    /// 몇 번 뛰어야 넘어가는가.
+    ///
+    /// 이동·둘러보기와 달리 점프는 **누르고 있는 것이 아니라 한 번씩 튀는 것**이다.
+    /// 그래서 시간을 재지 않고 횟수를 센다. 두 번으로 둔 이유는, 한 번이면
+    /// 다른 키를 누르다 우연히 눌러 지나갈 수 있어서다.
+    /// </summary>
+    private const int JumpCount = 2;
 
     /// <summary>마지막 문구를 띄워 두는 시간(초).</summary>
     private const float CloseSeconds = 2.5f;
@@ -108,12 +155,36 @@ public class LobbyTutorial : MonoBehaviour
     private GameObject view;
     private CanvasGroup group;
     private TMP_Text label;
+    /// <summary>글자 칸. 단계에 따라 넓혔다 줄인다.</summary>
+    private RectTransform labelRect;
+
+    /// <summary>화면을 코드로 만들었는가. 교체 프리팹을 쓴 경우에는 거짓이다.</summary>
+    private bool builtInCode;
+
+    // 키 그림이 있을 때는 그 옆에, 마지막 한마디에서는 상자 전체를 쓴다.
+    //
+    // 옆에 붙을 때도 40 이 아니라 96 인 이유: 카메라 단계가 두 줄이다.
+    // 한 줄짜리(이동 · 점프)는 가운데 정렬이라 높이가 남아도 그대로 보인다.
+    private static readonly Vector2 LabelSizeBeside = new Vector2(300f, 96f);
+    private static readonly Vector2 LabelPosBeside = new Vector2(132f, 18f);
+    private static readonly Vector2 LabelSizeAlone = new Vector2(420f, 96f);
+    private static readonly Vector2 LabelPosAlone = new Vector2(0f, 12f);
+
     private GameObject keyGroup;
     private GameObject mouseGroup;
+    private GameObject jumpGroup;
     private Image progress;
     private GameObject progressTrack;
 
     private readonly List<KeyCap> caps = new List<KeyCap>();
+
+    /// <summary>
+    /// 점프 키 그림. <see cref="caps"/> 와 **따로 둔다.**
+    ///
+    /// ⚠ 같은 목록에 넣으면 <see cref="WaitForMove"/> 가 전부를 훑기 때문에
+    ///    이동 단계에서 Space 를 눌러도 통과해 버린다.
+    /// </summary>
+    private readonly List<KeyCap> jumpCaps = new List<KeyCap>();
     private readonly List<RectTransform> mouseArrows = new List<RectTransform>();
 
     /// <summary>키 하나의 그림과 "지금 눌려 있는가" 를 묶어 둔다.</summary>
@@ -134,13 +205,82 @@ public class LobbyTutorial : MonoBehaviour
     /// <summary>튜토리얼이 끝났다(중간에 로비를 떠난 경우 포함). 숨었던 UI 가 다시 나온다.</summary>
     public static event Action Finished;
 
-    /// <summary>이 사람이 튜토리얼을 이미 끝까지 봤는가.</summary>
-    public static bool Seen => PlayerPrefs.GetInt(SeenKey, 0) != 0;
+    /// <summary>
+    /// 지금 조작 중인 캐릭터의 id. 아직 정해지지 않았으면 0.
+    ///
+    /// 서버가 원본이다. (CharacterSessionCache) 여기서는 읽기만 한다.
+    /// </summary>
+    private static long CurrentCharacterId
+    {
+        get
+        {
+            CharacterDto character = AccountServiceLocator.Characters?.CurrentCharacter;
+            return character != null ? character.id : 0L;
+        }
+    }
 
-    /// <summary>다음 로비 입장에서 튜토리얼이 다시 나오게 한다. 에디터 메뉴가 쓴다.</summary>
+    private static string PendingKeyOf(long characterId)
+    {
+        return PendingKeyPrefix + characterId;
+    }
+
+    /// <summary>
+    /// **캐릭터를 막 만들었다.** 그 캐릭터가 로비에 처음 들어갈 때 튜토리얼을 띄운다.
+    ///
+    /// 캐릭터 생성 화면이 부른다. (<c>CharacterCustomizationPersistence</c>)
+    /// </summary>
+    public static void MarkPending(long characterId)
+    {
+        if (characterId == 0L)
+        {
+            return;
+        }
+
+        PlayerPrefs.SetInt(PendingKeyOf(characterId), 1);
+        PlayerPrefs.Save();
+    }
+
+    /// <summary>이 캐릭터가 아직 튜토리얼을 봐야 하는가.</summary>
+    private static bool Pending
+    {
+        get
+        {
+            long id = CurrentCharacterId;
+            return id != 0L && PlayerPrefs.GetInt(PendingKeyOf(id), 0) != 0;
+        }
+    }
+
+    /// <summary>이 캐릭터가 튜토리얼을 이미 끝냈는가. 에디터 메뉴가 쓴다.</summary>
+    public static bool Seen => !Pending;
+
+    /// <summary>
+    /// 지금 캐릭터가 다음 로비 입장에서 튜토리얼을 다시 보게 한다. 에디터 메뉴가 쓴다.
+    ///
+    /// 캐릭터를 고르지 않은 상태(로그인 전 등)에서는 할 수 있는 것이 없다.
+    /// </summary>
     public static void ClearSeen()
     {
-        PlayerPrefs.DeleteKey(SeenKey);
+        long id = CurrentCharacterId;
+
+        if (id == 0L)
+        {
+            Debug.LogWarning(
+                "[LobbyTutorial] 지금 고른 캐릭터가 없습니다. 로그인한 뒤에 다시 하세요.");
+            return;
+        }
+
+        MarkPending(id);
+    }
+
+    /// <summary>튜토리얼을 끝냈다. 이 캐릭터에게는 다시 나오지 않는다.</summary>
+    private static void MarkDone(long characterId)
+    {
+        if (characterId == 0L)
+        {
+            return;
+        }
+
+        PlayerPrefs.DeleteKey(PendingKeyOf(characterId));
         PlayerPrefs.Save();
     }
 
@@ -165,7 +305,8 @@ public class LobbyTutorial : MonoBehaviour
     /// </summary>
     private static void CreateWhenNeeded(NetworkObject player)
     {
-        if (instance != null || Seen)
+        // 새로 만든 캐릭터에게만 띄운다. 이미 있던 캐릭터는 그냥 지나간다.
+        if (instance != null || !Pending)
         {
             return;
         }
@@ -185,7 +326,16 @@ public class LobbyTutorial : MonoBehaviour
     {
         instance = this;
 
-        view = LoadReplacement() ?? BuildFallbackView();
+        // 교체 프리팹이 있으면 그것을 쓰고, 없으면 코드로 만든다.
+        // 어느 쪽인지 기억해 둔다 — 남의 배치를 코드가 밀어내면 안 된다. (Show)
+        view = LoadReplacement();
+        builtInCode = view == null;
+
+        if (builtInCode)
+        {
+            view = BuildFallbackView();
+        }
+
         view.transform.SetParent(transform, worldPositionStays: false);
 
         group = view.GetComponent<CanvasGroup>();
@@ -226,8 +376,10 @@ public class LobbyTutorial : MonoBehaviour
     private void Bind()
     {
         label = FindByName<TMP_Text>(LabelName) ?? view.GetComponentInChildren<TMP_Text>(includeInactive: true);
+        labelRect = label != null ? label.rectTransform : null;
         keyGroup = FindChild(KeyGroupName);
         mouseGroup = FindChild(MouseGroupName);
+        jumpGroup = FindChild(JumpGroupName);
         progress = FindByName<Image>(ProgressName);
 
         // 진행선은 바탕과 채움이 한 쌍이다. 껐다 켤 때는 통째로 다룬다.
@@ -235,21 +387,27 @@ public class LobbyTutorial : MonoBehaviour
         progressTrack = FindChild(ProgressTrackName)
                         ?? (progress != null ? progress.gameObject : null);
 
+        // 점프 키는 자기 그룹에서 찾는다. 이동 키와 목록이 섞이면 안 된다.
+        if (jumpGroup != null)
+        {
+            BindCap(jumpGroup, "Space", () => Pressed(k => k.spaceKey), jumpCaps);
+        }
+
         if (keyGroup == null)
         {
             return;
         }
 
         // 키 그림과 실제 키 입력을 잇는다. 이름이 맞는 것만 연결한다.
-        BindCap("W", () => Pressed(k => k.wKey));
-        BindCap("A", () => Pressed(k => k.aKey));
-        BindCap("S", () => Pressed(k => k.sKey));
-        BindCap("D", () => Pressed(k => k.dKey));
+        BindCap(keyGroup, "W", () => Pressed(k => k.wKey), caps);
+        BindCap(keyGroup, "A", () => Pressed(k => k.aKey), caps);
+        BindCap(keyGroup, "S", () => Pressed(k => k.sKey), caps);
+        BindCap(keyGroup, "D", () => Pressed(k => k.dKey), caps);
     }
 
-    private void BindCap(string name, Func<bool> isPressed)
+    private void BindCap(GameObject where, string name, Func<bool> isPressed, List<KeyCap> into)
     {
-        Transform found = FindIn(keyGroup.transform, name);
+        Transform found = FindIn(where.transform, name);
         if (found == null)
         {
             return;
@@ -261,7 +419,7 @@ public class LobbyTutorial : MonoBehaviour
             return;
         }
 
-        caps.Add(new KeyCap
+        into.Add(new KeyCap
         {
             Box = box,
             Text = found.GetComponentInChildren<TMP_Text>(includeInactive: true),
@@ -295,14 +453,16 @@ public class LobbyTutorial : MonoBehaviour
         yield return Show(LookText, keys: false, mouse: true);
         yield return WaitForLook();
 
+        yield return Show(JumpText, keys: false, mouse: false, jump: true);
+        yield return WaitForJump();
+
         yield return Show(CloseText, keys: false, mouse: false);
         yield return new WaitForSeconds(CloseSeconds);
 
         yield return FadeTo(0f);
 
-        // 끝까지 본 사람에게만 기억한다. 중간에 로비를 떠났다면 다음에 다시 보여 준다.
-        PlayerPrefs.SetInt(SeenKey, 1);
-        PlayerPrefs.Save();
+        // 끝까지 본 캐릭터만 표시를 지운다. 중간에 로비를 떠났다면 다음에 다시 보여 준다.
+        MarkDone(CurrentCharacterId);
 
         Destroy(gameObject);
     }
@@ -368,6 +528,56 @@ public class LobbyTutorial : MonoBehaviour
 
         // 마지막으로 켠 불을 끄고 넘어간다.
         foreach (KeyCap cap in caps)
+        {
+            Highlight(cap, false);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="JumpCount"/> 번 뛰면 통과.
+    ///
+    /// ⚠ 다른 단계와 달리 **누른 시간이 아니라 누른 횟수**를 센다. 점프는 한 번씩 튀는
+    ///    동작이라 붙잡고 있을 수가 없다. 그래서 진행선도 줄어들지 않는다.
+    ///    한 번 뛴 것을 도로 빼앗으면 무엇을 잘못했는지 알 수가 없다.
+    /// </summary>
+    private IEnumerator WaitForJump()
+    {
+        int jumped = 0;
+        bool wasDown = false;
+
+        while (jumped < JumpCount)
+        {
+            if (LeftLobby())
+            {
+                yield break;
+            }
+
+            bool down = false;
+
+            // 눌린 동안 키에 불을 켠다. 이동 단계와 같은 감각으로 보이게 한다.
+            foreach (KeyCap cap in jumpCaps)
+            {
+                down |= cap.IsPressed();
+                Highlight(cap, down);
+            }
+
+            // 누르고 있는 것이 아니라 **새로 누른 순간**만 센다.
+            // 안 그러면 꾹 누르고 있기만 해도 게이지가 차서, 뛰지 않고 넘어간다.
+            if (down && !wasDown)
+            {
+                jumped++;
+            }
+
+            wasDown = down;
+
+            SetProgress((float)jumped / JumpCount);
+
+            yield return null;
+        }
+
+        SetProgress(1f);
+
+        foreach (KeyCap cap in jumpCaps)
         {
             Highlight(cap, false);
         }
@@ -464,13 +674,62 @@ public class LobbyTutorial : MonoBehaviour
     /// 활성 씬도 기준이 못 된다. Fusion 이 로비를 네트워크 씬으로 additive 로 올리는
     /// 경로(<see cref="SceneFlow.LobbyLoadedByNetwork"/>)에서는 활성 씬이 아직 ChannelSelect 일 수 있다.
     ///
-    /// 그래서 "Lobby 씬이 지금 로드돼 있는가" 만 본다. 두 경로에서 모두 맞는 유일한 기준이다.
+    /// 그래서 "Lobby 씬이 지금 로드돼 있는가" 를 먼저 본다.
+    ///
+    /// ⚠ **그것만으로는 모자랐다.** 실제로 로비에 들어가 보면 씬이 하나뿐이고 이름이
+    ///    <c>FusionRunner (Client)_[Player:3]</c> 다. 로비는 **씬이 아니라 그 안의 루트
+    ///    오브젝트** <c>[Lobby]</c> 로 들어와 있다. 이름이 "Lobby" 인 씬은 없다.
+    ///    그래서 이 판정이 늘 거짓이었고, 튜토리얼이 한 번도 뜨지 않았다.
+    ///
+    ///    씬으로 올라오는 경로가 없어진 것은 아니므로 둘 다 본다. 하나라도 맞으면 로비다.
     /// </summary>
     private static bool InLobby()
     {
         Scene lobby = SceneManager.GetSceneByName(SceneFlow.Lobby);
-        return lobby.IsValid() && lobby.isLoaded;
+
+        if (lobby.IsValid() && lobby.isLoaded)
+        {
+            return true;
+        }
+
+        return HasLobbyRoot();
     }
+
+    /// <summary>
+    /// 로비 내용을 담은 루트 오브젝트가 있는가. Fusion 이 러너 씬 안에 넣는 경우다.
+    ///
+    /// 이름이 <c>[Lobby]</c> 처럼 대괄호로 감싸여 오므로 둘 다 받아 준다.
+    /// </summary>
+    private static bool HasLobbyRoot()
+    {
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+
+            if (!scene.isLoaded)
+            {
+                continue;
+            }
+
+            // ⚠ 할당 없는 쪽을 쓴다. 이 판정은 대기 중 **매 프레임** 불린다. (LeftLobby)
+            scene.GetRootGameObjects(rootBuffer);
+
+            for (int r = 0; r < rootBuffer.Count; r++)
+            {
+                string name = rootBuffer[r].name;
+
+                if (name == SceneFlow.Lobby || name == "[" + SceneFlow.Lobby + "]")
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>루트 오브젝트를 담아 두는 그릇. 매 프레임 새로 만들지 않으려고 돌려 쓴다.</summary>
+    private static readonly List<GameObject> rootBuffer = new List<GameObject>();
 
     /// <summary>로비를 벗어났거나 캐릭터가 사라졌으면 안내를 걷는다.</summary>
     private bool LeftLobby()
@@ -486,7 +745,7 @@ public class LobbyTutorial : MonoBehaviour
     }
 
     /// <summary>문구를 갈아 끼우고, 이번 단계에 쓰는 그림만 켠다.</summary>
-    private IEnumerator Show(string text, bool keys, bool mouse)
+    private IEnumerator Show(string text, bool keys, bool mouse, bool jump = false)
     {
         if (group.alpha > 0f)
         {
@@ -508,10 +767,27 @@ public class LobbyTutorial : MonoBehaviour
             mouseGroup.SetActive(mouse);
         }
 
+        if (jumpGroup != null)
+        {
+            jumpGroup.SetActive(jump);
+        }
+
+        bool hasGraphic = keys || mouse || jump;
+
         // 마지막 한마디에는 진행선이 필요 없다. 할 일이 없기 때문이다.
         if (progressTrack != null)
         {
-            progressTrack.SetActive(keys || mouse);
+            progressTrack.SetActive(hasGraphic);
+        }
+
+        // 그림이 빠진 자리를 글자가 물려받는다. 마지막 한마디는 한 문장이라 좁은 칸에 안 들어간다.
+        //
+        // ⚠ 교체 프리팹을 쓰는 경우에는 그쪽 배치를 존중해 건드리지 않는다.
+        //    코드로 만든 화면일 때만 위치를 안다.
+        if (labelRect != null && builtInCode)
+        {
+            labelRect.sizeDelta = hasGraphic ? LabelSizeBeside : LabelSizeAlone;
+            labelRect.anchoredPosition = hasGraphic ? LabelPosBeside : LabelPosAlone;
         }
 
         SetProgress(0f);
@@ -623,6 +899,7 @@ public class LobbyTutorial : MonoBehaviour
 
         keyGroup = BuildKeyGroup(hint.transform);
         mouseGroup = BuildMouseGroup(hint.transform);
+        jumpGroup = BuildJumpGroup(hint.transform);
         BuildLabel(hint.transform);
         BuildProgress(hint.transform);
 
@@ -632,9 +909,10 @@ public class LobbyTutorial : MonoBehaviour
     /// <summary>그림 오른쪽에 붙는 짧은 단어. 젤다의 "이동" 처럼 한두 단어만 둔다.</summary>
     private static void BuildLabel(Transform parent)
     {
-        GameObject text = NewRect(LabelName, parent, new Vector2(240f, 40f));
         // 키 그림과 붙지 않게 띄운다. 붙으면 D 키와 글자가 한 덩어리로 보인다.
-        text.GetComponent<RectTransform>().anchoredPosition = new Vector2(132f, 18f);
+        // 단계마다 Show 가 다시 잡아 주므로 여기 값은 첫 프레임용이다.
+        GameObject text = NewRect(LabelName, parent, LabelSizeBeside);
+        text.GetComponent<RectTransform>().anchoredPosition = LabelPosBeside;
 
         TextMeshProUGUI tmp = text.AddComponent<TextMeshProUGUI>();
         tmp.text = MoveText;
@@ -661,20 +939,42 @@ public class LobbyTutorial : MonoBehaviour
         return root;
     }
 
+    /// <summary>
+    /// 스페이스바 하나. 다른 키보다 **가로로 길게** 그린다.
+    ///
+    /// 실제 자판에서 제일 긴 키라, 길이만으로 무슨 키인지 알아본다.
+    /// 글자를 못 읽어도 손이 먼저 간다.
+    /// </summary>
+    private static GameObject BuildJumpGroup(Transform parent)
+    {
+        GameObject root = NewRect(JumpGroupName, parent, new Vector2(150f, 100f));
+        root.GetComponent<RectTransform>().anchoredPosition = new Vector2(-100f, 18f);
+        root.SetActive(false);
+
+        BuildKeyCap(root.transform, "Space", Vector2.zero, new Vector2(CapSize * 3.2f, CapSize), 18f);
+
+        return root;
+    }
+
     private static void BuildKeyCap(Transform parent, string name, Vector2 at)
     {
-        GameObject cap = NewRect(name, parent, new Vector2(CapSize, CapSize));
+        BuildKeyCap(parent, name, at, new Vector2(CapSize, CapSize), 24f);
+    }
+
+    private static void BuildKeyCap(Transform parent, string name, Vector2 at, Vector2 size, float fontSize)
+    {
+        GameObject cap = NewRect(name, parent, size);
         cap.GetComponent<RectTransform>().anchoredPosition = at;
 
         Image box = cap.AddComponent<Image>();
         box.color = KeyIdleColor;
         box.raycastTarget = false;
 
-        GameObject text = NewRect("Text", cap.transform, new Vector2(CapSize, CapSize));
+        GameObject text = NewRect("Text", cap.transform, size);
         TextMeshProUGUI tmp = text.AddComponent<TextMeshProUGUI>();
         tmp.text = name;
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.fontSize = 24f;
+        tmp.fontSize = fontSize;
         tmp.fontStyle = FontStyles.Bold;
         tmp.color = KeyIdleTextColor;
         tmp.raycastTarget = false;
@@ -700,6 +1000,16 @@ public class LobbyTutorial : MonoBehaviour
         Image wheelImage = wheel.AddComponent<Image>();
         wheelImage.color = KeyIdleTextColor;
         wheelImage.raycastTarget = false;
+
+        // 오른쪽 버튼. **눌러야 하는 곳이라 불이 들어온 색으로 칠한다.**
+        //
+        // ⚠ 이것이 없으면 마우스를 움직여 보고 아무 일도 안 일어나 막힌다.
+        //    카메라는 우클릭을 누르고 있는 동안에만 돈다. (LocalPlayerView)
+        GameObject rightButton = NewRect("RightButton", body.transform, new Vector2(15f, 20f));
+        rightButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(10f, 16f);
+        Image rightImage = rightButton.AddComponent<Image>();
+        rightImage.color = KeyPressedColor;
+        rightImage.raycastTarget = false;
 
         mouseArrows.Add(BuildArrow(root.transform, "ArrowLeft", "◀", -34f));
         mouseArrows.Add(BuildArrow(root.transform, "ArrowRight", "▶", 34f));
