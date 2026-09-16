@@ -53,6 +53,14 @@ namespace ithappy.Cute_Characters.Controller
 
         private bool m_IsMoving;
 
+        // ARA: 점프 애니메이션을 모는 값이다. 이 부품은 이것을
+        //      Animator 의 "IsJump" 에 넣는데, 네트워크에서는 서버에서만 돌아
+        //      클라이언트가 그 값을 모른다. 밖에서 읽어 복제할 수 있게 열어 둔다.
+        private bool m_IsAir;
+
+        /// <summary>Whether the character is currently in the air (drives the jump animation).</summary>
+        public bool IsAir => m_IsAir;
+
         public Vector2 Axis => m_Axis;
         public Vector3 Target => m_Target;
         public bool IsRun => m_IsRun;
@@ -80,6 +88,7 @@ namespace ithappy.Cute_Characters.Controller
             m_Movement.Move(Time.deltaTime, in m_Axis, in m_Target, m_IsRun, m_IsJump, m_IsMoving, out var animAxis, out var isAir);
             m_Animation.Animate(in animAxis, m_IsRun? 1f : 0f, isAir, Time.deltaTime);
 
+            m_IsAir = isAir;
         }
 
         private void OnAnimatorIK()

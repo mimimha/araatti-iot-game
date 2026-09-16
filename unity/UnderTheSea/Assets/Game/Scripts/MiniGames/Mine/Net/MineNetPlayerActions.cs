@@ -33,6 +33,7 @@ namespace Mine.Net
 
         private MineNetPlayer _who;
         private MineJump _hop;
+
         private MineNetPlayerMover _body;
 
         public override void Spawned()

@@ -61,6 +61,29 @@ namespace Mine.Net
         /// <summary>달리는 중인가. 애니메이터의 State 로 간다.</summary>
         [Networked] public NetworkBool Running { get; private set; }
 
+        /// <summary>
+        /// 지금 공중에 떠 있는가. <b>점프 애니메이션을 모는 값이다.</b>
+        ///
+        /// <c>CharacterMover</c> 는 이 값을 Animator 의 "IsJump" 에 넣는데,
+        /// 네트워크에서 그쪽은 <b>서버에서만</b> 돌고 서버에는 그릴 화면이 없다.
+        /// 복제하지 않으면 클라이언트에서 폴짝 동작이 아예 안 나온다.
+        /// </summary>
+        [Networked] public NetworkBool Airborne { get; private set; }
+
+        /// <summary>
+        /// 프레임에서 본 공중 상태를 <b>붙잡아 둔 시한.</b>
+        ///
+        /// ⚠ <c>CharacterMover.IsAir</c> 는 <b>프레임마다</b> 바뀜다(서버 120fps).
+        ///   그런데 <c>Airborne</c> 은 <b>틱마다</b> 한 번만 쓴다(60Hz).
+        ///   순간값을 그대로 읽으면 틱과 틱 사이에 켜졌다 꺼진 것이
+        ///   통째로 사라진다. 몸이 안 뜼 때 그 폭은 <b>한 프레임</b>이다.
+        ///   그래서 프레임에서 붙잡아 둔 뒤 틱에 실어 보낸다.
+        /// </summary>
+        private float _airHoldUntil = -1f;
+
+        /// <summary>한 번 본 공중 상태를 얼마나 붙잡아 둘 것인가(초).</summary>
+        private const float AirHoldSeconds = 0.12f;
+
         private CharacterMover _mover;
         private MineNetPlayer _who;
 
@@ -96,6 +119,7 @@ namespace Mine.Net
         private static readonly int HorId = Animator.StringToHash("Hor");
         private static readonly int VertId = Animator.StringToHash("Vert");
         private static readonly int StateId = Animator.StringToHash("State");
+        private static readonly int JumpId = Animator.StringToHash("IsJump");
 
         /// <summary>지금 이 몸을 실제로 굴리고 있는가. 같은 값을 두 번 넣지 않으려고 기억한다.</summary>
         private bool? _simulated;
@@ -212,6 +236,17 @@ namespace Mine.Net
             }
         }
 
+        /// <summary>
+        /// 공중 상태를 <b>프레임마다</b> 붙잡는다. 서버에서만 돌면 된다.
+        /// 이유는 <see cref="_airHoldUntil"/> 에 적어 두었다.
+        /// </summary>
+        private void Update()
+        {
+            if (!HasStateAuthority || _mover == null) return;
+
+            if (_mover.IsAir) _airHoldUntil = Time.time + AirHoldSeconds;
+        }
+
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority || _mover == null) return;
@@ -321,6 +356,10 @@ namespace Mine.Net
                 Vector3.Dot(velocity, transform.forward));
 
             AnimAxis = Vector2.ClampMagnitude(body / Mathf.Max(0.1f, walkSpeed), 1f);
+
+            // 점프 애니메이션은 <c>CharacterMover</c> 가 정한 공중 상태를 그대로 따른다.
+            // 그래야 혼자 하는 씬과 같은 타이밍으로 나온다.
+            Airborne = Time.time < _airHoldUntil;
         }
 
         /// <summary>
@@ -355,6 +394,7 @@ namespace Mine.Net
             _animator.SetFloat(HorId, _flowAxis.x);
             _animator.SetFloat(VertId, _flowAxis.y);
             _animator.SetFloat(StateId, Mathf.Clamp01(_flowState));
+            _animator.SetBool(JumpId, Airborne);
         }
 
         /// <summary>
