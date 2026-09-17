@@ -53,6 +53,89 @@ namespace Lobby.Editor
         /// <summary>바닥을 못 찾았을 때 쓸 높이. 스폰 지점들의 높이대다.</summary>
         private const float FallbackHeight = 1f;
 
+        /// <summary>배 게임의 진짜 입구. 씬에 이미 초록 포탈이 놓여 있고 Collider 도 붙어 있다.</summary>
+        private const string RealEntranceName = "Entrance_ShipCoop";
+
+        /// <summary>
+        /// 🟢 <b>씬에 원래 있던 초록 포탈을 배 게임 입구로 만든다.</b>
+        ///
+        /// <c>Entrances</c> 아래에 세 미니게임의 자리가 이미 잡혀 있었다. 각자 Collider 를 들고
+        /// 있고 <c>Entrance_ShipCoop</c> 밑에는 초록 포탈 연출까지 붙어 있다. 그런데 <b>들어가는
+        /// 일을 맡은 부품이 없어서</b> 다가가도 아무 일이 없었다.
+        ///
+        /// <b>왜 포탈 아트가 아니라 부모에 붙이는가.</b> 아트는 프리팹이고 세 입구가 같은 것을
+        /// 쓴다. 거기에 붙이면 다른 입구까지 배 게임으로 들어가게 된다. 자리와 Collider 를 들고
+        /// 있는 <c>Entrance_*</c> 가 "여기가 어느 게임 입구인가" 를 아는 자리다.
+        ///
+        /// ⚠ <see cref="PlacePortal"/> 이 만드는 파란 포탈은 <b>스폰 옆에 둔 시험용</b>이다.
+        ///    150m 를 걸어가지 않고 QA 하려고 둔 것이라 merge 전에 지운다.
+        ///    (<see cref="RemoveTestPortal"/>)
+        /// </summary>
+        [MenuItem(MenuRoot + "Lobby 초록 포탈을 배 게임 입구로 만들기")]
+        public static void BindRealEntrance()
+        {
+            Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+            GameObject entrance = Find(scene, RealEntranceName);
+
+            if (entrance == null)
+            {
+                Debug.LogError($"[LobbyPortalSetup] 씬에서 '{RealEntranceName}' 을 찾지 못했습니다.");
+                return;
+            }
+
+            MiniGameConfig config = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ShipConfigPath);
+
+            if (config == null)
+            {
+                Debug.LogError($"[LobbyPortalSetup] '{ShipConfigPath}' 을 찾지 못했습니다.");
+                return;
+            }
+
+            MiniGamePortal entry = entrance.GetComponent<MiniGamePortal>();
+            if (entry == null) entry = entrance.AddComponent<MiniGamePortal>();
+
+            SerializedObject data = new SerializedObject(entry);
+            data.FindProperty("config").objectReferenceValue = config;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(entry);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log(
+                $"[LobbyPortalSetup] '{RealEntranceName}' 을 배 게임 입구로 만들었습니다. " +
+                $"자리 {entrance.transform.position}.");
+        }
+
+        /// <summary>
+        /// 🧹 <b>스폰 옆 시험용 파란 포탈을 지운다. merge 전에 한 번 누른다.</b>
+        ///
+        /// 진짜 입구는 스폰에서 150m 밖이라 QA 때마다 걸어가야 한다. 그래서 개발 중에는
+        /// 스폰 옆 포탈을 두고 쓰다가, 올리기 전에 지운다. 지우는 일을 사람 기억에 맡기지
+        /// 않으려고 메뉴로 만들어 둔다.
+        /// </summary>
+        [MenuItem(MenuRoot + "Lobby 시험용 포탈 지우기")]
+        public static void RemoveTestPortal()
+        {
+            Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+            GameObject test = Find(scene, PortalName);
+
+            if (test == null)
+            {
+                Debug.Log($"[LobbyPortalSetup] 시험용 포탈('{PortalName}')이 이미 없습니다.");
+                return;
+            }
+
+            Object.DestroyImmediate(test);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log($"[LobbyPortalSetup] 시험용 포탈('{PortalName}')을 지웠습니다.");
+        }
+
         [MenuItem(MenuRoot + "Lobby 에 미니게임 입구 놓기")]
         public static void BuildAll()
         {
