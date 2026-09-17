@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -219,6 +220,17 @@ public sealed class MiniGameTransition : MonoBehaviour
             NetworkServiceLocator.Current.Disconnect();
         }
 
+        // ⚠ **위 한 줄로는 미니게임 Runner 가 꺼지지 않는다.**
+        //
+        //    FusionNetworkService.Disconnect() 는 자기가 만든 Lobby Runner 만 끈다. 미니게임
+        //    Runner 는 각 런처(ShipCoopLauncher 등)가 StartGame 으로 직접 띄운 것이라 서비스가
+        //    아예 모른다. 그래서 미니게임 안에서 나올 때는 Disconnect 가 곧바로 반환하고,
+        //    Runner 는 그대로 살아남아 아래 대기 루프가 타임아웃까지 돈다.
+        //
+        //    들어갈 때는 이 문제가 안 보였다. 그때 돌고 있던 것이 Lobby Runner 라
+        //    Disconnect 로 꺼졌기 때문이다. 나올 때만 드러난다.
+        ShutdownStrayRunners();
+
         float waited = 0f;
 
         while (AnyRunnerAlive())
@@ -240,6 +252,30 @@ public sealed class MiniGameTransition : MonoBehaviour
 
     /// <summary>직전 <see cref="ShutdownRunner"/> 가 실제로 끝냈는가. 코루틴은 값을 못 돌려준다.</summary>
     private bool shutdownDone;
+
+    /// <summary>
+    /// <see cref="NetworkServiceLocator"/> 가 모르는 Runner 를 끈다. **미니게임 Runner 가 여기 해당한다.**
+    ///
+    /// 끄는 주인을 찾아다니지 않고 <c>NetworkRunner.Instances</c> 를 훑는다. 미니게임마다 런처가
+    /// 다르고 앞으로 더 늘어나는데, 그때마다 이곳이 그 이름을 알아야 한다면 같은 사고가 반복된다.
+    /// "이 프로세스에 Runner 는 하나만 있어야 한다" 는 규칙만 알면 충분하다.
+    /// </summary>
+    private static void ShutdownStrayRunners()
+    {
+        // ⚠ Shutdown 이 Instances 를 건드릴 수 있으므로 먼저 훑어 담고 나서 끈다.
+        List<NetworkRunner> alive = new List<NetworkRunner>();
+
+        foreach (NetworkRunner candidate in NetworkRunner.Instances)
+        {
+            if (candidate != null && candidate.IsRunning) alive.Add(candidate);
+        }
+
+        foreach (NetworkRunner stray in alive)
+        {
+            Debug.Log($"[MiniGameTransition] 서비스가 모르는 Runner 를 끕니다 — {stray.name}");
+            stray.Shutdown();
+        }
+    }
 
     private static bool AnyRunnerAlive()
     {
