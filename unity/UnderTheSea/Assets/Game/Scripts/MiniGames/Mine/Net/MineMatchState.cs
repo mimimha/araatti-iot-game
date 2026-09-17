@@ -557,15 +557,17 @@ namespace Mine.Net
                 ? Mathf.Max(1, Mathf.CeilToInt(Countdown))
                 : 0;
 
-            if (Phase == MineMatchPhase.Turn && CurrentSlot >= 0)
-            {
-                int seconds = Mathf.Max(0, Mathf.CeilToInt(TurnTimeLeft));
-                _hud.NetworkTimeText = $"{seconds / 60:00}:{seconds % 60:00}";
-            }
-            else
-            {
-                _hud.NetworkTimeText = string.Empty;
-            }
+            // 공개 7초도 채굴 30초와 **같은 칸에** 센다. 남은 시간을 읽는 곳이
+            // 둘로 나뉘면(위는 --:--, 문구는 "(7초)") 어디를 봐야 하는지 매번 헷갈린다.
+            if (Phase == MineMatchPhase.Turn && CurrentSlot >= 0) _hud.NetworkTimeText = Clock(TurnTimeLeft);
+            else if (Phase == MineMatchPhase.Reveal) _hud.NetworkTimeText = Clock(RevealLeft);
+            else _hud.NetworkTimeText = string.Empty;
+        }
+
+        private static string Clock(float secondsLeft)
+        {
+            int seconds = Mathf.Max(0, Mathf.CeilToInt(secondsLeft));
+            return $"{seconds / 60:00}:{seconds % 60:00}";
         }
 
         private string PhaseLine()
@@ -579,7 +581,8 @@ namespace Mine.Net
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";
 
                 case MineMatchPhase.Reveal:
-                    return $"목표를 외우세요  ({Mathf.CeilToInt(RevealLeft)}초)";
+                    // 초는 위 타이머가 센다. 여기서 또 적으면 두 숫자가 한 프레임씩 어긋난다.
+                    return "목표를 외우세요";
 
                 case MineMatchPhase.Turn:
                     if (HintLeft > 0f) return $"P{HintSlot + 1} 힌트 보는 중";
