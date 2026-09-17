@@ -114,12 +114,21 @@ public class MineGridView : MonoBehaviour
     [SerializeField] private bool showTarget = true;
 
     [Header("색")]
+    // ⚠ 아래 두 색은 **HDR 로 연다.**
+    //
+    // 칸 색은 머티리얼의 `_BaseColor` 를 덮어쓰는 곱셈값이라, 텍스처를 밝히려면
+    // 1 을 넘겨야 한다. 씬에는 실제로 1.83 같은 값이 들어 있었다.
+    // 그런데 일반 Color 필드의 피커는 0~1 에서 자른다. 색조만 손보려고 피커를
+    // 한 번 여는 것만으로 밝기가 함께 잘려 판이 어두워지고, 되돌릴 방법도 없었다.
+    // ColorUsage 로 열어 두면 Intensity 슬라이더로 1 을 넘는 값을 다룰 수 있다.
     [Tooltip("건드릴 필요 없는 칸 — 무른 돌. 흙빛.")]
-    [SerializeField] private Color intactColor = new Color(0.55f, 0.50f, 0.42f);
+    [SerializeField, ColorUsage(false, true)]
+    private Color intactColor = new Color(0.55f, 0.50f, 0.42f);
 
     [Tooltip("건드릴 필요 없는 칸 — 단단한 돌. 푸른 잿빛.\n" +
              "머티리얼이 무엇이든 색이 다르면 구분된다. 어두운 곳에서는 특히.")]
-    [SerializeField] private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
+    [SerializeField, ColorUsage(false, true)]
+    private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
 
     [Tooltip("판 칸. 채굴 중에도 결과 화면에도 이 색이다.")]
     [SerializeField] private Color dugColor = new Color(0.15f, 0.13f, 0.12f);
