@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Collections.Generic;
 using Fusion;
+using UnderTheSea.Network;
 using UnityEngine;
 
 namespace Warriors.Net
@@ -64,7 +66,60 @@ namespace Warriors.Net
             lastPosition = transform.position;
 
             Debug.Log($"[WarriorsLocalView] 카메라를 내 캐릭터에 붙였습니다. ({Object.InputAuthority})");
+
+            StartCoroutine(FinishLoadingWhenPlayable());
         }
+
+        /// <summary>
+        /// <b>정말 놀 수 있게 됐을 때</b> 로딩 화면을 걷는다.
+        ///
+        /// 포탈로 들어오면 <c>MiniGameTransition</c> 이 "게임에 입장 중..." 을 켜 두는데, 그것을
+        /// 내리는 쪽은 미니게임이다. 내리지 않으면 <b>로딩 화면에 갇힌다.</b>
+        ///
+        /// 반대로 너무 일찍 내려도 안 된다. 씬을 여느라 한 프레임이 길게 멈추고 그 뒤 밀린 틱을
+        /// 몰아서 따라잡는데, 그 구간을 사용자에게 넘기면 조작이 밀린다고 느낀다. 배 게임에서
+        /// 실측으로 겪은 일이라 같은 기준을 쓴다 — 외형이 입혀지고 화면이 한두 프레임 더 흐른 뒤.
+        ///
+        /// ⚠ <b>어떤 경우에도 갇히지 않는다.</b> 외형이 끝내 오지 않아도 상한을 넘기면 넘긴다.
+        ///    조작이 잠깐 어색한 것보다 갇히는 쪽이 훨씬 나쁘다. 배 게임에서 실제로 한 번
+        ///    2분 넘게 갇혔고, 그 뒤로 이 상한을 둔다.
+        /// </summary>
+        private IEnumerator FinishLoadingWhenPlayable()
+        {
+            NetworkPlayerAppearance appearance = GetComponent<NetworkPlayerAppearance>();
+
+            float waited = 0f;
+
+            // ⚠ 사라지는 중인 캐릭터의 [Networked] 값을 읽으면 터진다. 판이 끝나 Despawn 되는
+            //    프레임에 걸릴 수 있다. 그때는 기다릴 이유도 없으므로 빠져나온다.
+            //    (같은 사고를 ShipCoopPortrait 에서 실제로 겪었다)
+            while (Alive(appearance) && !appearance.AppearanceReady && waited < GiveUpAfterSeconds)
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (Alive(appearance) && !appearance.AppearanceReady)
+            {
+                Debug.LogWarning(
+                    $"[WarriorsLocalView] 외형이 {GiveUpAfterSeconds:0}초 안에 오지 않아 그대로 화면을 넘깁니다.", this);
+            }
+
+            // 외형을 입히고 그리는 데 한두 프레임이 더 든다. 그 사이를 보여 주지 않는다.
+            yield return null;
+            yield return null;
+
+            TransitionStatus.SetReady();
+
+            Debug.Log("[WarriorsLocalView] 준비가 끝나 화면을 넘깁니다.");
+        }
+
+        /// <summary>외형을 이만큼 기다려도 안 오면 포기하고 넘긴다. (초)</summary>
+        private const float GiveUpAfterSeconds = 15f;
+
+        /// <summary>아직 살아 있어 <c>[Networked]</c> 값을 읽어도 되는가.</summary>
+        private static bool Alive(NetworkBehaviour one)
+            => one != null && one.Object != null && one.Object.IsValid;
 
         /// <summary>
         /// 서버가 내 캐릭터를 순간이동시켰으면(2 · 3페이즈 자리 배치) 카메라도 같이 뛴다.

@@ -73,6 +73,30 @@ namespace Warriors
         public void ForgetAliveEnemies() => alive.Clear();
 
         /// <summary>
+        /// 몬스터를 만들 수 있는 상태인지 한 줄로 말한다. <b>조용히 아무것도 안 나올 때 쓴다.</b>
+        ///
+        /// 서버가 스폰을 켜 두고도 한 마리도 안 만든 적이 있다. 예외가 없어 어디서 막혔는지
+        /// 알 수 없었다. 여기 적힌 것 중 하나라도 비어 있으면 그것이 원인이다.
+        /// </summary>
+        public string Describe()
+        {
+            int templates = 0;
+
+            if (enemyTemplates != null)
+            {
+                foreach (WarriorsTarget one in enemyTemplates)
+                {
+                    if (one != null) templates++;
+                }
+            }
+
+            return $"틀 {templates}/{(enemyTemplates == null ? 0 : enemyTemplates.Length)}개, " +
+                   $"자리 {(spawnPoints == null ? 0 : spawnPoints.Length)}곳, " +
+                   $"살아있음 {alive.Count}/{maxAliveEnemies}, " +
+                   $"점수판 {(score == null ? "없음" : score.IsRunning ? "도는 중" : "멈춤")}";
+        }
+
+        /// <summary>
         /// 몬스터를 **만드는 방법**. 비어 있으면 예전처럼 <c>Instantiate</c> 한다.
         ///
         /// 네트워크에서는 서버가 <c>Runner.Spawn</c> 으로 만들도록 갈아끼운다.

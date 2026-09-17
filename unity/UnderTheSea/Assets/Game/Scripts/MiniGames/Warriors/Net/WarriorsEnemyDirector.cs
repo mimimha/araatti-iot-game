@@ -91,6 +91,20 @@ namespace Warriors.Net
 
             Debug.Log($"[WarriorsEnemyDirector] 몬스터 스폰을 {(wantSpawning ? "켰습니다" : "껐습니다")}.");
 
+            if (wantSpawning)
+            {
+                // ⚠ **켰다고 나오는 것이 아니다.**
+                //
+                //    두 번째 판에서 스폰을 켰는데도 240초 동안 한 마리도 안 나왔다. 예외도
+                //    없었고 로그도 "켰습니다" 뿐이라 어디서 막혔는지 알 수 없었다.
+                //    켤 때마다 만드는 데 필요한 것들이 아직 있는지 적어 둔다.
+                Debug.Log(
+                    $"[WarriorsEnemyDirector] 만들 준비 — 사본 {enemies.Length}종, " +
+                    $"공장 {(WarriorsEnemySpawner.Factory != null ? "있음" : "없음")}, " +
+                    $"스포너 {(spawner.isActiveAndEnabled ? "켜짐" : "꺼짐")}, " +
+                    $"{spawner.Describe()}");
+            }
+
             // 1페이즈가 끝났다. 해변에 남은 몬스터를 치운다.
             if (!wantSpawning) ClearBeach();
         }

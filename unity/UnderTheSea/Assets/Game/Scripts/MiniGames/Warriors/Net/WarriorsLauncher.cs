@@ -1,5 +1,6 @@
 using Fusion;
 using Fusion.Sockets;
+using MiniGames.Common;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -28,6 +29,9 @@ namespace Warriors.Net
                  + "Lobby(27015) · ShipCoop 과 겹치지 않게 Warriors 는 27031 을 쓴다. "
                  + "한 PC 에서 여러 미니게임 서버를 같이 띄울 수 있어야 한다.")]
         [SerializeField] private ushort serverPort = 27031;
+
+        [Tooltip("정원과 입장 규칙. 비워 두면 아무나 받는다.")]
+        [SerializeField] private MiniGameConfig config;
 
         /// <summary>이 프로세스에서 세션을 시작한 인스턴스. 씬 재로드로 생긴 복사본을 막는다.</summary>
         private static WarriorsLauncher active;
@@ -76,6 +80,23 @@ namespace Warriors.Net
 
             // 서버에는 조작하는 사람이 없다. 입력을 만들지 않는다.
             runner.ProvideInput = !isServer;
+
+            if (isServer)
+            {
+                // ⚠ **콜백 등록은 서버 분기 안에 둔다.**
+                //    입력 제공자는 아래 if (!isServer) 안에서 등록된다. 거기에 입장 판정을 같이
+                //    넣으면 서버에서는 OnConnectRequest 가 **아예 불리지 않는다.**
+                //    ShipCoop 에서 실측으로 겪은 사고라 같은 자리에 같은 주석을 남긴다.
+                MiniGameAdmission admission = GetComponent<MiniGameAdmission>();
+
+                if (admission == null)
+                {
+                    admission = gameObject.AddComponent<MiniGameAdmission>();
+                }
+
+                admission.Configure(config);
+                runner.AddCallbacks(admission);
+            }
 
             if (!isServer)
             {

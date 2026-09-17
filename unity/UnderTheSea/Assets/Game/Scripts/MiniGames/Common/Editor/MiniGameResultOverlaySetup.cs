@@ -26,6 +26,9 @@ namespace MiniGames.Common.Editor
     public static class MiniGameResultOverlaySetup
     {
         private const string SourcePath = "Assets/Game/Prefabs/MiniGames/Common/CommonMatchCanvas.prefab";
+        /// <summary>게임 HUD(10~50)보다 위, 로딩 화면(32767)보다 아래.</summary>
+        private const int SortingOrder = 1000;
+
         private const string OutputPath = "Assets/Game/Prefabs/MiniGames/Common/MiniGameResultOverlay.prefab";
 
         private static readonly string[] Cut = { "Systems", "MatchPanel", "QueueLoadingPanel" };
@@ -57,6 +60,19 @@ namespace MiniGames.Common.Editor
 
                 MiniGameResultOverlay overlay = made.AddComponent<MiniGameResultOverlay>();
                 Wire(overlay, panel, made);
+
+                // ⚠ **게임 HUD 위에 그려야 한다.** 원본 캔버스는 0 이라 HUD 아래에 깔린다.
+                //
+                //    실제로 Warriors 에서 결과 판이 통째로 가려졌다 — HUD 의 "미션 실패" 만
+                //    보이고 [로비로] 버튼이 안 보였다. 그 HUD 는 50, ShipCoop HUD 는 10 이다.
+                //    ShipCoop 에서 보였던 것은 우연이다.
+                //
+                //    로딩 화면(32767)보다는 아래여야 한다. 불러오는 중에 결과 판이 비쳐
+                //    보이면 안 된다.
+                foreach (Canvas canvas in made.GetComponentsInChildren<Canvas>(true))
+                {
+                    canvas.sortingOrder = SortingOrder;
+                }
 
                 PrefabUtility.SaveAsPrefabAsset(made, OutputPath);
                 AssetDatabase.SaveAssets();
@@ -132,9 +148,17 @@ namespace MiniGames.Common.Editor
         /// </summary>
         [MenuItem("Tools/MiniGames/ShipCoop 씬에 결과 오버레이 놓기")]
         public static void PlaceInShipCoop()
-        {
-            const string scenePath = "Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity";
+            => PlaceIn("Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity", "ShipCoop");
 
+        /// <summary>검 게임 씬에 놓는다. 배와 같은 프리팹, 같은 방식이다.</summary>
+        [MenuItem("Tools/MiniGames/Warriors 씬에 결과 오버레이 놓기")]
+        public static void PlaceInWarriors()
+            => PlaceIn("Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity", "Warriors");
+
+        public static void PlaceInWarriorsFromCommandLine() => PlaceInWarriors();
+
+        private static void PlaceIn(string scenePath, string label)
+        {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(OutputPath);
 
             if (prefab == null)
@@ -150,7 +174,7 @@ namespace MiniGames.Common.Editor
             {
                 if (root.GetComponentInChildren<MiniGameResultOverlay>(true) != null)
                 {
-                    Debug.Log("[결과 오버레이] ShipCoop 씬에 이미 있습니다. 놓지 않습니다.");
+                    Debug.Log($"[결과 오버레이] {label} 씬에 이미 있습니다. 놓지 않습니다.");
                     return;
                 }
             }
@@ -161,7 +185,7 @@ namespace MiniGames.Common.Editor
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
             UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
 
-            Debug.Log($"[결과 오버레이] ShipCoop 씬에 놓았습니다. ({scenePath})");
+            Debug.Log($"[결과 오버레이] {label} 씬에 놓았습니다. ({scenePath})");
         }
 
         private static Transform FindDeep(Transform where, string name)

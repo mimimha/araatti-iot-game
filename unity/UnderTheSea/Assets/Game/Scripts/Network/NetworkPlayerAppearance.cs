@@ -121,7 +121,7 @@ namespace UnderTheSea.Network
         ///    <c>Login → Lobby</c> 정상 경로에는 부르는 곳이 <b>하나도 없다.</b>
         ///    거기서는 사람이 만든 외형이 늦더라도 끝까지 기다리는 것이 맞다.
         ///    지금 부르는 곳은 로그인을 거치지 않는 ShipCoop 직접 접속
-        ///    (<c>ShipCoopDefaultAppearance</c>) 하나뿐이다.
+        ///    (<c>MiniGameDefaultAppearance</c>) 가 붙은 미니게임뿐이다.
         /// </summary>
         public void ConfirmDefaultAppearance(string because)
         {

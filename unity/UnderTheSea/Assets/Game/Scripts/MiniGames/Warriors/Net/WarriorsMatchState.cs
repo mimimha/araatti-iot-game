@@ -51,7 +51,7 @@ namespace Warriors.Net
     ///    네트워크일 때 멈추도록 막아 두었다. 승패는 목표 수치와 Down 으로만 갈린다.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class WarriorsMatchState : NetworkBehaviour
+    public sealed class WarriorsMatchState : NetworkBehaviour, global::MiniGames.Common.IMiniGameAdmissionSource
     {
         [Header("시작 대기")]
         [Tooltip("이 인원이 모여야 카운트다운을 시작한다.")]
@@ -231,6 +231,15 @@ namespace Warriors.Net
         /// <summary>종료 문구 구간이 끝나면 넘어갈 페이즈. 0 이면 대기 중인 전환이 없다.</summary>
         [Networked] public int PendingPhase { get; private set; }
 
+        // ── 결과를 결과 화면으로 넘기기 ──────────────────────────────
+        //
+        // 승패·점수·시간은 이미 위에 다 있다. 여기서 새로 정하는 것은 **언제 확정됐는가**
+        // 하나뿐이다. 그 틱을 찍어 두면 화면이 "이미 보여 준 결과인가" 를 가릴 수 있다.
+
+        /// <summary>결과가 확정된 틱. 0 이면 아직 안 끝났다.</summary>
+        [Networked] private int ResultTick { get; set; }
+
+
         /// <summary>방금 깬 라운드 번호. 종료 문구를 고르는 데 쓴다.</summary>
         [Networked] public int ClearedRound { get; private set; }
 
@@ -395,9 +404,26 @@ namespace Warriors.Net
                 return;
             }
 
+            ResetToWaiting();
+
+            Debug.Log($"[WarriorsMatch] {info.Source} 가 다시 하기를 눌렀습니다. 새 판을 준비합니다.");
+        }
+
+        /// <summary>
+        /// <b>판을 처음 값으로 되돌린다.</b> 서버에서만 부른다.
+        ///
+        /// 씬을 다시 로드하지 않는다. 판의 상태는 전부 <c>[Networked]</c> 값이므로 그것만
+        /// 처음 값으로 돌리면 페이즈 담당들도 <see cref="Phase"/> 를 보고 알아서 자기 단계를 닫는다.
+        /// </summary>
+        private void ResetToWaiting()
+        {
             Phase = WarriorsMatchPhase.Waiting;
             Countdown = 0f;
             IntroTimer = TickTimer.None;
+
+            // ⚠ 결과 도장을 지운다. 남겨 두면 다음 판이 끝나도 화면이 "이미 보여 준 결과" 로 보고
+            //    결과 판을 열지 않는다.
+            ResultTick = 0;
 
             // 전환 중에 판이 끝났을 수 있다. 남겨 두면 다시 시작하자마자 종료 문구가 뜬다.
             ClearHoldTimer = TickTimer.None;
@@ -416,6 +442,15 @@ namespace Warriors.Net
             IsPaused = false;
             PausedBy = 0;
 
+            // ⚠ **점수판도 되돌린다.** 1라운드 목표를 채우면 그 부품이 Cleared 로 굳는데,
+            //    몬스터 스포너가 "점수판이 돌고 있는가" 를 보고 일한다. 되돌리지 않으면
+            //    두 번째 판부터 몬스터가 한 마리도 안 나온다. 조용히 그런다.
+            foreach (WarriorsBattleScore board in FindObjectsByType<WarriorsBattleScore>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (board != null) board.ResetForNewMatch();
+            }
+
             // 쓰러진 사람을 다시 세운다. 이걸 빼면 새 판이 시작하자마자 둘 다 Down 이라 즉시 실패한다.
             foreach (WarriorsPlayerLife life in FindObjectsByType<WarriorsPlayerLife>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -423,7 +458,6 @@ namespace Warriors.Net
                 if (life != null && life.IsLive) life.ResetForNewMatch();
             }
 
-            Debug.Log($"[WarriorsMatch] {info.Source} 가 다시 하기를 눌렀습니다. 새 판을 준비합니다.");
         }
 
         /// <summary>이 사람의 번호(1부터). 캐릭터가 없으면 0.</summary>
@@ -651,6 +685,98 @@ namespace Warriors.Net
             OpenPhase((WarriorsMatchPhase)PendingPhase);
         }
 
+        // ------------------------------------------------------------
+        // 결과를 결과 화면으로 넘긴다
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// <b>아무도 안 남으면 다음 판을 받을 준비를 한다.</b> 서버 틱에서 부른다.
+        ///
+        /// 이것이 없으면 <b>끝난 판이 그대로 남는다.</b> 다음 사람이 들어오면 지난 판의 결과
+        /// 화면부터 보게 된다 — 들어가자마자 "미션 실패" 다. 서버를 다시 띄워야만 풀렸다.
+        /// 배 게임에서 똑같이 겪었다.
+        ///
+        /// ⚠ <b>판이 끝난 뒤에만 되돌린다.</b> 진행 중에 둘 다 잠깐 끊긴 것을 끝난 것으로 보면
+        ///    돌아왔을 때 판이 날아가 있다.
+        /// </summary>
+        private void ResetWhenEveryoneLeft()
+        {
+            if (Crew != 0 || Phase == WarriorsMatchPhase.Waiting)
+            {
+                return;
+            }
+
+            Debug.Log($"[WarriorsMatch] 판이 끝나고 아무도 남지 않았습니다. ({Phase}) 대기 상태로 되돌립니다.");
+            ResetToWaiting();
+        }
+
+        /// <summary>
+        /// <b>지금 이 판에 사람을 받아도 되는가.</b> <c>MiniGameAdmission</c> 이 묻는다.
+        ///
+        /// 진행 중이거나 이미 끝난 판에 들어오면 아무것도 못 한다. 시작한 판 한가운데에
+        /// 떨어지거나, 끝난 판의 결과 화면만 보게 된다.
+        ///
+        /// ⚠ 상태를 캐시하지 않고 그때그때 본다. 캐시하면 "끝났다" 와 "요청이 왔다" 사이에
+        ///    틈이 생기고, 그 틈으로 들어온 사람이 정확히 위의 상태가 된다.
+        /// </summary>
+        public bool CanAdmitNow(out string why)
+        {
+            if (IsOver)
+            {
+                why = $"이미 끝난 판입니다. ({Phase})";
+                return false;
+            }
+
+            if (Phase != WarriorsMatchPhase.Waiting && Phase != WarriorsMatchPhase.Countdown)
+            {
+                why = $"이미 시작한 판입니다. ({Phase})";
+                return false;
+            }
+
+            why = null;
+            return true;
+        }
+
+        /// <summary>
+        /// <b>서버가 결과를 못 박는다.</b> 한 판에 한 번만 찍힌다.
+        ///
+        /// 승패와 점수와 시간은 이미 위에서 서버가 정해 둔 값이다. 여기서는 <b>확정된 틱</b>만
+        /// 더한다. 그것이 있어야 화면 쪽에서 "이미 보여 준 결과인가" 를 가릴 수 있다.
+        ///
+        /// ⚠ 값을 다시 계산하지 않는다. 같은 판을 두 곳에서 판정하면 언젠가 어긋난다.
+        /// </summary>
+        private void WriteResultWhenFinished()
+        {
+            if (ResultTick != 0 || !IsOver)
+            {
+                return;
+            }
+
+            ResultTick = Runner.Tick;
+
+            Debug.Log(
+                $"[Warriors 결과] 확정 — {(Phase == WarriorsMatchPhase.Cleared ? "성공" : "실패")}, " +
+                $"점수 {Score}, {Elapsed:F0}초, 도달 라운드 {Mathf.Max(1, ReachedRound)} (틱 {ResultTick})");
+        }
+
+        /// <summary>
+        /// <b>공용 결과 화면은 쓰지 않는다.</b>
+        ///
+        /// 배 게임은 <c>MiniGameResultOverlay</c> 가 결과를 보여 주지만, 검 게임에는 서연님이
+        /// 만든 결과 화면(<c>WarriorsHudPresenter</c> 의 CLEAR · GAME OVER 와
+        /// <c>WarriorsPauseControl</c> 의 버튼)이 이미 있다. 둘 다 띄우면 같은 내용이 두 번
+        /// 겹치고 버튼이 네 개가 된다.
+        ///
+        /// ⚠ <b>그래서 결과를 Gateway 에 제출하지 않는다.</b> 제출해 놓고 아무도 받지 않으면
+        ///    Gateway 가 결과를 들고 있다가 Lobby 의 <c>MatchFlowController</c> 에 넘기고,
+        ///    그쪽은 <c>RewardService.Grant</c> 로 <b>보상을 적립한다.</b>
+        ///    아이템도 인벤토리도 없는 단계라 그 경로를 타면 안 된다.
+        ///
+        /// 서버가 찍는 <see cref="ResultTick"/> 은 남겨 둔다. 결과가 언제 확정됐는지 서버
+        /// 로그로 볼 수 있어야 하고, <see cref="ResetToWaiting"/> 이 그것을 지우는 것이
+        /// "판이 정말 처음으로 돌아갔는가" 의 표시가 된다.
+        /// </summary>
+
         /// <summary>매치 실패. <paramref name="reason"/> 1 모두 쓰러짐 · 2 시간 초과.</summary>
         private void Fail(int reason)
         {
@@ -684,6 +810,8 @@ namespace Warriors.Net
                 // 끝난 판이 멈춘 채로 남지 않게 한다.
                 if (IsPaused) IsPaused = false;
                 HoldServerTime();
+                WriteResultWhenFinished();
+                ResetWhenEveryoneLeft();
                 return;
             }
 

@@ -87,8 +87,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             NetworkPlayerAppearance appearance = GetComponent<NetworkPlayerAppearance>();
 
             // 서버가 내 외형을 정할 때까지. 안 기다리면 기본 옷을 입은 내 캐릭터가 한순간 보인다.
-            // ShipCoopDefaultAppearance 가 늦어도 확정해 주므로 영원히 멈추지 않는다.
-            while (appearance != null && !appearance.AppearanceReady)
+            // MiniGameDefaultAppearance 가 늦어도 확정해 주므로 영원히 멈추지 않는다.
+            // ⚠ 사라지는 중인 캐릭터의 [Networked] 값을 읽으면 터진다. 판이 끝나 Despawn 되는
+            //    프레임에 걸릴 수 있다. 그때는 기다릴 이유도 없으므로 빠져나온다.
+            //    (같은 사고를 ShipCoopPortrait 에서 실제로 겪었다)
+            while (appearance != null && appearance.Object != null && appearance.Object.IsValid
+                   && !appearance.AppearanceReady)
             {
                 yield return null;
             }

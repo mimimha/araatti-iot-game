@@ -114,15 +114,32 @@ namespace Warriors.Net
                 pauseButtonRoot.SetActive(showButton);
             }
 
-            // 판이 끝났을 때만 [다시 하기] 를 띄운다.
-            bool showRetry = live && match.IsOver;
+            // 판이 끝나면 버튼을 띄운다. **[로비로] 는 언제나, [다시 하기] 는 단독 실행일 때만.**
+            //
+            // 포탈로 들어온 판에서는 [다시 하기] 가 갈 곳이 없다. 같은 미니게임을 다시 여는
+            // 경로가 아직 없어서, 눌러도 아무 일이 없으면 고장으로 보인다. 반대로 [로비로] 는
+            // 그때가 오히려 꼭 필요하다 — 시간이 지나기를 기다리지 않고 바로 나갈 수 있어야 한다.
+            bool over = live && match.IsOver;
+            bool showRetry = over && !MiniGameTransition.InMiniGame;
+
+            if (lobbyButtonRoot != null && lobbyButtonRoot.activeSelf != over)
+            {
+                lobbyButtonRoot.SetActive(over);
+                PlaceEndButtons(showRetry);
+
+                // 결과 화면이 뜬 순간부터 센다. 꺼질 때는 멈춘다.
+                autoLobbyAt = over && MiniGameTransition.InMiniGame
+                    ? Time.unscaledTime + autoLobbySeconds
+                    : 0f;
+            }
+
+            CountDownToLobby();
 
             if (retryButtonRoot != null && retryButtonRoot.activeSelf != showRetry)
             {
                 retryButtonRoot.SetActive(showRetry);
-                if (lobbyButtonRoot != null) lobbyButtonRoot.SetActive(showRetry);
 
-                if (showRetry)
+                if (over)
                 {
                     // 결과 화면이 뜨는 순간에 이미 눌려 있던 입력이 그대로 버튼으로 흘러가지 않게
                     // 선택을 비우고 잠깐 잠가 둔다. 위 MakeButton 의 navigation=None 과 한 쌍이다.
@@ -220,6 +237,28 @@ namespace Warriors.Net
                 return;
             }
 
+            // ⚠ **포탈로 들어왔으면 씬을 직접 열면 안 된다.**
+            //
+            //    Lobby 는 씬만 연다고 놀 수 있는 곳이 아니다. 채널에 다시 접속해야 하고, 그
+            //    순서를 아는 것은 MiniGameTransition 뿐이다. 씬만 열면 이렇게 끝난다.
+            //
+            //        [Fusion] 세션 없이 Lobby 씬만 열렸습니다.
+            //        [TransitionStatus] Failed — Lobby 에 바로 들어올 수 없습니다.
+            //
+            //    실제로 그렇게 멈췄다. 러너를 내리는 일도 그쪽이 같이 한다.
+            if (MiniGameTransition.InMiniGame)
+            {
+                // 버튼과 시계가 겹쳐 눌려도 한 번만 나간다.
+                if (leaving) return;
+                leaving = true;
+                autoLobbyAt = 0f;
+
+                Debug.Log("[WarriorsPause] 로비로 돌아갑니다. (포탈로 들어온 판)");
+                MiniGameTransition.ReturnToLobby();
+                return;
+            }
+
+            // 단독 실행으로 들어온 경우. 돌아갈 채널이 없으므로 예전처럼 씬만 연다.
             Debug.Log("[WarriorsPause] 로비로 돌아갑니다. 네트워크 세션을 먼저 내립니다.");
 
             NetworkRunner runner = FindFirstObjectByType<NetworkRunner>(FindObjectsInactive.Include);
@@ -232,6 +271,52 @@ namespace Warriors.Net
 
             SceneFlow.BackToLobbyFromMiniGame();
         }
+
+        /// <summary>
+        /// <b>아무것도 누르지 않아도 결국은 로비로 보낸다.</b>
+        ///
+        /// 결과 화면을 띄워 놓고 자리를 비우면 그 사람은 판에 남는다. 그동안 서버는 끝난 판을
+        /// 붙들고 있어 다음 사람을 받지 못한다. 배 게임에서 쓰던 것과 같은 규칙이다.
+        ///
+        /// ⚠ 포탈로 들어온 판에서만 센다. 단독 실행에는 돌아갈 채널이 없다.
+        /// </summary>
+        private void CountDownToLobby()
+        {
+            if (autoLobbyAt <= 0f || Time.unscaledTime < autoLobbyAt) return;
+
+            autoLobbyAt = 0f;
+
+            Debug.Log($"[WarriorsPause] {autoLobbySeconds:0}초가 지났습니다. 로비로 돌아갑니다.");
+            RequestLobby();
+        }
+
+        [Tooltip("결과 화면에서 아무것도 누르지 않으면 이만큼 뒤에 로비로 보낸다. (초)")]
+        [SerializeField, Min(1f)] private float autoLobbySeconds = 5f;
+
+        /// <summary>돌아갈 시각. 0 이면 세지 않는다.</summary>
+        private float autoLobbyAt;
+
+        /// <summary>이미 나가기로 했는가. 버튼과 시계가 겹쳐도 한 번만 간다.</summary>
+        private bool leaving;
+
+        /// <summary>
+        /// <b>끝 화면 버튼의 자리를 잡는다.</b>
+        ///
+        /// 둘이 같이 서면 좌우로 나눠 서고, <b>[로비로] 혼자면 가운데</b>에 선다.
+        /// 하나뿐인데 한쪽으로 치우쳐 있으면 짝이 빠진 것처럼 보인다.
+        /// </summary>
+        private void PlaceEndButtons(bool withRetry)
+        {
+            if (lobbyButtonRoot == null) return;
+
+            RectTransform rect = lobbyButtonRoot.transform as RectTransform;
+            if (rect == null) return;
+
+            rect.anchoredPosition = new Vector2(withRetry ? 140f : 0f, EndButtonY);
+        }
+
+        /// <summary>끝 화면 버튼의 높이. 카드 안에 담기는 자리다.</summary>
+        private const float EndButtonY = -282f;
 
         // ------------------------------------------------------------
         // 화면 만들기
@@ -315,18 +400,17 @@ namespace Warriors.Net
             // 프리팹이 원래 쓰던 RetryButton 은 (0, −282) 에 260×68 로 들어가 있다.
             // 같은 높이에 두 개를 좌우로 세우면 카드 안에 정확히 담긴다
             // (각각 x −270~−10, +10~+270 — 카드 폭 ±360 안).
-            const float ButtonY = -282f;
             Vector2 buttonSize = new(260f, 68f);
 
             retryButtonRoot = MakeButton(
                 transform, "RetryButton", "다시 하기", font, 28f,
-                new Vector2(.5f, .5f), new Vector2(-140f, ButtonY), buttonSize,
+                new Vector2(.5f, .5f), new Vector2(-140f, EndButtonY), buttonSize,
                 new Color(.13f, .55f, .3f, .97f), RequestRestart);
 
             // **[로비로].** 결과 화면에서 [다시 하기] 옆에 선다.
             lobbyButtonRoot = MakeButton(
                 transform, "LobbyButton", "로비로", font, 28f,
-                new Vector2(.5f, .5f), new Vector2(140f, ButtonY), buttonSize,
+                new Vector2(.5f, .5f), new Vector2(140f, EndButtonY), buttonSize,
                 new Color(.18f, .26f, .42f, .97f), RequestLobby);
 
             pauseButtonRoot.SetActive(false);

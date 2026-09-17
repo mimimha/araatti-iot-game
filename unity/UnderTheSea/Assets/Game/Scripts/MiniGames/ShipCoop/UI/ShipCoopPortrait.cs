@@ -354,7 +354,7 @@ public class ShipCoopPortrait : MonoBehaviour
     /// <c>null</c> 을 돌려주면 <b>아직 찍으면 안 된다</b>는 뜻이다.
     ///
     /// <b>왜 필요한가.</b> 예전에는 "렌더러가 보이면" 찍었다. 그런데 외형이 늦게 오는 사람은
-    /// <c>ShipCoopDefaultAppearance</c> 가 <b>기본 외형으로 확정하는 순간에도 모델이 보이게</b> 되고,
+    /// <c>MiniGameDefaultAppearance</c> 가 <b>기본 외형으로 확정하는 순간에도 모델이 보이게</b> 되고,
     /// 그 틈에 찍혀서 <b>기본 얼굴이 초상화에 박제</b>됐다. 진짜 외형은 그 뒤에 도착하는데
     /// 사진은 이름으로 캐시돼 다시 찍히지 않았다. 실제로 그렇게 되어 있었다.
     ///
@@ -372,6 +372,22 @@ public class ShipCoopPortrait : MonoBehaviour
         {
             // 혼자 하는 씬. 기다릴 외형이 없다.
             return applier != null ? "단독:" + Worn(applier) : "단독";
+        }
+
+        // ⚠ **사라지는 중인 캐릭터의 [Networked] 값을 읽으면 터진다.**
+        //
+        //    이 검사는 Update 마다 돈다. 판이 끝나고 로비로 돌아가는 순간 캐릭터가
+        //    Despawn 되는데, 그 프레임에 아래 줄을 읽으면 이렇게 된다.
+        //
+        //        InvalidOperationException: Error when accessing
+        //        NetworkPlayerAppearance.AppearanceReady.
+        //        Networked properties can only be accessed when Spawned() has been called.
+        //
+        //    기능에는 영향이 없지만 개발 콘솔에 빨간 줄이 남아 진짜 오류를 찾을 때 방해가 된다.
+        //    사라지는 중이면 찍을 것도 없으므로 그냥 물러난다.
+        if (networked.Object == null || !networked.Object.IsValid)
+        {
+            return null;
         }
 
         if (!networked.AppearanceReady)
