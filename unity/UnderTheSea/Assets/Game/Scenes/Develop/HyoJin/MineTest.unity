@@ -44197,8 +44197,8 @@ MonoBehaviour:
   crackMaterial: {fileID: 2100000, guid: 6cbdf39bdd20611469e1a56d7f9f4f15, type: 2}
   crackScale: 1
   showTarget: 1
-  intactColor: {r: 1.9630207, g: 1.9612504, b: 1.9630207, a: 1}
-  hardIntactColor: {r: 1.7814789, g: 1.7798724, b: 1.7814789, a: 1}
+  intactColor: {r: 2.2725768, g: 2.0753343, b: 1.7794707, a: 1}
+  hardIntactColor: {r: 2.0997264, g: 1.9333332, b: 1.683743, a: 1}
   dugColor: {r: 0.07, g: 0.06, b: 0.055, a: 1}
   crackTint: {r: 1, g: 1, b: 1, a: 1}
   drawingColor: {r: 0.06, g: 0.055, b: 0.05, a: 1}
