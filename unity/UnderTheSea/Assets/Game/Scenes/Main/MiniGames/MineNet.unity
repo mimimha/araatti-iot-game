@@ -44398,13 +44398,13 @@ MonoBehaviour:
   blockHeight: 2
   digDepth: 0.25
   crackDepth: 0.07
-  softMaterial: {fileID: 2100000, guid: 3be6222bc3f7e7942bdc0f50d94e8f09, type: 2}
-  hardMaterial: {fileID: 2100000, guid: e81cea7354172044199946222871020e, type: 2}
+  softMaterial: {fileID: 2100000, guid: 1acf0c9962c5c5647b2efa7042087de2, type: 2}
+  hardMaterial: {fileID: 2100000, guid: 1acf0c9962c5c5647b2efa7042087de2, type: 2}
   dugMaterial: {fileID: 2100000, guid: 154887ad2099ab34790a1a4c7bb1145b, type: 2}
   flatMaterial: {fileID: 2100000, guid: bc24b8a7f758ee44391e5cc3722aa0e2, type: 2}
   flatColorScale: 0.7429511
   flatDesaturate: 1
-  flatAlways: 1
+  flatAlways: 0
   varyRotation: 1
   hardRise: 0
   heightJitter: 0
@@ -44412,8 +44412,8 @@ MonoBehaviour:
   crackMaterial: {fileID: 2100000, guid: 6cbdf39bdd20611469e1a56d7f9f4f15, type: 2}
   crackScale: 1
   showTarget: 1
-  intactColor: {r: 1.0915493, g: 1.2661971, b: 1.8338027, a: 1}
-  hardIntactColor: {r: 0.9237782, g: 1.1522393, b: 1.818949, a: 1}
+  intactColor: {r: 1.9630207, g: 1.9612504, b: 1.9630207, a: 1}
+  hardIntactColor: {r: 1.7814789, g: 1.7798724, b: 1.7814789, a: 1}
   dugColor: {r: 0.07, g: 0.06, b: 0.055, a: 1}
   crackTint: {r: 1, g: 1, b: 1, a: 1}
   drawingColor: {r: 0.06, g: 0.055, b: 0.05, a: 1}
