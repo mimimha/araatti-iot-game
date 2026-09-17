@@ -183,6 +183,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
 
         connectedChannelId = serverId;
 
+        // ⚠ 미니게임에 들어가려면 이 세션을 반드시 끊어야 하고, 끊으면 위 값이 지워진다.
+        //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
+        LobbyReturnInfo.Remember(nickname, serverId);
+
         // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
         SceneFlow.LobbyLoadedByNetwork = true;
 

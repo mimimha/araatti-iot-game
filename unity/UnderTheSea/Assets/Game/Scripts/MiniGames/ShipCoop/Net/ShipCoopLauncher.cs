@@ -34,7 +34,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     {
         [Header("서버 전용")]
         [Tooltip("Server 모드에서 열 포트. 실행 인자 -port 가 있으면 그쪽이 이긴다.")]
-        [SerializeField] private ushort serverPort = 27015;
+        [SerializeField] private ushort serverPort = 27016;
 
         /// <summary>이 프로세스에서 세션을 시작한 인스턴스. 씬 재로드로 생긴 복사본을 막는다.</summary>
         private static ShipCoopLauncher active;
@@ -142,6 +142,10 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 if (!isServer)
                 {
                     Debug.LogError(Describe(result.ShutdownReason, session));
+
+                    // Lobby 에서 넘어온 경우라면 화면에 갇히지 않게 알린다.
+                    // 듣는 사람이 없으면 아무 일도 일어나지 않는다 — 단독 실행은 그대로다.
+                    MiniGameEntry.ReportFailed(Describe(result.ShutdownReason, session));
                 }
 
                 return;
