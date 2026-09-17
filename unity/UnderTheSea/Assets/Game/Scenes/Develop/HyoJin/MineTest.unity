@@ -44186,6 +44186,8 @@ MonoBehaviour:
   hardMaterial: {fileID: 2100000, guid: 1acf0c9962c5c5647b2efa7042087de2, type: 2}
   dugMaterial: {fileID: 2100000, guid: 154887ad2099ab34790a1a4c7bb1145b, type: 2}
   flatMaterial: {fileID: 2100000, guid: bc24b8a7f758ee44391e5cc3722aa0e2, type: 2}
+  drawingMaterial: {fileID: 2100000, guid: 48a4cdb2185f9a047ac58e2cc5b147aa, type: 2}
+  drawingStoneColor: {r: 1.5170343, g: 1.5170343, b: 1.5170343, a: 1}
   flatColorScale: 0.7429511
   flatDesaturate: 1
   flatAlways: 0

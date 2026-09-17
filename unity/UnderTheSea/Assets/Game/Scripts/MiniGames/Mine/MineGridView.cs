@@ -73,6 +73,13 @@ public class MineGridView : MonoBehaviour
     [Tooltip("도안과 결과를 보여주는 동안 쓸 무늬 없는 돌. 비우면 안 바꾼다.")]
     [SerializeField] private Material flatMaterial;
 
+    [Tooltip("목표 도안에서 **파야 하는 칸**에 쓸 돌. 비워두면 예전처럼 무늬 없는 돌 위에 색으로만 그린다. 넣으면 공개와 힌트에서 바탕은 무른 돌, 도안 칸만 이 돌이 된다.")]
+    [SerializeField] private Material drawingMaterial;
+
+    [Tooltip("도안 칸의 색. drawingMaterial 을 넣었을 때만 쓴다. 재질이 그대로 보이게 흰색 근처로 두고, 바탕과 대비가 부족하면 낮춘다.")]
+    [SerializeField, ColorUsage(false, true)]
+    private Color drawingStoneColor = Color.white;
+
     [Tooltip("무늬 없는 돌을 쓸 때 칸 색에 곱할 값. 색은 MaterialPropertyBlock 으로 " +
              "가는데 그것이 머티리얼의 밑색을 덮어쓰므로, 머티리얼을 고쳐서는 밝기를 못 바꾼다.")]
     [SerializeField, Range(0.05f, 1f)] private float flatColorScale = 0.4f;
@@ -537,6 +544,15 @@ public class MineGridView : MonoBehaviour
             return;
         }
 
+        // 도안을 돌로 그리는 동안에는 파야 하는 칸만 따로 칠한다.
+        // 바탕은 아래 uniform 이 참이라 전부 무른 돌로 간다.
+        if (StoneDrawing && !_grid.IsDug(x, y)
+            && _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y))
+        {
+            if (r.sharedMaterial != drawingMaterial) r.sharedMaterial = drawingMaterial;
+            return;
+        }
+
         Material m = _grid.IsDug(x, y)
             ? (dugMaterial != null ? dugMaterial : softMaterial)
             : (!uniform && _grid.IsHard(x, y) ? hardMaterial : softMaterial);
@@ -587,6 +603,10 @@ public class MineGridView : MonoBehaviour
         //
         // 결과 화면은 그대로 둔다. 거기서는 판 칸 자체가 그림이므로 검정이 맞다.
         if (dug) return hintDugColor;
+
+        // 돌로 그릴 때는 검정으로 덮으면 재질이 안 보인다. 색을 따로 둔다.
+        if (StoneDrawing) return isTarget ? drawingStoneColor : intactColor;
+
         return isTarget ? drawingColor : intactColor;
     }
 
@@ -640,7 +660,18 @@ public class MineGridView : MonoBehaviour
     //
     // 원래는 도안과 결과를 보여주는 동안만 썼다. 탑뷰로 그림을 읽는 시간이라
     // 돌결이 방해가 되기 때문이다. flatAlways 를 켜면 채굴 중에도 쓴다.
-    private bool UseFlat => flatAlways || _overlay != MineOverlay.None;
+    /// <summary>
+    /// 목표 도안을 <b>돌 재질로</b> 그리는가. <see cref="drawingMaterial"/> 을 넣었을 때만이다.
+    ///
+    /// 원래 공개·결과 화면은 무늬 없는 돌 하나로 덮고 색으로만 그림을 그렸다.
+    /// 돌결이 도안 위에 겹쳐 읽기 어렵다는 이유였다. 이 길은 그 대신
+    /// <b>바탕은 무른 돌, 파야 하는 칸은 다른 돌</b>로 갈라 보여 준다.
+    ///
+    /// 결과 화면은 건드리지 않는다. 거기서는 판 칸 자체가 그림이다.
+    /// </summary>
+    private bool StoneDrawing => _overlay == MineOverlay.Drawing && drawingMaterial != null;
+
+    private bool UseFlat => !StoneDrawing && (flatAlways || _overlay != MineOverlay.None);
 
     // 무늬 없는 돌을 쓸 때 칸 색을 손본다. 밝기를 낮추고 색조를 지운다.
     //
