@@ -27,6 +27,12 @@
 | Toony Tiny People RTS 검 리소스 | 출처 확인 필요 | 라이선스 확인 전 업로드 보류 | `Assets/ToonyTinyPeople/` | Warriors 테스트용 검 메시와 재질 | 서연 | 2026-09-12 |
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 | 효진 | 2026-09-15 |
+| Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
+
+> ⚠ Yughues Free Rock Materials 는 **213MB** 입니다. 20종 중 실제로 쓰는 것은 하나(`M_YFRM_16`)뿐이고,
+> 같이 들어온 `Preview/`(데모 씬·fbx)와 `*_HDRP.unitypackage` 는 이 프로젝트에서 안 씁니다.
+> 용량을 줄이려면 지워도 됩니다. URP 용 머티리얼은 `*_URP.unitypackage` 를 임포트해서 만든 것이라,
+> 그 파일도 한 번 푼 뒤에는 필요 없습니다.
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
