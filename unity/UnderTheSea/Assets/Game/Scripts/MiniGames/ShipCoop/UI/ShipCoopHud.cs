@@ -309,9 +309,15 @@ public class ShipCoopHud : MonoBehaviour
         }
 
         // 사람 순서가 프레임마다 바뀌면 초상화가 자리를 바꿔 가며 깜빡인다.
-        // FindObjectsByType 의 순서는 보장되지 않으므로 이름으로 고정한다.
+        // FindObjectsByType 의 순서는 보장되지 않으므로 고정된 키로 줄을 세운다.
+        //
+        // ⚠ **이름으로 정렬하면 안 된다.** 네트워크로 스폰된 플레이어는 이름이 전부
+        //    `ShipCoopPlayer(Clone)` 로 같아서, Array.Sort 가 같은 키끼리 순서를 보장하지 않는다.
+        //    그래서 칸이 매 프레임 뒤바뀌며 카드가 지직거렸다. 실측으로 확인했다.
+        //    ShipCoopPortrait 가 사진을 보관할 때 쓰는 키와 **같은 키**를 쓴다.
         TaskWorker[] crew = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        System.Array.Sort(crew, (a, b) => string.CompareOrdinal(a.name, b.name));
+        System.Array.Sort(crew, (a, b) => string.CompareOrdinal(
+            ShipCoopPortrait.StableKeyOf(a), ShipCoopPortrait.StableKeyOf(b)));
 
         // 패널 폭은 **늘 4칸 그대로**다. 이 게임은 4명 고정이라(2장) 빈 칸이 생기지 않는다.
         // 테스트 씬에서만 사람이 모자라 비어 보인다. 그걸 맞추려고 폭을 줄이면,
@@ -354,7 +360,7 @@ public class ShipCoopHud : MonoBehaviour
             //    그리게 됩니다. 달라졌을 때만 넣으면 비용도 없습니다.
             if (slot.face != null && _portrait != null)
             {
-                Texture shot = _portrait.Of(crew[i].name);
+                Texture shot = _portrait.Of(crew[i]);
 
                 if (shot != null && slot.face.texture != shot)
                 {

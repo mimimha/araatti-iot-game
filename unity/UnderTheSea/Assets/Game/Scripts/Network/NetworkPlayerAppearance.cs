@@ -543,12 +543,24 @@ namespace UnderTheSea.Network
         /// <summary>
         /// 모델을 보이거나 감춘다.
         ///
-        /// <c>enabled</c> 가 아니라 <see cref="Renderer.forceRenderingOff"/> 를 쓴다.
-        /// <see cref="CharacterAppearanceApplier"/> 가 슬롯별로 <c>enabled</c> 를 켜고 끄기 때문에,
-        /// 여기서 같은 값을 만지면 서로 덮어쓴다.
+        /// <b>직접 렌더러를 만지지 않고 <see cref="CharacterAppearanceApplier"/> 에 맡긴다.</b>
+        /// "전체 감추기" 와 "자리별 감추기" 는 <see cref="Renderer.forceRenderingOff"/> 라는
+        /// <b>같은 스위치</b>를 쓴다. 두 곳에서 따로 쓰면 나중에 쓴 쪽이 앞의 판단을 지운다.
+        /// 그래서 계산은 한 곳(Applier)에서만 하고, 여기서는 "감출까 말까" 만 알려 준다.
+        ///
+        /// ⚠ <c>enabled</c> 는 쓰지 않는다. <c>PeerMode.Multiple</c> 에서 Fusion 의
+        ///    <c>RunnerVisibilityLink</c> 가 그 값을 자기 것으로 여기고 스폰마다 되돌려 놓는다.
+        ///
+        /// Applier 가 없는 구성(외형을 입히지 않는 단순 모델)에서는 예전처럼 직접 감춘다.
         /// </summary>
         private void SetModelVisible(bool visible)
         {
+            if (applier != null)
+            {
+                applier.SetModelHidden(!visible);
+                return;
+            }
+
             if (hiddenUntilReady == null)
             {
                 return;
