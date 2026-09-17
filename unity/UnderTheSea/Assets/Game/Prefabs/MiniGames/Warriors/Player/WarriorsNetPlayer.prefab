@@ -89,6 +89,9 @@ GameObject:
   - component: {fileID: 230897556817669599}
   - component: {fileID: 7893733477370875045}
   - component: {fileID: 9212662751742564423}
+  - component: {fileID: 2567063243186289222}
+  - component: {fileID: 4314159039576879615}
+  - component: {fileID: 1000972543256861106}
   m_Layer: 0
   m_Name: WarriorsNetPlayer
   m_TagString: Untagged
@@ -283,6 +286,7 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSpeed: 720
   cameraTransform: {fileID: 0}
+  playerControllerSource: {fileID: 0}
 --- !u!114 &3649227079236024737
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -385,6 +389,8 @@ MonoBehaviour:
   - {fileID: 230897556817669599}
   - {fileID: 7893733477370875045}
   - {fileID: 9212662751742564423}
+  - {fileID: 4314159039576879615}
+  - {fileID: 1000972543256861106}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1330021359424559203
 MonoBehaviour:
@@ -470,6 +476,8 @@ MonoBehaviour:
   _IsDown:
     RawValue: 0
   _PlayerIndex: 0
+  _Hp: 0
+  _MaxHp: 0
 --- !u!114 &9212662751742564423
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -484,6 +492,81 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsNetPlayerCombat
   _AttackSeq: 0
   _AttackKind: 0
+--- !u!114 &2567063243186289222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 375977923591297978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8462df2f05a0ea44f989ff1416dcc35d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Character.CharacterAppearanceApplier
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  slotBindings:
+  - slot: 64
+    renderer: {fileID: 9132482192452535966}
+  - slot: 1
+    renderer: {fileID: 3892055381545819478}
+  - slot: 2
+    renderer: {fileID: 3426087853416928688}
+  - slot: 4
+    renderer: {fileID: 6919375589582330905}
+  - slot: 8
+    renderer: {fileID: 3570430967449203420}
+  - slot: 16
+    renderer: {fileID: 907048967575580}
+  - slot: 32
+    renderer: {fileID: 8116076946668579868}
+  - slot: 128
+    renderer: {fileID: 1023200124340844896}
+  - slot: 256
+    renderer: {fileID: 4243029931811126811}
+  - slot: 512
+    renderer: {fileID: 7429050702605649702}
+  - slot: 1024
+    renderer: {fileID: 2298505328872893921}
+  - slot: 2048
+    renderer: {fileID: 6390234322572856157}
+  - slot: 4096
+    renderer: {fileID: 2501369887524546069}
+  skinRenderers:
+  - {fileID: 9132482192452535966}
+  - {fileID: 3892055381545819478}
+  - {fileID: 1023200124340844896}
+  skinSourceMaterial: {fileID: 2100000, guid: 6a4c0a5109ac9314e97b0138b1203c35, type: 2}
+--- !u!114 &4314159039576879615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 375977923591297978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ffdbe8fb8ab274a8a7995830fc20a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerAppearance
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  applier: {fileID: 2567063243186289222}
+  hiddenUntilReady: []
+  _AppearanceReady:
+    RawValue: 0
+--- !u!114 &1000972543256861106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 375977923591297978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0c4d1c5b37b2614baed2be28462f2b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameDefaultAppearance
+  waitSeconds: 20
 --- !u!1 &443834245626656415
 GameObject:
   m_ObjectHideFlags: 0
