@@ -677,7 +677,9 @@ public class MineGridView : MonoBehaviour
 
         // 도안을 돌로 그리는 동안에는 파야 하는 칸만 따로 칠한다.
         // 바탕은 아래 uniform 이 참이라 전부 무른 돌로 간다.
-        if (StoneDrawing && !_grid.IsDug(x, y)
+        // ⚠ 결과 화면은 제외한다. 거기서 목표 칸을 따로 칠하면 정답을 알려주는 꼴이다.
+        //   결과가 보여야 하는 것은 목표가 아니라 **내가 판 그림**이다.
+        if (StoneBoard && _overlay == MineOverlay.Drawing && !_grid.IsDug(x, y)
             && _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y))
         {
             if (r.sharedMaterial != drawingMaterial) r.sharedMaterial = drawingMaterial;
@@ -736,7 +738,7 @@ public class MineGridView : MonoBehaviour
         if (dug) return hintDugColor;
 
         // 돌로 그릴 때는 검정으로 덮으면 재질이 안 보인다. 색을 따로 둔다.
-        if (StoneDrawing) return isTarget ? drawingStoneColor : intactColor;
+        if (StoneBoard) return isTarget ? drawingStoneColor : intactColor;
 
         return isTarget ? drawingColor : intactColor;
     }
@@ -800,9 +802,18 @@ public class MineGridView : MonoBehaviour
     ///
     /// 결과 화면은 건드리지 않는다. 거기서는 판 칸 자체가 그림이다.
     /// </summary>
-    private bool StoneDrawing => _overlay == MineOverlay.Drawing && drawingMaterial != null;
+    /// <summary>
+    /// 판을 <b>돌 재질로</b> 보여주는가. 목표 공개(힌트 포함)와 결과 화면 둘 다다.
+    ///
+    /// 원래 두 화면은 무늬 없는 돌 하나로 덮고 색으로만 그림을 그렸다. 돌결이 그림 위에
+    /// 겹쳐 읽기 어렵다는 이유였다. 지금은 바탕을 실제 돌로 두고 그림만 갈라 보여 준다.
+    ///
+    /// 켜지는 조건을 <see cref="drawingMaterial"/> 하나로 묶어 두었다. 비우면 두 화면
+    /// 모두 예전 방식으로 돌아간다.
+    /// </summary>
+    private bool StoneBoard => _overlay != MineOverlay.None && drawingMaterial != null;
 
-    private bool UseFlat => !StoneDrawing && (flatAlways || _overlay != MineOverlay.None);
+    private bool UseFlat => !StoneBoard && (flatAlways || _overlay != MineOverlay.None);
 
     // 무늬 없는 돌을 쓸 때 칸 색을 손본다. 밝기를 낮추고 색조를 지운다.
     //
