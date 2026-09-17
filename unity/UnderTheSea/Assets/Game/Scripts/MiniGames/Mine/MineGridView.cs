@@ -163,6 +163,9 @@ public class MineGridView : MonoBehaviour
 
     /// <summary>깎인 상자. 400칸이 한 장을 나눠 쓴다.</summary>
     private Mesh _blockMesh;
+
+    /// <summary>켜지면 단단한 돌도 무른 돌처럼 그린다. <see cref="SetUniformStone"/></summary>
+    private bool _uniformStone;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     private Vector2Int _targetOffset;
@@ -523,7 +526,7 @@ public class MineGridView : MonoBehaviour
 
         // 그림을 보여주는 동안에는 바탕을 하나로 통일한다.
         // 돌 종류가 섞여 보이면 그림을 읽기 어렵다. 도안이든 결과든 마찬가지다.
-        bool uniform = _overlay != MineOverlay.None;
+        bool uniform = _overlay != MineOverlay.None || _uniformStone;
 
         // 그때는 **무늬도 지운다.** 탑뷰에서 내려다보면 돌결이 도안 위에
         // 겹쳐 보여서, 어느 칸이 파였는지 읽는 데 방해가 된다.
@@ -555,7 +558,7 @@ public class MineGridView : MonoBehaviour
     {
         // 안 판 칸은 돌 종류에 따라 색이 다르다. 이것이 무른 돌과 단단한 돌을
         // 구분하는 주된 수단이다. 머티리얼만으로는 어두운 곳에서 잘 안 갈린다.
-        Color intact = _grid.IsHard(x, y) ? hardIntactColor : intactColor;
+        Color intact = !_uniformStone && _grid.IsHard(x, y) ? hardIntactColor : intactColor;
 
         if (!showTarget || _overlay == MineOverlay.None || _grid.TargetCells == null)
             return dug ? dugColor : intact;
@@ -596,6 +599,24 @@ public class MineGridView : MonoBehaviour
     public void SetOverlay(MineOverlay overlay)
     {
         _overlay = overlay;
+        RefreshAll();
+    }
+
+    /// <summary>
+    /// 돌 종류를 감추고 판을 <b>한 가지 밝은 돌</b>로 보여줄 것인가.
+    ///
+    /// 시작 카운트다운에 쓴다. 아직 아무도 못 파는 시간인데 단단한 돌이 어두운
+    /// 얼룩으로 먼저 드러나면, 판이 지저분해 보이고 어디가 단단한지도 미리 알려준다.
+    ///
+    /// 도안·결과 화면도 같은 이유로 바탕을 하나로 통일하는데, 그쪽은
+    /// <see cref="_overlay"/> 로 이미 갈린다. 카운트다운은 overlay 가 None 이라
+    /// 따로 알려줄 길이 필요했다.
+    /// </summary>
+    public void SetUniformStone(bool on)
+    {
+        if (_uniformStone == on) return;
+
+        _uniformStone = on;
         RefreshAll();
     }
 

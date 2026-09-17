@@ -417,7 +417,15 @@ public class MineGame : MonoBehaviour
         SetOnlyDiggerActive(-1);
 
         // 판은 보이되 도안은 없다. 0 이 되면 EnterReveal 이 Drawing 으로 바꾼다.
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.None); }
+        //
+        // 돌 종류는 감춘다. 아직 아무도 못 파는 시간인데 단단한 돌이 어두운 얼룩으로
+        // 먼저 드러나면 판이 지저분해 보이고 어디가 단단한지도 미리 알려준다.
+        if (view != null)
+        {
+            view.SetTargetOffset(Vector2Int.zero);
+            view.SetOverlay(MineOverlay.None);
+            view.SetUniformStone(true);
+        }
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
         if (cameraRig != null) cameraRig.ShowBoard();
 
@@ -432,7 +440,12 @@ public class MineGame : MonoBehaviour
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);          // 보는 시간이지 파는 시간이 아니다
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
+        if (view != null)
+        {
+            view.SetTargetOffset(Vector2Int.zero);
+            view.SetOverlay(MineOverlay.Drawing);
+            view.SetUniformStone(false);   // 여기부터는 돌 종류를 다시 보여준다
+        }
         // 그림을 봐야 하는 시간이므로 밝게. 랜턴은 필요 없다.
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
 

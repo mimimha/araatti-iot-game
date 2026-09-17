@@ -160,8 +160,16 @@ namespace Mine.Net
                 _hud.NetworkHintLit = HintAlive(match);
             }
 
-            if (_camera == null) return;
             if (match == null) return;
+
+            // 시작 카운트다운 동안에는 돌 종류를 감춘다. 아직 아무도 못 파는 시간인데
+            // 단단한 돌이 어두운 얼룩으로 먼저 드러나면 판이 지저분해 보이고
+            // 어디가 단단한지도 미리 알려준다. 솔로(MineGame.EnterCountdown)와 같다.
+            //
+            // ⚠ 카메라보다 먼저 본다. 카메라를 못 찾은 화면에서도 판은 그려진다.
+            if (_board != null) _board.SetUniformStone(match.Phase == MineMatchPhase.Countdown);
+
+            if (_camera == null) return;
 
             // 판이 끝났다. 완성된 그림을 위에서 보여 준다. (MINE.md 3장 7번)
             // 늦게 들어온 사람도 Phase 가 복제되므로 같은 화면을 받는다.
