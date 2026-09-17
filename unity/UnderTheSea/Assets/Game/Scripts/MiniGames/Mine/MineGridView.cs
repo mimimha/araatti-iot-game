@@ -749,6 +749,26 @@ public class MineGridView : MonoBehaviour
     /// 도안 보기와 결과는 목적이 다르다. 도안은 그림을 외우는 것이고,
     /// 결과는 맞고 틀림을 따지는 것이다. 그래서 칠하는 방식이 다르다.
     /// </summary>
+    /// <summary>
+    /// 판의 반폭(m). <b>테두리까지 포함한다.</b>
+    ///
+    /// 탑뷰 카메라가 이 값으로 높이를 잡는다. 판 크기만 보면 테두리가 화면 밖으로
+    /// 밀려나고, 그만큼 판이 꽉 차 보여 HUD 를 가린다.
+    ///
+    /// ⚠ <c>Awake</c> 를 기다리지 않는다. 카메라가 다른 컴포넌트의 Awake 에서 물어보는
+    ///   길이 있어 그때는 <c>_grid</c> 가 아직 비어 있다. 여기서 직접 찾는다.
+    /// </summary>
+    public float BoardHalfExtent
+    {
+        get
+        {
+            MineGrid g = _grid != null ? _grid : GetComponent<MineGrid>();
+            if (g == null) return 0f;
+
+            return g.Size * g.CellSize * 0.5f + borderRing * g.CellSize;
+        }
+    }
+
     public void SetOverlay(MineOverlay overlay)
     {
         _overlay = overlay;

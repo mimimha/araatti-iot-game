@@ -92742,7 +92742,7 @@ MonoBehaviour:
   maxDistance: 14
   zoomStep: 12
   lockCursor: 1
-  boardMargin: 1.15
+  boardMargin: 1.2
   minBoardHeight: 5
   transitionSeconds: 0.5
   finaleSeconds: 1.5

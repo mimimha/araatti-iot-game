@@ -447,7 +447,12 @@ public class MineCamera : MonoBehaviour
 
         if (grid == null || cam == null) return minBoardHeight;
 
+        // 테두리까지 화면에 들어와야 한다. 판 크기만 보면 테두리가 밖으로 밀려나
+        // 판이 꽉 차 보이고 HUD 를 가린다.
         float half = grid.Size * grid.CellSize * 0.5f;
+
+        MineGridView view = grid.GetComponent<MineGridView>();
+        if (view != null && view.BoardHalfExtent > 0f) half = view.BoardHalfExtent;
         float tan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
         if (tan <= 0.0001f) return minBoardHeight;
 
