@@ -240,11 +240,6 @@ public class ShipCoopCargoVisuals : ScriptableObject
         disc.transform.position = new Vector3(box.center.x, box.max.y - box.size.y * waterSink, box.center.z);
         disc.transform.rotation = bucket.transform.rotation;
 
-        Debug.Log(
-            $"[양동이] 물 원판 — 양동이 {box.size.x:F2}×{box.size.y:F2}×{box.size.z:F2}m, " +
-            $"원판 지름 {diameter:F2}m (테두리 폭의 {waterWidth:P0}), " +
-            $"테두리에서 {box.size.y * waterSink:F2}m 아래", bucket);
-
         Renderer surface = disc.GetComponent<Renderer>();
         if (surface != null)
         {

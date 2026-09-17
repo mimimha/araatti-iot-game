@@ -105,7 +105,7 @@ public class VoyageSea : MonoBehaviour
     [SerializeField, Range(1f, 3f)] private float islandApproachCurve = 2f;
 
     [Tooltip("섬 거리 · 진행도를 2초마다 로그로 남긴다. 값을 맞출 때만 켠다.")]
-    [SerializeField] private bool logIsland = true;
+    [SerializeField] private bool logIsland = false;
 
     [Header("항로선")]
     [Tooltip("항로 폭의 절반 (m). 이 안에 있으면 목적지를 제대로 향하고 있는 것이다.\n" +

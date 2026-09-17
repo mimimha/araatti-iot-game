@@ -2761,7 +2761,7 @@ MonoBehaviour:
   islandFarDistance: 400
   islandNearDistance: 25
   islandApproachCurve: 2
-  logIsland: 1
+  logIsland: 0
   courseHalfWidth: 5
   courseLineWidth: 0.35
   courseLineMaterial: {fileID: 2100000, guid: cbb41788c5a9f6344840f780c158461d, type: 2}

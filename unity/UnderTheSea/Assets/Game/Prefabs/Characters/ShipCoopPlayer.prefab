@@ -1693,7 +1693,7 @@ MonoBehaviour:
   leftHandFixEuler: {x: 0, y: -90, z: -90}
   rightHandFixEuler: {x: 0, y: 90, z: 90}
   drawHandAxes: 0
-  logAmmoHands: 1
+  logAmmoHands: 0
 --- !u!114 &7276708486594036018
 MonoBehaviour:
   m_ObjectHideFlags: 0
