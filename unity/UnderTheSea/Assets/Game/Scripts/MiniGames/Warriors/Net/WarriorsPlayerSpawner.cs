@@ -105,7 +105,14 @@ namespace Warriors.Net
 
             if (points.Length > 0)
             {
-                Transform point = points[index % points.Length];
+                // **가운데 자리부터 쓴다.**
+                //
+                // 자리는 x = -3, -1, +1, +3 네 곳인데 예전에는 앞에서부터 나눠 줘서 2인이
+                // -3 과 -1 을 받았다. 둘 다 아레나 한가운데(x=0)의 <b>왼쪽</b>에 서고 두 사람의
+                // 한가운데가 -2 로 치우쳐, 1P 는 중심에서 3m, 2P 는 1m 떨어진 서로 다른 구도를 봤다.
+                // 네 자리 중 가운데 두 곳을 쓰면 -1 과 +1 이 되어 두 화면이 좌우 대칭이 된다.
+                int offset = Mathf.Max(0, (points.Length - WarriorsPlayers.Max) / 2);
+                Transform point = points[(offset + index) % points.Length];
 
                 if (point != null)
                 {

@@ -42,6 +42,9 @@ namespace Warriors.Net
         private WarriorsPlayerLife life;
         private int shownSeq;
 
+        /// <summary>마지막으로 처리한 스윙 번호. 같은 번호는 다시 휘두르지 않는다.</summary>
+        private byte lastSwingSerial;
+
         public override void Spawned()
         {
             combat = GetComponent<WarriorsPlayerCombat>();
@@ -49,6 +52,30 @@ namespace Warriors.Net
 
             // 늦게 들어온 사람이 지나간 공격을 한 번 재생하지 않게 지금 값에서 시작한다.
             shownSeq = AttackSeq;
+
+            // **서버에서만** 결과를 듣는다. 협동 게이지와 측정은 서버가 정한다.
+            if (HasStateAuthority && combat != null) combat.AttackResolved += HandleAttackResolved;
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            if (combat != null) combat.AttackResolved -= HandleAttackResolved;
+        }
+
+        /// <summary>
+        /// 한 번 휘두른 결과가 나왔다. <paramref name="accepted"/> 는 실제로 맞은 대상 수다.
+        ///
+        /// 지금은 측정 로그에 남기는 것이 전부다 — 협동 게이지가 규칙에서 빠졌다.
+        /// </summary>
+        private void HandleAttackResolved(WarriorsAttackDirection direction, int accepted)
+        {
+            if (!HasStateAuthority || life == null) return;
+
+            WarriorsTelemetry.Swing(life.PlayerIndex, accepted > 0 ? 0 : 2, false);
+
+            // ⚠ 예전에는 여기서 "쓰러진 동료 곁에서 휘두르면 구조" 를 처리했다.
+            //    구조·부활은 규칙에서 빠졌다. 쓰러진 사람은 그 판에서 끝이다.
+
         }
 
         public override void FixedUpdateNetwork()
@@ -81,13 +108,29 @@ namespace Warriors.Net
             NetworkButtons pressed = input.Buttons.GetPressed(PreviousButtons);
             PreviousButtons = input.Buttons;
 
-            if (!TryReadSwing(pressed, out WarriorsAttackDirection direction)) return;
+            // **스윙 번호가 먼저다.** IoT 검은 버튼을 누르고 있는 것이 아니라 사건 하나를 보낸다.
+            // 번호가 바뀌었으면 그것이 새 스윙이고, 세기와 친 시각이 같이 실려 온다.
+            // 번호가 그대로면 예전처럼 버튼이 눌린 순간을 본다(키보드 호환).
+            WarriorsAttackDirection direction;
+            float strength = 1f;
+
+            if (input.SwingSerial != 0 && input.SwingSerial != lastSwingSerial)
+            {
+                lastSwingSerial = input.SwingSerial;
+                direction = (WarriorsAttackDirection)input.SwingType;
+                strength = Mathf.Clamp01(input.SwingStrength / 255f);
+            }
+            else if (!TryReadSwing(pressed, out direction))
+            {
+                return;
+            }
 
             // 인정했다. 모든 화면이 이 번호를 보고 같은 스윙을 낸다.
             AttackSeq++;
             AttackKind = (int)direction;
 
-            combat.RequestAttack(direction);
+            // 세기를 그대로 넘긴다. 키보드는 늘 1이다.
+            combat.RequestAttack(direction, strength);
 
             // 3페이즈에서는 이 스윙이 **노트 판정**이기도 하다.
             // 자기 레인의 노트만 본다. 다른 때는 아무 일도 하지 않는다.

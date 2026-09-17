@@ -8,7 +8,7 @@ namespace Warriors
         private static readonly HashSet<WarriorsBeachEnemyApproach> ActiveEnemies = new();
         [SerializeField] private Transform player;
         [SerializeField] private Transform spawnPoint;
-        [SerializeField, Min(0.1f)] private float moveSpeed = 1.8f;
+        [SerializeField, Min(0.1f)] private float moveSpeed = 4.2f;
         [SerializeField, Min(0.5f)] private float stoppingDistance = 2.5f;
         [SerializeField, Min(0.1f)] private float emergeDuration = 0.7f;
         [SerializeField] private float groundHeight = 0.65f;
@@ -71,13 +71,40 @@ namespace Warriors
             float playerDistance = playerOffset.magnitude;
             Vector3 toPlayer = playerDistance > .001f ? playerOffset / playerDistance : transform.forward;
 
-            // 맞고 밀려나는 구간. 걷는 속도의 세 배로 물러나야 "맞았다" 가 눈에 보인다.
-            // 1.2배였을 때는 그냥 잠깐 멈춘 것처럼 보였다. 시간이 짧아(최대 0.25초) 멀리 날아가진 않는다.
+            // **맞고 밀려나는 구간.**
+            //
+            // ⚠ 예전에는 <b>일정한 속도로</b> 0.12초 밀었다. 그러면 몬스터가 등속으로 미끄러져
+            //   "얻어맞았다" 가 아니라 "밀려났다" 로 읽힌다. 때린 순간의 충격이 없다.
+            //
+            // 지금은 <b>처음에 확 튕기고 급격히 잦아든다.</b> 시작 속도를 걷는 속도의 9배로 두고
+            // 남은 시간에 비례해 제곱으로 줄인다. 같은 거리를 가도 앞머리에서 거의 다 가므로
+            // 맞는 순간이 눈에 박힌다.
+            //
+            //   moveSpeed 4.2 × 9 = 37.8 u/s 에서 시작해 0 으로 감속
+            //   평균 속도는 시작의 1/3 이므로
+            //     일반 타격(0.16초)  약 2.0 world unit
+            //     처치(0.25초)       약 3.2 world unit
+            //   걷는 속도가 4.2 라 일반 타격분은 0.48초면 따라붙는다 — 날아가 버리지 않는다.
             if (Time.time < retreatUntil)
             {
-                position -= toPlayer * (moveSpeed * 3.2f * deltaTime);
+                float left = Mathf.Clamp01((retreatUntil - Time.time) / Mathf.Max(.0001f, retreatSpan));
+                float speed = moveSpeed * 9f * left * left;
+
+                position -= toPlayer * (speed * deltaTime);
                 position.y = groundHeight;
                 transform.position = position;
+                return;
+            }
+
+            // **밀린 뒤 잠깐 멈춘다(경직).**
+            //
+            // ⚠ 밀리자마자 같은 속도로 다시 걸어 들어오면 "밀렸다" 가 아니라 "덜컥했다" 로만 보인다.
+            //    맞은 자리에 잠시 서 있어야 밀려난 거리가 눈에 남는다.
+            //    걷는 속도를 1.8 → 4.2 로 올렸으므로(무쌍처럼 몰려들게) 경직이 더 중요해졌다.
+            if (Time.time < stunUntil)
+            {
+                transform.rotation = Quaternion.RotateTowards(transform.rotation,
+                    Quaternion.LookRotation(toPlayer), 180f * deltaTime);
                 return;
             }
 
@@ -227,6 +254,27 @@ namespace Warriors
         }
 
         /// <summary>Short hit reaction. Capped so it can never become a retreat.</summary>
-        public void Retreat(float duration) => retreatUntil = Time.time + Mathf.Clamp(duration, .05f, .25f);
+        /// <summary>
+        /// 맞고 뒤로 밀린다. <paramref name="duration"/> 만큼 물러난 뒤 그 1.5배 동안 굳는다.
+        ///
+        /// 밀린 거리(0.12초면 약 0.69 world unit)가 눈에 남으려면 곧바로 다시 걸어오면 안 된다.
+        /// </summary>
+        public void Retreat(float duration)
+        {
+            float held = Mathf.Clamp(duration, .05f, .25f);
+
+            retreatSpan = held;
+            retreatUntil = Time.time + held;
+
+            // 경직을 밀린 시간의 1.5배 → 2.2배로 늘렸다. 튕겨 나간 거리가 눈에 남으려면
+            // 그 자리에 조금 더 서 있어야 한다.
+            stunUntil = retreatUntil + held * 2.2f;
+        }
+
+        /// <summary>밀리는 구간의 전체 길이(초). 감속 곡선을 그리는 데 쓴다.</summary>
+        private float retreatSpan = .12f;
+
+        /// <summary>밀린 뒤 굳어 있는 시각. 이때는 다가오지 않는다.</summary>
+        private float stunUntil;
     }
 }

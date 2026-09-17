@@ -11,7 +11,7 @@ namespace Warriors
         [SerializeField] private Transform player;
         [SerializeField] private Transform enemyParent;
         [SerializeField] private WarriorsBattleScore score;
-        [SerializeField] private Vector2 spawnInterval = new(.8f, 1.25f);
+        [SerializeField] private Vector2 spawnInterval = new(.55f, .95f);
         [SerializeField] private Vector2Int spawnCount = new(3, 4);
         [SerializeField, Min(1)] private int maxAliveEnemies = 12;
         [SerializeField, Min(.5f)] private float minimumSpawnDistance = 1.65f;
@@ -28,13 +28,40 @@ namespace Warriors
         public void ConfigureForPlayers(int players)
         {
             int extra = Mathf.Clamp(players, 1, WarriorsPlayers.Max) - 1;
-            // 2인이면 12. 위 상한 곡선이 이 값의 50% -> 75% -> 100% 로 올라간다 (6 -> 9 -> 12).
-            maxAliveEnemies = 8 + extra * 4;
-            spawnCount = new Vector2Int(2 + extra, 5 + extra * 2);
+
+            // **2인이면 16마리까지.** 아래 상한 곡선이 이 값의 65% → 82% → 100% 로 올라가므로
+            // 화면에 사는 수는 <b>10 → 13 → 16</b> 이 된다. (예전 8 → 10 → 12)
+            //
+            // 한 번에 나오는 무리도 키운다. 몰려오는 맛은 "총 마릿수" 보다 "한 번에 몇이 밀려오는가"
+            // 에서 나온다. 2인이면 한 무리가 4~8 마리다.
+            //
+            // ⚠ 마릿수를 늘려도 <b>맞는 빈도는 늘지 않는다.</b> 공격 박자는
+            //    <see cref="WarriorsEnemyAttack.ConfigureWaveCadence"/> 가 무리 전체에 하나로 주므로
+            //    (waveAttackInterval 1.8초) 빽빽해질 뿐 불합리하게 두들겨 맞지는 않는다.
+            maxAliveEnemies = 10 + extra * 6;
+            spawnCount = new Vector2Int(3 + extra, 6 + extra * 2);
         }
         private readonly List<WarriorsTarget> alive = new();
 
         public void BindPlayer(Transform target) => player = target;
+
+        /// <summary>
+        /// 1라운드가 얼마나 진행됐는가(0~1). **웨이브가 바뀌는 기준이다.**
+        ///
+        /// ⚠ 네트워크 판에서는 <c>WarriorsBattleScore</c> 가 꺼져 있어 <c>Kills</c> 가 늘지 않는다.
+        ///    그래서 진행도가 <b>영영 0</b> 이었고, 도입 그룹만 반복되며 러시 구간이 오지 않았다.
+        ///    1라운드가 처음부터 끝까지 같은 밀도로 느껴진 이유다.
+        ///    매치가 있으면 서버가 세는 팀 합산 처치로 잰다.
+        /// </summary>
+        private float RoundProgress()
+        {
+            Warriors.Net.WarriorsMatchState match = Warriors.Net.WarriorsMatchState.Current;
+
+            if (match != null && match.Object != null && match.Object.IsValid && match.Phase1Target > 0)
+                return Mathf.Clamp01(match.Phase1Kills / (float)match.Phase1Target);
+
+            return score != null ? score.Progress : 0f;
+        }
 
         /// <summary>
         /// 살아 있는 몬스터 추적 목록을 비운다.
@@ -99,7 +126,40 @@ namespace Warriors
         /// <summary>지금 내보내는 무리가 나올 자리. 무리마다 새로 고른다.</summary>
         private Transform groupPoint;
 
-        private IEnumerator Start()
+        /// <summary>
+        /// **스폰 루프를 켜질 때마다 다시 시작한다.**
+        ///
+        /// ⚠ 예전에는 이 루프가 <c>private IEnumerator Start()</c> 였다. <c>Start</c> 는 객체 수명에
+        ///    <b>딱 한 번만</b> 돌기 때문에, 아래 사정이 겹치면 다시는 몬스터가 나오지 않았다.
+        ///
+        /// <code>
+        ///   첫 판 1페이즈   WarriorsEnemyDirector 가 spawner.enabled = true  → 루프 시작
+        ///   1페이즈 종료    spawner.enabled = false → while(enabled) 탈출 → 코루틴 소멸
+        ///   [다시 하기]     spawner.enabled = true  → 그러나 Start 는 다시 돌지 않는다
+        /// </code>
+        ///
+        ///    그래서 "다시 하기를 누르면 게임은 시작되는데 몬스터가 안 나온다" 가 됐다.
+        ///    <c>OnEnable</c> 은 켜질 때마다 불리므로 여기서 시작하면 새 판에서도 되살아난다.
+        ///
+        /// 중복으로 돌지 않게 앞 루프를 반드시 끊는다.
+        /// </summary>
+        private void OnEnable()
+        {
+            if (spawnLoop != null) StopCoroutine(spawnLoop);
+            spawnLoop = StartCoroutine(SpawnLoop());
+        }
+
+        private void OnDisable()
+        {
+            if (spawnLoop == null) return;
+
+            StopCoroutine(spawnLoop);
+            spawnLoop = null;
+        }
+
+        private Coroutine spawnLoop;
+
+        private IEnumerator SpawnLoop()
         {
             if (enemyParent != null)
             {
@@ -113,7 +173,7 @@ namespace Warriors
             WarriorsEnemyAttack.ConfigureWaveCadence(waveAttackInterval);
             while (enabled)
             {
-                float progress = score != null ? score.Progress : 0f;
+                float progress = RoundProgress();
                 bool rush = progress >= rushProgress;
 
                 float wait = WarriorsRun.Range(spawnInterval.x, spawnInterval.y);
@@ -132,10 +192,19 @@ namespace Warriors
 
                 // **화면에 살아 있는 수를 라운드가 흐를수록 늘린다.**
                 //
-                // 예전에는 처음부터 끝까지 같은 상한(2인 18)이었다. 그런데 실제 플레이에서는
-                // 초반이 휑하고 후반에 뭉쳤다. 초반 4~6 · 중반 6~9 · 후반 8~12 로 올려 두면
-                // 처음부터 화면에 적이 보이고, 뒤로 갈수록 몰아치는 느낌이 생긴다.
-                int cap = Mathf.RoundToInt(maxAliveEnemies * (rush ? 1f : progress < midProgress ? .5f : .75f));
+                // 2인 기준 <see cref="maxAliveEnemies"/> 가 12 이므로 아래 비율이 그대로 마릿수다.
+                //
+                // <code>
+                //   초반(진행 35% 미만)   0.65 → 10마리
+                //   중반                  0.82 → 13마리
+                //   후반(진행 75% 이상)   1.00 → 16마리
+                // </code>
+                //
+                // 예전 비율(.5 / .75 / 1)은 6 · 9 · 12 였는데 초반이 휑해서
+                // "무쌍처럼 쓸어버리는" 느낌이 나지 않았다. 바닥을 8 로 올린다.
+                // 겹침은 <see cref="minimumSpawnDistance"/>(1.65m)와 섞어 도는
+                // <see cref="NextSpawnPoint"/> 가 막는다 — 많이 보이되 한 점에 포개지지 않는다.
+                int cap = Mathf.RoundToInt(maxAliveEnemies * (rush ? 1f : progress < midProgress ? .65f : .82f));
 
                 int room = Mathf.Min(cap - alive.Count, WarriorsRun.Range(spawnCount.x, spawnCount.y + 1));
                 if (room <= 0) continue;

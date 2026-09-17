@@ -1,3 +1,4 @@
+using Fusion;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -9,18 +10,17 @@ using UnityEngine.UI;
 namespace Warriors.Net
 {
     /// <summary>
-    /// ESC 로 여는 **개인 메뉴**. 내 화면에만 있고 게임을 멈추지 않는다.
+    /// 일시정지 버튼과 ESC 로 여는 메뉴. **판을 실제로 멈춘다.**
     ///
     /// <code>
-    ///   ESC                ->  내 화면에만 어두운 덮개와 [계속] 버튼
-    ///   [계속] · ESC       ->  덮개를 닫는다
-    ///   그동안 게임은       ->  계속 돈다. 상대는 아무것도 눈치채지 못한다
+    ///   버튼 · ESC         ->  어두운 덮개와 [계속] 버튼, 그리고 판이 멈춘다
+    ///   [계속] · ESC       ->  덮개를 닫고 판을 재개한다
+    ///   결과 화면          ->  [다시 하기] · [로비로]
     /// </code>
     ///
-    /// <b>왜 멈추지 않는가.</b> 예전에는 서버에 <c>Rpc_TogglePause</c> 를 보내
-    /// <c>Time.timeScale</c> 을 0 으로 잡았다. 2인 플레이에서 2P 가 ESC 를 한 번 누르자
-    /// 판이 통째로 멈췄고 끝까지 풀리지 않았다. 멀티에서 한 사람의 키 하나가
-    /// 상대의 판까지 세우는 구조는 위험하다.
+    /// 멈춤은 서버의 <c>IsPaused</c> 이므로 <b>두 사람 모두에게</b> 걸린다.
+    /// <c>Time.timeScale</c> 은 건드리지 않는다 — UI 가 살아 있어야 풀 수 있기 때문이다.
+    /// 자세한 사정은 <see cref="RequestToggle"/> 에 적어 두었다.
     ///
     /// <b>씬을 고치지 않고 코드로 만든다.</b> <c>WarriorsNet.unity</c> 의 HUD 는 서연님 것이고
     /// 여기 붙이면 혼자 하는 씬에도 따라간다. 그래서 <see cref="WarriorsMatchState"/> 가
@@ -41,13 +41,11 @@ namespace Warriors.Net
 
         private GameObject pauseButtonRoot;
         private GameObject retryButtonRoot;
+        private GameObject lobbyButtonRoot;
         private GameObject overlayRoot;
         private TMP_Text overlayDetail;
 
         private bool shownPaused;
-
-        /// <summary>내 화면에만 있는 메뉴가 열려 있는가. 복제되지 않는다.</summary>
-        private bool menuOpen;
 
         /// <summary>
         /// 결과 화면이 뜨고 이만큼 지나야 [다시 하기] 가 살아난다.
@@ -95,12 +93,17 @@ namespace Warriors.Net
             bool live = match != null && match.Object != null && match.Object.IsValid;
             bool canToggle = live && match.CanTogglePause;
 
-            // 판이 끝나면 열려 있던 메뉴는 닫는다. 결과 화면 위에 덮개가 남으면 안 된다.
-            if (menuOpen && !canToggle) menuOpen = false;
-
-            // 멈춤이 풀렸으면 덮개도 닫는다. 이제 멈춤은 서버가 들고 있으므로(IsPaused)
-            // 상대가 풀었을 수도 있다. 그 경우 내 화면만 덮개가 남아 있으면 안 된다.
-            if (menuOpen && live && !match.IsPaused) menuOpen = false;
+            // **덮개는 서버의 IsPaused 만 따른다.**
+            //
+            // ⚠ 예전에는 로컬 <c>menuOpen</c> 을 눌린 즉시 true 로 바꾸고, 그 아래에서
+            //    "IsPaused 가 false 면 닫는다" 로 맞췄다. 그런데 RPC 가 서버를 돌아오기까지
+            //    몇 프레임이 걸리므로, <b>그 사이에 이 줄이 먼저 돌아 메뉴를 닫아 버렸다.</b>
+            //    사용자 눈에는 "눌렀는데 아무 일도 없다" 로 보이고, 한 번 더 누르면
+            //    그때 도착한 첫 요청이 정지·두 번째가 재개가 되어 곧바로 풀렸다.
+            //    실측 로그에 "1P 가 일시정지했습니다 / 1P 가 재개했습니다" 가 붙어서 찍힌 이유다.
+            //
+            // 로컬 상태를 아예 두지 않으면 어긋날 것이 없다. 요청만 보내고 결과를 그린다.
+            bool menuOpen = live && canToggle && match.IsPaused;
 
             // 버튼은 **판이 도는 동안에만**, 그리고 메뉴가 닫혀 있을 때만 보인다.
             // 대기 화면과 결과 화면에는 멈출 것이 없고, 메뉴 안에는 [계속] 버튼이 따로 있다.
@@ -117,6 +120,7 @@ namespace Warriors.Net
             if (retryButtonRoot != null && retryButtonRoot.activeSelf != showRetry)
             {
                 retryButtonRoot.SetActive(showRetry);
+                if (lobbyButtonRoot != null) lobbyButtonRoot.SetActive(showRetry);
 
                 if (showRetry)
                 {
@@ -178,7 +182,6 @@ namespace Warriors.Net
             if (match == null || match.Object == null || !match.Object.IsValid) return;
             if (!match.CanTogglePause) return;
 
-            menuOpen = !menuOpen;
             match.Rpc_TogglePause();
         }
 
@@ -198,6 +201,36 @@ namespace Warriors.Net
             }
 
             match.Rpc_RequestRestart();
+        }
+
+        /// <summary>
+        /// **[로비로].** 이 사람만 판을 떠난다.
+        ///
+        /// ⚠ 씬만 바꾸면 안 된다. 미니게임은 자기 Fusion 세션에서 도는데 세션을 켜 둔 채
+        ///    나가면 그 세션이 남아 다음 입장이 막힌다(<c>GameIdAlreadyExists</c>).
+        ///    그래서 <b>러너를 먼저 내리고</b> 씬을 연다.
+        ///
+        /// 남은 사람의 판은 서버가 계속 들고 있다 — 나가는 것은 내 클라이언트뿐이다.
+        /// </summary>
+        private void RequestLobby()
+        {
+            if (Time.unscaledTime < retryArmedAt)
+            {
+                Debug.Log("[WarriorsPause] 결과 화면이 막 떠서 [로비로] 입력을 무시했습니다.");
+                return;
+            }
+
+            Debug.Log("[WarriorsPause] 로비로 돌아갑니다. 네트워크 세션을 먼저 내립니다.");
+
+            NetworkRunner runner = FindFirstObjectByType<NetworkRunner>(FindObjectsInactive.Include);
+
+            if (runner != null && !runner.IsShutdown)
+            {
+                // 세션을 정리한 뒤 씬을 연다. Shutdown 은 비동기라 완료를 기다린다.
+                runner.Shutdown();
+            }
+
+            SceneFlow.BackToLobbyFromMiniGame();
         }
 
         // ------------------------------------------------------------
@@ -235,10 +268,16 @@ namespace Warriors.Net
             // 자리: 점수 카드 **아래**. 카드는 화면 위에서 28~156px 을 쓰므로(프리팹 실측
             // y 384..512, 화면 중앙 원점) 예전 값 -150 은 카드와 **6px 겹쳤다.**
             // -176 으로 내리면 20px 을 띄우고, 왼쪽 목표 문구(-176)와 윗줄이 맞는다.
+            // **HUD 안에 있는 것처럼 보여야 한다.**
+            //
+            // 불투명 남색 사각형에 밝은 테두리를 두르니 "버튼" 으로는 읽히지만 HUD 카드와
+            // 따로 노는 별개의 상자로 보였다. 상단 카드들과 같은 톤(짙은 남색 · 낮은 알파)으로
+            // 낮추고 테두리를 없앤다. 크기도 48 로 줄여 점수 카드 밑에 조용히 붙는다.
+            // 모양은 막대 두 개만 남는다 — 그것으로 충분히 일시정지로 읽힌다.
             pauseButtonRoot = MakeButton(
                 transform, "PauseButton", string.Empty, font, 0f,
-                new Vector2(1f, 1f), new Vector2(-40f, -176f), new Vector2(64f, 64f),
-                new Color(.05f, .11f, .22f, .96f), RequestToggle);
+                new Vector2(1f, 1f), new Vector2(-40f, -176f), new Vector2(48f, 48f),
+                new Color(.06f, .12f, .22f, .55f), RequestToggle);
 
             AddPauseBars(pauseButtonRoot.transform);
 
@@ -267,13 +306,32 @@ namespace Warriors.Net
             // HUD 프리팹 안에도 같은 버튼이 있는데 실제 플레이에서 보이지 않는다는 지적을 여러 번 받았다.
             // 이 캔버스는 sortingOrder 100 이라 무엇에 가리든 확실히 맨 위에 그려진다.
             // 누르면 서버가 판을 처음으로 되돌린다 — 내 씬만 다시 여는 것이 아니다.
+            // **자리는 결과 카드 안이다.**
+            //
+            // ⚠ 예전에는 화면 하단 기준(anchor 0.5,0 · y 120)으로 놓았다. 이 부품은 자기 Canvas 를
+            //    쓰기 때문에 결과 카드와 좌표계가 달랐고, 그래서 버튼이 카드 테두리에 걸쳐 보였다.
+            //
+            // 프리팹 실측: ResultCard 는 720×716 이 화면 한가운데 있어 아래 끝이 y −358 이고,
+            // 프리팹이 원래 쓰던 RetryButton 은 (0, −282) 에 260×68 로 들어가 있다.
+            // 같은 높이에 두 개를 좌우로 세우면 카드 안에 정확히 담긴다
+            // (각각 x −270~−10, +10~+270 — 카드 폭 ±360 안).
+            const float ButtonY = -282f;
+            Vector2 buttonSize = new(260f, 68f);
+
             retryButtonRoot = MakeButton(
-                transform, "RetryButton", "다시 하기", font, 30f,
-                new Vector2(.5f, 0f), new Vector2(0f, 120f), new Vector2(320f, 76f),
+                transform, "RetryButton", "다시 하기", font, 28f,
+                new Vector2(.5f, .5f), new Vector2(-140f, ButtonY), buttonSize,
                 new Color(.13f, .55f, .3f, .97f), RequestRestart);
+
+            // **[로비로].** 결과 화면에서 [다시 하기] 옆에 선다.
+            lobbyButtonRoot = MakeButton(
+                transform, "LobbyButton", "로비로", font, 28f,
+                new Vector2(.5f, .5f), new Vector2(140f, ButtonY), buttonSize,
+                new Color(.18f, .26f, .42f, .97f), RequestLobby);
 
             pauseButtonRoot.SetActive(false);
             retryButtonRoot.SetActive(false);
+            lobbyButtonRoot.SetActive(false);
             overlayRoot.SetActive(false);
 
             EnsureEventSystem();
@@ -297,12 +355,49 @@ namespace Warriors.Net
                 rt.anchorMin = new Vector2(.5f, .5f);
                 rt.anchorMax = new Vector2(.5f, .5f);
                 rt.pivot = new Vector2(.5f, .5f);
-                rt.anchoredPosition = new Vector2(i == 0 ? -7.5f : 7.5f, 0f);
-                rt.sizeDelta = new Vector2(8f, 26f);
+                rt.anchoredPosition = new Vector2(i == 0 ? -6f : 6f, 0f);
+                rt.sizeDelta = new Vector2(6f, 20f);
 
                 Image fill = bar.AddComponent<Image>();
-                fill.color = new Color(.92f, .96f, 1f, 1f);
+                fill.color = new Color(.85f, .92f, 1f, .92f);
                 fill.raycastTarget = false;   // 막대가 버튼 클릭을 가로채지 않게
+            }
+        }
+
+        /// <summary>
+        /// 버튼 둘레에 얇은 테두리 네 줄을 두른다.
+        ///
+        /// 단색 사각형만 있으면 "누를 수 있는 것" 이 아니라 "배경에 난 구멍" 처럼 보인다.
+        /// 밝은 테두리가 있으면 그것만으로 버튼으로 읽힌다. 스프라이트를 만들지 않고
+        /// Image 네 장으로 두르므로 둥근 모서리 에셋이 없어도 된다.
+        /// </summary>
+        private static void AddButtonBorder(Transform parent)
+        {
+            // 좌 · 우 · 상 · 하
+            (Vector2 anchor, Vector2 size)[] sides =
+            {
+                (new Vector2(0f, .5f), new Vector2(2f, 0f)),
+                (new Vector2(1f, .5f), new Vector2(2f, 0f)),
+                (new Vector2(.5f, 1f), new Vector2(0f, 2f)),
+                (new Vector2(.5f, 0f), new Vector2(0f, 2f)),
+            };
+
+            foreach ((Vector2 anchor, Vector2 size) in sides)
+            {
+                GameObject edge = new GameObject("Border", typeof(RectTransform));
+                edge.transform.SetParent(parent, false);
+
+                RectTransform rt = edge.GetComponent<RectTransform>();
+                // 가로 테두리는 좌우로, 세로 테두리는 위아래로 늘어나게 앵커를 편다.
+                rt.anchorMin = new Vector2(size.x > 0f ? anchor.x : 0f, size.y > 0f ? anchor.y : 0f);
+                rt.anchorMax = new Vector2(size.x > 0f ? anchor.x : 1f, size.y > 0f ? anchor.y : 1f);
+                rt.pivot = anchor;
+                rt.anchoredPosition = Vector2.zero;
+                rt.sizeDelta = size;
+
+                Image fill = edge.AddComponent<Image>();
+                fill.color = new Color(.62f, .78f, .95f, .85f);
+                fill.raycastTarget = false;
             }
         }
 
