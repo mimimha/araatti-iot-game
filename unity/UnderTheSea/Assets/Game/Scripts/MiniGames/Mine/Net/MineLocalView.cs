@@ -146,17 +146,15 @@ namespace Mine.Net
 
             MineMatchState match = MineMatchState.Current;
 
-            // 내가 몇 번인지는 판이 어떤 상태든 늘 띄워 둔다.
-            // 창이 뜬 순서로는 알 수 없다 — 창은 프로세스가 시작한 순서, 슬롯은
-            // 서버에 붙은 순서다. 접속이 늦으면 먼저 띄운 창이 P2 가 된다.
+            // 내가 몇 번인지는 판이 어떤 상태든 늘 표시해 둔다. HUD 가 그 줄의 테두리를
+            // 다르게 칠한다. 창이 뜬 순서로는 알 수 없다 — 창은 프로세스가 시작한 순서,
+            // 슬롯은 서버에 붙은 순서다. 접속이 늦으면 먼저 띄운 창이 P2 가 된다.
             //
             // 힌트 칸도 여기서 넣는다. 판 전체를 보는 MineMatchState 는 이 화면의
             // 주인이 누구인지 모르는데, 힌트는 남의 것이 아니라 **내 것**을 적어야 한다.
             if (_hud != null)
             {
-                _hud.NetworkSelfText = _who != null && _who.Slot >= 0
-                    ? $"나 = P{_who.Slot + 1}"
-                    : "나 = 관전";
+                _hud.NetworkSelfSlot = _who != null ? _who.Slot : -1;
 
                 _hud.NetworkHintText = HintCell(match);
                 _hud.NetworkHintLit = HintAlive(match);

@@ -90,6 +90,9 @@ public class MineHud : MonoBehaviour
     [SerializeField] private Color hintReady = new Color(1f, 0.82f, 0.35f);
     [SerializeField] private Color hintUsed = new Color(0.45f, 0.45f, 0.5f);
 
+    [Tooltip("내 줄의 테두리. 채굴 중 테두리(금색)와 확실히 달라야 한다.")]
+    [SerializeField] private Color selfFrame = new Color(0.45f, 0.8f, 1f, 0.55f);
+
     // 남의 힌트 동안 화면을 덮는 한마디에 쓰는 값. 셋 다 코드에만 둔다.
     //
     // [SerializeField] 로 두면 안 된다. 덮개는 프리팹이 아니라 코드가 만드는데,
@@ -99,10 +102,6 @@ public class MineHud : MonoBehaviour
     private const float CenterNoticeFontSize = 90f;
     private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
     private static readonly Color CenterNoticeLabelColor = new Color(1f, 0.92f, 0.78f, 1f);
-
-    // 내가 몇 번인지 적어 두는 딱지. 위와 같은 이유로 코드에만 둔다.
-    private const float SelfLabelFontSize = 30f;
-    private static readonly Color SelfLabelColor = new Color(1f, 0.85f, 0.5f, 0.95f);
 
     [SerializeField] private Color successColor = new Color(0.55f, 0.92f, 0.62f);
     [SerializeField] private Color failColor = new Color(0.95f, 0.55f, 0.5f);
@@ -211,15 +210,20 @@ public class MineHud : MonoBehaviour
     public string NetworkCenterNotice { get; set; }
 
     /// <summary>
-    /// 이 화면의 주인이 몇 번인가. "나 = P1" 처럼 짧게 넣는다. 빈 문자열이면 안 띄운다.
+    /// 이 화면의 주인이 몇 번 자리인가. 그 줄의 테두리를 <see cref="selfFrame"/> 으로 칠한다.
+    /// -1 이면 아무 줄도 칠하지 않는다(관전).
     ///
     /// ⚠ <b>창이 뜬 순서와 슬롯 번호는 다르다.</b> 슬롯은 서버에 붙은 순서로 정해지고
     ///   (<c>MineMatchState.ReseatWaitingCrew</c> 가 <c>JoinTick</c> 으로 줄 세운다),
     ///   창 위치는 프로세스가 시작한 순서로 정한다. 둘은 접속 지연 때문에 어긋난다 —
     ///   먼저 띄운 창이 나중에 붙어 왼쪽 창이 P2 가 된 판이 실제로 나왔다.
-    ///   그래서 화면에 적어 두지 않으면 누가 누구인지 알 방법이 없다.
+    ///   그래서 화면에 표시하지 않으면 누가 누구인지 알 방법이 없다.
+    ///
+    /// ⚠ 전에는 왼쪽 위에 "나 = P1" 딱지를 따로 만들어 띄웠다. 명단을 감추던 때라
+    ///   그 구석이 비어 있었는데, 명단을 살리자 <b>P1 줄과 겹쳤다.</b> 같은 것을
+    ///   두 군데 적을 이유가 없어 명단 쪽에 합쳤다.
     /// </summary>
-    public string NetworkSelfText { get; set; }
+    public int NetworkSelfSlot { get; set; } = -1;
 
     /// <summary>"4 / 4" 같은 팀 복구 수. 빈 문자열이면 감춘다.</summary>
     public string NetworkRestoreText { get; set; }
@@ -246,9 +250,6 @@ public class MineHud : MonoBehaviour
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
     private TMP_Text _noticeLabel;
-
-    /// <summary>실행 중에 만든 "나 = P1" 딱지.</summary>
-    private TMP_Text _selfLabel;
 
     /// <summary>
     /// 참가자 명단. <see cref="RefreshPlayers"/> 와 **같은 규칙**으로 그린다.
@@ -281,7 +282,14 @@ public class MineHud : MonoBehaviour
             row.stateText.text = digging ? "채굴 중" : done ? "완료" : "대기";
             row.stateText.color = digging ? activeLabel : done ? doneLabel : waitLabel;
 
-            if (row.frame != null) row.frame.color = digging ? activeFrame : idleFrame;
+            // ⚠ 채굴 중이 내 줄보다 우선이다. 둘을 한 테두리로 표시하므로 하나만 이긴다.
+            //   내 턴에는 내 줄이 금색이 되는데, 그때는 내가 조작하고 있어 헷갈리지 않는다.
+            if (row.frame != null)
+            {
+                row.frame.color = digging ? activeFrame
+                    : i == NetworkSelfSlot ? selfFrame
+                    : idleFrame;
+            }
         }
     }
 
@@ -339,7 +347,6 @@ public class MineHud : MonoBehaviour
         }
 
         DrawCenterNotice();
-        DrawSelfLabel();
 
         // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
         SetActive(resultPanel, NetworkResultShow);
@@ -429,50 +436,6 @@ public class MineHud : MonoBehaviour
 
         _noticeRoot = back;
         _noticeLabel = label;
-    }
-
-    /// <summary>화면 왼쪽 위에 내가 몇 번인지 띄운다.</summary>
-    private void DrawSelfLabel()
-    {
-        if (string.IsNullOrEmpty(NetworkSelfText))
-        {
-            if (_selfLabel != null) SetActive(_selfLabel, false);
-            return;
-        }
-
-        EnsureSelfLabel();
-        if (_selfLabel == null) return;
-
-        SetActive(_selfLabel, true);
-        if (_selfLabel.text != NetworkSelfText) _selfLabel.text = NetworkSelfText;
-    }
-
-    /// <summary>딱지를 한 번만 만든다. 왼쪽 위 구석은 비어 있다.</summary>
-    private void EnsureSelfLabel()
-    {
-        if (_selfLabel != null) return;
-
-        var go = new GameObject("SelfSlot", typeof(RectTransform));
-        go.transform.SetParent(transform, false);
-
-        var rect = (RectTransform)go.transform;
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = new Vector2(18f, -14f);
-        rect.sizeDelta = new Vector2(220f, 44f);
-
-        var label = go.AddComponent<TextMeshProUGUI>();
-        label.alignment = TextAlignmentOptions.MidlineLeft;
-        label.fontSize = SelfLabelFontSize;
-        label.color = SelfLabelColor;
-        label.raycastTarget = false;
-
-        // 글꼴은 이미 쓰고 있는 것을 빌린다. 한글이 나와야 한다.
-        TMP_Text donor = timeText != null ? timeText : countdownText;
-        if (donor != null && donor.font != null) label.font = donor.font;
-
-        _selfLabel = label;
     }
 
     private void Update()
