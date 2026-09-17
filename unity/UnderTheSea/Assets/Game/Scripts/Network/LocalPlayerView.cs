@@ -36,6 +36,9 @@ public class LocalPlayerView : NetworkBehaviour
     [Tooltip("이 시간을 넘으면 더 기다리지 않고 넘긴다. 무한 로딩을 막는 상한이다. (초)")]
     [SerializeField, Min(1f)] private float settleTimeout = 5f;
 
+    [Tooltip("스폰 뒤 이 시간까지도 조건이 안 갖춰지면 그냥 넘긴다. 마지막 안전장치다. (초)")]
+    [SerializeField, Min(3f)] private float giveUpAfter = 15f;
+
     [Header("마우스")]
     [SerializeField] private string mouseX = "Mouse X";
     [SerializeField] private string mouseY = "Mouse Y";
@@ -116,6 +119,9 @@ public class LocalPlayerView : NetworkBehaviour
         // 카메라 쪽 준비가 끝났다.
         cameraReady = true;
 
+        // 여기서부터 시간을 센다. 이 지점이 "내 캐릭터가 확정된" 가장 이른 순간이다.
+        StartCoroutine(GiveUpIfNeverReady());
+
         // 외형 복제 컴포넌트가 없으면 기다릴 것이 없다. (09-2 이전 프리팹 호환)
         if (GetComponent<NetworkPlayerAppearance>() == null)
         {
@@ -187,6 +193,46 @@ public class LocalPlayerView : NetworkBehaviour
         if (!cameraReady || !appearanceReady) return;
 
         settling = StartCoroutine(WaitUntilSimulationSettles());
+    }
+
+    /// <summary>
+    /// **어떤 조건이 영영 안 와도 결국은 화면을 넘긴다.** 마지막 안전장치다.
+    ///
+    /// <see cref="WaitUntilSimulationSettles"/> 안에도 상한이 있지만 그것만으로는 모자랐다.
+    /// 그 상한은 <b>네 조건이 다 갖춰져 코루틴이 시작된 뒤에만</b> 돈다. 조건 하나가 아예
+    /// 안 오면 코루틴이 시작조차 안 하므로 아무도 세지 않는다.
+    ///
+    /// 실제로 겪었다. 서버가 외형을 기록했는데 클라이언트가 그 변화를 놓쳐
+    /// <c>appearanceReady</c> 가 끝내 켜지지 않았고, "서버 1에 접속 중..." 이 2분 넘게 떠
+    /// 있었다. 캐릭터는 로비에 멀쩡히 있었고 옆 사람 화면에서는 움직이기까지 했다.
+    ///
+    /// 놓친 쪽(외형)은 <c>NetworkPlayerAppearance</c> 에서 따로 고쳤다. 다만 <b>원인이 무엇이든
+    /// 사람이 갇히는 일은 없어야 하므로</b> 여기에도 시간 상한을 둔다. 원인을 가리기 위해
+    /// 무엇이 안 왔는지는 경고에 적는다.
+    /// </summary>
+    private IEnumerator GiveUpIfNeverReady()
+    {
+        float waited = 0f;
+
+        while (!handedOver && waited < giveUpAfter)
+        {
+            waited += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (handedOver) yield break;
+
+        Debug.LogWarning(
+            $"[LocalPlayerView] {giveUpAfter:0}초가 지나도 준비가 끝나지 않아 화면을 넘깁니다. " +
+            $"(카메라 {cameraReady}, 외형 {appearanceReady}) " +
+            "로딩 화면에 갇히는 것보다 낫습니다. 이 경고가 보이면 원인을 찾아야 합니다.");
+
+        if (settling != null)
+        {
+            StopCoroutine(settling);
+        }
+
+        HandOver();
     }
 
     /// <summary>
