@@ -207,6 +207,56 @@ namespace UnderTheSea.Network.Editor
                 WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
         }
 
+        /// <summary>
+        /// 🧰 <b>QA 한 벌을 한 번에 만든다.</b> 정상 흐름 클라이언트 + 서버 셋.
+        ///
+        /// <see cref="BuildWarriorsBothFromCommandLine"/> 과 같은 이유다. 빌드 하나를 부를 때마다
+        /// Unity 를 새로 띄우면 <b>부팅 · 에셋 DB 로드 · 도메인 리로드 · 종료</b>를 매번 낸다.
+        /// 실측으로 그 고정 비용이 빌드 작업보다 컸다. 네 번 부르면 네 번 낸다.
+        ///
+        /// <code>
+        ///   FlowClient        Login 부터 도는 정상 흐름 클라이언트
+        ///   Server            Lobby Dedicated Server
+        ///   ShipCoopServer    배 게임 Dedicated Server
+        ///   WarriorsServer    검 게임 Dedicated Server
+        /// </code>
+        ///
+        /// 하나라도 실패하면 거기서 멈추고 1 로 빠진다. 반쯤 만들어진 한 벌로 QA 하면
+        /// 어느 것이 옛 빌드인지 몰라 문제를 잘못 짚는다.
+        /// </summary>
+        public static void BuildQaSetFromCommandLine()
+        {
+            // ⚠ **결과는 빌드 직후에 봐야 한다.**
+            //
+            //    처음에는 넷을 다 만들고 나서 보고서를 한꺼번에 확인했다. 그랬더니 네 개가
+            //    모두 "빌드 성공" 을 찍었는데도 첫 번째가 실패로 판정됐다. BuildReport 는
+            //    유니티 오브젝트라 다음 빌드가 돌면서 앞의 것이 정리돼 버린다.
+            //    들고 있다가 나중에 읽으면 빈 값이 나온다.
+            if (!Ok("FlowClient", BuildNormalFlow())) return;
+            if (!Ok("Lobby DS", Build(ServerOutput, StandaloneBuildSubtarget.Server))) return;
+
+            if (!Ok("ShipCoop DS", Build(
+                    ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                    ShipCoopScenes, BuildOptions.None))) return;
+
+            if (!Ok("Warriors DS", Build(
+                    WarriorsServerOutput, StandaloneBuildSubtarget.Server,
+                    WarriorsScenes, BuildOptions.None))) return;
+
+            Debug.Log("[FusionTestBuilds] QA 한 벌을 모두 만들었습니다. (클라이언트 1 · 서버 3)");
+            EditorApplication.Exit(0);
+        }
+
+        /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
+        private static bool Ok(string name, BuildReport report)
+        {
+            if (report != null && report.summary.result == BuildResult.Succeeded) return true;
+
+            Debug.LogError($"[FusionTestBuilds] QA 한 벌 — '{name}' 에서 실패했습니다.");
+            EditorApplication.Exit(1);
+            return false;
+        }
+
         [MenuItem(MenuRoot + "ShipCoop 서버 빌드 (Dedicated Server)")]
         public static void BuildShipCoopServer()
         {
