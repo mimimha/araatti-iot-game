@@ -73,6 +73,31 @@ public static class FusionLaunchArguments
         return port;
     }
 
+    /// <summary>
+    /// 숫자 인자를 읽는다. 숫자가 아니면 기본값을 쓰고 경고만 남긴다.
+    ///
+    /// <see cref="GetPort"/> 와 나뉘어 있는 이유는 쓰임이 달라서다. 포트는 1~65535 라
+    /// <c>ushort</c> 가 맞지만, 프레임률처럼 <b>0 을 "제한 없음" 으로 쓰는</b> 값은
+    /// 음수와 0 을 그대로 받아 넘겨야 부르는 쪽이 판단할 수 있다.
+    /// </summary>
+    public static int GetInt(string key, int fallback)
+    {
+        string raw = GetString(key, null);
+
+        if (string.IsNullOrEmpty(raw))
+        {
+            return fallback;
+        }
+
+        if (!int.TryParse(raw, out int value))
+        {
+            Debug.LogWarning($"[FusionLaunchArguments] {key} 값 \"{raw}\" 을 숫자로 읽지 못했습니다. 기본값 {fallback} 을 씁니다.");
+            return fallback;
+        }
+
+        return value;
+    }
+
     /// <summary>이동 위치를 로그로 남길지. 창이 없는 서버의 동기화를 확인할 때 쓴다.</summary>
     public const string LogMovesKey = "-logmoves";
 
