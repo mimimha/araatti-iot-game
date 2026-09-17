@@ -76,7 +76,7 @@ namespace MiniGames.Common.UI
             if (panel != null)
             {
                 panel.Hide();
-                panel.LobbyRequested += GoToLobby;
+                panel.LobbyRequested += HandleLobbyButton;
             }
 
             MiniGameResultGateway.Register(Receive);
@@ -88,7 +88,7 @@ namespace MiniGames.Common.UI
 
             if (panel != null)
             {
-                panel.LobbyRequested -= GoToLobby;
+                panel.LobbyRequested -= HandleLobbyButton;
             }
 
             StopCountdown();
@@ -133,6 +133,24 @@ namespace MiniGames.Common.UI
         /// 돌아가는 길은 <c>MiniGameTransition.ReturnToLobby()</c> 하나뿐이다. Runner 종료 →
         /// 씬 전환 → Lobby 재접속 순서를 지키는 검증된 경로이고, 실패해도 스스로 복구한다.
         /// </summary>
+        /// <summary>
+        /// 사람이 확인을 눌렀다. <b>시계가 부르는 길과 나눠 둔 이유는 로그 한 줄 때문이다.</b>
+        ///
+        /// 돌아가는 동작 자체는 같지만, QA 로그만 보고 "눌러서 나갔는지 5초가 지나 나갔는지"
+        /// 를 구별할 수 없으면 확인 버튼이 실제로 동작하는지 확인할 방법이 없다.
+        ///
+        /// ⚠ <see cref="GoToLobby"/> 안에서 <c>countdown</c> 이 남았는지로 가르려 했더니
+        ///    틀렸다. 시계는 알린 뒤 <see cref="GoToLobby"/> 를 부르므로 그때도 코루틴
+        ///    핸들이 그대로 살아 있다. 두 길을 입구에서 나누는 편이 확실하다.
+        /// </summary>
+        private void HandleLobbyButton()
+        {
+            if (returning) return;
+
+            Debug.Log("[결과 오버레이] 확인을 눌러 Lobby 로 돌아갑니다.");
+            GoToLobby();
+        }
+
         private void GoToLobby()
         {
             if (returning)
