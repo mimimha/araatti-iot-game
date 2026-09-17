@@ -87,6 +87,9 @@ public class MineGridView : MonoBehaviour
              "끄면 400칸이 똑같이 보여 격자무늬가 도드라진다.")]
     [SerializeField] private bool varyRotation = true;
 
+    [Tooltip("윗면 모서리를 깎는 폭(m). 0 이면 각진 큐브 그대로다. 깎인 띠가 빛을 받아 돌마다 가는 하이라이트 선이 생긴다. 어두운 광산에서 칸의 형태를 살리는 것이 이 값이다.")]
+    [SerializeField, Range(0f, 0.15f)] private float bevel = 0.04f;
+
     [Tooltip("단단한 돌이 더 솟은 높이(m). 어두운 곳에서 실루엣으로 구분된다.\n" +
              "걸려 넘어질 정도로 크게 주면 안 된다.")]
     [SerializeField, Min(0f)] private float hardRise = 0.02f;
@@ -157,6 +160,9 @@ public class MineGridView : MonoBehaviour
     private MineOverlay _overlay = MineOverlay.None;
 
     private MaterialPropertyBlock _props;
+
+    /// <summary>깎인 상자. 400칸이 한 장을 나눠 쓴다.</summary>
+    private Mesh _blockMesh;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     private Vector2Int _targetOffset;
@@ -199,6 +205,17 @@ public class MineGridView : MonoBehaviour
         _grid.OnTargetChanged -= RefreshAll;
     }
 
+    private void OnDestroy()
+    {
+        // 코드로 만든 메시는 씬이 바뀌어도 안 없어진다. 직접 지운다.
+        if (_blockMesh == null) return;
+
+        if (Application.isPlaying) Destroy(_blockMesh);
+        else DestroyImmediate(_blockMesh);
+
+        _blockMesh = null;
+    }
+
     private void Build()
     {
         int size = _grid.Size;
@@ -206,6 +223,9 @@ public class MineGridView : MonoBehaviour
         _cracks = crackMaterial != null ? new Transform[size * size] : null;
 
         float side = Mathf.Max(0.01f, _grid.CellSize - gap);
+
+        // 깎인 상자를 한 장만 만들어 400칸이 나눠 쓴다.
+        _blockMesh = bevel > 0f ? BuildBeveledCube(side, blockHeight, bevel) : null;
 
         for (int y = 0; y < size; y++)
         {
@@ -220,6 +240,13 @@ public class MineGridView : MonoBehaviour
                 {
                     block.transform.localRotation =
                         Quaternion.Euler(0f, 90f * ((x * 7 + y * 13) % 4), 0f);
+                }
+
+                // ⚠ 메시만 바꾸고 BoxCollider 는 그대로 둔다. 캐릭터가 밟고 다니는
+                //   판정이라 깎인 모양까지 따라갈 이유가 없다.
+                if (_blockMesh != null && block.TryGetComponent(out MeshFilter filter))
+                {
+                    filter.sharedMesh = _blockMesh;
                 }
 
                 ApplyMaterial(block, x, y);
@@ -241,6 +268,101 @@ public class MineGridView : MonoBehaviour
                 if (_cracks != null) _cracks[y * size + x] = CreateCrack(x, y);
             }
         }
+    }
+
+    /// <summary>
+    /// 윗면 네 모서리를 깎은 상자를 만든다.
+    ///
+    /// <b>왜 메시를 코드로 만드는가.</b> 블록은 <c>localScale = (side, blockHeight, side)</c> 로
+    /// **비균일 스케일**이 걸린다. 모델링 툴에서 만든 메시를 그대로 넣으면 깎인 폭이
+    /// 축마다 다르게 늘어난다 — blockHeight 가 2 면 세로 쪽만 두 배로 두꺼워진다.
+    /// 여기서는 실제 치수를 알고 만들므로 스케일을 미리 나눠 보정한다.
+    ///
+    /// <b>UV 가 이 작업의 절반이다.</b> 깎인 띠에 UV 를 안 주면 그 좁은 면에 텍스처가
+    /// 늘어나 번진다. 윗면과 띠를 <b>하나의 평면 매핑</b>으로 이어 붙여, 돌 무늬가
+    /// 윗면에서 모서리까지 끊기지 않고 넘어가게 한다.
+    ///
+    /// 옆면과 아랫면은 기본 큐브와 같게 둔다. 파인 구멍에서만 잠깐 보이는 면이다.
+    /// </summary>
+    private static Mesh BuildBeveledCube(float side, float height, float bevel)
+    {
+        // 월드에서 같은 폭으로 깎이도록 축별 스케일로 나눈다.
+        float ix = Mathf.Clamp(bevel / Mathf.Max(0.0001f, side), 0f, 0.45f);
+        float iy = Mathf.Clamp(bevel / Mathf.Max(0.0001f, height), 0f, 0.45f);
+
+        float a = 0.5f - ix;    // 윗면이 줄어든 반폭
+        float hd = 0.5f - iy;   // 깎인 띠가 끝나고 옆면이 시작하는 높이
+
+        // 사각형을 한 바퀴 도는 네 귀퉁이. (x, z) 의 부호다.
+        var corner = new[] { new Vector2(1, 1), new Vector2(1, -1), new Vector2(-1, -1), new Vector2(-1, 1) };
+
+        var verts = new Vector3[40];
+        var uvs = new Vector2[40];
+        var tris = new int[60];
+        int v = 0, t = 0;
+
+        void Quad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
+                  Vector2 u0, Vector2 u1, Vector2 u2, Vector2 u3)
+        {
+            int b = v;
+            verts[v] = p0; uvs[v++] = u0;
+            verts[v] = p1; uvs[v++] = u1;
+            verts[v] = p2; uvs[v++] = u2;
+            verts[v] = p3; uvs[v++] = u3;
+
+            tris[t++] = b; tris[t++] = b + 1; tris[t++] = b + 2;
+            tris[t++] = b; tris[t++] = b + 2; tris[t++] = b + 3;
+        }
+
+        // 윗면과 띠는 같은 평면 매핑을 쓴다. 이래야 무늬가 모서리를 넘어간다.
+        Vector2 Plane(Vector3 p) => new Vector2(p.x + 0.5f, p.z + 0.5f);
+
+        // 윗면
+        Vector3 t0 = new Vector3(-a, 0.5f, -a), t1 = new Vector3(-a, 0.5f, a);
+        Vector3 t2 = new Vector3(a, 0.5f, a), t3 = new Vector3(a, 0.5f, -a);
+        Quad(t0, t1, t2, t3, Plane(t0), Plane(t1), Plane(t2), Plane(t3));
+
+        for (int k = 0; k < 4; k++)
+        {
+            Vector2 c = corner[k];
+            Vector2 n = corner[(k + 1) % 4];
+
+            Vector3 inA = new Vector3(c.x * a, 0.5f, c.y * a);
+            Vector3 inB = new Vector3(n.x * a, 0.5f, n.y * a);
+            Vector3 outA = new Vector3(c.x * 0.5f, hd, c.y * 0.5f);
+            Vector3 outB = new Vector3(n.x * 0.5f, hd, n.y * 0.5f);
+
+            // 깎인 띠
+            Quad(inA, outA, outB, inB, Plane(inA), Plane(outA), Plane(outB), Plane(inB));
+
+            // 옆면 — 띠 아래부터 바닥까지. 가로는 변을 따라, 세로는 높이를 따라 편다.
+            Vector3 lowA = new Vector3(c.x * 0.5f, -0.5f, c.y * 0.5f);
+            Vector3 lowB = new Vector3(n.x * 0.5f, -0.5f, n.y * 0.5f);
+
+            bool alongZ = Mathf.Abs(c.x - n.x) < 0.001f;   // x 가 같으면 ±X 면이라 z 로 편다
+            Vector2 Wall(Vector3 p) => new Vector2((alongZ ? p.z : p.x) + 0.5f, p.y + 0.5f);
+
+            Quad(outA, lowA, lowB, outB, Wall(outA), Wall(lowA), Wall(lowB), Wall(outB));
+        }
+
+        // 아랫면 — 칸이 붙어 있어 거의 안 보이지만 뚫려 있으면 안 된다.
+        Vector3 b0 = new Vector3(-0.5f, -0.5f, -0.5f), b1 = new Vector3(0.5f, -0.5f, -0.5f);
+        Vector3 b2 = new Vector3(0.5f, -0.5f, 0.5f), b3 = new Vector3(-0.5f, -0.5f, 0.5f);
+        Quad(b0, b1, b2, b3, Plane(b0), Plane(b1), Plane(b2), Plane(b3));
+
+        var mesh = new Mesh { name = "MineBlock_Beveled" };
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.triangles = tris;
+
+        // 꼭짓점을 면마다 따로 두었으므로 여기서 각진 면이 나온다. 띠만 따로 빛을 받는다.
+        mesh.RecalculateNormals();
+
+        // ⚠ 탄젠트가 없으면 노멀맵이 먹지 않는다. 돌 재질이 노멀맵을 쓴다.
+        mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
+
+        return mesh;
     }
 
     /// <summary>

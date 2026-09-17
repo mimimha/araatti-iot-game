@@ -44190,6 +44190,7 @@ MonoBehaviour:
   flatDesaturate: 1
   flatAlways: 0
   varyRotation: 1
+  bevel: 0.04
   hardRise: 0
   heightJitter: 0
   jitterSpan: 4
