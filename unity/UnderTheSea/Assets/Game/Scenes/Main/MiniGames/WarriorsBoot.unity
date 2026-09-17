@@ -258,6 +258,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsLauncher
   serverPort: 27031
+  config: {fileID: 11400000, guid: dd6f57d8ba52d5043a7f0d8d8565198b, type: 2}
 --- !u!114 &1613964183
 MonoBehaviour:
   m_ObjectHideFlags: 0

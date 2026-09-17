@@ -27,6 +27,7 @@ namespace Lobby.Editor
         private const string LobbyScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
         private const string CanvasPrefabPath = "Assets/Game/Prefabs/MiniGames/Common/CommonMatchCanvas.prefab";
         private const string ShipConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Common/MiniGame_Ship.asset";
+        private const string SwordConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Common/MiniGame_Sword.asset";
 
         /// <summary>
         /// 이미 있는 포탈 연출. <c>ProximityPortal</c> 과 파랑 이펙트 3종이 배선돼 있다.
@@ -50,6 +51,21 @@ namespace Lobby.Editor
         /// </summary>
         private static readonly Vector2 PortalSpot = new Vector2(12.8f, 49f);
 
+        /// <summary>검 게임 시험용 포탈. 진짜 입구는 스폰에서 62m 라 QA 때마다 걸어가야 한다.</summary>
+        private const string WarriorsTestPortalName = "WarriorsPortal_Test";
+
+        /// <summary>
+        /// 검 시험용 포탈 자리. 스폰 줄의 <b>반대쪽 끝</b>이다.
+        ///
+        /// 배 시험용 포탈이 서쪽 <c>x 12.8</c> 이므로 동쪽으로 같은 만큼 띄운다. 스폰 지점은
+        /// <c>x 17~25</c> 라 그 바깥이고, 두 포탈 사이가 17m 라 서로 겹쳐 보이지 않는다.
+        /// 어느 쪽이든 걸어서 몇 초면 닿는다.
+        /// </summary>
+        private static readonly Vector2 WarriorsTestPortalSpot = new Vector2(29.5f, 49f);
+
+        /// <summary>검 포탈 연출. 배(파랑)와 색을 달리해 눈으로 구분되게 한다.</summary>
+        private const string WarriorsVisualPath = "Assets/Game/Prefabs/Portal/P_Portal_Purple_01.prefab";
+
         /// <summary>바닥을 못 찾았을 때 쓸 높이. 스폰 지점들의 높이대다.</summary>
         private const float FallbackHeight = 1f;
 
@@ -72,23 +88,39 @@ namespace Lobby.Editor
         ///    (<see cref="RemoveTestPortal"/>)
         /// </summary>
         [MenuItem(MenuRoot + "Lobby 초록 포탈을 배 게임 입구로 만들기")]
-        public static void BindRealEntrance()
+        public static void BindRealEntrance() => Bind(RealEntranceName, ShipConfigPath);
+
+        /// <summary>검 게임 입구. 배와 같은 자리, 같은 방식이다.</summary>
+        [MenuItem(MenuRoot + "Lobby 검 게임 입구 만들기")]
+        public static void BindWarriorsEntrance() => Bind("Entrance_Warriors", SwordConfigPath);
+
+        public static void BindWarriorsEntranceFromCommandLine() => BindWarriorsEntrance();
+
+        private static void Bind(string entranceName, string configPath)
         {
             Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
 
-            GameObject entrance = Find(scene, RealEntranceName);
+            GameObject entrance = Find(scene, entranceName);
 
             if (entrance == null)
             {
-                Debug.LogError($"[LobbyPortalSetup] 씬에서 '{RealEntranceName}' 을 찾지 못했습니다.");
+                Debug.LogError($"[LobbyPortalSetup] 씬에서 '{entranceName}' 을 찾지 못했습니다.");
                 return;
             }
 
-            MiniGameConfig config = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(ShipConfigPath);
+            MiniGameConfig config = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(configPath);
 
             if (config == null)
             {
-                Debug.LogError($"[LobbyPortalSetup] '{ShipConfigPath}' 을 찾지 못했습니다.");
+                Debug.LogError($"[LobbyPortalSetup] '{configPath}' 을 찾지 못했습니다.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(config.SceneName))
+            {
+                Debug.LogError(
+                    $"[LobbyPortalSetup] '{config.DisplayName}' 의 SceneName 이 비어 있습니다. " +
+                    "설정 에셋을 채워 주세요.");
                 return;
             }
 
@@ -104,8 +136,8 @@ namespace Lobby.Editor
             EditorSceneManager.SaveScene(scene);
 
             Debug.Log(
-                $"[LobbyPortalSetup] '{RealEntranceName}' 을 배 게임 입구로 만들었습니다. " +
-                $"자리 {entrance.transform.position}.");
+                $"[LobbyPortalSetup] '{entranceName}' 을 '{config.DisplayName}' 입구로 만들었습니다. " +
+                $"자리 {entrance.transform.position}, 씬 {config.SceneName}.");
         }
 
         /// <summary>
@@ -115,25 +147,78 @@ namespace Lobby.Editor
         /// 스폰 옆 포탈을 두고 쓰다가, 올리기 전에 지운다. 지우는 일을 사람 기억에 맡기지
         /// 않으려고 메뉴로 만들어 둔다.
         /// </summary>
+        /// <summary>
+        /// 🟣 <b>검 게임 시험용 포탈을 스폰 옆에 놓는다.</b> merge 전에 지운다.
+        ///
+        /// 진짜 입구(<c>Entrance_Warriors</c>)는 스폰에서 서쪽으로 58m 다. QA 때마다 왕복하면
+        /// 시간이 그대로 나간다. 배 게임에서 같은 이유로 둔 파란 포탈과 짝이다.
+        /// </summary>
+        [MenuItem(MenuRoot + "Lobby 에 검 시험용 포탈 놓기")]
+        public static void PlaceWarriorsTestPortal()
+        {
+            Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+            GameObject existing = Find(scene, WarriorsTestPortalName);
+            if (existing != null) Object.DestroyImmediate(existing);
+
+            MiniGameConfig config = AssetDatabase.LoadAssetAtPath<MiniGameConfig>(SwordConfigPath);
+            GameObject visual = AssetDatabase.LoadAssetAtPath<GameObject>(WarriorsVisualPath);
+
+            if (config == null || visual == null)
+            {
+                Debug.LogError(
+                    $"[LobbyPortalSetup] 설정이나 연출을 찾지 못했습니다. " +
+                    $"({SwordConfigPath} · {WarriorsVisualPath})");
+                return;
+            }
+
+            GameObject portal = (GameObject)PrefabUtility.InstantiatePrefab(visual, scene);
+            portal.name = WarriorsTestPortalName;
+            portal.transform.position = SnapToGround(WarriorsTestPortalSpot);
+
+            MiniGamePortal entry = portal.GetComponent<MiniGamePortal>();
+            if (entry == null) entry = portal.AddComponent<MiniGamePortal>();
+
+            SerializedObject data = new SerializedObject(entry);
+            data.FindProperty("config").objectReferenceValue = config;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(entry);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log(
+                $"[LobbyPortalSetup] 검 시험용 포탈을 놓았습니다. 자리 {portal.transform.position}, " +
+                $"씬 {config.SceneName}.");
+        }
+
+        public static void PlaceWarriorsTestPortalFromCommandLine() => PlaceWarriorsTestPortal();
+
         [MenuItem(MenuRoot + "Lobby 시험용 포탈 지우기")]
         public static void RemoveTestPortal()
         {
             Scene scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
 
-            GameObject test = Find(scene, PortalName);
+            int removed = 0;
 
-            if (test == null)
+            foreach (string name in new[] { PortalName, WarriorsTestPortalName })
             {
-                Debug.Log($"[LobbyPortalSetup] 시험용 포탈('{PortalName}')이 이미 없습니다.");
+                GameObject test = Find(scene, name);
+                if (test == null) continue;
+
+                Object.DestroyImmediate(test);
+                removed++;
+                Debug.Log($"[LobbyPortalSetup] 시험용 포탈('{name}')을 지웠습니다.");
+            }
+
+            if (removed == 0)
+            {
+                Debug.Log("[LobbyPortalSetup] 지울 시험용 포탈이 없습니다.");
                 return;
             }
 
-            Object.DestroyImmediate(test);
-
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-
-            Debug.Log($"[LobbyPortalSetup] 시험용 포탈('{PortalName}')을 지웠습니다.");
         }
 
         [MenuItem(MenuRoot + "Lobby 에 미니게임 입구 놓기")]
