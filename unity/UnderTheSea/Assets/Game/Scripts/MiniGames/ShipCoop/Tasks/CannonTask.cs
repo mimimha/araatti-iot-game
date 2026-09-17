@@ -75,6 +75,27 @@ public class CannonTask : TaskBase
     }
 
     /// <summary>
+    /// 판을 되돌릴 때 장전과 포신 각도를 처음으로 돌린다.
+    ///
+    /// <b>왜 필요한가.</b> 대포는 씬에 고정된 물건이라 판이 끝나도 사라지지 않는다.
+    /// 그대로 두면 <b>지난 판에서 장전해 둔 포탄을 다음 판이 그대로 물려받는다.</b>
+    /// 포신도 돌려 둔 각도로 남는다.
+    ///
+    /// <c>Awake</c> 와 같은 값으로 맞춘다. 두 곳이 어긋나면 첫 판과 두 번째 판이 달라진다.
+    /// </summary>
+    public void ResetCannon()
+    {
+        Ammo = Mathf.Clamp(startingAmmo, 0, maxAmmo);
+        TurretYaw = 0f;
+        _nextFireTime = 0f;
+
+        if (barrel != null)
+        {
+            barrel.localRotation = Quaternion.Euler(0f, _baseYaw, 0f);
+        }
+    }
+
+    /// <summary>
     /// 포탄을 싣는다. 운반하는 사람이 부른다.
     /// 실제로 실린 개수를 돌려준다. 자리가 없으면 0.
     /// </summary>
