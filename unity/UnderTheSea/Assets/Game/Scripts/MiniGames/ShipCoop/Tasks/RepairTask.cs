@@ -12,7 +12,7 @@ using UnityEngine;
 /// 배가 서서히 가라앉는" 압박을 만듭니다.
 ///
 /// 입력
-///   내리치기 → ShipCoopInput.ConsumeSwing. 키보드는 F 연타.
+///   내리치기 → ShipCoopInput.ConsumeSwing. 오른손 면버튼 2 또는 휘두름. 키보드는 K 연타.
 ///   **횟수는 IoT 와 같아야 합니다.** (7장 — IoT 가 벌칙이 되면 안 됩니다)
 ///
 /// 수리가 끝나면 스스로 꺼집니다. 다시 쓰려면 새로 만드는 쪽(HullDamage)이 만듭니다.
@@ -21,7 +21,7 @@ public class RepairTask : TaskBase
 {
     [Header("자재")]
     [Tooltip("켜면 누군가 자재(판자)를 날라 와야 망치질을 시작할 수 있다.\n\n" +
-             "수리가 '붙어서 F 연타' 한 단계였던 것이 '집기 → 운반 → 망치질' 세 단계가 된다.\n" +
+             "수리가 '붙어서 K 연타' 한 단계였던 것이 '집기 → 운반 → 망치질' 세 단계가 된다.\n" +
              "혼자서도 되지만 둘이면 훨씬 빠르다. 운반이 게임의 동사가 되는 자리다. (4장)")]
     [SerializeField] private bool needsPlank = true;
 

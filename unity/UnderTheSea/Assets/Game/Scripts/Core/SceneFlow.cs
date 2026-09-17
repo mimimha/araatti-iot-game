@@ -274,6 +274,24 @@ public static class SceneFlow
         LobbyLoadedByNetwork = false;
     }
 
+    /// <summary>
+    /// 미니게임 결과 화면의 [로비로].
+    ///
+    /// ⚠ <b>부르기 전에 네트워크 러너를 먼저 내려야 한다.</b> 미니게임은 자기 Fusion 세션에서
+    ///    도는데, 세션을 켜 둔 채 씬만 바꾸면 그 세션이 남아 다음 입장이 막힌다.
+    ///    러너를 내리는 것은 네트워크 계층의 일이고, 이 파일은 씬 전환만 한다.
+    ///    (GAME_STRUCTURE.md 3장의 역할 분담 그대로다)
+    ///
+    /// <c>LobbyLoadedByNetwork</c> 를 내리는 이유는 <see cref="BackToTitle"/> 과 같다 —
+    /// 네트워크가 올려 둔 Lobby 는 이미 사라졌으므로 이 값을 들고 있으면
+    /// 다음에 Lobby 를 열어야 할 때 "이미 있다" 고 잘못 판단한다.
+    /// </summary>
+    public static void BackToLobbyFromMiniGame()
+    {
+        ReleaseNetworkLobby();
+        Load(Lobby);
+    }
+
     /// <summary>Login 에서 [뒤로가기].</summary>
     public static void BackToTitle()
     {

@@ -1,0 +1,93 @@
+{
+  "importSettings": {
+    "textureType": "Sprite (2D and UI)",
+    "spriteMode": "Single",
+    "alphaIsTransparency": true,
+    "mipmaps": false,
+    "wrapMode": "Clamp",
+    "filterMode": "Bilinear"
+  },
+  "assets": [
+    {
+      "name": "helm",
+      "label": "조타",
+      "file": "icons/icon-helm.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 40259
+    },
+    {
+      "name": "sails",
+      "label": "돛 조절",
+      "file": "icons/icon-sails.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 33575
+    },
+    {
+      "name": "cannon",
+      "label": "대포",
+      "file": "icons/icon-cannon.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 32654
+    },
+    {
+      "name": "repair",
+      "label": "선체 수리",
+      "file": "icons/icon-repair.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 28079
+    },
+    {
+      "name": "ammo",
+      "label": "포탄",
+      "file": "icons/icon-ammo.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 22734
+    },
+    {
+      "name": "plank",
+      "label": "수리 자재",
+      "file": "icons/icon-plank.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 36572
+    },
+    {
+      "name": "water",
+      "label": "물 양동이",
+      "file": "icons/icon-water.png",
+      "width": 256,
+      "height": 256,
+      "alpha": true,
+      "transparentPixels": 26977
+    },
+    {
+      "name": "action-panel",
+      "label": "상호작용 패널",
+      "file": "ui/action-panel.png",
+      "width": 424,
+      "height": 150,
+      "alpha": true,
+      "transparentPixels": 667
+    },
+    {
+      "name": "keycap",
+      "label": "키캡",
+      "file": "ui/keycap.png",
+      "width": 311,
+      "height": 141,
+      "alpha": true,
+      "transparentPixels": 855
+    }
+  ]
+}

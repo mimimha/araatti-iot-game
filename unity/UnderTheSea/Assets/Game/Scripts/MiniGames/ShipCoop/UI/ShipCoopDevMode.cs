@@ -33,7 +33,7 @@ using UnderTheSea.MiniGames.ShipCoop.Net;
 ///   `` ` `` 와 F9 는 에디터가 쓰지 않습니다.
 ///
 /// 키가 게임 조작과 겹치지 않게 골랐습니다.
-/// 게임은 방향키 · Shift · Space · X · F · A · D · Q · E · C · V 를 씁니다.
+/// 게임은 W · A · S · D · Shift · Space · J · K · L · C 와 마우스 우클릭을 씁니다.
 /// 여기는 숫자와 기호만 씁니다.
 /// </summary>
 public class ShipCoopDevMode : MonoBehaviour

@@ -43,7 +43,10 @@ namespace Warriors
             Kills = 0; Score = 0; scoreMultiplier = 1f; remainingSeconds = timeLimitSeconds; totalElapsedSeconds = 0f; state = BattleState.Playing; clockRunning = true;
             if (rhythmBattle == null) rhythmBattle = UnityEngine.Object.FindFirstObjectByType<WarriorsRhythmBattle>(FindObjectsInactive.Include);
         }
-        private void Update() { if (!Application.isPlaying || !clockRunning) return; totalElapsedSeconds += Time.deltaTime; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
+        private void Update() { if (!Application.isPlaying || !clockRunning) return;
+            // ⚠ 네트워크 Warriors 는 **시간 제한으로 지지 않는다.** 승패는 목표 수치로만 갈린다.
+            //    싱글 씬(Runner 없음)에서는 이 줄이 거짓이라 예전 그대로 시계가 돈다.
+            if (Warriors.Net.WarriorsNet.IsNetworked) return; totalElapsedSeconds += Time.deltaTime; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
         public void RegisterKill(int points) { if (!IsRunning) return; Kills++; Score += Mathf.RoundToInt(Mathf.Max(0, points) * scoreMultiplier); if (Kills >= targetKills) Finish(true); }
         public void RegisterBossHit(int points) { Score += Mathf.Max(0, points); }
         public void SetScoreMultiplier(float value) => scoreMultiplier = Mathf.Max(1f, value);

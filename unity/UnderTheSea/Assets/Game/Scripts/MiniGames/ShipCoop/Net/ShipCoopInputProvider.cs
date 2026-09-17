@@ -87,8 +87,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             data.LeftRotation = left.Rotation;
             data.RightRotation = right.Rotation;
 
-            data.Buttons.Set((int)ShipCoopButton.LeftGrip, left.Grip);
-            data.Buttons.Set((int)ShipCoopButton.RightGrip, right.Grip);
             data.Buttons.Set((int)ShipCoopButton.LeftButton1, left.Button1);
             data.Buttons.Set((int)ShipCoopButton.LeftButton2, left.Button2);
             data.Buttons.Set((int)ShipCoopButton.RightButton1, right.Button1);

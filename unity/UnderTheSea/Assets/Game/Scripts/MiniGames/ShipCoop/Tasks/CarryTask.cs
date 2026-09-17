@@ -11,18 +11,19 @@ using UnityEngine;
 /// 양손이 묶여서 그동안 다른 일을 못 하는 것이 이 작업의 전부입니다. (7장)
 /// 어려워서 의미가 있는 게 아니라, 자리를 비우게 만들어서 의미가 있습니다.
 ///
-/// 입력
-///   집기        → 쥔 채로 ShipCoopInput.ConsumeInteract. 키보드는 Shift + Space.
-///   유지        → ShipCoopInput.HoldBoth. 키보드는 Shift.
-///                 한 손이라도 놓으면 떨어뜨립니다.
-///   싣기        → 대포 앞에서 쥐던 손을 놓습니다. (loadTrigger 로 바꿀 수 있습니다)
+/// 입력 — **버튼 하나로 다 합니다.** (ShipCoopInput.ConsumeInteract, 키보드는 Space)
 ///
-/// **쥐지 않은 채 누른 버튼은 가져가지 않습니다.** 쥐지 않으면 집어도 그 프레임에
-/// 도로 떨어뜨리는데, 그 사이에 붙기 버튼은 이미 사라집니다. 그래서 상자와 겹친
-/// 자리에는 붙을 수 없었습니다. 파손 지점은 아무 데나 생기므로 상자 옆에 생깁니다.
+///   집기        → 빈손이고 손 닿는 곳에 물건이 있을 때 누릅니다.
+///   유지        → 집으면 계속 들고 있습니다. 누르고 있을 필요가 없습니다.
+///   놓기 · 넘기기 → 들고 있을 때 한 번 더 누릅니다.
+///   싣기        → 대포 앞에서 한 번 더 누릅니다. (loadTrigger 로 바꿀 수 있습니다)
+///
+/// 예전에는 쥐기(압력센서)가 집기와 붙기를 갈라 줬지만, 장치에서 쥐기가 빠지면서
+/// **손 닿는 곳에 집을 것이 있으면 집기가 이기는** 규칙으로 바뀌었습니다.
+/// 그 판정을 <see cref="HasPickupInReach"/> 가 내놓고 <see cref="TaskWorker"/> 가 물어봅니다.
 ///
 /// ⚠ 그래도 포탄 상자를 작업 자리 옆에 두지 마세요.
-///    쥐고 있을 때는 붙기 버튼을 자리와 상자가 함께 노립니다.
+///    자리에 붙으려 해도 상자가 버튼을 먼저 가져갑니다.
 /// </summary>
 [RequireComponent(typeof(TaskWorker))]
 public class CarryTask : MonoBehaviour
@@ -38,12 +39,14 @@ public class CarryTask : MonoBehaviour
     public enum LoadTrigger
     {
         /// <summary>
-        /// 대포 앞에서 쥐던 손을 놓으면 넣는다. (기본)
+        /// 대포 앞에서 상호작용을 한 번 더 누르면 넣는다. (기본)
         ///
-        /// 내려놓는다는 감각과 맞고, 어차피 놓을 손가락이라 버튼이 늘지 않는다.
-        /// 언제 넣을지를 플레이어가 정한다.
+        /// 언제 넣을지를 플레이어가 정한다. 집을 때 쓴 버튼을 그대로 쓰므로 버튼이 늘지 않는다.
+        ///
+        /// ⚠ 이름만 바뀌었고 **자리는 0 번 그대로**다. (예전 이름 OnRelease)
+        ///    enum 은 숫자로 저장되므로 순서를 바꾸면 씬과 프리팹에 저장된 값이 밀린다.
         /// </summary>
-        OnRelease,
+        OnInteract,
 
         /// <summary>
         /// 대포에 닿는 순간 저절로 넣는다.
@@ -53,16 +56,16 @@ public class CarryTask : MonoBehaviour
         OnReach,
 
         /// <summary>
-        /// 대포 앞에서 Space 를 눌러야 넣는다.
+        /// 남겨둔 자리. 지금은 <see cref="OnInteract"/> 와 같게 동작한다.
         ///
-        /// ⚠ Shift 를 쥐고 방향키로 걸어가면서 Space 까지 눌러야 해서 손가락 3개가
-        /// 필요하고, 그 순간 키보드가 키 하나를 놓쳐 포탄을 떨어뜨리기 쉽다.
+        /// 쥐기가 있던 시절에는 "손을 놓아 넣기" 와 "버튼으로 넣기" 가 달랐다.
+        /// 쥐기가 사라지면서 둘이 같아졌지만, 저장된 값이 밀리지 않도록 자리만 남긴다.
         /// </summary>
         OnButton,
     }
 
     [Header("싣는 방법")]
-    [SerializeField] private LoadTrigger loadTrigger = LoadTrigger.OnRelease;
+    [SerializeField] private LoadTrigger loadTrigger = LoadTrigger.OnInteract;
 
     [Header("들고 있는 표시 (선택)")]
     [Tooltip("연결하면 들고 있는 동안만 켜진다. 큐브 하나를 머리 위에 두면 눈에 보인다.")]
@@ -181,16 +184,13 @@ public class CarryTask : MonoBehaviour
 
     private void UpdateCarrying(IPlayerController input)
     {
-        // 포탄이 아닌 것은 넘기는 방식이 하나뿐이다. 놓으면 넘어간다.
+        // 포탄이 아닌 것은 넘기는 방식이 하나뿐이다. 누르면 넘어간다.
         // 대포처럼 사거리·정원·발사 타이밍이 얽힌 것이 아니라서 규칙을 늘릴 이유가 없다.
         if (Carrying != Cargo.Ammo)
         {
-            if (!ShipCoopInput.HoldBoth(input))
+            if (ShipCoopInput.ConsumeInteract(input) && !TryHandOver(input))
             {
-                if (!TryHandOver(input))
-                {
-                    DropInternal(notify: true);
-                }
+                DropInternal(notify: true);
             }
 
             return;
@@ -198,38 +198,31 @@ public class CarryTask : MonoBehaviour
 
         CannonTask cannon = FindLoadableCannon();
 
-        // 손을 놓았다. 대포 앞이면 넣고, 아니면 떨어뜨린다.
-        if (!ShipCoopInput.HoldBoth(input))
+        // 대포에 닿기만 하면 저절로 들어가는 설정. 버튼을 보지 않는다.
+        if (loadTrigger == LoadTrigger.OnReach)
         {
-            if (loadTrigger == LoadTrigger.OnRelease && cannon != null && TryLoad(cannon, input))
+            if (cannon != null)
             {
-                return;
+                TryLoad(cannon, input);
             }
 
-            DropInternal(notify: true);
             return;
         }
 
-        if (cannon == null)
+        // ⚠ 대포를 **먼저 찾은 뒤에** 버튼을 소비한다. 순서를 바꾸면 사거리 밖에서
+        //    누른 것이 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
+        if (!ShipCoopInput.ConsumeInteract(input))
         {
             return;
         }
 
-        switch (loadTrigger)
+        // 대포 앞이면 넣고, 아니면 갑판에 내려놓는다. 버튼 하나가 둘을 겸한다.
+        if (cannon != null && TryLoad(cannon, input))
         {
-            case LoadTrigger.OnReach:
-                TryLoad(cannon, input);
-                break;
-
-            case LoadTrigger.OnButton:
-                // 대포를 먼저 찾은 뒤에 버튼을 소비한다. 순서를 바꾸면 사거리 밖에서
-                // 누른 것이 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
-                if (ShipCoopInput.ConsumeInteract(input))
-                {
-                    TryLoad(cannon, input);
-                }
-                break;
+            return;
         }
+
+        DropInternal(notify: true);
     }
 
     /// <summary>대포에 포탄을 넘긴다. 성공하면 true.</summary>
@@ -259,25 +252,13 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
-        // 쥐지 않았으면 버튼을 가져가지 않는다.
-        //
-        // 들자마자 UpdateCarrying 이 "손을 놓았다" 로 보고 떨어뜨리기 때문에,
-        // 쥐지 않은 채 집는 것은 어차피 한 프레임도 유지되지 않는다.
-        // 그런데 그 한 프레임 사이에 붙기 버튼은 이미 사라진다.
-        //
-        // 그래서 상자와 자리가 겹쳐 있으면 그 자리에 붙을 수 없었다.
-        // 파손 지점은 아무 데나 생기므로 상자 옆에 생길 수 있다.
-        // (DamageSpawn_01 은 상자에서 1.5m, 둘 다 반경 2m 다)
-        // 수리하려고 Space 를 눌러도 포탄만 집었다 떨어뜨리기를 되풀이했다.
-        if (!ShipCoopInput.HoldBoth(input))
-        {
-            return;
-        }
-
         // 갑판에 놓인 것이 먼저다. 상자보다 가까이 있고, 주우러 온 것이기 때문이다.
         DroppedCargo lying = FindReachableDrop();
         AmmoBox box = lying != null ? null : FindReachableBox();
 
+        // ⚠ 집을 것을 **먼저 찾은 뒤에** 버튼을 소비한다. TaskWorker 가 같은 버튼을 노리고 있어서,
+        //    여기서 먼저 가져가 버리면 집을 것이 없을 때 자리에 붙지 못한다.
+        //    TaskWorker 는 HasPickupInReach 가 참일 때만 비켜주므로 판정 기준이 같아야 한다.
         if (lying == null && box == null)
         {
             return;
@@ -311,6 +292,25 @@ public class CarryTask : MonoBehaviour
         input.VibrateBoth(0.3f, 0.1f);
         Debug.Log($"[{name}] {NameOf(Carrying)} 을(를) 집었다. 양손이 묶였다.", this);
         PickedUp?.Invoke();
+    }
+
+    /// <summary>
+    /// **지금 이 버튼이 집기에 쓰일 것인가.** <see cref="TaskWorker"/> 가 붙기 전에 물어본다.
+    ///
+    /// 참이면 자리 쪽이 버튼을 가져가지 않고 비켜줍니다. 상자나 갑판에 놓인 물건이
+    /// 작업 자리와 겹칠 때 **둘이 같은 버튼을 두고 다투는 것**을 여기서 끊습니다.
+    ///
+    /// ⚠ <see cref="UpdateEmptyHanded"/> 의 조건과 **같아야 합니다.** 여기가 더 너그러우면
+    ///    비켜줬는데 아무도 안 집어서 버튼이 통째로 사라지고, 더 인색하면 둘이 함께 노립니다.
+    /// </summary>
+    public bool HasPickupInReach()
+    {
+        if (IsCarrying || _worker.Current != null)
+        {
+            return false;
+        }
+
+        return FindReachableDrop() != null || FindReachableBox() != null;
     }
 
     /// <summary>

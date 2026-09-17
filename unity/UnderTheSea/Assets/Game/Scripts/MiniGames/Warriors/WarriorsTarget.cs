@@ -87,15 +87,28 @@ namespace Warriors
         /// matching one instead - otherwise a second tentacle sharing a weakness with the
         /// one just hit could never be reached.
         /// </summary>
-        public bool CanReceiveAttack(WarriorsAttackDirection direction)
+        public bool CanReceiveAttack(WarriorsAttackDirection direction, GameObject attacker = null)
         {
+            // ⚠ 담당이 갈린 대상은 담당자만 고를 수 있다. (Warriors 네트워크 전환)
+            //    2페이즈 촉수가 좌우로 나뉘어 있어서다. 여기서 걸러 두면 남의 팔이
+            //    '가장 가까운 것' 으로 뽑혀 내 스윙을 삼키는 일이 없다.
+            //    걸개가 없는 싱글 씬에서는 늘 참이라 예전 그대로다.
+            if (!Warriors.Net.WarriorsNet.OwnsAttack(this, attacker)) return false;
+
             if (!acceptsAttacks || deathHandled) return false;
             if (direction != requiredDirection) return false;
             return destroyOnDefeat || Time.time >= nextBossHitTime;
         }
 
-        public bool TryReceiveAttack(WarriorsAttackDirection direction, int damage)
+        public bool TryReceiveAttack(WarriorsAttackDirection direction, int damage, GameObject attacker = null)
         {
+            // ⚠ **맞았는지는 계산하는 쪽만 정한다.** (Warriors 네트워크 전환)
+            //    타격은 각자의 물리 콜라이더에서 나오므로, 막지 않으면 클라이언트마다
+            //    자기 화면에서만 몬스터를 벤다. 내 화면엔 죽었는데 남의 화면엔 살아 있다.
+            //    담당이 갈린 대상(2페이즈 촉수)이면 담당자인지도 함께 본다.
+            //    싱글 씬(Runner 없음)에서는 늘 참이라 예전 그대로다.
+            if (!Warriors.Net.WarriorsNet.CanResolveHit(this, attacker)) return false;
+
             if (!acceptsAttacks || deathHandled) return false;
             if (direction != requiredDirection) return false;
             if (!destroyOnDefeat)
@@ -166,27 +179,44 @@ namespace Warriors
             gameObject.SetActive(true);
         }
 
-        private void HandleDied()
+        /// <summary>
+        /// **쓰러지는 모습만 보여준다.** 점수도 세지 않고 사라지지도 않는다.
+        ///
+        /// 네트워크에서 쓴다. 죽었는지는 서버가 정하고, 클라이언트는 그 결과를 받아
+        /// 이 함수로 같은 연출을 낸다. 여러 번 불러도 한 번만 재생된다.
+        /// </summary>
+        public void ShowDefeated()
         {
             if (deathHandled) return;
             deathHandled = true;
+
             GetComponent<WarriorsTargetFeedback>()?.PlayDefeat();
-            if (showScorePopup)
-            {
-                battleScore?.RegisterKill(scoreValue);
-                gameObject.AddComponent<WarriorsScorePopup>().Show(scoreValue);
-            }
-            Defeated?.Invoke(this);
+
+            if (showScorePopup) gameObject.AddComponent<WarriorsScorePopup>().Show(scoreValue);
+
             foreach (Collider hitbox in GetComponentsInChildren<Collider>()) hitbox.enabled = false;
 
-            // A corpse used to keep walking at the player for the whole despawn. On the
-            // fish and the crab that reads as a stumble, but the jellyfish floats, so it
-            // looked like it was still alive well after the hit landed.
+            // 시체가 계속 걸어오면 물고기와 게는 비틀거리는 것처럼 보이지만
+            // 해파리는 떠다녀서 아직 살아 있는 것처럼 보인다.
             if (TryGetComponent(out WarriorsBeachEnemyApproach approach)) approach.enabled = false;
             if (TryGetComponent(out WarriorsEnemyAttack enemyAttack)) enemyAttack.enabled = false;
+        }
+
+        private void HandleDied()
+        {
+            if (deathHandled) return;
+
+            // 보이는 것은 모두 여기서 난다. 점수와 사라지는 것만 아래에서 따로 한다.
+            ShowDefeated();
+
+            if (showScorePopup) battleScore?.RegisterKill(scoreValue);
+
+            Defeated?.Invoke(this);
+
             // Just past the defeat animation. The kill has to land the moment the swing
             // does, so there is no window where a beaten monster is still on screen.
-            if (destroyOnDefeat) Destroy(gameObject, .4f);
+            // 네트워크에서는 서버가 Runner.Despawn 으로 치운다. (WarriorsNetEnemy)
+            if (destroyOnDefeat && !Warriors.Net.WarriorsNet.IsNetworked) Destroy(gameObject, .4f);
         }
 
 #if UNITY_EDITOR

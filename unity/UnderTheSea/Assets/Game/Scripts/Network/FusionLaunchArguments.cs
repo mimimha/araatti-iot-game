@@ -24,6 +24,15 @@ public static class FusionLaunchArguments
     public const string ModeKey = "-mode";
 
     /// <summary>
+    /// **개발용.** 검 미니게임을 몇 라운드부터 시작할지. (1 · 2 · 3)
+    ///
+    /// 3라운드 화면 하나를 확인하려고 매번 1·2라운드를 다 싸워야 해서 붙였다.
+    /// <b>인자를 주지 않으면 아무것도 달라지지 않는다</b> — 제품 실행 경로는 이 값을 넘기지 않으므로
+    /// 정상 흐름(1라운드부터)이 그대로다.
+    /// </summary>
+    public const string StartPhaseKey = "-startphase";
+
+    /// <summary>
     /// <paramref name="key"/> 다음에 오는 값을 돌려준다. 없으면 <paramref name="fallback"/>.
     ///
     /// 예: <c>-session lobby-ch1</c> → GetString("-session", "기본값") == "lobby-ch1"
@@ -79,6 +88,8 @@ public static class FusionLaunchArguments
     /// <see cref="GetPort"/> 와 나뉘어 있는 이유는 쓰임이 달라서다. 포트는 1~65535 라
     /// <c>ushort</c> 가 맞지만, 프레임률처럼 <b>0 을 "제한 없음" 으로 쓰는</b> 값은
     /// 음수와 0 을 그대로 받아 넘겨야 부르는 쪽이 판단할 수 있다.
+    ///
+    /// 범위로 조여야 하는 값은 <see cref="GetInt(string,int,int,int)"/> 를 쓴다.
     /// </summary>
     public static int GetInt(string key, int fallback)
     {
@@ -96,6 +107,26 @@ public static class FusionLaunchArguments
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// 정수를 읽고 <paramref name="min"/> ~ <paramref name="max"/> 로 조인다.
+    ///
+    /// 위 <see cref="GetInt(string,int)"/> 와 나뉘어 있는 것은 <b>조일지 말지가 값마다 다르기
+    /// 때문이다.</b> 해상도처럼 범위를 벗어나면 안 되는 값은 조이는 쪽이 맞고, 프레임률처럼
+    /// 0 을 "제한 없음" 으로 쓰는 값은 조이면 뜻이 사라진다.
+    /// </summary>
+    public static int GetInt(string key, int fallback, int min, int max)
+    {
+        int value = GetInt(key, fallback);
+        int clamped = Mathf.Clamp(value, min, max);
+
+        if (clamped != value)
+        {
+            Debug.LogWarning($"[FusionLaunchArguments] {key} 값 {value} 는 {min}~{max} 밖입니다. {clamped} 로 맞춥니다.");
+        }
+
+        return clamped;
     }
 
     /// <summary>이동 위치를 로그로 남길지. 창이 없는 서버의 동기화를 확인할 때 쓴다.</summary>

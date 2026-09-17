@@ -385,7 +385,18 @@ public class LocalPlayerView : NetworkBehaviour
 
         // ThirdPersonCamera 는 SetInput 을 누가 매 프레임 불러 줘야 움직인다.
         // 원래는 MovePlayerInput 이 했지만 NetworkPlayer 에는 그 컴포넌트가 없다.
-        Vector2 delta = new Vector2(Input.GetAxis(mouseX), Input.GetAxis(mouseY));
+        //
+        // ⚠ **오른쪽 버튼을 누르고 있는 동안에만 돈다.** (IOT_INPUT.md 1장 — 네 게임 공통)
+        //    예전에는 마우스를 움직이기만 해도 시점이 따라 돌았다. 그러면 채팅창이나
+        //    버튼을 누르려고 커서를 옮기는 동안에도 화면이 돌아가 버린다.
+        //    좌클릭은 그 화면 요소들이 써야 하므로 우클릭으로 잡는다.
+        bool dragging = Input.GetMouseButton(1);
+
+        Vector2 delta = dragging
+            ? new Vector2(Input.GetAxis(mouseX), Input.GetAxis(mouseY))
+            : Vector2.zero;
+
+        // 확대·축소는 버튼과 무관하다. 휠은 언제나 그대로 넘긴다.
         boundCamera.SetInput(in delta, Input.GetAxis(mouseScroll));
 
         if (LogCamera && Time.time >= nextCameraLogTime)

@@ -1,10 +1,32 @@
 using UnityEngine;
 
+/// <summary>IMU에서 판정한 손의 물리 동작.</summary>
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing,
+    VerticalSwing,
+    Thrust,
+}
+
+/// <summary>한 번 발생한 IMU 동작과 정규화된 세기.</summary>
+public readonly struct HandMotion
+{
+    public HandMotion(HandMotionType type, float strength)
+    {
+        Type = type;
+        Strength = Mathf.Clamp01(strength);
+    }
+
+    public HandMotionType Type { get; }
+    public float Strength { get; }
+}
+
 /// <summary>
 /// IoT 기기 1대가 주는 것.
 ///
 /// 기기 하나의 구성
-///   조이스틱 1개 · 버튼 2개 · IMU 센서 · 압력센서 · 진동 모터
+///   조이스틱 1개 · 버튼 2개 · IMU 센서 · 진동 모터
 ///
 /// 플레이어는 이 기기를 **양손에 하나씩 2대** 드는 것을 기본으로 합니다.
 /// 다만 1대만 들 수도 있습니다. (IPlayerController 참고)
@@ -19,12 +41,6 @@ public interface IHandDevice
 
     /// <summary>IMU 회전(yaw). -1 ~ +1. 손목을 비트는 정도.</summary>
     float Rotation { get; }
-
-    /// <summary>
-    /// 압력센서 HOLD 판정.
-    /// 힘의 세기를 그대로 쓰지 않고, 일정 이상 강하게 쥐면 true 가 된다.
-    /// </summary>
-    bool Grip { get; }
 
     /// <summary>버튼 1 을 지금 누르고 있는지</summary>
     bool Button1 { get; }
@@ -41,8 +57,12 @@ public interface IHandDevice
     /// <summary>버튼 2 가 새로 눌렸으면 true 를 한 번 돌려주고 스스로 지운다.</summary>
     bool ConsumeButton2Press();
 
-    /// <summary>IMU 가 내리치는 동작을 감지했으면 true 를 한 번 돌려주고 스스로 지운다.</summary>
-    bool ConsumeSwing();
+    /// <summary>
+    /// IMU가 가로 휘두르기·세로 휘두르기·찌르기를 감지하면 한 번 돌려주고 지운다.
+    /// 방향은 어느 손인지로 추측하지 않고 센서가 판정한 실제 동작을 사용한다.
+    /// ⚠ 한 프레임에 두 곳에서 부르면 한쪽이 놓치므로 받는 쪽은 한 곳이어야 한다.
+    /// </summary>
+    bool TryConsumeMotion(out HandMotion motion);
 
     /// <summary>이 손의 진동 모터를 울린다. strength 0 ~ 1.</summary>
     void Vibrate(float strength, float seconds);
