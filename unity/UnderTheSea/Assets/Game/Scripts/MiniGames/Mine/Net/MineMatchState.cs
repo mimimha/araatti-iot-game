@@ -553,6 +553,14 @@ namespace Mine.Net
             _hud.NetworkPhaseText = PhaseLine();
             _hud.NetworkTurnText = HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}" : string.Empty;
 
+            _hud.NetworkRosterSize = RosterSize;
+            _hud.NetworkCurrentSlot = CurrentSlot;
+
+            // 복구 총량은 BeginMatch 에서야 정해진다. 그 전에 그리면 "0 / 0" 이 뜬다.
+            _hud.NetworkRestoreText = TotalRestores > 0
+                ? $"{RestoresLeft} / {TotalRestores}"
+                : string.Empty;
+
             _hud.NetworkCountdown = Phase == MineMatchPhase.Countdown
                 ? Mathf.Max(1, Mathf.CeilToInt(Countdown))
                 : 0;

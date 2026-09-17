@@ -105,25 +105,64 @@ namespace Mine.Net
         }
 
         /// <summary>
+        /// HUD 힌트 칸에 적을 글자. <c>MineHud.RefreshHint</c> 의 규칙 그대로다.
+        ///
+        /// ⚠ <b>쓸 수 없는 때</b>와 <b>써버린 때</b>를 가른다. 내 턴이 아니면 "대기" 다.
+        ///   그걸 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
+        ///
+        /// ⚠ 키는 <b>J</b> 다. 솔로(<c>MineHud.RefreshHint</c>)는 V 라고 적는데,
+        ///   그쪽 힌트는 <c>KeyboardPlayerController</c> 의 button2(V)이고
+        ///   네트워크는 <c>MineInputProvider</c> 의 jKey 라서 실제로 키가 다르다.
+        /// </summary>
+        private string HintCell(MineMatchState match)
+        {
+            if (match == null || _who == null || _who.Slot < 0) return string.Empty;
+
+            if (IsWatchingMyHint(match)) return "보는 중";
+            if (!_who.IsMyTurn) return "대기";
+
+            return _who.HintUsed ? "사용함" : "J · 1회";
+        }
+
+        /// <summary>힌트가 아직 살아 있는가. 보는 중이거나 내 턴에 아직 안 썼으면 살아 있다.</summary>
+        private bool HintAlive(MineMatchState match)
+        {
+            if (match == null || _who == null || _who.Slot < 0) return false;
+
+            return IsWatchingMyHint(match) || (_who.IsMyTurn && !_who.HintUsed);
+        }
+
+        private bool IsWatchingMyHint(MineMatchState match)
+        {
+            return match.HintLeft > 0f && match.HintSlot == _who.Slot;
+        }
+
+        /// <summary>
         /// 화면은 매 프레임 정한다. 틱보다 촘촘해야 시점이 끊기지 않는다.
         /// </summary>
         public override void Render()
         {
             if (!Object.HasInputAuthority) return;
 
+            MineMatchState match = MineMatchState.Current;
+
             // 내가 몇 번인지는 판이 어떤 상태든 늘 띄워 둔다.
             // 창이 뜬 순서로는 알 수 없다 — 창은 프로세스가 시작한 순서, 슬롯은
             // 서버에 붙은 순서다. 접속이 늦으면 먼저 띄운 창이 P2 가 된다.
+            //
+            // 힌트 칸도 여기서 넣는다. 판 전체를 보는 MineMatchState 는 이 화면의
+            // 주인이 누구인지 모르는데, 힌트는 남의 것이 아니라 **내 것**을 적어야 한다.
             if (_hud != null)
             {
                 _hud.NetworkSelfText = _who != null && _who.Slot >= 0
                     ? $"나 = P{_who.Slot + 1}"
                     : "나 = 관전";
+
+                _hud.NetworkHintText = HintCell(match);
+                _hud.NetworkHintLit = HintAlive(match);
             }
 
             if (_camera == null) return;
-
-            MineMatchState match = MineMatchState.Current;
             if (match == null) return;
 
             // 판이 끝났다. 완성된 그림을 위에서 보여 준다. (MINE.md 3장 7번)

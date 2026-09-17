@@ -170,9 +170,9 @@ public class MineHud : MonoBehaviour
     /// <summary>
     /// 네트워크가 이 HUD 를 대신 몰고 있는가.
     ///
-    /// 1단계에서는 <c>MineGame</c> 이 꺼져 있다. 그대로 두면 시작도 안 한 판의
+    /// 네트워크에서는 <c>MineGame</c> 이 꺼져 있다. 그대로 두면 시작도 안 한 판의
     /// 기본값(<c>- / 4 TURN</c> · "곧 시작합니다")이 계속 떠 있어 거짓말을 한다.
-    /// 켜지면 아래 값들만 그리고, <b>아직 못 잇는 칸은 감춘다.</b>
+    /// 켜지면 아래 값들만 그린다. <c>MineGame</c> 은 한 줄도 보지 않는다.
     ///
     /// 혼자 하는 씬에서는 아무도 켜지 않으므로 예전 그대로다.
     /// </summary>
@@ -221,7 +221,27 @@ public class MineHud : MonoBehaviour
     /// </summary>
     public string NetworkSelfText { get; set; }
 
-    private bool _hidUnwired;
+    /// <summary>"4 / 4" 같은 팀 복구 수. 빈 문자열이면 감춘다.</summary>
+    public string NetworkRestoreText { get; set; }
+
+    /// <summary>
+    /// 내 힌트 상태. "J · 1회" · "사용함" · "보는 중" · "대기" 중 하나다.
+    ///
+    /// ⚠ <b>내 것만 적는다.</b> 남이 힌트를 쓰는 중이라도 이 칸은 내 것을 보여 준다 —
+    ///   남의 힌트는 화면을 덮는 <see cref="NetworkCenterNotice"/> 가 알린다.
+    ///   그래서 이 값은 판 전체를 보는 <c>MineMatchState</c> 가 아니라
+    ///   내가 누구인지 아는 <c>MineLocalView</c> 가 넣는다.
+    /// </summary>
+    public string NetworkHintText { get; set; }
+
+    /// <summary>힌트가 아직 살아 있는가. 글자와 아이콘 색을 가른다.</summary>
+    public bool NetworkHintLit { get; set; }
+
+    /// <summary>참가자 몇 명인가. 남는 줄은 감춘다. 0 이면 명단을 통째로 감춘다.</summary>
+    public int NetworkRosterSize { get; set; }
+
+    /// <summary>지금 파는 사람의 자리. -1 이면 아무도 아니다(대기 · 공개 · 종료).</summary>
+    public int NetworkCurrentSlot { get; set; } = -1;
 
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
@@ -231,22 +251,67 @@ public class MineHud : MonoBehaviour
     private TMP_Text _selfLabel;
 
     /// <summary>
-    /// 아직 서버에 연결되지 않은 칸을 감춘다. **1단계 한정이다.**
+    /// 참가자 명단. <see cref="RefreshPlayers"/> 와 **같은 규칙**으로 그린다.
     ///
-    /// 복구 · 힌트 · 결과 · 플레이어 줄은 2단계에서 격자와 함께 살아난다.
-    /// 그때까지 숫자를 띄워 두면 "복구 4개 남음" 같은 없는 정보를 읽게 된다.
+    /// 솔로는 턴 번호(1부터)로 재고 네트워크는 자리 번호(0부터)로 재는 것만 다르다.
+    /// 그래서 한 칸 어긋나기 쉽다 — 여기서는 줄 번호와 자리 번호가 그대로 맞는다.
     /// </summary>
-    private void HideUnwiredParts()
+    private void DrawNetworkPlayers()
     {
-        if (_hidUnwired) return;
-        _hidUnwired = true;
+        if (rows == null) return;
 
-        SetActive(restoreText, false);
-        SetActive(hintText, false);
+        for (int i = 0; i < rows.Length; i++)
+        {
+            PlayerRow row = rows[i];
+            if (row == null) continue;
 
-        if (rows != null)
-            foreach (PlayerRow row in rows)
-                SetActive(RowObject(row), false);
+            // 참가자보다 줄이 많으면 남는 줄은 감춘다.
+            bool used = i < NetworkRosterSize;
+            SetActive(RowObject(row), used);
+            if (!used) continue;
+
+            if (row.nameText != null) row.nameText.text = NameOf(i);
+            if (row.stateText == null) continue;
+
+            // ⚠ 판이 끝나면 서버가 CurrentSlot 을 -1 로 되돌린다(EnterFinished).
+            //   그대로 두면 다 판 사람들이 "대기" 로 보인다. 끝났으면 전부 완료다.
+            bool digging = NetworkCurrentSlot >= 0 && i == NetworkCurrentSlot;
+            bool done = NetworkResultShow || (NetworkCurrentSlot >= 0 && i < NetworkCurrentSlot);
+
+            row.stateText.text = digging ? "채굴 중" : done ? "완료" : "대기";
+            row.stateText.color = digging ? activeLabel : done ? doneLabel : waitLabel;
+
+            if (row.frame != null) row.frame.color = digging ? activeFrame : idleFrame;
+        }
+    }
+
+    /// <summary>
+    /// 팀 복구 수.
+    ///
+    /// ⚠ 판이 시작하기 전에는 감춘다. 서버가 <c>BeginMatch</c> 에서야 총량을 정하므로
+    ///   그 전에 그리면 "0 / 0" 이 뜬다. 솔로는 총량이 계산값이라 이 문제가 없다.
+    /// </summary>
+    private void DrawNetworkRestore()
+    {
+        bool show = !string.IsNullOrEmpty(NetworkRestoreText);
+        SetActive(restoreText, show);
+
+        if (show && restoreText != null) restoreText.text = NetworkRestoreText;
+    }
+
+    /// <summary>내 힌트 상태. 글자는 <c>MineLocalView</c> 가 정하고 색만 여기서 가른다.</summary>
+    private void DrawNetworkHint()
+    {
+        bool show = !string.IsNullOrEmpty(NetworkHintText);
+        SetActive(hintText, show);
+
+        if (show && hintText != null)
+        {
+            hintText.text = NetworkHintText;
+            hintText.color = NetworkHintLit ? hintReady : hintUsed;
+        }
+
+        if (hintIcon != null) hintIcon.color = NetworkHintLit ? hintReady : hintUsed;
     }
 
     private static void SetActive(Component target, bool on)
@@ -262,7 +327,9 @@ public class MineHud : MonoBehaviour
     /// <summary>서버가 준 값으로 그린다. <c>MineGame</c> 은 보지 않는다.</summary>
     private void DrawNetwork()
     {
-        HideUnwiredParts();
+        DrawNetworkPlayers();
+        DrawNetworkRestore();
+        DrawNetworkHint();
 
         if (countdownText != null)
         {
