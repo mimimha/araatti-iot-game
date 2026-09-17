@@ -60108,7 +60108,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6351146626264523729, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       propertyPath: m_RotateSpeed
-      value: 720
+      value: 360
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -60162,6 +60162,22 @@ MonoBehaviour:
   axisSpeed: 4
   twoDevices: 1
   logDeviceOutput: 0
+  leftStickUp: 63
+  leftStickDown: 64
+  leftStickLeft: 61
+  leftStickRight: 62
+  leftGrip: 51
+  leftButton1: 17
+  leftButton2: 24
+  leftSwing: 1
+  rightStickUp: 0
+  rightStickDown: 0
+  rightStickLeft: 31
+  rightStickRight: 19
+  rightGrip: 52
+  rightButton1: 1
+  rightButton2: 38
+  rightSwing: 0
 --- !u!114 &1398097744
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -60198,7 +60214,7 @@ MonoBehaviour:
   lookHeight: 1
   horizontalAxis: Horizontal
   verticalAxis: Vertical
-  jumpButton: Jump
+  jumpButton: 
   runKey: 304
 --- !u!1 &1399845531
 GameObject:

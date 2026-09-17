@@ -9,6 +9,7 @@ using UnityEngine.InputSystem;
 ///    게임 로직은 IPlayerController 만 쓰기 때문에 고칠 필요가 없습니다.
 ///
 /// 키 배치 — 실제 기기의 어느 부품을 대신하는지 함께 적는다.
+/// 아래는 **기본값**이고, 게임마다 씬에서 바꿀 수 있다. (광산은 Space 채굴 · J 힌트를 쓴다)
 ///
 ///   [왼손 기기]
 ///     방향키        조이스틱     이동
@@ -48,6 +49,45 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
     [Tooltip("켜면 진동 호출을 콘솔에 찍는다. 실제 기기가 붙기 전에 확인용으로 쓴다.")]
     [SerializeField] private bool logDeviceOutput = false;
 
+    // 아래 키들은 **기본값이 위 표 그대로**다. 씬에서 바꾸지 않으면 예전과 똑같이 동작한다.
+    //
+    // ⚠ 게임마다 손에 익은 키가 다르다. 광산은 화면에 WASD · Shift · Space · C · J 를
+    //   안내하는데 이 표의 방향키 · F · V 와 어긋났다. 그렇다고 이 표를 고치면
+    //   같은 컴포넌트를 쓰는 ShipCoop 의 키가 같이 바뀐다 — 그쪽은 F 로 망치질하고
+    //   Space 로 붙잡는다. 그래서 키를 **씬마다** 정하게 열어 둔다.
+    //
+    //   실제 기기가 붙으면 이 컴포넌트를 통째로 갈아끼우므로 이 칸들도 같이 사라진다.
+
+    [Header("왼손 기기 키")]
+    [SerializeField] private Key leftStickUp = Key.UpArrow;
+    [SerializeField] private Key leftStickDown = Key.DownArrow;
+    [SerializeField] private Key leftStickLeft = Key.LeftArrow;
+    [SerializeField] private Key leftStickRight = Key.RightArrow;
+
+    [Tooltip("압력센서 — 왼손 쥐기.")]
+    [SerializeField] private Key leftGrip = Key.LeftShift;
+
+    [SerializeField] private Key leftButton1 = Key.C;
+    [SerializeField] private Key leftButton2 = Key.V;
+
+    [Tooltip("IMU 내리치기. 광산의 채굴이 이것이다.")]
+    [SerializeField] private Key leftSwing = Key.None;
+
+    [Header("오른손 기기 키")]
+    [SerializeField] private Key rightStickUp = Key.None;
+    [SerializeField] private Key rightStickDown = Key.None;
+    [SerializeField] private Key rightStickLeft = Key.Q;
+    [SerializeField] private Key rightStickRight = Key.E;
+
+    [Tooltip("압력센서 — 오른손 쥐기.")]
+    [SerializeField] private Key rightGrip = Key.RightShift;
+
+    [SerializeField] private Key rightButton1 = Key.Space;
+    [SerializeField] private Key rightButton2 = Key.X;
+
+    [Tooltip("IMU 내리치기 — 망치질.")]
+    [SerializeField] private Key rightSwing = Key.F;
+
     private KeyboardHand _left;
     private KeyboardHand _right;
 
@@ -68,21 +108,21 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             axisSpeed,
             logDeviceOutput,
             "왼손",
-            stickUp: Key.UpArrow, stickDown: Key.DownArrow,
-            stickLeft: Key.LeftArrow, stickRight: Key.RightArrow,
-            grip: Key.LeftShift,
-            button1: Key.C, button2: Key.V,
-            swing: Key.None);
+            stickUp: leftStickUp, stickDown: leftStickDown,
+            stickLeft: leftStickLeft, stickRight: leftStickRight,
+            grip: leftGrip,
+            button1: leftButton1, button2: leftButton2,
+            swing: leftSwing);
 
         _right = new KeyboardHand(
             axisSpeed,
             logDeviceOutput,
             "오른손",
-            stickUp: Key.None, stickDown: Key.None,
-            stickLeft: Key.Q, stickRight: Key.E,
-            grip: Key.RightShift,
-            button1: Key.Space, button2: Key.X,
-            swing: Key.F);
+            stickUp: rightStickUp, stickDown: rightStickDown,
+            stickLeft: rightStickLeft, stickRight: rightStickRight,
+            grip: rightGrip,
+            button1: rightButton1, button2: rightButton2,
+            swing: rightSwing);
     }
 
     private void Update()
