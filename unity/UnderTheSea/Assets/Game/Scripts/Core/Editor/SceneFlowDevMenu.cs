@@ -29,14 +29,11 @@ public static class SceneFlowDevMenu
     [MenuItem(MenuRoot + "튜토리얼 다시 보기")]
     private static void ClearTutorial()
     {
-        if (!LobbyTutorial.Seen)
-        {
-            Debug.Log("[SceneFlowDevMenu] 아직 튜토리얼을 끝까지 본 적이 없습니다. 이미 다음 로비 입장에서 나옵니다.");
-            return;
-        }
-
+        // ⚠ "이미 나올 예정이면 아무것도 안 한다" 는 가드를 두지 않는다.
+        //    그 판단이 틀렸을 때 눌러도 아무 일이 안 일어나 원인을 못 찾는다.
+        //    실제로 그것 때문에 표시가 한 번도 안 세워졌다. 누르면 늘 세운다.
         LobbyTutorial.ClearSeen();
-        Debug.Log("[SceneFlowDevMenu] 튜토리얼 기록을 지웠습니다. 다음 로비 입장부터 다시 나옵니다.");
+        Debug.Log("[SceneFlowDevMenu] 다음 로비 입장에서 튜토리얼이 나옵니다.");
     }
 
     [MenuItem(MenuRoot + "저장된 캐릭터 이름 보기")]

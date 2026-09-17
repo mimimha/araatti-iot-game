@@ -205,6 +205,9 @@ public class LobbyTutorial : MonoBehaviour
     private GameObject keyGroup;
     private GameObject mouseGroup;
     private GameObject jumpGroup;
+
+    /// <summary>건너뛰기 버튼. 마지막 한마디에서는 감춘다.</summary>
+    private GameObject skipButton;
     private Image progress;
     private GameObject progressTrack;
 
@@ -272,11 +275,49 @@ public class LobbyTutorial : MonoBehaviour
         PlayerPrefs.Save();
     }
 
+    /// <summary>
+    /// **캐릭터 없이도 띄우라**는 표시. 개발 중에만 쓴다.
+    ///
+    /// 로비 씬만 Play 하면 로그인을 안 거쳐 고른 캐릭터가 없고, 그러면 누구에게
+    /// 띄울지 물어볼 대상이 없어 튜토리얼이 영영 안 나온다.
+    ///
+    /// 그런데 이 튜토리얼은 **눌러 봐야** 확인되는 부분이 있다. 그려진 키에 불이
+    /// 들어오는지, 건너뛰기가 실제로 눌리는지는 화면만 봐서는 알 수 없다.
+    /// 그것 하나 확인하려고 계정 백엔드까지 띄우는 것은 과하다.
+    ///
+    /// ⚠ Release 빌드에서는 무시한다. 표시가 실수로 남아도 사용자에게는 안 보인다.
+    /// </summary>
+    private const string ForceKey = "LobbyTutorialForce";
+
+    private static bool Forced
+    {
+        get
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // 개발용 직접 접속(-devjoin)은 로그인을 건너뛰어 고른 캐릭터가 없다.
+            // 그때는 늘 띄운다. 튜토리얼을 고치는 동안 매번 켜고 끄지 않아도 된다.
+            if (FusionDevEntry.WantsClientJoin)
+            {
+                return true;
+            }
+
+            return PlayerPrefs.GetInt(ForceKey, 0) != 0;
+#else
+            return false;
+#endif
+        }
+    }
+
     /// <summary>이 캐릭터가 아직 튜토리얼을 봐야 하는가.</summary>
     private static bool Pending
     {
         get
         {
+            if (Forced)
+            {
+                return true;
+            }
+
             long id = CurrentCharacterId;
             return id != 0L && PlayerPrefs.GetInt(PendingKeyOf(id), 0) != 0;
         }
@@ -296,8 +337,14 @@ public class LobbyTutorial : MonoBehaviour
 
         if (id == 0L)
         {
-            Debug.LogWarning(
-                "[LobbyTutorial] 지금 고른 캐릭터가 없습니다. 로그인한 뒤에 다시 하세요.");
+            // 로비 씬만 Play 하는 경우다. 누구에게 띄울지 모르지만, 개발 중에는
+            // 그냥 띄우는 편이 낫다. 끝까지 보거나 건너뛰면 저절로 꺼진다.
+            PlayerPrefs.SetInt(ForceKey, 1);
+            PlayerPrefs.Save();
+
+            Debug.Log(
+                "[LobbyTutorial] 고른 캐릭터가 없어 **개발용으로** 한 번 띄웁니다. " +
+                "다음 로비 입장에서 나옵니다. (Release 빌드에서는 무시됩니다)");
             return;
         }
 
@@ -307,8 +354,12 @@ public class LobbyTutorial : MonoBehaviour
     /// <summary>튜토리얼을 끝냈다. 이 캐릭터에게는 다시 나오지 않는다.</summary>
     private static void MarkDone(long characterId)
     {
+        // 개발용 표시부터 지운다. 이것이 남아 있으면 로비에 들어갈 때마다 또 나온다.
+        PlayerPrefs.DeleteKey(ForceKey);
+
         if (characterId == 0L)
         {
+            PlayerPrefs.Save();
             return;
         }
 
@@ -377,9 +428,17 @@ public class LobbyTutorial : MonoBehaviour
         }
 
         group.alpha = 0f;
-        // 안내는 보여 주기만 한다. 클릭을 가로채면 뒤쪽 조작이 막힌다.
-        group.interactable = false;
-        group.blocksRaycasts = false;
+
+        // 클릭을 받는다. **건너뛰기 버튼 하나 때문이다.**
+        //
+        // ⚠ 예전에는 여기를 막고 버튼에만 ignoreParentGroups 를 켜서 뚫었다.
+        //    그런데 그 옵션은 부모의 **투명도까지** 무시해서, 안내가 사라질 때
+        //    버튼만 혼자 남아 떠 있었다. 실제로 그렇게 보였다.
+        //
+        // 대신 여기를 열고, 버튼 말고는 아무것도 클릭을 가로채지 않게 한다.
+        // 판 · 글자 · 그림 · 진행선은 전부 Raycast Target 을 꺼 두었다.
+        group.interactable = true;
+        group.blocksRaycasts = true;
 
         Bind();
 
@@ -433,6 +492,7 @@ public class LobbyTutorial : MonoBehaviour
         if (skip != null)
         {
             skip.onClick.AddListener(Skip);
+            skipButton = skip.gameObject;
         }
 
         // 점프 키는 자기 그룹에서 찾는다. 이동 키와 목록이 섞이면 안 된다.
@@ -441,10 +501,8 @@ public class LobbyTutorial : MonoBehaviour
             BindCap(jumpGroup, "Space", () => Pressed(k => k.spaceKey), jumpCaps);
         }
 
-        if (keyGroup == null)
-        {
-            return;
-        }
+        // ⚠ keyGroup 이 없어도 그냥 넘어간다. 여기서 돌아가 버리면 이동 단계가
+        //    키를 못 읽어 영영 안 끝난다. BindCap 이 그림 없는 경우를 받아 준다.
 
         // 키 그림과 실제 키 입력을 잇는다. 이름이 맞는 것만 연결한다.
         BindCap(keyGroup, "W", () => Pressed(k => k.wKey), caps);
@@ -453,26 +511,27 @@ public class LobbyTutorial : MonoBehaviour
         BindCap(keyGroup, "D", () => Pressed(k => k.dKey), caps);
     }
 
+    /// <summary>
+    /// 키 하나를 등록한다.
+    ///
+    /// ⚠ <b>그림이 없어도 반드시 등록한다.</b> 이 목록이 비면 키를 눌러도
+    ///    <see cref="WaitForMove"/> · <see cref="WaitForJump"/> 가 아무것도 못 읽어
+    ///    단계가 영영 안 넘어간다. 불을 켜는 것은 곁다리고, <b>입력을 읽는 것이 본체다.</b>
+    ///
+    ///    그림 그 자체를 칠하면 키 그림이 새까매진다. 그래서 그림을 쓰는 단계에서는
+    ///    이름이 맞는 칸을 두지 않고, 입력만 읽게 둔다.
+    /// </summary>
     private void BindCap(GameObject where, string name, Func<bool> isPressed, List<KeyCap> into)
     {
-        Transform found = FindIn(where.transform, name);
-        if (found == null)
-        {
-            return;
-        }
-
-        Image box = found.GetComponent<Image>();
-        if (box == null)
-        {
-            return;
-        }
+        Transform found = where != null ? FindIn(where.transform, name) : null;
+        Image box = found != null ? found.GetComponent<Image>() : null;
 
         into.Add(new KeyCap
         {
             Box = box,
-            Text = found.GetComponentInChildren<TMP_Text>(includeInactive: true),
+            Text = found != null ? found.GetComponentInChildren<TMP_Text>(includeInactive: true) : null,
             IsPressed = isPressed,
-            RestScale = found.localScale,
+            RestScale = found != null ? found.localScale : Vector3.one,
         });
     }
 
@@ -861,6 +920,22 @@ public class LobbyTutorial : MonoBehaviour
         if (progressTrack != null)
         {
             progressTrack.SetActive(hasGraphic);
+        }
+
+        // 건너뛰기도 같이 감춘다. 마지막 장은 2.5초면 저절로 사라지는데,
+        // 건너뛸 것이 남은 것처럼 보이면 괜히 누르게 된다.
+        if (skipButton != null)
+        {
+            skipButton.SetActive(hasGraphic);
+        }
+
+        // 마지막 한마디는 가운데로 모은다. 그림이 없어 왼쪽에 붙일 기준이 사라지고,
+        // 한 문장짜리라 가운데가 더 눈에 든다.
+        if (label != null)
+        {
+            label.alignment = hasGraphic
+                ? TextAlignmentOptions.Left
+                : TextAlignmentOptions.Center;
         }
 
         // 그림이 빠진 자리를 글자가 물려받는다. 마지막 한마디는 한 문장이라 좁은 칸에 안 들어간다.
