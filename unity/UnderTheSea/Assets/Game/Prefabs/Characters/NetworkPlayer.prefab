@@ -2956,13 +2956,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.PlayerSpeechBubble
   bodySprite: {fileID: 21300000, guid: ae3a627063e33b54faa495af5b7b4d5d, type: 3}
-  tailSprite: {fileID: 21300000, guid: ed53784bcbfb6b04791e3eaab59fc568, type: 3}
+  tailSprite: {fileID: 21300000, guid: 4b6df6b11cd69c945bb4b7b1755bfdbc, type: 3}
   namePlateSprite: {fileID: 21300000, guid: 5e5c3fd5b08d11b47b581dac7aa601f4, type: 3}
-  height: 2.1
-  maxWidth: 420
+  height: 1.5
+  scale: 0.003
+  maxWidth: 400
+  bodyBorderShrink: 6
+  plateBorderShrink: 8
   fontSize: 26
   nameFontSize: 22
-  tailSize: {x: 52, y: 34}
+  tailSize: {x: 58, y: 36}
+  tailOverlap: 13
   showSeconds: 8
   fadeSeconds: 0.4
 --- !u!1 &6448122823236699881

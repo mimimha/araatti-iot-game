@@ -79,6 +79,14 @@ namespace UnderTheSea.Network
         [Tooltip("꼬리 크기(가로, 세로).")]
         [SerializeField] private Vector2 tailSize = new Vector2(52f, 34f);
 
+        /// <summary>
+        /// 꼬리를 말풍선 안쪽으로 이만큼 밀어 올린다.
+        ///
+        /// 0 이면 딱 붙는데, 그러면 경계에 테두리가 두 겹으로 겹쳐 선이 한 줄 비쳐 보인다.
+        /// 올릴수록 꼬리가 짧아 보이고, 내릴수록 뾰족하게 늘어진다.
+        /// </summary>
+        [SerializeField] private float tailOverlap = 10f;
+
         [Header("시간")]
         [Tooltip("이만큼 있다가 사라진다.")]
         [SerializeField, Min(1f)] private float showSeconds = 8f;
@@ -91,6 +99,7 @@ namespace UnderTheSea.Network
         private RectTransform namePlate;
         private TMP_Text label;
         private TMP_Text nameLabel;
+        private LayoutElement textElement;
         private Transform root;
 
         private float hideAt;
@@ -115,6 +124,10 @@ namespace UnderTheSea.Network
                 return;
             }
 
+            // 띄울 때마다 크기 값을 다시 읽는다. 실행 중에 인스펙터에서 숫자를 바꾸고
+            // 한 마디 쳐 보면 바로 반영된다. 안 그러면 껐다 켜기를 반복해야 한다.
+            ApplySize();
+
             label.text = message;
             hideAt = Time.time + showSeconds;
 
@@ -131,7 +144,7 @@ namespace UnderTheSea.Network
 
                 // 채팅 목록과 **같은 색**을 쓴다. 창에서 본 색과 머리 위 색이 다르면
                 // 같은 사람인 줄 모른다.
-                var plateImage = namePlate.GetComponent<Image>();
+                var plateImage = namePlate.Find("Background").GetComponent<Image>();
 
                 if (plateImage != null)
                 {
@@ -140,6 +153,19 @@ namespace UnderTheSea.Network
             }
 
             SetVisible(true);
+
+            // ⚠ 최대 너비를 여기서 건다.
+            //
+            // 레이아웃 그룹은 글자 칸에게 "한 줄로 쭉 폈을 때 얼마나 필요한가" 를 묻고
+            // 그만큼 내준다. 그래서 그냥 두면 긴 말이 2m 넘게 옆으로 퍼진다.
+            // 실제로 그렇게 나왔다.
+            //
+            // 대신 필요한 너비와 <see cref="maxWidth"/> 중 **작은 쪽**을 못 박는다.
+            // 짧은 말은 글자만큼만 차지하고, 긴 말은 여기서 줄이 접히며 아래로 자란다.
+            if (textElement != null)
+            {
+                textElement.preferredWidth = Mathf.Min(label.preferredWidth, maxWidth);
+            }
 
             // 글자가 바뀌었으니 칸을 다시 잰다. 한 프레임 늦으면 이전 크기로 한 번 깜빡인다.
             if (bubble != null)
@@ -150,6 +176,88 @@ namespace UnderTheSea.Network
             if (namePlate != null && namePlate.gameObject.activeSelf)
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(namePlate);
+            }
+        }
+
+        /// <summary>
+        /// 크기를 맞출 때 쓴다. 부품 오른쪽 위 ⋮ 메뉴에서 고른다.
+        ///
+        /// <b>Play 를 안 눌러도 된다.</b> 말풍선이 없으면 그 자리에서 만들어 Scene 뷰에
+        /// 띄운다. 서버도 남도 필요 없다. 숫자를 돌리면서 짧은 말과 긴 말을 번갈아
+        /// 띄워 보면 늘어나는 모양까지 한 번에 확인된다.
+        ///
+        /// ⚠ 미리보기로 만든 것에는 <see cref="HideFlags.DontSave"/> 를 걸어 둔다.
+        ///    안 걸면 프리팹을 저장할 때 말풍선이 통째로 안에 박혀 버린다.
+        ///    그러면 게임에서 말풍선이 늘 떠 있게 된다.
+        /// </summary>
+        [ContextMenu("말풍선 시험 — 짧게")]
+        public void TestShort()
+        {
+            Preview("안녕!");
+        }
+
+        [ContextMenu("말풍선 시험 — 길게")]
+        public void TestLong()
+        {
+            Preview("심장 제단 퀘스트 같이 하실 분 구해요. 지금 광장으로 모여 주세요!");
+        }
+
+        [ContextMenu("말풍선 시험 — 지우기")]
+        public void TestClear()
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            DestroyImmediate(root.gameObject);
+            root = null;
+            bubble = null;
+            namePlate = null;
+            label = null;
+            nameLabel = null;
+            group = null;
+        }
+
+        public void Preview(string message)
+        {
+            if (root == null)
+            {
+                Build();
+
+                if (!Application.isPlaying)
+                {
+                    MarkNotSaved(root.gameObject);
+                }
+            }
+
+            Show("테스트", message);
+
+#if UNITY_EDITOR
+            // ⚠ 편집 중에는 LateUpdate 가 안 돈다. 그래서 스스로 카메라를 안 보고,
+            //    뒷면이 보이면 **글자가 좌우로 뒤집혀** 읽힌다. 실제로 그렇게 보였다.
+            //    버그가 아니라 미리보기의 한계라, 여기서 한 번 돌려 준다.
+            UnityEditor.SceneView scene = UnityEditor.SceneView.lastActiveSceneView;
+
+            if (!Application.isPlaying && scene != null && scene.camera != null && root != null)
+            {
+                root.forward = scene.camera.transform.forward;
+            }
+#endif
+        }
+
+        /// <summary>저장될 것들 틈에 끼어들지 않게 표시한다.</summary>
+        private static void MarkNotSaved(GameObject go)
+        {
+            foreach (Transform t in go.GetComponentsInChildren<Transform>(includeInactive: true))
+            {
+                t.gameObject.hideFlags = HideFlags.DontSave;
             }
         }
 
@@ -197,6 +305,74 @@ namespace UnderTheSea.Network
             }
         }
 
+        /// <summary>
+        /// 인스펙터에서 숫자를 바꾸면 바로 반영한다.
+        ///
+        /// 말풍선은 코드로 만들어지므로 Scene 뷰에는 아무것도 안 보인다. 그래서 크기를
+        /// 맞추려면 Play 를 눌러 한 마디 쳐 보는 수밖에 없는데, 그때 값이 안 먹으면
+        /// 껐다 켜기를 계속해야 한다. 여기서 받아 주면 실행 중에 숫자만 돌려 가며 맞출 수 있다.
+        /// </summary>
+        private void OnValidate()
+        {
+            if (Application.isPlaying)
+            {
+                ApplySize();
+            }
+        }
+
+        /// <summary>크기와 관련된 값을 만들어 둔 부품에 다시 먹인다.</summary>
+        private void ApplySize()
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            root.localScale = Vector3.one * scale;
+            root.localPosition = new Vector3(0f, height, 0f);
+
+            Transform back = bubble != null ? bubble.Find("Background") : null;
+
+            if (back != null)
+            {
+                var image = back.GetComponent<Image>();
+
+                if (image != null)
+                {
+                    image.pixelsPerUnitMultiplier = bodyBorderShrink;
+                }
+            }
+
+            if (label != null)
+            {
+                label.fontSize = fontSize;
+            }
+
+            if (namePlate != null)
+            {
+                var plateImage = namePlate.Find("Background").GetComponent<Image>();
+
+                if (plateImage != null)
+                {
+                    plateImage.pixelsPerUnitMultiplier = plateBorderShrink;
+                }
+            }
+
+            if (nameLabel != null)
+            {
+                nameLabel.fontSize = nameFontSize;
+            }
+
+            Transform tail = bubble != null ? bubble.Find("Tail") : null;
+
+            if (tail != null)
+            {
+                var tailRect = (RectTransform)tail;
+                tailRect.sizeDelta = tailSize;
+                tailRect.anchoredPosition = new Vector2(0f, tailOverlap);
+            }
+        }
+
         private void Build()
         {
             // 월드에 놓는 캔버스. 100 단위 = 1m 이 되게 줄여 둔다.
@@ -223,7 +399,11 @@ namespace UnderTheSea.Network
 
         private void BuildBubble()
         {
-            var box = new GameObject("Bubble", typeof(RectTransform), typeof(Image),
+            // ⚠ 판 자체에는 Image 를 붙이지 않는다. Image 도 레이아웃 부품이라,
+            //    붙여 두면 **그림의 원본 크기**를 "이만큼은 있어야 한다" 고 주장한다.
+            //    그러면 글자가 한 자여도 판이 그림만 해진다.
+            //    바탕은 따로 깔고 레이아웃에서 빼 둔다.
+            var box = new GameObject("Bubble", typeof(RectTransform),
                 typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             bubble = (RectTransform)box.transform;
             bubble.SetParent(root, false);
@@ -235,10 +415,22 @@ namespace UnderTheSea.Network
             bubble.pivot = new Vector2(0.5f, 0f);
             bubble.anchoredPosition = Vector2.zero;
 
-            var image = box.GetComponent<Image>();
+            // 바탕. 판 전체에 깔리되 크기에는 참견하지 않는다.
+            var back = new GameObject("Background", typeof(RectTransform), typeof(Image));
+            var backRect = (RectTransform)back.transform;
+            backRect.SetParent(bubble, false);
+            backRect.anchorMin = Vector2.zero;
+            backRect.anchorMax = Vector2.one;
+            backRect.offsetMin = Vector2.zero;
+            backRect.offsetMax = Vector2.zero;
+
+            var image = back.GetComponent<Image>();
             image.sprite = bodySprite;
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = bodyBorderShrink;
             image.raycastTarget = false;
+
+            IgnoreLayout(back);
 
             var layout = box.GetComponent<VerticalLayoutGroup>();
             layout.padding = new RectOffset(26, 26, 16, 16);
@@ -261,14 +453,10 @@ namespace UnderTheSea.Network
             label.raycastTarget = false;
             label.text = string.Empty;
 
-            // ⚠ 최대 너비를 여기서 건다. 이것이 없으면 긴 말이 한 줄로 쭉 늘어나
-            //    화면을 가로지른다. 짧은 말은 이 값과 상관없이 글자만큼만 차지한다.
-            var element = text.AddComponent<LayoutElement>();
-            element.preferredWidth = -1f;
-            element.flexibleWidth = 0f;
-
-            var textRect = (RectTransform)text.transform;
-            textRect.sizeDelta = new Vector2(maxWidth, 0f);
+            // 최대 너비는 <see cref="Show"/> 가 띄울 때마다 여기에 건다.
+            // 글 길이를 봐야 정할 수 있어서 만들 때는 비워 둔다.
+            textElement = text.AddComponent<LayoutElement>();
+            textElement.flexibleWidth = 0f;
         }
 
         private void BuildTail()
@@ -288,18 +476,19 @@ namespace UnderTheSea.Network
             rect.pivot = new Vector2(0.5f, 1f);
             rect.sizeDelta = tailSize;
 
-            // 2px 겹쳐 올린다. 딱 붙이면 테두리 선이 한 줄 비쳐 보인다.
-            rect.anchoredPosition = new Vector2(0f, 2f);
+            rect.anchoredPosition = new Vector2(0f, tailOverlap);
 
             var image = tail.GetComponent<Image>();
             image.sprite = tailSprite;
             image.type = Image.Type.Simple;
             image.raycastTarget = false;
+
+            IgnoreLayout(tail);
         }
 
         private void BuildNamePlate()
         {
-            var plate = new GameObject("NamePlate", typeof(RectTransform), typeof(Image),
+            var plate = new GameObject("NamePlate", typeof(RectTransform),
                 typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter));
             namePlate = (RectTransform)plate.transform;
             namePlate.SetParent(bubble, false);
@@ -310,13 +499,28 @@ namespace UnderTheSea.Network
             namePlate.pivot = new Vector2(0.5f, 0f);
             namePlate.anchoredPosition = new Vector2(0f, -6f);
 
-            var image = plate.GetComponent<Image>();
+            // ⚠ 말풍선과 같은 이유로 바탕을 자식으로 내린다. 같은 칸에 Image 를 붙이면
+            //    그림 원본 크기가 "이만큼은 있어야 한다" 고 주장해서 이름표가 두꺼워진다.
+            var back = new GameObject("Background", typeof(RectTransform), typeof(Image));
+            var backRect = (RectTransform)back.transform;
+            backRect.SetParent(namePlate, false);
+            backRect.anchorMin = Vector2.zero;
+            backRect.anchorMax = Vector2.one;
+            backRect.offsetMin = Vector2.zero;
+            backRect.offsetMax = Vector2.zero;
+
+            var image = back.GetComponent<Image>();
             image.sprite = namePlateSprite;
             image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = plateBorderShrink;
             image.raycastTarget = false;
 
+            IgnoreLayout(back);
+
             var layout = plate.GetComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(18, 18, 4, 4);
+
+            // 납작한 알약으로. 위아래를 거의 안 띄운다.
+            layout.padding = new RectOffset(16, 16, 1, 1);
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
@@ -336,7 +540,25 @@ namespace UnderTheSea.Network
             nameLabel.raycastTarget = false;
             nameLabel.text = string.Empty;
 
+            IgnoreLayout(plate);
+
             namePlate.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 부모의 레이아웃 계산에서 빼 둔다.
+        ///
+        /// ⚠ <b>앵커로 붙였다고 레이아웃 밖에 있는 것이 아니다.</b> 레이아웃 그룹은
+        ///    자식의 앵커를 제 마음대로 덮어쓰고, 자식이 "이만큼은 있어야 한다" 고
+        ///    주장하는 크기까지 합산한다.
+        ///
+        ///    실제로 꼬리 그림의 원본 크기(656x420)가 그대로 더해져서, 글자가 한 자인
+        ///    말풍선이 708x570 짜리 판으로 떴다. 이 한 줄이 그것을 막는다.
+        /// </summary>
+        private static void IgnoreLayout(GameObject go)
+        {
+            var element = go.AddComponent<LayoutElement>();
+            element.ignoreLayout = true;
         }
     }
 }
