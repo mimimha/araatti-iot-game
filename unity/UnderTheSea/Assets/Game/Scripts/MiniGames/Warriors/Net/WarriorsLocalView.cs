@@ -90,13 +90,16 @@ namespace Warriors.Net
 
             float waited = 0f;
 
-            while (appearance != null && !appearance.AppearanceReady && waited < GiveUpAfterSeconds)
+            // ⚠ 사라지는 중인 캐릭터의 [Networked] 값을 읽으면 터진다. 판이 끝나 Despawn 되는
+            //    프레임에 걸릴 수 있다. 그때는 기다릴 이유도 없으므로 빠져나온다.
+            //    (같은 사고를 ShipCoopPortrait 에서 실제로 겪었다)
+            while (Alive(appearance) && !appearance.AppearanceReady && waited < GiveUpAfterSeconds)
             {
                 waited += Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            if (appearance != null && !appearance.AppearanceReady)
+            if (Alive(appearance) && !appearance.AppearanceReady)
             {
                 Debug.LogWarning(
                     $"[WarriorsLocalView] 외형이 {GiveUpAfterSeconds:0}초 안에 오지 않아 그대로 화면을 넘깁니다.", this);
@@ -113,6 +116,10 @@ namespace Warriors.Net
 
         /// <summary>외형을 이만큼 기다려도 안 오면 포기하고 넘긴다. (초)</summary>
         private const float GiveUpAfterSeconds = 15f;
+
+        /// <summary>아직 살아 있어 <c>[Networked]</c> 값을 읽어도 되는가.</summary>
+        private static bool Alive(NetworkBehaviour one)
+            => one != null && one.Object != null && one.Object.IsValid;
 
         /// <summary>
         /// 서버가 내 캐릭터를 순간이동시켰으면(2 · 3페이즈 자리 배치) 카메라도 같이 뛴다.
