@@ -179,6 +179,112 @@ namespace Warriors
 
             tentacleDeformer?.PlayHit(tentacle);
             StartCoroutine(TentacleHitReaction(tentacle, direction));
+
+            // **물보라.** 촉수는 이미 휘청이는데(TentacleHitReaction) 맞은 자리에서 아무것도
+            // 튀지 않아 "닿았다" 가 아니라 "흔들렸다" 로 읽혔다. 바다 보스이므로 물이 튄다.
+            SpawnTentacleSplash(TentacleImpactPoint(tentacle.transform));
+        }
+
+        /// <summary>
+        /// 촉수에서 **타격 연출이 터져야 하는 자리**. 방향 표식(↔ ↕ ⊙)이 붙은 지점이다.
+        ///
+        /// ⚠ <c>tentacle.transform.position</c> 을 그대로 쓰면 안 된다. 그 자리는 촉수의 <b>뿌리</b>다.
+        ///    프리팹 실측으로 표식(<c>IndicatorAnchor</c>)은 거기서 로컬 y <b>+2.65</b>, z <b>-0.82</b> 위에 있다.
+        ///    플레이어는 표식을 보고 그 방향으로 휘두르는데 물보라만 2m 아래 물가에서 터져
+        ///    <b>맞은 곳과 터지는 곳이 따로 놀았다.</b>
+        ///
+        /// 표식이 없는 촉수면 뿌리에서 조금 띄운 예전 자리로 되돌아간다.
+        /// </summary>
+        private static Vector3 TentacleImpactPoint(Transform arm)
+        {
+            if (arm == null) return Vector3.zero;
+
+            SpriteRenderer mark = arm.GetComponentInChildren<SpriteRenderer>(true);
+            return mark != null ? mark.transform.position : arm.position + Vector3.up * .5f;
+        }
+
+        /// <summary>
+        /// **촉수가 잘리는 순간.** 뒤로 크게 젖혀지며 아래로 빠진다.
+        ///
+        /// 그냥 <c>ShowDefeated</c> 로 사라지면 잘린 순간이 화면에 남지 않는다.
+        /// 짧게라도 물리적으로 반응해야 "내가 잘랐다" 가 읽힌다.
+        /// </summary>
+        public void PlayTentacleCut(WarriorsTarget tentacle)
+        {
+            if (tentacle == null || !isActiveAndEnabled) return;
+
+            // ⚠ **크게 젖히지 않는다.** 한때 여기서 촉수를 58도 젖히고 0.9m 아래로 내렸는데,
+            //    화면에서 지나치게 요란해 "잘랐다" 가 아니라 "뭔가 크게 움직였다" 로 보였다.
+            //    잘린 표시는 <b>방향 표식이 터지는 것</b>으로 충분하다.
+            StartCoroutine(TentacleIndicatorBurst(tentacle.transform));
+        }
+
+        /// <summary>
+        /// 잘린 촉수의 **방향 표식(↔ ↕ ⊙)만** 짧게 터뜨린다.
+        ///
+        /// 팔 자체는 <c>ShowDefeated</c> 가 처리한다. 여기서는 표식을 1.6배로 키우며
+        /// 지우기만 한다 — 0.18초 안에 끝나고 화면에 남지 않는다.
+        /// </summary>
+        private IEnumerator TentacleIndicatorBurst(Transform arm)
+        {
+            if (arm == null) yield break;
+
+            // 표식은 촉수 밑에 붙은 스프라이트다. 있으면 키우고, 없으면 조용히 끝낸다.
+            SpriteRenderer mark = arm.GetComponentInChildren<SpriteRenderer>(true);
+            if (mark == null) yield break;
+
+            Transform markRoot = mark.transform;
+            Vector3 rest = markRoot.localScale;
+            Color tone = mark.color;
+
+            const float Duration = .18f;
+
+            for (float elapsed = 0f; elapsed < Duration && markRoot != null; elapsed += Time.deltaTime)
+            {
+                float k = elapsed / Duration;
+
+                markRoot.localScale = rest * Mathf.Lerp(1f, 1.6f, k);
+                mark.color = new Color(tone.r, tone.g, tone.b, tone.a * (1f - k));
+                yield return null;
+            }
+
+            if (markRoot != null) markRoot.localScale = rest;
+            if (mark != null) mark.color = tone;
+        }
+
+        /// <summary>촉수가 맞은 자리에서 튀는 물보라. 프리팹 없이 코드로 만든다.</summary>
+        private static void SpawnTentacleSplash(Vector3 position)
+        {
+            // ⚠ 여기서 다시 올리지 않는다. 부르는 쪽이 이미 "터져야 하는 자리"를 넘긴다
+            //    (TentacleImpactPoint). 예전에는 촉수 뿌리를 받아 여기서 0.5m 띄웠는데,
+            //    그 보정이 남아 있으면 표식보다 위에서 터진다.
+            GameObject splash = new GameObject("TentacleSplash");
+            splash.transform.position = position;
+
+            ParticleSystem particles = splash.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = .16f;
+            main.loop = false;
+            main.startLifetime = .38f;
+            main.startSpeed = 4.2f;
+            main.startSize = .16f;
+            main.startColor = new Color(.62f, .88f, 1f, .95f);
+            main.gravityModifier = 1.1f;          // 물이라 떨어진다
+            main.maxParticles = 22;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 16) });
+
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 42f;
+            shape.radius = .2f;
+
+            particles.Play();
         }
 
         private WarriorsHealth playerHealth;
@@ -591,16 +697,34 @@ namespace Warriors
             // the same as one. Every value here is the same shake, just louder, and the whole
             // thing still restores to the captured pose below - so repeated finishers cannot
             // walk the kraken out of position.
-            float duration = strong ? .38f : .16f;
-            float jolt = strong ? .26f : .12f;
-            float twist = strong ? 11f : 5f;
-            float squash = strong ? .16f : .07f;
+            // **한 대도 눈에 보여야 한다.** 예전 값(jolt .12 · twist 5°)은 화면에서 거의
+            // 정지한 그림처럼 보였다. 흔들림만으로는 "맞았다" 가 아니라 "떨었다" 로 읽히므로
+            // 뒤로 밀리는 성분(아래 pushBack)을 같이 준다.
+            float duration = strong ? .42f : .24f;
+            float jolt = strong ? .30f : .18f;
+            float twist = strong ? 14f : 9f;
+            float squash = strong ? .18f : .10f;
+            float pushBack = strong ? .34f : .18f;
             for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
             {
                 float fade = 1f - elapsed / duration;
-                body.localPosition = originalPosition + UnityEngine.Random.insideUnitSphere * (jolt * fade)
+
+                // 앞의 1/3 동안 뒤로 밀렸다가 돌아온다. 흔들림(jolt)에만 기대면
+                // 자리가 바뀌지 않아 "맞았다" 로 읽히지 않는다.
+                float k = elapsed / duration;
+                float push = k < .33f ? k / .33f : 1f - (k - .33f) / .67f;
+
+                body.localPosition = originalPosition
+                    + Vector3.forward * (pushBack * Mathf.SmoothStep(0f, 1f, push))
+                    + UnityEngine.Random.insideUnitSphere * (jolt * fade)
                     + Vector3.up * (strong ? -.12f * fade : 0f);
-                body.localRotation = originalRotation * Quaternion.Euler(0f, 0f, Mathf.Sin(elapsed * 75f) * twist * fade);
+
+                // 머리가 젖혀지는 성분(X)을 더한다. Z 흔들림만 있으면 갸우뚱하는 것처럼 보인다.
+                body.localRotation = originalRotation
+                    * Quaternion.Euler(-twist * .8f * Mathf.SmoothStep(0f, 1f, push),
+                                       0f,
+                                       Mathf.Sin(elapsed * 75f) * twist * fade);
+
                 body.localScale = originalScale * (1f - squash * fade);
                 yield return null;
             }

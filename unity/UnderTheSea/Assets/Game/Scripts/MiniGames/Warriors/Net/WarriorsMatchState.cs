@@ -76,7 +76,7 @@ namespace Warriors.Net
         /// <b>플레이 시간</b>이 비슷해지도록 맞춘다. 사람이 늘면 화면의 몬스터도 함께 늘어난다.
         /// </summary>
         [Tooltip("사람이 한 명 늘 때마다 1페이즈 목표에 더할 처치 수. 2인이면 기본값 + 이 값.")]
-        [SerializeField, Min(0)] private int phase1KillsPerExtraPlayer = 8;
+        [SerializeField, Min(0)] private int phase1KillsPerExtraPlayer = 14;
 
         [Tooltip("2페이즈: 팀 합산 촉수 성공 횟수.")]
         [SerializeField, Min(1)] private int phase2TargetTentacleHits = 15;
@@ -92,17 +92,48 @@ namespace Warriors.Net
         ///
         /// 한 바퀴(묶음 8개)가 약 39초, 레인당 18노트다. 성공률 75% 로 잡으면
         /// 한 사람당 20 이 대략 한 바퀴 반 — 1인도 2인도 55~60초가 된다.
+        ///
+        /// ⚠ 그 55~60초가 <b>길다</b>는 지적을 받아 20 → 16 으로 내렸다. 목표는
+        ///   잘하면 30~40초 · 평균 40~50초다. 같은 계산으로 16 이면 약 44~48초다.
         /// </summary>
         [Tooltip("3페이즈: 한 사람 몫의 리듬 성공 횟수. 실제 목표는 이 값 × 인원이다.")]
-        [SerializeField, Min(1)] private int phase3TargetRhythmHits = 20;
+        [SerializeField, Min(1)] private int phase3TargetRhythmHits = 16;
 
         [Header("제한 시간 — 판 전체에 하나. 원본 WarriorsBattleScore 의 3분 시계와 같다")]
         [Tooltip("판 전체 제한 시간(초). 1페이즈 시작에 걸고 세 페이즈를 통틀어 센다. 다 쓰면 TIME OVER 로 실패한다.")]
-        [SerializeField, Min(30f)] private float matchSeconds = 180f;
+        [SerializeField, Min(30f)] private float matchSeconds = 240f;
 
-        [Tooltip("라운드가 바뀔 때 소개 화면을 보여 주며 게임을 붙잡아 두는 시간(초). " +
-                 "이 동안 몬스터 · 촉수 · 노트가 나오지 않고 시계도 멈춘다. HUD 의 라운드 소개 시간과 맞춘다.")]
-        [SerializeField, Min(0f)] private float roundIntroSeconds = 3f;
+        /// <summary>
+        /// 라운드 전환 전체 길이(초). 이 동안 몬스터 · 촉수 · 노트가 나오지 않고 시계도 멈춘다.
+        ///
+        /// <b>안에서 세 토막으로 나뉜다.</b> 예전에는 종료 문구와 다음 라운드 소개가
+        /// 각자 타이머로 돌아 <b>같은 순간에 같이 떴다</b> — "해변 방어 성공!" 과
+        /// "크라켄이 모습을 드러냈습니다!" 가 겹쳐 보였다.
+        /// 이제 서버가 전환 시작 시각 하나를 들고, 화면은 그 경과로 무엇을 띄울지 정한다.
+        ///
+        /// <code>
+        ///   0.0 ~ 1.4초   <b>앞 라운드 무대</b>에서 종료 문구 ("해변 방어 성공!")
+        ///   1.4 ~ 1.9초   빈 화면 — 여운
+        ///   1.9초         여기서 <b>무대가 바뀐다</b> (Phase 전환)
+        ///   1.9 ~ 4.3초   새 무대에서 다음 라운드 소개
+        ///   4.3초         게임 시작
+        /// </code>
+        ///
+        /// ⚠ 순서가 핵심이다. 예전에는 목표를 채운 프레임에 곧바로 다음 페이즈로 넘어가
+        ///   <b>이미 바뀐 무대 위에서</b> 종료 문구가 떴다. "클리어 → 다음 장소 → 설명" 이라
+        ///   원인과 결과가 뒤집혀 보였다. 지금은 "클리어 → 성공 피드백 → 전환 → 새 무대 → 설명" 이다.
+        /// </summary>
+        [Tooltip("새 무대에서 라운드 소개를 보여 주는 시간(초). 종료 문구와 여백은 포함하지 않는다.")]
+        [SerializeField, Min(0f)] private float roundIntroSeconds = 2.4f;
+
+        [Tooltip("앞 라운드 무대에서 종료 문구('해변 방어 성공!')를 보여 주는 시간(초).")]
+        [SerializeField, Min(0f)] private float clearNoticeSeconds = 1.4f;
+
+        [Tooltip("종료 문구가 사라진 뒤 무대가 바뀌기까지의 빈 시간(초). 여운을 준다.")]
+        [SerializeField, Min(0f)] private float transitionGapSeconds = .5f;
+
+        [Tooltip("크라켄을 쓰러뜨린 뒤 결과 화면까지 천천히 어두워지는 시간(초). 라운드 사이보다 길다.")]
+        [SerializeField, Min(0f)] private float finaleFadeSeconds = 1.6f;
 
         [Header("점수 — 밸런스 미확정 (WARRIORS.md 4장)")]
         [Tooltip("1페이즈 몬스터 한 마리.")]
@@ -165,6 +196,9 @@ namespace Warriors.Net
         /// <summary>1페이즈 시작부터 흐른 시간(초). 결과 화면의 "플레이 시간".</summary>
         [Networked] public float Elapsed { get; private set; }
 
+        /// <summary>이 판의 난수 시드. 서버가 정하고 로그로 남겨 재현할 수 있게 한다.</summary>
+        [Networked] public int RunSeed { get; private set; }
+
         /// <summary>팀 점수. 처치 · 촉수 · 리듬 · 콤보 피니시로 오른다.</summary>
         [Networked] public int Score { get; private set; }
 
@@ -185,6 +219,31 @@ namespace Warriors.Net
         /// 예전에는 페이즈가 바뀌는 즉시 다음 라운드가 쏟아져 전환이 갑작스러웠다.
         /// </summary>
         [Networked] public TickTimer IntroTimer { get; private set; }
+
+        /// <summary>
+        /// **앞 라운드를 깬 직후, 무대를 그대로 둔 채 종료 문구를 보여 주는 구간.**
+        ///
+        /// 이 구간 동안 <see cref="Phase"/> 는 아직 <b>깬 라운드</b>다. 그래야 카메라도 배경도
+        /// 그 자리에 남아, 사람이 "내가 이걸 끝냈다" 를 먼저 본다.
+        /// </summary>
+        [Networked] public TickTimer ClearHoldTimer { get; private set; }
+
+        /// <summary>종료 문구 구간이 끝나면 넘어갈 페이즈. 0 이면 대기 중인 전환이 없다.</summary>
+        [Networked] public int PendingPhase { get; private set; }
+
+        /// <summary>방금 깬 라운드 번호. 종료 문구를 고르는 데 쓴다.</summary>
+        [Networked] public int ClearedRound { get; private set; }
+
+        /// <summary>
+        /// 이번 종료 문구 구간의 전체 길이(초).
+        ///
+        /// 라운드 사이와 판 마지막이 서로 다르다 — 마지막은 천천히 어두워지므로 더 길다.
+        /// 화면은 이 값을 경계로 "문구 구간" 과 "어두워지는 구간" 을 나눈다.
+        /// </summary>
+        [Networked] public float ClearHoldSeconds { get; private set; }
+
+        /// <summary>지금 종료 문구 구간인가. 이 동안에는 앞 라운드 무대가 그대로 있다.</summary>
+        public bool InClearHold => ClearHoldTimer.IsRunning && !ClearHoldTimer.Expired(Runner);
 
         /// <summary>지금 라운드 소개 화면 시간인가. 모든 PC 에서 같은 답이 나온다.</summary>
         public bool InIntro => IntroTimer.IsRunning && !IntroTimer.Expired(Runner);
@@ -224,6 +283,21 @@ namespace Warriors.Net
             {
                 WarriorsMatchState current = Current;
                 return current != null && current.Object != null && current.Object.IsValid && current.IsPaused;
+            }
+        }
+
+        /// <summary>
+        /// 지금 판의 경과 시간. 매치가 없으면 0.
+        ///
+        /// 구조 시간처럼 <b>매치 시계를 기준으로 재야 하는</b> 값들이 쓴다.
+        /// <c>Time.time</c> 을 쓰면 일시정지 중에도 흘러 구조 시간이 그냥 지나간다.
+        /// </summary>
+        public static float ElapsedNow
+        {
+            get
+            {
+                WarriorsMatchState current = Current;
+                return current != null && current.Object != null && current.Object.IsValid ? current.Elapsed : 0f;
             }
         }
 
@@ -324,6 +398,13 @@ namespace Warriors.Net
             Phase = WarriorsMatchPhase.Waiting;
             Countdown = 0f;
             IntroTimer = TickTimer.None;
+
+            // 전환 중에 판이 끝났을 수 있다. 남겨 두면 다시 시작하자마자 종료 문구가 뜬다.
+            ClearHoldTimer = TickTimer.None;
+            PendingPhase = 0;
+            ClearedRound = 0;
+            ClearHoldSeconds = 0f;
+
             TimeLeft = 0f;
             Elapsed = 0f;
             Score = 0;
@@ -406,6 +487,8 @@ namespace Warriors.Net
 
             if (Phase1Kills < Phase1Target) return;
 
+            WarriorsTelemetry.RoundEnded(1);
+            WarriorsTelemetry.RoundStarted(2);
             EnterPhase(WarriorsMatchPhase.Phase2);
             Debug.Log($"[WarriorsMatch] 1페이즈 목표 달성 ({Phase1Kills}/{Phase1Target}). 2페이즈로 넘어갑니다. (경과 {Elapsed:F1}초)");
         }
@@ -416,6 +499,13 @@ namespace Warriors.Net
             if (!HasStateAuthority || points <= 0) return;
             Score += points;
         }
+
+        // ------------------------------------------------------------
+        // 협동 게이지 — 두 사람이 **번갈아** 맞혀야 찬다
+        // ------------------------------------------------------------
+
+        // ⚠ **협동 게이지와 팀 강화는 삭제했다.** 번갈아 맞히면 차는 게이지였는데,
+        //    규칙에서 빠졌다. 되살리지 마라.
 
         /// <summary>
         /// 촉수 하나를 잘랐다. **서버만 부른다.**
@@ -453,22 +543,112 @@ namespace Warriors.Net
 
             if (Phase3Hits < Phase3Target) return;
 
-            Phase = WarriorsMatchPhase.Cleared;
+            // ⚠ **합동 결정타는 없다.** 한때 목표를 채운 뒤 "둘이 함께 치는 한 방" 을 더 요구했는데,
+            //    크라켄 체력이 이미 0 인데도 판이 끝나지 않고 결정타를 기다리며 멈춰 있었다.
+            //    목표를 채우면 그대로 클리어다.
+            ClearMatch();
+        }
+
+        /// <summary>
+        /// 크라켄을 쓰러뜨렸다. **곧바로 결과 화면을 띄우지 않는다.**
+        ///
+        /// ⚠ 예전에는 여기서 바로 <c>Phase = Cleared</c> 였다. 마지막 타격이 들어간 프레임에
+        ///   결과 카드가 튀어나와, 이긴 순간을 볼 틈도 없이 화면이 바뀌었다.
+        ///   라운드 전환과 같은 방식으로 <b>크라켄을 앞에 둔 채</b> 승리 문구를 먼저 보여 주고,
+        ///   천천히 어두워진 뒤에 결과로 넘어간다.
+        ///
+        /// 어두워지는 시간은 라운드 사이보다 길다(<see cref="finaleFadeSeconds"/>) — 판이 끝나는
+        /// 자리라 다음 라운드로 넘어갈 때처럼 서둘 이유가 없다.
+        /// </summary>
+        private void ClearMatch()
+        {
+            if (Phase == WarriorsMatchPhase.Cleared || PendingPhase != 0) return;
+
             TimeLeft = 0f;
-            Debug.Log($"[WarriorsMatch] 3페이즈 목표 달성 ({Phase3Hits}/{Phase3Target}). 전체 클리어입니다. 점수 {Score} (경과 {Elapsed:F1}초)");
+
+            PendingPhase = (int)WarriorsMatchPhase.Cleared;
+            ClearedRound = 3;
+            ClearHoldSeconds = clearNoticeSeconds + finaleFadeSeconds;
+            ClearHoldTimer = TickTimer.CreateFromSeconds(Runner, ClearHoldSeconds);
+
+            Debug.Log(
+                $"[WarriorsMatch] 크라켄을 쓰러뜨렸습니다. {ClearHoldSeconds:F1}초 뒤 결과 화면으로 넘어갑니다.");
+        }
+
+        /// <summary>승리 연출이 끝났다. 여기서 실제로 판을 닫는다.</summary>
+        private void FinishCleared()
+        {
+            TimeLeft = 0f;
+
+            WarriorsTelemetry.RoundEnded(3);
+            WarriorsTelemetry.MatchEnded(true, Score);
+
+            Debug.Log($"[WarriorsMatch] 전체 클리어입니다. 점수 {Score} (경과 {Elapsed:F1}초)");
         }
 
         /// <summary>
         /// 페이즈를 넘긴다. 도달 라운드를 기록하고 라운드 소개 시간을 건다.
         /// 시계는 건드리지 않는다 — 판 전체에 하나뿐이고 1페이즈 시작에 한 번만 건다.
+        ///
+        /// ⚠ **바로 넘기지 않는다.** 앞 라운드를 깬 순간에 <c>Phase</c> 를 바꾸면
+        ///   <see cref="MovementLocked"/> 가 같은 프레임에 참이 되고, <c>WarriorsLocalView</c> 가
+        ///   그 프레임에 카메라를 아레나 고정 구도로 옮긴다. 그래서 <b>"해변 방어 성공!" 이
+        ///   이미 바뀐 크라켄 무대 위에서</b> 떴다 — 사람은 "내가 뭘 끝냈지" 보다
+        ///   "왜 갑자기 화면이 바뀌었지" 를 먼저 느낀다.
+        ///
+        ///   지금은 앞 라운드를 붙잡아 둔 채 종료 문구를 먼저 보여 주고
+        ///   (<see cref="ClearHoldTimer"/>), 그 다음에 무대를 옮기며 소개를 띄운다.
         /// </summary>
         private void EnterPhase(WarriorsMatchPhase next)
         {
+            // 판이 막 열리는 첫 페이즈는 깬 라운드가 없으므로 붙잡을 것도 없다.
+            if (Phase == WarriorsMatchPhase.Waiting || Phase == WarriorsMatchPhase.Countdown)
+            {
+                OpenPhase(next);
+                return;
+            }
+
+            PendingPhase = (int)next;
+            ClearedRound = RoundOf(Phase);
+            ClearHoldSeconds = clearNoticeSeconds + transitionGapSeconds;
+
+            ClearHoldTimer = ClearHoldSeconds > 0f
+                ? TickTimer.CreateFromSeconds(Runner, ClearHoldSeconds)
+                : TickTimer.None;
+
+            if (ClearHoldTimer.Equals(TickTimer.None)) OpenPhase(next);
+        }
+
+        /// <summary>실제로 무대를 바꾼다. 종료 문구가 끝난 뒤에만 불린다.</summary>
+        private void OpenPhase(WarriorsMatchPhase next)
+        {
             Phase = next;
+            PendingPhase = 0;
+            ClearHoldTimer = TickTimer.None;
+
+            // 판이 끝나는 자리는 다음 라운드 소개가 없다. 결과 화면이 바로 이어진다.
+            if (next == WarriorsMatchPhase.Cleared)
+            {
+                IntroTimer = TickTimer.None;
+                FinishCleared();
+                return;
+            }
+
             ReachedRound = Mathf.Max(ReachedRound, RoundOf(next));
             IntroTimer = roundIntroSeconds > 0f
                 ? TickTimer.CreateFromSeconds(Runner, roundIntroSeconds)
                 : TickTimer.None;
+        }
+
+        /// <summary>
+        /// 종료 문구 구간이 끝났으면 그때 무대를 옮긴다. 서버 틱에서 부른다.
+        /// </summary>
+        private void AdvancePendingPhase()
+        {
+            if (PendingPhase == 0) return;
+            if (InClearHold) return;
+
+            OpenPhase((WarriorsMatchPhase)PendingPhase);
         }
 
         /// <summary>매치 실패. <paramref name="reason"/> 1 모두 쓰러짐 · 2 시간 초과.</summary>
@@ -478,6 +658,10 @@ namespace Warriors.Net
             FailReason = reason;
             Countdown = 0f;
             TimeLeft = 0f;
+
+            // 진 판에서도 성적은 남긴다. 어디서 무너졌는지는 이긴 판보다 진 판이 더 잘 보여 준다.
+            WarriorsTelemetry.RoundEnded(Mathf.Max(1, ReachedRound));
+            WarriorsTelemetry.MatchEnded(false, Score);
         }
 
         /// <summary>페이즈를 사람이 보는 라운드 번호로. 대기 · 결과는 0.</summary>
@@ -509,7 +693,9 @@ namespace Warriors.Net
             if (IsPaused) return;
 
             // 두 명 모두 쓰러지면 거기서 끝이다. 시작 전이면 아직 아무도 없으므로 지나간다.
-            if (HasStarted && EveryoneDown())
+            // ⚠ **이미 이긴 판은 뒤집히지 않는다.** 크라켄을 쓰러뜨린 뒤 승리 연출이 도는 동안
+            //    남은 촉수 공격에 둘 다 쓰러지면 이겼다가 지는 일이 생긴다.
+            if (HasStarted && PendingPhase != (int)WarriorsMatchPhase.Cleared && EveryoneDown())
             {
                 Fail(1);
                 Debug.Log($"[WarriorsMatch] 두 명 모두 쓰러졌습니다. 매치 실패. (경과 {Elapsed:F1}초)");
@@ -521,6 +707,9 @@ namespace Warriors.Net
                 UpdateStartGate();
                 return;
             }
+
+            // 종료 문구 구간이 끝났으면 여기서 무대를 옮긴다.
+            AdvancePendingPhase();
 
             RunClock();
         }
@@ -534,7 +723,8 @@ namespace Warriors.Net
         private void RunClock()
         {
             // 라운드 소개 화면이 떠 있는 동안은 시계도 쉰다. 3초를 읽는 동안 시간이 새면 억울하다.
-            if (InIntro) return;
+            // 종료 문구 구간도 마찬가지다 — 이미 깬 라운드를 보고 있는데 시간이 흐르면 안 된다.
+            if (InIntro || InClearHold) return;
 
             Elapsed += Runner.DeltaTime;
             TimeLeft -= Runner.DeltaTime;
@@ -585,6 +775,20 @@ namespace Warriors.Net
             Elapsed = 0f;
             TimeLeft = matchSeconds;
 
+            // **이 판의 난수 시드를 새로 정한다. 서버가 정한다.**
+            //
+            // ⚠ 네트워크 판에서는 <c>WarriorsRun.BeginRun</c> 을 아무도 부르지 않았다.
+            //    그것을 부르는 <c>WarriorsSceneBootstrap</c> 은 혼자 하는 씬 전용이라
+            //    <c>WarriorsNet.unity</c> 에도 아레나 프리팹에도 들어 있지 않다(참조 0).
+            //    그래서 난수원이 <c>new System.Random(0)</c> 인 채로 남아,
+            //    <b>서버를 새로 켤 때마다 몬스터 순서·촉수 약점·노트 악보가 똑같았다.</b>
+            //
+            // 판이 시작될 때마다 새 시드를 넣으면 매번 다른 판이 되고,
+            // [다시 하기] 도 지난 판의 수열을 이어받지 않고 깨끗한 새 판에서 출발한다.
+            // 시드는 복제해 두어 로그로 재현할 수 있게 한다.
+            RunSeed = System.Environment.TickCount ^ (Runner.Tick * 397);
+            WarriorsRun.BeginRun(RunSeed);
+
             // 목표는 **시작하는 순간의 인원**으로 정한다. 여기서 한 번만 정하고 판 중간에는 바꾸지 않는다 —
             // 한 명이 빠졌다고 목표가 줄면 남은 사람이 이미 채운 진행도가 뒤로 밀린다.
             Phase1Target = Phase1GoalFor(Crew);
@@ -600,7 +804,10 @@ namespace Warriors.Net
 
             Debug.Log(
                 $"[WarriorsMatch] 카운트다운이 끝났습니다. {RoundOf(opening)}페이즈 시작. " +
-                $"(인원 {Crew}명, 처치 목표 {Phase1Target}, 전체 제한 {matchSeconds:F0}초)");
+                $"(인원 {Crew}명, 처치 목표 {Phase1Target}, 전체 제한 {matchSeconds:F0}초, 시드 {RunSeed})");
+
+            WarriorsTelemetry.MatchStarted(Crew, Phase1Target, Phase2Target, Phase3Target, matchSeconds);
+            WarriorsTelemetry.RoundStarted(1);
         }
 
         /// <summary>
@@ -654,7 +861,100 @@ namespace Warriors.Net
             return phase3TargetRhythmHits * Mathf.Max(1, crew);
         }
 
-        /// <summary>살아 있는 사람이 하나도 없는가.</summary>
+        /// <summary>
+        /// 쓰러진 사람을 알리는 한 문장. 쓰러진 사람이 없으면 빈 문자열이다.
+        ///
+        /// ⚠ **"1P 를 구하세요" 같은 안내는 넣지 않는다.** 구조·부활이 규칙에서 빠졌으므로
+        ///   보는 사람이 할 수 있는 일이 없다. 사실만 짧게 알린다.
+        /// </summary>
+        private string DownNotice()
+        {
+            foreach (WarriorsPlayerLife one in FindObjectsByType<WarriorsPlayerLife>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || !one.IsLive || !one.IsDown) continue;
+
+                return "플레이어가 쓰러졌습니다.";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 2라운드 **마무리 창**을 알리는 한 문장. 열려 있지 않으면 빈 문자열이다.
+        ///
+        /// 창은 서버에만 있고 화면에는 아무 표시도 없었다. 열린 줄 모르면 규칙이 있어도
+        /// 두 사람이 서로 신호를 줄 수 없다.
+        /// </summary>
+        private string FinishWindowNotice()
+        {
+            int lane = LocalLane();
+            if (lane < 0) return string.Empty;
+
+            WarriorsPhase2Director tentacle = WarriorsPhase2Director.Current;
+            if (tentacle != null && tentacle.FinishWindowOpenFor(lane))
+                return "지금! 이어서 베세요";
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 라운드 전환이 시작된 뒤 흐른 시간(초). 전환 중이 아니면 -1.
+        ///
+        /// <c>IntroTimer</c> 하나로 재므로 두 화면이 같은 순간에 같은 구간을 본다.
+        /// </summary>
+        private float TransitionElapsed()
+        {
+            // 구간 길이는 라운드 사이와 판 마지막이 다르다. 걸 때 정한 값을 그대로 쓴다.
+            float gate = ClearHoldSeconds > 0f
+                ? ClearHoldSeconds
+                : clearNoticeSeconds + transitionGapSeconds;
+
+            // 1단계 — 앞 라운드 무대에서 종료 문구를 보여 주는 구간.
+            if (InClearHold)
+            {
+                float? left = ClearHoldTimer.RemainingTime(Runner);
+                return left.HasValue ? Mathf.Max(0f, gate - left.Value) : 0f;
+            }
+
+            // 2단계 — 새 무대에서 소개를 보여 주는 구간. 앞 구간 길이를 더해 이어 붙인다.
+            if (InIntro)
+            {
+                float? left = IntroTimer.RemainingTime(Runner);
+                return left.HasValue ? gate + Mathf.Max(0f, roundIntroSeconds - left.Value) : gate;
+            }
+
+            return -1f;
+        }
+
+        /// <summary>쓰러진 레인을 비트로 모은다. 0번 자리가 1P.</summary>
+        private int DownLaneMask()
+        {
+            int mask = 0;
+
+            foreach (WarriorsPlayerLife one in FindObjectsByType<WarriorsPlayerLife>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || !one.IsLive || !one.IsDown) continue;
+                mask |= 1 << one.PlayerIndex;
+            }
+
+            return mask;
+        }
+
+        /// <summary>이 화면 주인의 레인. 서버에는 없다(-1).</summary>
+        private int LocalLane()
+        {
+            foreach (WarriorsPlayerLife one in FindObjectsByType<WarriorsPlayerLife>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || !one.IsLive || !one.HasInputAuthority) continue;
+                return one.PlayerIndex;
+            }
+
+            return -1;
+        }
+
         private bool EveryoneDown()
         {
             WarriorsPlayerLife[] crew = FindObjectsByType<WarriorsPlayerLife>(
@@ -665,6 +965,7 @@ namespace Warriors.Net
             foreach (WarriorsPlayerLife one in crew)
                 if (one != null && one.IsLive && !one.IsDown) return false;
 
+            // 둘 다 쓰러졌으면 그대로 실패다. 구조를 기다리는 시간 같은 것은 없다.
             return true;
         }
 
@@ -690,6 +991,25 @@ namespace Warriors.Net
             hud.NetworkElapsedSeconds = Elapsed;
             hud.NetworkFinal = Phase == WarriorsMatchPhase.Cleared ? 1 : Phase == WarriorsMatchPhase.Failed ? 2 : 0;
             hud.NetworkFailureLabel = FailureLabel;
+
+            // 쓰러진 사람이 있으면 알린다. 되살릴 방법은 없고 사실만 전한다.
+            hud.NetworkDownNotice = DownNotice();
+            hud.NetworkFinishWindowNotice = FinishWindowNotice();
+
+            // **라운드 전환은 서버 시계 하나로 순서를 정한다.**
+            // 화면이 각자 타이머를 돌리면 종료 문구와 소개가 겹친다. 경과 초만 넘겨 주고
+            // 무엇을 띄울지는 아래 세 구간으로 갈린다. -1 은 전환 중이 아니라는 뜻이다.
+            // 쓰러진 사람의 레인은 트랙도 지운다. 노트가 안 나오는 줄이 그대로 그려져 있으면
+            // "내 줄이 멈췄다" 가 아니라 "노트가 안 오는 버그" 처럼 보인다.
+            hud.NetworkDownLanes = DownLaneMask();
+
+            hud.NetworkTransitionElapsed = TransitionElapsed();
+            hud.NetworkClearSeconds = clearNoticeSeconds;
+            hud.NetworkIntroStartSeconds = ClearHoldSeconds > 0f
+                ? ClearHoldSeconds
+                : clearNoticeSeconds + transitionGapSeconds;
+            hud.NetworkClearedRound = InClearHold ? ClearedRound : 0;
+
         }
 
         /// <summary>상단 가운데 막대의 글. 1페이즈 처치 수 · 2페이즈 촉수 수. 3페이즈는 리듬 화면이 따로 그린다.</summary>
@@ -734,8 +1054,10 @@ namespace Warriors.Net
 
         private string NoticeFor(WarriorsMatchPhase phase)
         {
-            if (IsPaused) return "일시정지";
-
+            // ⚠ **일시정지로 라운드 제목을 덮지 않는다.**
+            //    좌상단 카드는 언제나 "ROUND 3 · 크라켄의 공격 / TIME 01:52" 여야 한다.
+            //    멈췄다는 것은 화면을 덮는 어두운 메뉴가 이미 말하고 있다(WarriorsPauseControl).
+            //    한 텍스트 칸을 라운드·일시정지·쓰러짐이 나눠 쓰면 의미가 섞인다.
             switch (phase)
             {
                 case WarriorsMatchPhase.Waiting:
@@ -770,8 +1092,10 @@ namespace Warriors.Net
         /// </summary>
         private string DetailFor(WarriorsMatchPhase phase)
         {
-            if (IsPaused) return PausedBy > 0 ? $"{PausedBy}P 가 멈췄습니다" : "게임을 멈췄습니다";
-
+            // ⚠ **TIME 칸에 사람 상태를 넣지 않는다.** 여기는 시계 자리다.
+            //    예전에는 멈추면 "1P 가 멈췄습니다" 가 시계를 덮어써서, 정작 남은 시간을
+            //    볼 수 없는 데다 ROUND/TIME 카드가 상태 알림판처럼 보였다.
+            //    멈춤은 덮개가, 쓰러짐은 캐릭터 자세가 말한다.
             if (phase == WarriorsMatchPhase.Waiting || phase == WarriorsMatchPhase.Countdown)
             {
                 return Clock(matchSeconds);

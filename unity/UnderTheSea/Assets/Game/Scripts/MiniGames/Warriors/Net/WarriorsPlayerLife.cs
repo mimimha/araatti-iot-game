@@ -196,10 +196,19 @@ namespace Warriors.Net
             if (!HasStateAuthority || health == null) return;
 
             // 서버 HP 를 매 틱 실어 보낸다. Down 이어도 0 이 보여야 한다.
+            int before = Hp;
+
             Hp = health.CurrentHealth;
             MaxHp = health.MaxHealth;
 
+            // **받은 피해를 남긴다.** 1라운드에는 피해 로그가 아예 없어서, 맞고 있는지
+            // 안 맞고 있는지 로그만 봐서는 구분할 수 없었다("무적 같다" 의 원인).
+            // 목숨이 줄며 HP 가 다시 찬 경우는 늘어난 것이므로 줄었을 때만 센다.
+            if (before > 0 && Hp < before) WarriorsTelemetry.DamageTaken(PlayerIndex, before - Hp);
+
+            // 한 번 쓰러지면 그 판에서는 끝이다. 더 볼 것이 없다.
             if (IsDown) return;
+
             if (!health.IsDead) return;
 
             Lives = Mathf.Max(0, Lives - 1);
@@ -214,7 +223,18 @@ namespace Warriors.Net
             }
 
             IsDown = true;
+
+            WarriorsTelemetry.Down(PlayerIndex);
             Debug.Log($"[WarriorsLife] {Object.InputAuthority} 쓰러졌습니다. 이 판에서는 다시 일어나지 않습니다.", this);
         }
+
+        // ------------------------------------------------------------
+        // 쓰러짐 — **되살아나지 않는다**
+        // ------------------------------------------------------------
+        //
+        // ⚠ 이 게임에는 부활도 구조도 없다. HP 가 0 이 되면 그 사람의 판은 거기서 끝이다.
+        //   한때 "동료가 12초 안에 표시 공격 3회로 되살린다" 는 구조 시스템이 있었지만
+        //   규칙에서 빠졌다. 되살리는 코드도, "1P 를 살리세요" 같은 안내도 다시 넣지 마라.
+        //   남은 사람은 그대로 계속하고, 둘 다 쓰러지면 실패다.
     }
 }

@@ -62,9 +62,9 @@ namespace Warriors.Net
 
         [Header("리듬 규칙 — 내일 같이 조정한다")]
         [Tooltip("노트가 판정선까지 내려오는 데 걸리는 시간(초).")]
-        [SerializeField, Min(.5f)] private float noteTravelSeconds = 2.2f;
+        [SerializeField, Min(.5f)] private float noteTravelSeconds = 1.45f;
 
-        [Tooltip("정타로 인정되는 시간 폭(초, 앞뒤 각각). 노트(지름 64px)가 2.2초에 430px 내려오므로 " +
+        [Tooltip("정타로 인정되는 시간 폭(초, 앞뒤 각각). 노트(지름 64px)가 1.45초에 540px 내려오므로 " +
                  "동그라미가 판정선에 걸치는 구간은 약 ±0.18초다. 그보다 조금 넉넉히 준다.")]
         [SerializeField, Range(.1f, .6f)] private float goodWindow = .3f;
 
@@ -88,19 +88,22 @@ namespace Warriors.Net
 
         [Header("묶음(패턴) — 원본 WarriorsRhythmBattle 과 같은 규칙")]
         /// <summary>
-        /// 한 묶음의 노트 수를 이 순서로 돌려 쓴다.
+        /// 한 묶음의 노트 수를 이 순서로 돌려 쓴다. 한 바퀴 안에서 3 → 4 로 올라가
+        /// 앞은 익히는 구간, 뒤는 몰아치는 구간이 된다.
         ///
-        /// <b>왜 1 부터 시작하는가.</b> 예전에는 <c>{ 3, 2 }</c> 라 <b>첫 묶음부터 3연타</b>였다.
-        /// 최종 라운드인데 시작하자마자 가장 어려운 형태가 나와, 3라운드가 "점점 조여 오는 보스전"이
-        /// 아니라 "처음부터 끝까지 같은 난이도"로 읽혔다. 실측에서도 3라운드가 26초로
-        /// 1·2라운드와 길이가 거의 같았다.
+        /// <b>묶음을 길게 잡는 가장 큰 이유는 난이도가 아니라 길이다.</b>
         ///
-        /// 한 바퀴 안에서 1 → 2 → 3 으로 올라가게 두면 같은 목표 수로도 앞은 익히는 구간,
-        /// 뒤는 몰아치는 구간이 된다. 노트 사이 간격은 뒤로 갈수록 이미 72% 까지 좁아지므로
-        /// 길이와 속도가 같이 오른다.
+        /// 한 묶음에는 노트 수와 무관한 <b>고정 비용</b>이 붙는다 —
+        /// 마지막 노트가 판정선까지 내려오는 시간(<see cref="noteTravelSeconds"/>) +
+        /// 정리 0.3초 + 쉬는 시간(<see cref="patternRestSeconds"/>). 약 3초다.
+        /// 묶음이 짧으면 이 3초를 노트 두 개가 나눠 지므로 한 대당 시간이 커진다.
+        ///
+        /// 실측 80.1초짜리 판을 모델로 재보니(정확도 44%) 78.9초가 나와 계산이 맞았고,
+        /// 그 판은 <b>묶음 16개</b>를 도는 동안 고정 비용만 약 50초를 썼다.
+        /// 묶음을 3~4개로 올리면 같은 목표를 더 적은 묶음으로 채운다.
         /// </summary>
-        [Tooltip("한 묶음의 노트 수를 이 순서로 돌려 쓴다. 앞은 짧고 뒤로 갈수록 길어진다.")]
-        [SerializeField] private int[] patternLengths = { 1, 2, 2, 3, 2, 3, 3, 2 };
+        [Tooltip("한 묶음의 노트 수를 이 순서로 돌려 쓴다. 묶음마다 붙는 고정 비용(약 3초)을 여러 노트가 나눠 진다.")]
+        [SerializeField] private int[] patternLengths = { 3, 3, 4, 4, 3, 4, 4, 4 };
 
         /// <summary>
         /// 묶음 안 노트 사이 간격(초). 뒤 묶음으로 갈수록 <see cref="GapFloor"/> 배까지 좁아진다.
@@ -112,16 +115,17 @@ namespace Warriors.Net
         /// 그보다 빨리 들어온 스윙은 <b>장치 단계에서 버려진다.</b> 간격이 거기에 가까우면
         /// 사람이 제때 휘둘러도 입력이 사라져 억울하게 놓친다.
         ///
-        /// 0.95 에서 시작해 0.78 배(= 0.74초)까지만 좁힌다. 장치 한계 0.45초에 0.29초 여유가 남는다.
+        /// 0.80 에서 시작해 0.78 배(= 0.62초)까지만 좁힌다. 장치 한계 0.45초에 0.17초 여유가 남는다.
+        /// 이 아래로 더 좁히면 사람이 제때 휘둘러도 장치가 스윙을 버린다.
         /// </summary>
         [Tooltip("묶음 안 노트 사이 간격(초). 뒤로 갈수록 78% 까지 좁아진다. IoT 검 0.45초 한계 위로 유지한다.")]
-        [SerializeField, Min(.35f)] private float patternNoteGap = .95f;
+        [SerializeField, Min(.35f)] private float patternNoteGap = .80f;
 
-        /// <summary>간격이 좁아지는 하한 비율. 0.95 × 0.78 = 0.74초.</summary>
+        /// <summary>간격이 좁아지는 하한 비율. 0.80 × 0.78 = 0.62초.</summary>
         private const float GapFloor = .78f;
 
         [Tooltip("묶음이 모두 판정된 뒤 다음 묶음까지 쉬는 시간(초). 콤보 결과를 읽는 시간이다.")]
-        [SerializeField, Min(0f)] private float patternRestSeconds = 1.4f;
+        [SerializeField, Min(0f)] private float patternRestSeconds = .55f;
 
         [Tooltip("묶음을 하나도 안 놓치고 다 받으면(콤보 피니시) 팀 목표에 더해 주는 보너스 성공 수.")]
         [SerializeField, Min(0)] private int finisherBonusHits = 1;
@@ -270,7 +274,7 @@ namespace Warriors.Net
             if (!HasStateAuthority || match == null) return;
 
             // 라운드 소개 화면(3초)이 끝난 뒤에 무대를 연다. 두 화면이 소개를 읽는 동안 노트가 먼저 떨어지면 안 된다.
-            bool wantStage = match.Phase == WarriorsMatchPhase.Phase3 && !match.InIntro;
+            bool wantStage = match.Phase == WarriorsMatchPhase.Phase3 && !match.InIntro && !match.InClearHold;
 
             if (wantStage != stageOpen)
             {
@@ -347,6 +351,15 @@ namespace Warriors.Net
             nextPatternTick = Runner.Tick + TicksFor(.6f);
             FinishSerial = 0;
             FinishKind = 0;
+
+            // ⚠ **새 판에서 반드시 지워야 하는 값들.**
+            //    [다시 하기] 는 <c>WarriorsMatchState</c> 의 값만 되돌린다. 이 부품이 들고 있는
+            //    복제 값은 그대로 남으므로, 여기서 지우지 않으면 다음 판이 지난 판의 상태를 물려받는다.
+            //
+            //    <see cref="HitSerial"/> 이 남으면 첫 정타에서 번호가 되돌아가 크라켄이 한 번 헛뛴다.
+            HitSerial = 0;
+            HitStrength = 0;
+            HitLane = -1;
 
             Running = true;
             PlaceEveryone();
@@ -458,6 +471,11 @@ namespace Warriors.Net
         /// 같은 공격이 두 번 연달아는 되지만 세 번은 잘 나오지 않는다.
         /// 쓰러진 사람 레인에는 노트가 나오지 않는다 — 남은 사람이 목표를 채운다.
         /// </summary>
+        /// <summary>
+        // ⚠ **합동 결정타는 삭제했다.** 목표를 다 채웠는데도 "둘이 함께 치는 한 방" 을
+        //    더 요구해서, 크라켄 체력이 0 인데 판이 끝나지 않고 멈춰 있었다.
+        //    3페이즈는 목표 성공 횟수를 채우면 그대로 끝난다.
+
         private void SpawnPattern()
         {
             int length = PatternLength(patternIndex);
@@ -502,6 +520,9 @@ namespace Warriors.Net
 
                 if (laneNotes[lane] > 0) lanesUsed++;
             }
+
+            // ⚠ **협동 노트는 삭제했다.** 두 레인에 같은 박자의 노트를 하나씩 더 붙이던
+            //    규칙인데, 규칙에서 빠졌다. 되살리지 마라.
 
             patternIndex++;
             patternSettledTick = -1;
@@ -829,8 +850,18 @@ namespace Warriors.Net
 
                 float travel = 1f - (note.DueTick - now) / (float)travelTicks;
 
-                shownNotes.Add(new WarriorsRhythmNoteView(
-                    (WarriorsAttackDirection)note.Type, note.Lane, travel, note.State == 1, note.State == 2));
+                // ⚠ **아직 트랙에 들어오지 않은 노트는 그리지 않는다.**
+                //    노트 자리는 <c>LerpUnclamped(spawnY, hitLineY, travel)</c> 로 정해지는데,
+                //    <c>travel</c> 이 음수면 스폰 높이보다 <b>위</b>에 그려진다.
+                //    서버는 묶음을 미리 깔아 두고(협동 노트는 묶음 끝에서 0.9초 더 뒤) 예약하므로
+                //    그 값이 크게 음수가 되어, 노트가 화면 꼭대기 ROUND·보스 카드 위까지 올라갔다.
+                //    판정에는 영향이 없고 보이기만 잘못된 것이라 여기서 걸러 낸다.
+                //    판정 문구는 아래 TrackJudgement 가 계속 따라가야 하므로 그것은 건너뛰지 않는다.
+                if (travel >= 0f)
+                {
+                    shownNotes.Add(new WarriorsRhythmNoteView(
+                        (WarriorsAttackDirection)note.Type, note.Lane, travel, note.State == 1, note.State == 2));
+                }
 
                 TrackJudgement(i, note);
             }

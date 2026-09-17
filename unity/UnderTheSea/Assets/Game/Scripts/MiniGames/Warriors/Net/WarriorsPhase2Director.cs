@@ -102,6 +102,66 @@ namespace Warriors.Net
         /// </summary>
         [Networked] public NetworkBool StageOpen { get; private set; }
 
+        /// <summary>
+        /// 지금 마무리 창이 열린 사람. -1 이면 열려 있지 않다.
+        ///
+        /// 한 사람이 촉수를 자르면 <b>반대편</b>에게 짧게 열린다. 그 안에 상대가 자기 촉수를
+        /// 자르면 협동 한 세트가 완성되고 보너스가 붙는다.
+        /// </summary>
+        [Networked] public int FinishWindowLane { get; private set; }
+
+        /// <summary>마무리 창이 닫히는 틱.</summary>
+        [Networked] public TickTimer FinishWindow { get; private set; }
+
+        /// <summary>협동 세트가 완성될 때마다 1씩 오른다. 화면·진동이 이 번호를 본다.</summary>
+        [Networked] public int ComboSetSerial { get; private set; }
+
+        /// <summary>
+        /// 지금 판의 2페이즈 담당. 화면이 마무리 창을 읽는 데 쓴다.
+        ///
+        /// <c>WarriorsPhase3Director.Current</c> 와 같은 방식이다.
+        /// </summary>
+        public static WarriorsPhase2Director Current { get; private set; }
+
+        /// <summary>내 레인에 마무리 창이 열려 있는가. 화면이 "지금!" 을 띄우는 데 쓴다.</summary>
+        public bool FinishWindowOpenFor(int lane) =>
+            FinishWindowLane == lane && Object != null && Object.IsValid && !FinishWindow.ExpiredOrNotRunning(Runner);
+
+        [Header("협동 마무리 창")]
+        [Tooltip("촉수를 자른 뒤 반대편에게 열리는 시간(초).")]
+        [SerializeField, Min(.5f)] private float finishWindowSeconds = 1.5f;
+
+        [Tooltip("두 사람이 창 안에서 이어 자르면 주는 점수.")]
+        [SerializeField, Min(0)] private int comboSetScore = 350;
+
+        /// <summary>
+        /// 반대편에게 마무리 창을 연다. 서버에서만 부른다.
+        ///
+        /// 이미 <b>나에게</b> 창이 열려 있었다면 그것을 내가 받아 낸 것이므로 한 세트가 완성된다.
+        /// </summary>
+        private void OpenFinishWindow(int index)
+        {
+            bool answered = FinishWindowLane == index && !FinishWindow.ExpiredOrNotRunning(Runner);
+
+            if (answered)
+            {
+                ComboSetSerial++;
+                FinishWindowLane = -1;
+                FinishWindow = TickTimer.None;
+
+                if (match != null) match.AddScore(comboSetScore);
+
+                Debug.Log($"[WarriorsPhase2] 협동 세트 완성! 두 사람이 이어서 잘랐습니다. (+{comboSetScore})");
+                return;
+            }
+
+            // 반대편에게 연다. 2인이 아니면 열 상대가 없으므로 그냥 둔다.
+            int other = index == 0 ? 1 : 0;
+
+            FinishWindowLane = other;
+            FinishWindow = TickTimer.CreateFromSeconds(Runner, finishWindowSeconds);
+        }
+
         // ------------------------------------------------------------
         // 서버만 쓰는 것
         // ------------------------------------------------------------
@@ -149,6 +209,7 @@ namespace Warriors.Net
 
         public override void Spawned()
         {
+            Current = this;
             match = WarriorsMatchState.Current;
             if (match == null) match = FindFirstObjectByType<WarriorsMatchState>(FindObjectsInactive.Include);
 
@@ -181,6 +242,7 @@ namespace Warriors.Net
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
+            if (Current == this) Current = null;
             // 세션이 끝나면 걸개를 뗀다. 남겨 두면 같은 에디터에서 WarriorsTest 를
             // 열었을 때 죽은 상태를 읽고 공격이 통째로 막힌다.
             if (WarriorsNet.AttackOwnerFilter == AllowHit) WarriorsNet.AttackOwnerFilter = null;
@@ -249,7 +311,7 @@ namespace Warriors.Net
             }
 
             // 라운드 소개 화면(3초)이 끝난 뒤에 무대를 연다. 두 화면이 소개를 읽는 동안 촉수가 먼저 서면 안 된다.
-            bool wantStage = inPhase2 && !match.InIntro;
+            bool wantStage = inPhase2 && !match.InIntro && !match.InClearHold;
 
             if (wantStage != stageOpen)
             {
@@ -331,6 +393,12 @@ namespace Warriors.Net
             {
                 duties[i] = new Duty { LastSlot = -1, Gap = TickTimer.None };
             }
+
+            // 새 판에서 지워야 하는 값들. [다시 하기] 는 매치 값만 되돌리므로 여기서 치운다.
+            // 마무리 창이 남아 있으면 2라운드가 시작하자마자 "지금! 이어서 베세요" 가 떠 있다.
+            FinishWindowLane = -1;
+            FinishWindow = TickTimer.None;
+            ComboSetSerial = 0;
 
             StageOpen = true;
 
@@ -498,10 +566,21 @@ namespace Warriors.Net
                 tentacle.SetAttackEnabled(false);
                 tentacle.ClearStrikeWindow();
 
+                // **잘린 촉수는 그 자리에서 그냥 사라지지 않는다.** 뒤로 젖혀지며 내려간다 —
+                // 물리적인 반응이 한 박자라도 있어야 "잘랐다" 가 화면에 남는다.
+                // 연출은 클라이언트에서 재생해야 보이므로 여기서는 결과만 복제한다.
                 arms[slot].Retire = TickTimer.CreateFromSeconds(Runner, defeatShowSeconds);
                 arms[slot].Answer = TickTimer.None;
 
                 if (match != null) match.ReportPhase2Hit();
+
+                // **자른 사람은 반대편에게 마무리 창을 연다.**
+                //
+                // 지금까지 2라운드는 두 사람이 각자 자기 촉수를 반복해서 때리는 구조라,
+                // 옆에 누가 있든 플레이가 달라지지 않았다. 하나를 자르면 짧은 시간 동안
+                // 상대 쪽 판정이 강화되고, 그 안에 상대가 자기 촉수를 자르면 한 세트가 된다.
+                // 서로 "지금!" 을 외치게 하는 것이 목적이다.
+                OpenFinishWindow(index);
 
                 Debug.Log($"[WarriorsPhase2] {index + 1}P 가 {slot}번 촉수를 잘랐습니다.");
                 return;
@@ -726,7 +805,13 @@ namespace Warriors.Net
                     }
                 }
 
-                if (state.Result == 1) tentacle.ShowDefeated();
+                if (state.Result == 1)
+                {
+                    tentacle.ShowDefeated();
+
+                    // 잘린 팔이 뒤로 젖혀지며 내려간다. 물보라도 같이 튄다.
+                    if (kraken != null) kraken.PlayTentacleCut(tentacle);
+                }
 
                 return;
             }

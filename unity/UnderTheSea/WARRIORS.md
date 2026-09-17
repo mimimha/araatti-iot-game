@@ -1,8 +1,8 @@
 # 무쌍 게임 (Warriors) 규격
 
-담당: 서연 · 씬: `Assets/Game/Scenes/Main/MiniGames/Warriors.unity`
-
-최종 전투 규칙과 이후 수정의 기준은 [`WARRIORS_GAME_DESIGN.md`](WARRIORS_GAME_DESIGN.md)입니다.
+담당: 서연
+· 네트워크 씬: `Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity` (부트 `WarriorsBoot.unity`)
+· 1인 검증 씬: `Assets/Game/Scenes/Develop/SeoYeon/WarriorsTest.unity`
 
 해변으로 몰려오는 바다 몬스터를 **종류에 맞는 공격**으로 베어 넘기고,
 마지막에 크라켄을 쓰러뜨리는 3라운드 전투 게임입니다.
@@ -33,9 +33,12 @@
 
 | 라운드 | 목표 |
 | --- | --- |
-| 1 · 해변 방어 | 몬스터 30마리 처치 (제한 180초) |
-| 2 · 촉수 절단 | 촉수 4개 절단 |
-| 3 · 최후의 일격 | 크라켄과 리듬 전투 |
+| 1 · 해변 방어 | 몬스터 처치. 목표는 **인원에 따라** 늘어납니다 (1인 20 · 2인 34) |
+| 2 · 촉수 절단 | 촉수 성공 22회 |
+| 3 · 최후의 일격 | 크라켄과 리듬 전투. 한 사람당 16, 즉 2인이면 32 |
+
+제한 시간은 **판 전체에 하나**로 240초입니다. 라운드마다 따로 세지 않습니다.
+수치는 모두 씬의 `WarriorsMatchState` 에 있습니다.
 
 공격은 3종이고 몬스터마다 통하는 것이 하나로 정해져 있습니다.
 
@@ -53,29 +56,27 @@
 
 ## 3. 서버 연동 ⚠ 네트워크 담당자가 볼 부분
 
-**아직 네트워크 코드가 없습니다.** 지금은 한 대에서 혼자 도는 구조입니다.
+**Fusion 데디케이티드 서버로 이미 돌아갑니다.** 네트워크 씬은
+`Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity` 이고, 부트 씬은 `WarriorsBoot.unity` 입니다.
 
-### 이미 준비된 것
+판정은 **전부 서버 권위**입니다. 클라이언트는 그리기만 합니다.
 
-- **난수가 판 단위 시드로 묶여 있습니다** (`WarriorsRun`).
-  스폰 · 촉수 약점 · 리듬 악보가 모두 한 시드에서 나옵니다.
-  **서버가 판을 쥐면 `WarriorsRun.BeginRun(seed)` 로 시드만 내려주면
-  두 사람이 같은 판을 봅니다.** 다른 코드는 바꿀 것이 없습니다.
-- 입력 경계(`IWarriorsInputSource`)와 `PlayerId 0~1` 구분이 이미 있습니다.
-- 결과가 이벤트로 분리돼 있어 로비 계약을 이미 충족합니다.
-
-### 남은 것
-
-| 항목 | 내용 |
+| 부품 | 하는 일 |
 | --- | --- |
-| 몬스터 · 보스 스폰 | 지금은 `Instantiate`. `NetworkObject` + 서버 스폰으로 |
-| 상태 동기화 | `WarriorsGameFlow` · `WarriorsBattleScore` · `WarriorsHealth` |
-| 공격 입력 | `INetworkInput` 으로. 키보드가 항상 `PlayerId 0` 인 것도 함께 |
-| 피격 판정 권한 | 지금은 클라이언트 로컬 판정 |
+| `WarriorsMatchState` | 판 전체 상태 — 페이즈 · 목표 · 점수 · 제한 시간 · 라운드 전환 |
+| `WarriorsEnemyDirector` | 1페이즈 몬스터를 서버가 스폰 |
+| `WarriorsPhase2Director` · `WarriorsPhase3Director` | 촉수 패턴 · 리듬 악보 |
+| `WarriorsPlayerSpawner` | 자리 배정과 `PlayerIndex` 확정 |
+| `WarriorsPlayerLife` | HP · 쓰러짐. **부활 없음** |
+| `WarriorsInputProvider` | `INetworkInput` 으로 스윙을 서버에 보냄 |
+| `WarriorsTelemetry` | `-telemetry` 로 켜지는 측정 로그 |
 
-> 팀 네트워크 로드맵(`docs/prd/fusion-dedicated-lobby-roadmap.md`)은 Lobby 와
-> 캐릭터 외형까지만 다룹니다. **미니게임은 아직 어느 단계에도 없습니다.**
-> 착수 전에 "미니게임은 어느 단계에서 어떻게 붙일지" 합의가 필요합니다.
+난수는 판 단위 시드(`WarriorsRun.BeginRun`)로 묶여 있어 두 사람이 같은 판을 봅니다.
+
+> ⚠ **연출을 서버 전용 경로에서 재생하지 마세요.** `HasStateAuthority` 안에서
+> 재생하면 데디케이티드 서버는 화면 요소를 전부 꺼 두므로 **아무도 보지 못합니다.**
+> 번호(`[Networked]` serial)만 복제하고 각 화면이 `Render()` 에서 재생합니다 —
+> `HitSerial` · `FinishSerial` · `CoopNoteSerial` 이 그 방식입니다.
 
 ---
 
@@ -83,13 +84,24 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 플레이어 무적 | `WarriorsStandalonePlayer.prefab` → `immortalForTesting` 이 **켜져 있음**. 사망 종료가 발생하지 않아 ROUND 1 실패는 시간 초과뿐입니다 |
-| ROUND 3 협동 마무리 | 코드에 있으나 도달하지 않습니다. 리듬 전투가 먼저 끝나 클리어로 넘어갑니다 |
-| ROUND 3 노트 레인 | `PlayerId`와 `PlayerIndex`가 같은 레인의 노트만 판정합니다. 키보드 검증 입력은 1P로 전달됩니다 |
-| 밸런스 | 30마리 / 180초 / 일반 100점 · 보스 250점 — 미확정 |
+| ROUND 3 노트 레인 | `PlayerIndex` 가 같은 레인의 노트만 판정합니다 |
+| 사운드 | 프로젝트에 오디오 파일이 **하나도 없습니다.** 에셋이 들어와야 붙일 수 있습니다 |
+| IoT 실기 | 장치 없이 키보드로만 검증했습니다. `inputLatencyOffset` 은 아직 0 입니다 |
+| 밸런스 | 아래 목표치로 조정 중입니다. 실측은 `-telemetry` 로그로 봅니다 |
 
-> 검증용 씬 `Scenes/Develop/SeoYeon/WarriorsTest.unity` 는 목표 처치 수만 **10** 으로
-> 낮춰 두었습니다. 메인 씬 값(30)은 건드리지 않습니다.
+### 넣지 말아야 할 것 — 한 번 넣었다가 뺀 규칙들
+
+| 뺀 것 | 이유 |
+| --- | --- |
+| **부활 · 구조** | HP 가 0 이면 그 사람의 판은 거기서 끝입니다. 남은 사람은 계속하고, 둘 다 쓰러지면 실패입니다 |
+| **합동 결정타** | 3라운드 목표를 채운 뒤 "둘이 함께 치는 한 방" 을 더 요구했습니다. 크라켄 체력이 0 인데 판이 끝나지 않고 멈췄습니다 |
+| **협동 게이지 · 팀 강화** | 번갈아 맞히면 차는 게이지였습니다 |
+| **협동 노트** | 두 레인에 같은 박자의 노트를 하나씩 더 붙이던 규칙입니다 |
+
+3라운드는 **목표 성공 횟수를 채우면 그대로 클리어**입니다. 위 넷을 다시 넣지 마세요.
+
+> 검증용 씬 `Scenes/Develop/SeoYeon/WarriorsTest.unity` 는 혼자 확인하는 용도라
+> 목표치를 낮춰 두었습니다. 메인 씬 값은 건드리지 않습니다.
 
 ---
 
@@ -118,6 +130,7 @@
 | 몬스터 · 보스 모델 5종 | `Art/MiniGames/Warriors/Models/` (Meshy 생성) |
 | 하단 카드 아이콘 3종 | `Art/MiniGames/Warriors/UI/Icons/` (위 모델을 렌더링한 것) |
 | 바 채움 | `Art/MiniGames/Warriors/UI/BarFill.png` |
+| 하늘 | `Art/MiniGames/Warriors/Sky/WarriorsSky.mat` (Skybox/Procedural. `Warriors/하늘 밝게 맞추기` 메뉴로 다시 맞춘다) |
 | 카드 프레임 | `Art/UI/CharacterCustomization/Frames/RoundedCard.png` 재사용 |
 | 플레이어 검 | `Assets/ToonyTinyPeople/` 중 실사용 파일만 (`w_TH_sword`) |
 
