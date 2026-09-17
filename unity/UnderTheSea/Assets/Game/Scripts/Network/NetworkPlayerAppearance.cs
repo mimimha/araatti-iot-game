@@ -78,6 +78,9 @@ namespace UnderTheSea.Network
         /// </summary>
         private string appliedSignature;
 
+        /// <summary>한 번이라도 입혔는가. <b>변화 감지를 놓쳤는지 보는 기준이다.</b></summary>
+        private bool everApplied;
+
         // ------------------------------------------------------------
         // 스폰 — 감추고, 내 것이면 제출한다
         // ------------------------------------------------------------
@@ -142,6 +145,24 @@ namespace UnderTheSea.Network
 
         public override void Render()
         {
+            // ⚠ **변화 감지만 믿으면 안 된다.**
+            //
+            //    아래 DetectChanges 는 "값이 바뀌는 순간" 만 잡는다. 그런데 스폰과 서버의
+            //    기록이 같은 스냅샷 구간에 겹치면, 비교의 기준이 되는 앞 스냅샷에 이미 새 값이
+            //    들어 있어 바뀐 적이 없는 것처럼 보인다. Spawned 의 "늦은 접속" 검사도 그보다
+            //    앞서 지나갔으므로 둘 다 놓친다.
+            //
+            //    실제로 겪었다. 제출 79번 중 한 번, 내 외형이 영영 입혀지지 않았고
+            //    LocalPlayerView 가 그것을 기다리느라 로딩 화면이 걷히지 않았다.
+            //
+            //    그래서 "바뀌었는가" 가 아니라 **"준비됐는데 아직 안 입혔는가"** 를 본다.
+            //    상태를 보는 판정이라 순간을 놓쳐도 다음 프레임에 다시 잡힌다.
+            if (AppearanceReady && !everApplied)
+            {
+                ApplyFromState("뒤늦게 확인");
+                return;
+            }
+
             if (changes == null)
             {
                 return;
@@ -402,6 +423,7 @@ namespace UnderTheSea.Network
             }
 
             appliedSignature = signature;
+            everApplied = true;
 
             if (applier == null)
             {
