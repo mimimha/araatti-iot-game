@@ -43741,7 +43741,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineMatchState
   crewToStart: 4
-  countdownSeconds: 10
+  countdownSeconds: 3
   turnSeconds: 30
   restoresPerPlayer: 1
   revealSeconds: 7

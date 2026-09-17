@@ -28,7 +28,7 @@ namespace Mine.Net
     ///
     /// <code>
     ///   대기        정해진 인원이 모일 때까지
-    ///   카운트다운  다 모이면 10초. 중간에 빠지면 취소하고 다시 대기
+    ///   카운트다운  다 모이면 3초. 중간에 빠지면 취소하고 다시 대기
     ///   턴          P1 → P2 → P3 → P4 순서로 한 번씩. 30초씩
     ///   끝          모든 턴 소진
     /// </code>
@@ -55,7 +55,7 @@ namespace Mine.Net
         [SerializeField, Range(1, MineNet.MaxCrew)] private int crewToStart = MineNet.DefaultCrewToStart;
 
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
-        [SerializeField, Min(1f)] private float countdownSeconds = 10f;
+        [SerializeField, Min(1f)] private float countdownSeconds = 3f;
 
         [Header("턴")]
         [Tooltip("한 턴의 시간(초). MINE.md 2장 기준값은 30초다.")]
@@ -223,7 +223,7 @@ namespace Mine.Net
         ///
         /// <code>
         ///   인원 부족       기다린다. 들어온 순서대로 자리를 다시 나눈다
-        ///   인원이 모임     10초를 센다
+        ///   인원이 모임     3초를 센다
         ///   세는 중에 이탈  센 것을 버리고 다시 대기로 돌아간다
         ///   다 셈           참가자 목록을 굳히고 첫 턴을 연다
         /// </code>
@@ -291,7 +291,7 @@ namespace Mine.Net
         ///
         ///   <see cref="MineGrid"/> 는 Awake 에서 <c>Scatter(Environment.TickCount)</c> 로
         ///   돌을 뿌린다. 그 값은 PC 마다 다르므로 <b>클라이언트마다 배치가 다르다.</b>
-        ///   예전에는 시작할 때서야 공통 시드를 보냈기 때문에, 카운트다운 10초 동안
+        ///   예전에는 시작할 때서야 공통 시드를 보냈기 때문에, 카운트다운 동안
         ///   서로 다른 판을 보다가 시작 순간에 같아졌다. 실측해서 확인한 문제다.
         ///
         /// ⚠ 시드를 한 번 정하면 판이 끝날 때까지 바꾸지 않는다.
