@@ -182,6 +182,37 @@ public class LobbyChatView : MonoBehaviour
 
             lines.RemoveAt(0);
         }
+
+        ScrollToNewest();
+    }
+
+    /// <summary>
+    /// 새 줄이 보이게 목록을 끌어올린다.
+    ///
+    /// 목록은 **위에서부터** 쌓인다. 몇 줄 없을 때 아래에 붙여 두면 위쪽이 텅 비고,
+    /// 입력줄 바로 위에 글자가 몰려 읽기 나쁘다.
+    ///
+    /// 대신 줄이 칸을 넘치면 넘친 만큼 위로 밀어 마지막 줄이 늘 아래에 보이게 한다.
+    /// 스크롤 막대는 붙이지 않았다. 채팅은 지나간 말이라 되짚어 볼 일이 드물고,
+    /// 막대가 있으면 그 좁은 칸을 또 나눠 써야 한다.
+    /// </summary>
+    private void ScrollToNewest()
+    {
+        RectTransform area = messageRoot != null ? messageRoot.parent as RectTransform : null;
+
+        if (area == null)
+        {
+            return;
+        }
+
+        // 방금 넣은 줄까지 넣고 재야 한다. 한 프레임 늦으면 한 줄만큼 어긋난다.
+        LayoutRebuilder.ForceRebuildLayoutImmediate(messageRoot);
+
+        float overflow = messageRoot.rect.height - area.rect.height;
+
+        Vector2 at = messageRoot.anchoredPosition;
+        at.y = Mathf.Max(0f, overflow);
+        messageRoot.anchoredPosition = at;
     }
 
     /// <summary>확성기를 켜고 끈다. 버튼이 부른다.</summary>
@@ -229,6 +260,76 @@ public class LobbyChatView : MonoBehaviour
         }
 
         ChatFocus.End();
+    }
+
+    /// <summary>
+    /// 배치를 맞출 때 쓴다. 부품 ⋮ 메뉴에서 고른다.
+    ///
+    /// <b>Play 를 안 눌러도 된다.</b> 편집 중에는 글자를 칠 수 없어 목록이 늘 비어 있고,
+    /// 빈 창을 보면서 칸 너비를 맞추면 반드시 어긋난다. 그래서 그럴듯한 줄을 몇 개 채워 준다.
+    ///
+    /// ⚠ 채운 줄에는 <see cref="HideFlags.DontSave"/> 를 걸어 둔다. 안 걸면 프리팹을
+    ///    저장할 때 이 예시 줄들이 통째로 박혀서, 게임에서도 늘 떠 있게 된다.
+    /// </summary>
+    [ContextMenu("채팅 미리 채우기")]
+    public void PreviewFill()
+    {
+        PreviewClear();
+        Show();
+
+        if (messageTemplate != null)
+        {
+            messageTemplate.gameObject.SetActive(false);
+        }
+
+        Append("지훈", "광장에 모여요!");
+        Append("서연", "심장 제단 퀘스트 같이 할 분?");
+        Append("민수", "곧 갈게요");
+        Append("하은", "안녕하세요!");
+        Append("지훈", "보물섬 탐험대 모집합니다. 관심 있으신 분 귓말 주세요");
+
+        if (!Application.isPlaying)
+        {
+            foreach (LobbyChatLine line in lines)
+            {
+                if (line != null)
+                {
+                    line.gameObject.hideFlags = HideFlags.DontSave;
+                }
+            }
+        }
+
+        // ⚠ 이것이 없으면 칸 크기가 이번 프레임에 안 다시 계산돼서,
+        //    숫자를 바꿔도 화면은 옛 모습 그대로 보인다.
+        Canvas.ForceUpdateCanvases();
+    }
+
+    [ContextMenu("채팅 미리보기 지우기")]
+    public void PreviewClear()
+    {
+        foreach (LobbyChatLine line in lines)
+        {
+            if (line == null)
+            {
+                continue;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(line.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(line.gameObject);
+            }
+        }
+
+        lines.Clear();
+
+        if (messageRoot != null)
+        {
+            messageRoot.anchoredPosition = Vector2.zero;
+        }
     }
 
     public void Show()

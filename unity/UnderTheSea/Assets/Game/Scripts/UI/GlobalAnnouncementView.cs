@@ -99,6 +99,43 @@ public class GlobalAnnouncementView : MonoBehaviour
         Raise(line);
     }
 
+    /// <summary>
+    /// 배치를 맞출 때 쓴다. 부품 ⋮ 메뉴에서 고른다.
+    ///
+    /// 띠는 평소 꺼져 있어서 편집 중에는 안 보인다. 켜 두고 저장하면 로비에 늘 떠 있게
+    /// 되므로, 여기서 켜고 <b>끄는 것까지 메뉴로</b> 둔다.
+    /// </summary>
+    [ContextMenu("공지 띠 미리보기")]
+    public void PreviewShow()
+    {
+        if (label != null)
+        {
+            label.text = "하은: 보물섬 탐험대 모집해요!";
+        }
+
+        if (group != null)
+        {
+            group.alpha = 1f;
+        }
+
+        if (banner != null)
+        {
+            banner.SetActive(true);
+        }
+
+        // 글자에 맞춰 띠 길이를 다시 잰다. 이것이 없으면 옛 길이로 보인다.
+        Canvas.ForceUpdateCanvases();
+    }
+
+    [ContextMenu("공지 띠 미리보기 끄기")]
+    public void PreviewHide()
+    {
+        if (banner != null)
+        {
+            banner.SetActive(false);
+        }
+    }
+
     private void Update()
     {
         if (banner == null || !banner.activeSelf)
