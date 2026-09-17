@@ -78,6 +78,9 @@ namespace UnderTheSea.Network
         /// </summary>
         private string appliedSignature;
 
+        /// <summary>한 번이라도 입혔는가. <b>변화 감지를 놓쳤는지 보는 기준이다.</b></summary>
+        private bool everApplied;
+
         // ------------------------------------------------------------
         // 스폰 — 감추고, 내 것이면 제출한다
         // ------------------------------------------------------------
@@ -142,8 +145,35 @@ namespace UnderTheSea.Network
 
         public override void Render()
         {
+            // ⚠ **변화 감지만 믿으면 안 된다.**
+            //
+            //    아래 DetectChanges 는 "값이 바뀌는 순간" 만 잡는다. 그런데 스폰과 서버의
+            //    기록이 같은 스냅샷 구간에 겹치면, 비교의 기준이 되는 앞 스냅샷에 이미 새 값이
+            //    들어 있어 바뀐 적이 없는 것처럼 보인다. Spawned 의 "늦은 접속" 검사도 그보다
+            //    앞서 지나갔으므로 둘 다 놓친다.
+            //
+            //    실제로 겪었다. 제출 79번 중 한 번, 내 외형이 영영 입혀지지 않았고
+            //    LocalPlayerView 가 그것을 기다리느라 로딩 화면이 걷히지 않았다.
+            //
+            //    그래서 "바뀌었는가" 가 아니라 **"준비됐는데 아직 안 입혔는가"** 를 본다.
+            //    상태를 보는 판정이라 순간을 놓쳐도 다음 프레임에 다시 잡힌다.
+            //
+            // ⚠ **이 검사는 반드시 아래 가드 뒤에 와야 한다.** Render 는 Spawned 전후로도
+            //    불릴 수 있는데, 그때 [Networked] 값을 읽으면 Fusion 이 예외를 던진다.
+            //
+            //        InvalidOperationException: Networked properties can only be accessed
+            //        when Spawned() has been called.
+            //
+            //    changes 는 Spawned 에서만 채워지므로 "스폰됐는가" 의 표식 역할을 한다.
+            //    처음엔 이 검사를 가드 위에 뒀다가 개발 콘솔에 빨간 예외를 띄웠다.
             if (changes == null)
             {
+                return;
+            }
+
+            if (AppearanceReady && !everApplied)
+            {
+                ApplyFromState("뒤늦게 확인");
                 return;
             }
 
@@ -402,6 +432,7 @@ namespace UnderTheSea.Network
             }
 
             appliedSignature = signature;
+            everApplied = true;
 
             if (applier == null)
             {
@@ -543,12 +574,24 @@ namespace UnderTheSea.Network
         /// <summary>
         /// 모델을 보이거나 감춘다.
         ///
-        /// <c>enabled</c> 가 아니라 <see cref="Renderer.forceRenderingOff"/> 를 쓴다.
-        /// <see cref="CharacterAppearanceApplier"/> 가 슬롯별로 <c>enabled</c> 를 켜고 끄기 때문에,
-        /// 여기서 같은 값을 만지면 서로 덮어쓴다.
+        /// <b>직접 렌더러를 만지지 않고 <see cref="CharacterAppearanceApplier"/> 에 맡긴다.</b>
+        /// "전체 감추기" 와 "자리별 감추기" 는 <see cref="Renderer.forceRenderingOff"/> 라는
+        /// <b>같은 스위치</b>를 쓴다. 두 곳에서 따로 쓰면 나중에 쓴 쪽이 앞의 판단을 지운다.
+        /// 그래서 계산은 한 곳(Applier)에서만 하고, 여기서는 "감출까 말까" 만 알려 준다.
+        ///
+        /// ⚠ <c>enabled</c> 는 쓰지 않는다. <c>PeerMode.Multiple</c> 에서 Fusion 의
+        ///    <c>RunnerVisibilityLink</c> 가 그 값을 자기 것으로 여기고 스폰마다 되돌려 놓는다.
+        ///
+        /// Applier 가 없는 구성(외형을 입히지 않는 단순 모델)에서는 예전처럼 직접 감춘다.
         /// </summary>
         private void SetModelVisible(bool visible)
         {
+            if (applier != null)
+            {
+                applier.SetModelHidden(!visible);
+                return;
+            }
+
             if (hiddenUntilReady == null)
             {
                 return;

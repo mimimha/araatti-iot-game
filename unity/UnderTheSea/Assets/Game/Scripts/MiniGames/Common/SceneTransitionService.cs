@@ -53,8 +53,13 @@ namespace MiniGames.Common
                 return;
             }
 
-            Debug.LogWarning($"[SceneTransition] '{sceneName}' 이동이 아직 연결되지 않았습니다. " +
-                             "SceneFlow 호출을 여기에 넣어 주세요.");
+            // ⚠ 씬을 직접 열지 않는다. Lobby Runner 를 먼저 끄지 않으면 미니게임 런처가
+            //    "이미 돌고 있는 Runner 가 있다" 며 조용히 세션을 시작하지 않는다.
+            //    그 순서는 MiniGameTransition 이 지킨다.
+            //
+            //    세션 이름은 넘기지 않는다 — 비워 두면 미니게임의 기본 세션으로 간다.
+            //    진짜 매칭이 붙기 전까지는 고정 세션이고, 그 사실을 감추지 않는다.
+            MiniGameTransition.Enter(sceneName);
         }
 
         /// <summary>같은 미니게임을 다시 연다. [다시 하기].</summary>
@@ -67,8 +72,7 @@ namespace MiniGames.Common
                 return;
             }
 
-            Debug.LogWarning("[SceneTransition] 재시작이 아직 연결되지 않았습니다. " +
-                             "SceneFlow.RestartCurrent() 를 여기에 넣어 주세요.");
+            SceneFlow.RestartCurrent();
         }
 
         /// <summary>로비로 돌아간다.</summary>
@@ -80,8 +84,9 @@ namespace MiniGames.Common
                 return;
             }
 
-            Debug.LogWarning($"[SceneTransition] 로비 이동이 아직 연결되지 않았습니다. " +
-                             $"SceneFlow 에 로비로 가는 public 함수가 필요합니다 (현재 없음).");
+            // 미니게임 Runner 를 끄고, 들어올 때 기억해 둔 채널로 다시 붙는다.
+            // 채널에 붙으면 Fusion 이 Lobby 를 올리므로 여기서 씬을 따로 열지 않는다.
+            MiniGameTransition.ReturnToLobby();
         }
     }
 }

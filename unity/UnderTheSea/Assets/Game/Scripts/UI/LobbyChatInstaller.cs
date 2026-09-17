@@ -12,7 +12,10 @@ using UnderTheSea.Network;
 ///   · Fusion 은 세션을 시작하면서 씬을 러너 전용 씬으로 인수한다. 그때 없어지거나 옮겨진다
 ///   · 큰 Lobby 씬을 건드리지 않아도 된다 (CONVENTION.md 3장 — 같은 Main 씬을 여럿이 고치지 않는다)
 ///
-/// 그래서 <see cref="Object.DontDestroyOnLoad"/> 로 올려 두고, 로비를 벗어나면 스스로 사라진다.
+/// 그래서 <see cref="Object.DontDestroyOnLoad"/> 로 올려 둔다. 대신 <b>로비를 벗어나면
+/// 스스로 숨는다.</b> 그렇게 하지 않으면 미니게임까지 따라간다 — 실제로 배 게임 화면에
+/// 채팅창이 떠 있었다. 지우지 않고 숨기는 것은 미니게임을 다녀와도 <b>주고받은 말이
+/// 남아 있게</b> 하기 위해서다.
 ///
 /// ⚠ 프리팹은 <c>Resources</c> 에 둬야 코드가 찾을 수 있다.
 ///    없으면 조용히 아무것도 하지 않는다. 채팅이 없다고 게임이 멈추면 안 된다.
@@ -33,6 +36,11 @@ public static class LobbyChatInstaller
         }
 
         LocalPlayer.Registered += CreateWhenNeeded;
+
+        // ⚠ 씬이 바뀌는 순간마다 로비인지 다시 본다. 미니게임으로 넘어가면 숨기고
+        //    돌아오면 다시 보인다. 이 구독을 빼면 채팅이 배 위까지 따라간다.
+        SceneManager.sceneLoaded += (_, __) => ShowOnlyInLobby();
+        SceneManager.sceneUnloaded += _ => ShowOnlyInLobby();
     }
 
     /// <summary>
@@ -50,6 +58,7 @@ public static class LobbyChatInstaller
         try
         {
             CreateNow();
+            ShowOnlyInLobby();
         }
         catch (System.Exception e)
         {
@@ -92,6 +101,32 @@ public static class LobbyChatInstaller
     ///
     ///    남의 흐름 한가운데서 불리는 코드는 아무것도 만들지 않는 편이 안전하다.
     /// </summary>
+    /// <summary>
+    /// <b>로비에서만 보이게 한다.</b> 미니게임에서는 숨는다.
+    ///
+    /// 지우지 않고 껐다 켜는 이유는 두 가지다. 주고받은 말이 남고, 다시 만들 때 드는
+    /// 일이 없다. 껐다 켜도 <see cref="LobbyChatView"/> 가 알아서 자리를 잡는다.
+    ///
+    /// ⚠ <b>켜 둔 채로 숨기면 영영 못 움직인다.</b> 입력칸이 켜져 있으면
+    ///    <see cref="ChatFocus.Typing"/> 이 참이고 그동안 이동 입력이 0 으로 나간다.
+    ///    다행히 <see cref="LobbyChatView"/> 의 <c>OnDisable</c> 이 끄면서 풀어 준다.
+    ///    그 코드를 지우면 여기서 직접 풀어야 한다.
+    /// </summary>
+    private static void ShowOnlyInLobby()
+    {
+        if (instance == null)
+        {
+            return;
+        }
+
+        bool lobby = InLobby();
+
+        if (instance.activeSelf != lobby)
+        {
+            instance.SetActive(lobby);
+        }
+    }
+
     private static void WarnIfNoEventSystem()
     {
         if (Object.FindFirstObjectByType<EventSystem>() != null)

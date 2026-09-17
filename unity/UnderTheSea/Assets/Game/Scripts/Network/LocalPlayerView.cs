@@ -1,3 +1,4 @@
+using System.Collections;
 using Fusion;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -25,6 +26,19 @@ using ithappy.Cute_Characters.Controller;
 /// </summary>
 public class LocalPlayerView : NetworkBehaviour
 {
+    [Header("복귀 직후 안정화")]
+    [Tooltip("시뮬레이션 속도를 이 길이만큼씩 재서 정상인지 본다. (초)")]
+    [SerializeField, Min(0.1f)] private float settleWindow = 0.5f;
+
+    [Tooltip("몇 번 연속 정상이어야 화면을 넘길지. 한 번만 보면 다시 흔들릴 수 있다.")]
+    [SerializeField, Min(1)] private int settleStreak = 2;
+
+    [Tooltip("이 시간을 넘으면 더 기다리지 않고 넘긴다. 무한 로딩을 막는 상한이다. (초)")]
+    [SerializeField, Min(1f)] private float settleTimeout = 5f;
+
+    [Tooltip("스폰 뒤 이 시간까지도 조건이 안 갖춰지면 그냥 넘긴다. 마지막 안전장치다. (초)")]
+    [SerializeField, Min(3f)] private float giveUpAfter = 15f;
+
     [Header("마우스")]
     [SerializeField] private string mouseX = "Mouse X";
     [SerializeField] private string mouseY = "Mouse Y";
@@ -105,6 +119,9 @@ public class LocalPlayerView : NetworkBehaviour
         // 카메라 쪽 준비가 끝났다.
         cameraReady = true;
 
+        // 여기서부터 시간을 센다. 이 지점이 "내 캐릭터가 확정된" 가장 이른 순간이다.
+        StartCoroutine(GiveUpIfNeverReady());
+
         // 외형 복제 컴포넌트가 없으면 기다릴 것이 없다. (09-2 이전 프리팹 호환)
         if (GetComponent<NetworkPlayerAppearance>() == null)
         {
@@ -152,23 +169,165 @@ public class LocalPlayerView : NetworkBehaviour
         TryFinishLoading();
     }
 
+    /// <summary>화면을 이미 넘겼는가. 두 번 넘기지 않기 위한 표시다.</summary>
+    private bool handedOver;
+
+    /// <summary>안정화를 기다리는 중인 코루틴. 둘이 같이 돌지 않게 붙잡아 둔다.</summary>
+    private Coroutine settling;
+
     /// <summary>
     /// "화면을 사용자에게 넘겨도 되는" 순간인지 보고, 맞으면 가림막을 걷는다.
     ///
-    /// 세 가지가 다 끝나야 한다. 접속 성공만으로는 부르지 않는다.
+    /// 네 가지가 다 끝나야 한다. 접속 성공만으로는 넘기지 않는다.
     ///   · 내 캐릭터가 있다        (LocalPlayer.Register 완료)
     ///   · 카메라가 자리를 잡았다   (BindPlayer + SnapToPlayer 완료)
     ///   · 외형이 입혀졌다          (서버가 AppearanceReady 를 세운 뒤)
+    ///   · 시뮬레이션이 제 속도다   (<see cref="WaitUntilSimulationSettles"/>)
     ///
     /// 외형을 기다리지 않으면 기본 옷을 입은 내 캐릭터가 한순간 보였다가 바뀐다.
+    /// 네 번째를 기다리는 이유는 아래에 적었다.
     /// </summary>
     private void TryFinishLoading()
     {
-        if (!cameraReady || !appearanceReady)
+        if (handedOver || settling != null) return;
+        if (!cameraReady || !appearanceReady) return;
+
+        settling = StartCoroutine(WaitUntilSimulationSettles());
+    }
+
+    /// <summary>
+    /// **어떤 조건이 영영 안 와도 결국은 화면을 넘긴다.** 마지막 안전장치다.
+    ///
+    /// <see cref="WaitUntilSimulationSettles"/> 안에도 상한이 있지만 그것만으로는 모자랐다.
+    /// 그 상한은 <b>네 조건이 다 갖춰져 코루틴이 시작된 뒤에만</b> 돈다. 조건 하나가 아예
+    /// 안 오면 코루틴이 시작조차 안 하므로 아무도 세지 않는다.
+    ///
+    /// 실제로 겪었다. 서버가 외형을 기록했는데 클라이언트가 그 변화를 놓쳐
+    /// <c>appearanceReady</c> 가 끝내 켜지지 않았고, "서버 1에 접속 중..." 이 2분 넘게 떠
+    /// 있었다. 캐릭터는 로비에 멀쩡히 있었고 옆 사람 화면에서는 움직이기까지 했다.
+    ///
+    /// 놓친 쪽(외형)은 <c>NetworkPlayerAppearance</c> 에서 따로 고쳤다. 다만 <b>원인이 무엇이든
+    /// 사람이 갇히는 일은 없어야 하므로</b> 여기에도 시간 상한을 둔다. 원인을 가리기 위해
+    /// 무엇이 안 왔는지는 경고에 적는다.
+    /// </summary>
+    private IEnumerator GiveUpIfNeverReady()
+    {
+        float waited = 0f;
+
+        while (!handedOver && waited < giveUpAfter)
         {
-            return;
+            waited += Time.unscaledDeltaTime;
+            yield return null;
         }
 
+        if (handedOver) yield break;
+
+        Debug.LogWarning(
+            $"[LocalPlayerView] {giveUpAfter:0}초가 지나도 준비가 끝나지 않아 화면을 넘깁니다. " +
+            $"(카메라 {cameraReady}, 외형 {appearanceReady}) " +
+            "로딩 화면에 갇히는 것보다 낫습니다. 이 경고가 보이면 원인을 찾아야 합니다.");
+
+        if (settling != null)
+        {
+            StopCoroutine(settling);
+        }
+
+        HandOver();
+    }
+
+    /// <summary>
+    /// **밀린 틱을 다 따라잡은 뒤에** 화면을 넘긴다.
+    ///
+    /// <b>왜 필요한가.</b> 미니게임에서 Lobby 로 돌아올 때 씬을 여느라 한 프레임이
+    /// 0.8~1.2초 멈춘다. 그동안 서버는 계속 틱을 돌리므로 클라이언트는 그만큼 뒤진 채로
+    /// 깨어나고, 다음 1초 동안 밀린 것을 <b>몰아서</b> 돌려 따라잡는다. 실측으로 한 번은
+    /// 1초에 167틱(평소 64틱의 2.6배)이었다. 카메라와 외형만 보고 넘기면 사람은 정확히
+    /// 그 구간에서 조작하게 되고, 입력이 밀린다고 느낀다. 로그로 순서를 확인했다.
+    ///
+    /// <code>
+    ///     fps 19 | worst 1202ms | tick  +69 | rtt 624ms   ← 씬 로드로 멈춤
+    ///     Ready                                            ← 여기서 넘겼다
+    ///     fps 45 | worst   81ms | tick +167 | rtt  34ms   ← 넘긴 뒤에 따라잡는다
+    ///     fps 60 | worst   23ms | tick  +64 | rtt  33ms   ← 그 다음 초부터 정상
+    /// </code>
+    ///
+    /// 그래서 <b>따라잡기가 끝난 것을 확인하고</b> 넘긴다.
+    ///
+    /// ⚠ 기준 tick 은 창을 열 때마다 새로 잡는다. Runner 가 교체되면 tick 번호 기준이
+    ///    바뀌므로, 예전 값과 빼면 의미 없는 숫자가 나온다.
+    ///
+    /// ⚠ 64 를 박지 않고 <c>Runner.DeltaTime</c> 에서 실제 설정값을 얻는다. 틱 수를
+    ///    바꾸면 이 판정도 같이 따라가야 한다.
+    ///
+    /// ⚠ <b>어떤 경우에도 로딩 화면에 가두지 않는다.</b> Runner 가 사라지거나 상한 시간을
+    ///    넘기면 경고만 남기고 넘긴다. 조작이 조금 굼뜬 것보다 갇히는 쪽이 훨씬 나쁘다.
+    /// </summary>
+    private IEnumerator WaitUntilSimulationSettles()
+    {
+        NetworkRunner runner = Runner;
+
+        float rate = runner != null && runner.IsRunning && runner.DeltaTime > 0f
+            ? 1f / runner.DeltaTime
+            : 0f;
+
+        if (rate <= 0f)
+        {
+            // 잴 수 없으면 기다리지 않는다.
+            HandOver();
+            yield break;
+        }
+
+        float waited = 0f;
+        int inARow = 0;
+
+        while (inARow < settleStreak)
+        {
+            int from = runner.Tick.Raw;
+            float spent = 0f;
+
+            while (spent < settleWindow)
+            {
+                yield return null;
+
+                spent += Time.unscaledDeltaTime;
+                waited += Time.unscaledDeltaTime;
+
+                if (runner == null || !runner.IsRunning)
+                {
+                    HandOver();
+                    yield break;
+                }
+
+                if (waited >= settleTimeout)
+                {
+                    Debug.LogWarning(
+                        $"[LocalPlayerView] 시뮬레이션이 {settleTimeout:0}초 안에 제 속도로 " +
+                        "돌아오지 않아 그대로 화면을 넘깁니다. 조작이 잠시 밀릴 수 있습니다.");
+
+                    HandOver();
+                    yield break;
+                }
+            }
+
+            float expected = rate * spent;
+            int moved = runner.Tick.Raw - from;
+
+            // 아래로 벗어나면 아직 못 따라온 것이고, 위로 벗어나면 몰아서 돌리는 중이다.
+            bool normal = moved >= expected * 0.8f && moved <= expected * 1.25f;
+            inARow = normal ? inARow + 1 : 0;
+        }
+
+        Debug.Log(
+            $"[LocalPlayerView] 시뮬레이션이 제 속도({rate:0}틱/초)로 자리 잡았습니다. " +
+            $"{waited:0.00}초 기다렸습니다.");
+
+        HandOver();
+    }
+
+    private void HandOver()
+    {
+        settling = null;
+        handedOver = true;
         TransitionStatus.SetReady();
     }
 

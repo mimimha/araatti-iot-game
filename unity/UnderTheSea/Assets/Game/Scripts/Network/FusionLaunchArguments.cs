@@ -83,10 +83,15 @@ public static class FusionLaunchArguments
     }
 
     /// <summary>
-    /// 정수를 읽는다. 없거나 숫자가 아니면 기본값을 쓰고 경고만 남긴다.
-    /// 읽은 값은 <paramref name="min"/> ~ <paramref name="max"/> 로 조인다.
+    /// 숫자 인자를 읽는다. 숫자가 아니면 기본값을 쓰고 경고만 남긴다.
+    ///
+    /// <see cref="GetPort"/> 와 나뉘어 있는 이유는 쓰임이 달라서다. 포트는 1~65535 라
+    /// <c>ushort</c> 가 맞지만, 프레임률처럼 <b>0 을 "제한 없음" 으로 쓰는</b> 값은
+    /// 음수와 0 을 그대로 받아 넘겨야 부르는 쪽이 판단할 수 있다.
+    ///
+    /// 범위로 조여야 하는 값은 <see cref="GetInt(string,int,int,int)"/> 를 쓴다.
     /// </summary>
-    public static int GetInt(string key, int fallback, int min, int max)
+    public static int GetInt(string key, int fallback)
     {
         string raw = GetString(key, null);
 
@@ -101,6 +106,19 @@ public static class FusionLaunchArguments
             return fallback;
         }
 
+        return value;
+    }
+
+    /// <summary>
+    /// 정수를 읽고 <paramref name="min"/> ~ <paramref name="max"/> 로 조인다.
+    ///
+    /// 위 <see cref="GetInt(string,int)"/> 와 나뉘어 있는 것은 <b>조일지 말지가 값마다 다르기
+    /// 때문이다.</b> 해상도처럼 범위를 벗어나면 안 되는 값은 조이는 쪽이 맞고, 프레임률처럼
+    /// 0 을 "제한 없음" 으로 쓰는 값은 조이면 뜻이 사라진다.
+    /// </summary>
+    public static int GetInt(string key, int fallback, int min, int max)
+    {
+        int value = GetInt(key, fallback);
         int clamped = Mathf.Clamp(value, min, max);
 
         if (clamped != value)

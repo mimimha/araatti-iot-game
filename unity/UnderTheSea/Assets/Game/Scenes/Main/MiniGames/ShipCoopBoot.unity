@@ -286,7 +286,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3637e636234277b4894c96c7758e2577, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopLauncher
-  serverPort: 27015
+  serverPort: 27016
+  config: {fileID: 11400000, guid: 5500890e8f0be5742b3d627886ec354a, type: 2}
 --- !u!114 &229818259
 MonoBehaviour:
   m_ObjectHideFlags: 0

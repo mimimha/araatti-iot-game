@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using MiniGames.Common;
 using Fusion;
 using UnityEngine;
 
@@ -28,11 +30,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     ///    물건을 켜고 끄는 일이라 따로 다룬다.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class ShipCoopStateSync : NetworkBehaviour
+    public sealed class ShipCoopStateSync : NetworkBehaviour, global::MiniGames.Common.IMiniGameAdmissionSource
     {
         [Header("테스트용 시작 대기")]
         [Tooltip("이 인원이 모여야 카운트다운을 시작한다.")]
         [SerializeField, Min(1)] private int crewToStart = 2;
+
+        [Header("판이 끝난 뒤")]
+        [Tooltip("성공·실패 연출(ShipCoopResultView)을 보여 주는 시간. 이 뒤에 결과 판이 열린다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds = 3f;
 
         [Tooltip("인원이 모인 뒤 출항까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 10f;
@@ -51,6 +57,23 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         ///    <c>[Networked]</c> 라 늦게 들어온 사람도 "이미 시작했다" 를 그대로 받는다.
         /// </summary>
         [Networked] private NetworkBool Sailed { get; set; }
+
+        /// <summary>
+        /// 결과가 확정된 서버 틱. 0 이면 아직 결과가 없다.
+        ///
+        /// <b>이 값이 시각의 기준이다.</b> 두 화면이 각자 시계를 재면 연출이 어긋난다.
+        /// 서버가 정한 한 순간을 모두가 받아 거기서부터 센다.
+        ///
+        /// <b>한 번만 열기 위한 열쇠이기도 하다.</b> 복제된 값은 매 틱 보이므로, 클라이언트는
+        /// 마지막으로 처리한 틱을 기억해 두고 <b>값이 바뀐 순간에만</b> 결과를 낸다.
+        /// </summary>
+        [Networked] private int ResultTick { get; set; }
+
+        [Networked] private NetworkBool ResultClear { get; set; }
+
+        [Networked] private int ResultScore { get; set; }
+
+        [Networked] private float ResultPlayTime { get; set; }
 
         [Networked] private int Phase { get; set; }
         [Networked] private float Elapsed { get; set; }
@@ -180,6 +203,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             }
 
             UpdateStartGate();
+            WriteResultWhenFinished();
 
             if (game != null)
             {
@@ -419,8 +443,14 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         {
             Crew = Runner.ActivePlayers.Count();
 
-            if (Sailed || game == null)
+            if (game == null)
             {
+                return;
+            }
+
+            if (Sailed)
+            {
+                ResetWhenEveryoneLeft();
                 return;
             }
 
@@ -457,6 +487,194 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         }
 
         /// <summary>
+        /// 지금 새 사람을 받아도 되는가. <c>MiniGameAdmission</c> 이 접속 요청마다 물어본다.
+        ///
+        /// <b>판단은 여기서 한다.</b> 공통 부품이 <c>Sailed</c> 나 <c>Sunk</c> 같은 이 게임만의
+        /// 단어를 알기 시작하면 공통이 아니게 된다.
+        ///
+        /// <code>
+        ///   출항 전            받는다   (모자라서 기다리는 중이든, 카운트다운 중이든)
+        ///   출항 뒤 · 항해 중   거절     난입을 허용하면 보상 · 난이도 · 역할 분배가 흔들린다
+        ///   끝났음             거절     들어와도 결과 화면만 보이고, 그 사람 때문에 리셋이 막힌다
+        /// </code>
+        ///
+        /// ⚠ <b>"끝났음" 은 <c>ShipCoopGame.Finish()</c> 의 첫 줄에서 정해진다.</b> 점수 계산과
+        ///    결과 통지보다 앞선다. 그래서 종료가 확정된 그 프레임부터 이미 거절한다 —
+        ///    종료와 동시에 누가 끼어드는 틈이 없다.
+        /// </summary>
+        public bool CanAdmitNow(out string why)
+        {
+            if (game == null)
+            {
+                // 게임을 못 찾았다. 막을 근거가 없으니 받는다. 조용히 막히는 쪽이 더 위험하다.
+                why = null;
+                return true;
+            }
+
+            switch (game.State)
+            {
+                case ShipCoopState.Sailing:
+                    why = "항해 중입니다. 출항 뒤에는 들어올 수 없습니다.";
+                    return false;
+
+                case ShipCoopState.Cleared:
+                case ShipCoopState.Sunk:
+                case ShipCoopState.TimeOver:
+                    why = $"이미 끝난 판입니다. ({game.State}) 모두 나가면 다음 판을 받습니다.";
+                    return false;
+
+                default:
+                    why = null;
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// 판이 끝나고 <b>아무도 남지 않았으면</b> 다음 판을 받을 수 있게 되돌린다.
+        ///
+        /// <b>왜 필요한가.</b> <c>Sailed</c> 는 한 번 서면 다시 눕지 않는다. 늦게 들어온 사람이
+        /// 반쯤 진행된 항해를 처음으로 되돌리는 것을 막으려고 그렇게 만들었다. 그런데 그 탓에
+        /// <b>판이 끝나도 서버가 그 상태로 굳는다.</b> 새로 들어오면 들어오자마자 종료 화면이 뜬다.
+        /// QA 때마다 Dedicated Server 를 손으로 껐다 켜야 했다.
+        ///
+        /// <b>왜 "아무도 없을 때" 인가.</b> 한 명이라도 남아 있으면 그 사람은 결과를 보는 중이다.
+        /// 거기서 되돌리면 결과 화면을 빼앗는다. 다 나가고 나서야 판이 진짜 끝난 것이다.
+        /// Lobby 자동 복귀가 붙으면 사람이 저절로 0 이 되므로 이 조건과 자연스럽게 맞물린다.
+        /// </summary>
+        private void ResetWhenEveryoneLeft()
+        {
+            if (Crew > 0)
+            {
+                return;
+            }
+
+            if (game.State == ShipCoopState.Ready || game.State == ShipCoopState.Sailing)
+            {
+                // 끝나지 않은 판이다. 사람이 없어도 되돌릴 것이 없다.
+                return;
+            }
+
+            Debug.Log($"[ShipCoopStart] 판이 끝나고 아무도 남지 않았습니다. ({game.State}) 대기 상태로 되돌립니다.");
+
+            game.ResetToWaiting();
+
+            Sailed = false;
+            Countdown = 0f;
+
+            // ⚠ 결과도 함께 지운다. 안 지우면 **다음 판이 시작되기도 전에 지난 결과가 다시 뜬다** —
+            //    새로 들어온 사람의 클라이언트가 복제된 ResultTick 을 처음 보고 결과로 받아들인다.
+            ResultTick = 0;
+            ResultClear = false;
+            ResultScore = 0;
+            ResultPlayTime = 0f;
+        }
+
+        /// <summary>내가 마지막으로 내보낸 결과의 틱. <b>내 화면에서만 쓰는 값이다.</b></summary>
+        private int shownResultTick;
+
+        private Coroutine resultRelease;
+
+        private ShipCoopResultView resultView;
+
+        /// <summary>
+        /// 결과가 확정됐으면 <b>연출을 보여 준 뒤</b> 결과 판으로 넘긴다. 클라이언트에서만 돈다.
+        ///
+        /// <b>왜 한 번만 여는가.</b> 복제된 값은 매 프레임 보인다. 그대로 두면 결과 판이 매 프레임
+        /// 다시 열린다. 그래서 <b>마지막으로 처리한 틱을 기억</b>하고 값이 바뀐 순간에만 움직인다.
+        ///
+        /// <b>왜 0 일 때 기억을 지우는가.</b> 서버가 판을 되돌리면 <c>ResultTick</c> 이 0 이 된다.
+        /// 그때 기억을 비워야 <b>다음 판에서 같은 성공·실패·점수가 나와도</b> 다시 보여 줄 수 있다.
+        /// 안 지우면 두 번째 판의 결과가 조용히 묻힌다.
+        /// </summary>
+        private void PublishResultWhenReady()
+        {
+            if (ResultTick == 0)
+            {
+                shownResultTick = 0;
+                return;
+            }
+
+            if (ResultTick == shownResultTick)
+            {
+                return;
+            }
+
+            shownResultTick = ResultTick;
+
+            if (resultRelease != null)
+            {
+                StopCoroutine(resultRelease);
+            }
+
+            resultRelease = StartCoroutine(ShowResultAfterHold(
+                ResultClear, ResultScore, ResultPlayTime));
+        }
+
+        /// <summary>
+        /// 성공·실패 연출을 <see cref="resultHoldSeconds"/> 만큼 보여 준 뒤 결과 판으로 넘긴다.
+        ///
+        /// 여는 시각의 기준이 서버 틱이라 <b>두 사람의 화면이 거의 같은 순간에 바뀐다.</b>
+        /// </summary>
+        private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime)
+        {
+            yield return new WaitForSeconds(resultHoldSeconds);
+
+            // 연출은 제 몫을 다했다. 결과 판과 겹치지 않게 접는다.
+            if (resultView == null)
+            {
+                resultView = FindAnyObjectByType<ShipCoopResultView>(FindObjectsInactive.Include);
+            }
+
+            if (resultView != null)
+            {
+                resultView.Hide();
+            }
+
+            // ⚠ 여기서 반드시 소비해야 한다. 안 그러면 Gateway 가 들고 있다가 Lobby 의
+            //    MatchFlowController 에 넘기고, 그쪽은 보상을 적립한다. 아직 지급 단계가 아니다.
+            MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
+                MiniGameId.Ship,
+                clear,
+                score,
+                playTime,
+                playerCount: Crew));
+
+            resultRelease = null;
+        }
+
+        /// <summary>
+        /// 판이 끝난 순간을 <b>서버 틱으로 찍어</b> 모두에게 알린다.
+        ///
+        /// 점수와 성공 여부는 <c>ShipCoopGame</c> 이 서버에서만 계산한 값을 그대로 옮긴다.
+        /// <b>클라이언트가 다시 계산하지 않는다</b> — 두 사람이 다른 점수를 보면 안 된다.
+        /// </summary>
+        private void WriteResultWhenFinished()
+        {
+            if (game == null || ResultTick != 0)
+            {
+                return;
+            }
+
+            bool ended = game.State == ShipCoopState.Cleared
+                         || game.State == ShipCoopState.Sunk
+                         || game.State == ShipCoopState.TimeOver;
+
+            if (!ended)
+            {
+                return;
+            }
+
+            ResultTick = Runner.Tick;
+            ResultClear = game.State == ShipCoopState.Cleared;
+            ResultScore = game.FinalScore;
+            ResultPlayTime = game.Elapsed;
+
+            Debug.Log(
+                $"[ShipCoop 결과] 확정 — {(ResultClear ? "성공" : "실패")}, " +
+                $"점수 {ResultScore}, {ResultPlayTime:F0}초 (틱 {ResultTick})");
+        }
+
+        /// <summary>
         /// 출항 전 안내. 두 화면이 <b>같은 복제 값</b>을 보므로 같은 글이 뜬다.
         ///
         /// 서버에서도 불리지만 <c>ShipCoopServerCleanup</c> 이 HUD 를 꺼 두어 헛돌지 않는다.
@@ -489,6 +707,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             {
                 return;
             }
+
+            PublishResultWhenReady();
 
             if (game != null)
             {
