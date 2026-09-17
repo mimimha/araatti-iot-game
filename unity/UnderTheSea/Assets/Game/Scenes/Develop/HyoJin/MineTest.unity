@@ -44193,6 +44193,10 @@ MonoBehaviour:
   flatAlways: 0
   varyRotation: 1
   bevel: 0.04
+  borderRing: 1
+  borderMaterial: {fileID: 0}
+  borderRise: 0.6
+  borderColor: {r: 1, g: 1, b: 1, a: 1}
   hardRise: 0
   heightJitter: 0
   jitterSpan: 4

@@ -97,6 +97,23 @@ public class MineGridView : MonoBehaviour
     [Tooltip("윗면 모서리를 깎는 폭(m). 0 이면 각진 큐브 그대로다. 깎인 띠가 빛을 받아 돌마다 가는 하이라이트 선이 생긴다. 어두운 광산에서 칸의 형태를 살리는 것이 이 값이다.")]
     [SerializeField, Range(0f, 0.15f)] private float bevel = 0.04f;
 
+    [Header("판 테두리")]
+    [Tooltip("판 바깥을 둘러싸는 돌 테두리의 두께(칸). 0 이면 안 만든다. 콜라이더가 남아 캐릭터가 판 밖으로 못 나간다.")]
+    [SerializeField, Range(0, 3)] private int borderRing = 1;
+
+    [Tooltip("테두리 돌. 비우면 단단한 돌 재질을 쓰고, 그것도 없으면 무른 돌 것을 쓴다.")]
+    [SerializeField] private Material borderMaterial;
+
+    [Tooltip("테두리가 판보다 솟은 높이(m). 턱이 지면 판이 '만들어진 자리'로 읽힌다.")]
+    [SerializeField, Range(0f, 1f)] private float borderRise = 0.6f;
+
+    [Tooltip("테두리 색. 재질이 그대로 보이게 흰색 근처로 두고, 판과 구분이 필요하면 조절한다.")]
+    [SerializeField, ColorUsage(false, true)]
+    private Color borderColor = Color.white;
+
+    [Tooltip("판을 둘러싸는 보이지 않는 벽의 높이(m). 0 이면 안 세운다. 캐릭터가 판 밖으로 못 나가게 막는다.")]
+    [SerializeField, Range(0f, 10f)] private float borderWallHeight = 3f;
+
     [Tooltip("단단한 돌이 더 솟은 높이(m). 어두운 곳에서 실루엣으로 구분된다.\n" +
              "걸려 넘어질 정도로 크게 주면 안 된다.")]
     [SerializeField, Min(0f)] private float hardRise = 0.02f;
@@ -276,6 +293,120 @@ public class MineGridView : MonoBehaviour
                 _cells[y * size + x] = block.transform;
 
                 if (_cracks != null) _cracks[y * size + x] = CreateCrack(x, y);
+            }
+        }
+
+        BuildBorder(size, side);
+        BuildBorderWall(size);
+    }
+
+    /// <summary>
+    /// 판 둘레에 <b>보이지 않는 벽</b>을 세운다. 캐릭터가 판 밖으로 못 나가게 막는다.
+    ///
+    /// ⚠ <b>테두리 블록의 콜라이더로는 못 막는다.</b> 캐릭터의 <c>CharacterController</c> 는
+    ///   <c>stepOffset</c> 이 1.2 — 키(<c>height</c>)와 같은 값이라, 그보다 낮은 턱은
+    ///   전부 걸어 올라간다. 실측으로 확인했다. 테두리를 1.2m 넘게 올리면 막히긴 하지만
+    ///   그러면 판을 가리는 벽이 되어 보기 위해 둔 테두리의 뜻이 사라진다.
+    ///
+    /// 그래서 <b>보이는 것과 막는 것을 나눈다.</b> 테두리는 보기만 맡고, 막는 것은
+    /// 렌더러 없는 콜라이더 넷이 맡는다. 덕분에 <see cref="borderRise"/> 는 순수하게
+    /// 보기 좋은 값으로 정할 수 있다.
+    ///
+    /// 벽은 <b>판 가장자리</b>에 세운다. 테두리 턱에 부딪혀 멈추는 것으로 읽힌다.
+    /// 아래로 1m 더 내려 파인 칸에 서 있어도 빠져나가지 못하게 한다.
+    /// </summary>
+    private void BuildBorderWall(int size)
+    {
+        if (borderWallHeight <= 0f) return;
+
+        float half = size * _grid.CellSize * 0.5f;
+        const float thick = 0.5f;
+
+        float h = borderWallHeight;
+        float centerY = (h - 1f) * 0.5f;   // -1 ~ h 를 덮는다
+        float sizeY = h + 1f;
+        float span = 2f * half + 2f * thick;
+
+        var root = new GameObject("BorderWall");
+        root.transform.SetParent(transform, false);
+
+        Add(root, "Wall_X+", new Vector3(half + thick * 0.5f, centerY, 0f), new Vector3(thick, sizeY, span));
+        Add(root, "Wall_X-", new Vector3(-half - thick * 0.5f, centerY, 0f), new Vector3(thick, sizeY, span));
+        Add(root, "Wall_Z+", new Vector3(0f, centerY, half + thick * 0.5f), new Vector3(span, sizeY, thick));
+        Add(root, "Wall_Z-", new Vector3(0f, centerY, -half - thick * 0.5f), new Vector3(span, sizeY, thick));
+
+        // 테두리 블록의 콜라이더는 이제 필요 없다. 벽 바깥이라 닿을 일이 없고,
+        // 84개가 물리 계산에 남을 이유도 없다.
+        foreach (Transform child in transform)
+        {
+            if (!child.name.StartsWith("Border_")) continue;
+            if (child.TryGetComponent(out Collider col)) Destroy(col);
+        }
+
+        static void Add(GameObject parent, string name, Vector3 center, Vector3 size)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent.transform, false);
+
+            var box = go.AddComponent<BoxCollider>();
+            box.center = Vector3.zero;
+            box.size = size;
+            go.transform.localPosition = center;
+        }
+    }
+
+    /// <summary>
+    /// 판 바깥을 돌로 둘러싼다.
+    ///
+    /// <b>판이 그냥 끊겨 있으면 떠 있는 것처럼 보인다.</b> 한 바퀴 두르고 살짝 턱을 주면
+    /// 같은 판이 '만들어진 자리' 로 읽힌다.
+    ///
+    /// ⚠ <b>콜라이더를 남긴다.</b> 테두리가 곧 벽이라 캐릭터가 판 밖으로 못 나간다.
+    ///
+    /// 테두리는 <see cref="_cells"/> 에 넣지 않는다. 파이지도, 색이 바뀌지도, 발밑 표시에
+    /// 잡히지도 않아야 한다. <c>MineGrid</c> 가 판 안쪽만 아는 것으로 이미 갈리지만,
+    /// 배열에 섞으면 언젠가 한쪽만 고쳐서 따로 논다.
+    ///
+    /// 좌표만으로 정해지므로 네트워크에서 복제할 것이 없다. 모든 화면이 같게 그린다.
+    /// </summary>
+    private void BuildBorder(int size, float side)
+    {
+        if (borderRing <= 0) return;
+
+        Material mat = borderMaterial != null ? borderMaterial
+                     : hardMaterial != null ? hardMaterial
+                     : softMaterial;
+
+        for (int y = -borderRing; y < size + borderRing; y++)
+        {
+            for (int x = -borderRing; x < size + borderRing; x++)
+            {
+                // 판 안쪽은 건너뛴다. 테두리는 바깥 링뿐이다.
+                if (x >= 0 && x < size && y >= 0 && y < size) continue;
+
+                var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                block.name = $"Border_{x}_{y}";
+                block.transform.SetParent(transform, false);
+
+                if (varyRotation)
+                {
+                    block.transform.localRotation =
+                        Quaternion.Euler(0f, 90f * ((x * 7 + y * 13) % 4), 0f);
+                }
+
+                if (_blockMesh != null && block.TryGetComponent(out MeshFilter filter))
+                {
+                    filter.sharedMesh = _blockMesh;
+                }
+
+                if (mat != null && block.TryGetComponent(out Renderer r)) r.sharedMaterial = mat;
+
+                // 판과 같은 높이에서 borderRise 만큼 올린다.
+                Vector3 top = _grid.CellToWorld(x, y) + Vector3.up * borderRise;
+                block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
+                block.transform.localScale = new Vector3(side, blockHeight, side);
+
+                SetColor(block, borderColor);
             }
         }
     }
