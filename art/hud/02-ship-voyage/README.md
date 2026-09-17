@@ -61,3 +61,7 @@ Unity에서는 delay-fill의 Image Type=Simple, Preserve Aspect=Off로 가로 �
 Unity 프로젝트의 `Assets/Game/Art/UI/ShipCoopHud/Voyage/` 로 들어가 `ShipCoopHud.prefab` 에 붙어 있습니다.
 
 붙이지 않은 것: `icon-harbour`, `icon-island` (바 끝에서 34px 라 뭉개지고, 바에 이미 끝이 있어 알려주는 것이 없습니다), `icon-speed`/`speed-label` (선택형), `hp-fill-green` (스크립트가 남은 양에 따라 초록·주황·빨강으로 다시 칠하므로 흰 `hp-mask` 를 씁니다).
+
+## v2 — 배 아이콘 교체
+
+`icon-ship.png`와 SVG 원본을 더 단순한 두 장 돛과 넓고 둥근 선체 형태로 교체했습니다. 작은 항해 위치에서는 104 × 104, HP 대표 아이콘에서는 약 135 × 135로 표시하는 기존 배치를 유지합니다. 검정 외곽선, 따뜻한 흰색 돛, 옅은 청회색 선체 안쪽으로 구성했습니다.

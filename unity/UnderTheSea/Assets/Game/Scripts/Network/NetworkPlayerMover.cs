@@ -22,10 +22,28 @@ public class NetworkPlayerMover : NetworkBehaviour
 {
     [Header("이동")]
     [SerializeField] private float walkSpeed = 5f;
+
+    [Tooltip("Shift 를 누르고 있는 동안의 속도. 걷기보다 빨라야 의미가 있다.")]
+    [SerializeField] private float runSpeed = 8f;
+
     [SerializeField] private float rotateSpeed = 720f;
 
     [Tooltip("접지 상태를 유지하기 위해 매 tick 아래로 눌러 주는 힘. 경사면에서 튀지 않게 한다.")]
     [SerializeField] private float gravity = -20f;
+
+    [Header("점프")]
+    [Tooltip("최고점 높이(m). 솟는 속도는 중력에서 거꾸로 계산한다.\n\n" +
+             "속도를 직접 두지 않는 이유는 중력을 바꾸면 높이가 같이 변해서다. " +
+             "보이는 것은 높이이므로 높이를 적는다.")]
+    [SerializeField, Min(0.1f)] private float jumpHeight = 1.2f;
+
+    /// <summary>
+    /// 직전 틱에 누르고 있던 것들. 여기서 "눌린 순간" 을 만들어 낸다.
+    ///
+    /// ⚠ <b>[Networked] 여야 한다.</b> Fusion 은 같은 틱을 여러 번 굴리므로
+    ///    평범한 필드에 두면 되돌려 계산하는 사이에 값이 어긋난다.
+    /// </summary>
+    [Networked] private NetworkButtons PreviousButtons { get; set; }
 
     [Header("애니메이터")]
     [Tooltip("CharacterMover 가 쓰던 이름과 같아야 한다. 다르면 애니메이션이 재생되지 않는다.")]
@@ -37,6 +55,14 @@ public class NetworkPlayerMover : NetworkBehaviour
     /// 애니메이터에 넣을 이동 축. 서버가 쓰고 모든 피어가 읽는다.
     /// </summary>
     [Networked] public Vector2 AnimAxis { get; set; }
+
+    /// <summary>
+    /// 지금 달리는 중인가. 서버가 정하고 **모든 피어가 읽는다.**
+    ///
+    /// ⚠ 로컬 입력으로 그리면 남의 캐릭터는 늘 걷는 자세로 보인다.
+    ///    <see cref="AnimAxis"/> 를 네트워크로 보내는 것과 같은 이유다.
+    /// </summary>
+    [Networked] public bool Running { get; set; }
 
     private CharacterController controller;
     private Animator animator;
@@ -101,6 +127,8 @@ public class NetworkPlayerMover : NetworkBehaviour
         // 입력이 아직 안 왔으면 제자리에서 중력만 적용한다.
         Vector3 move = Vector3.zero;
         Vector2 axis = Vector2.zero;
+        bool jumped = false;
+        bool running = false;
 
         if (GetInput(out NetworkInputData input))
         {
@@ -123,19 +151,50 @@ public class NetworkPlayerMover : NetworkBehaviour
                 transform.rotation = Quaternion.RotateTowards(
                     transform.rotation, target, rotateSpeed * Runner.DeltaTime);
             }
+
+            // 달리기는 "누르고 있는 상태" 라 되돌려 계산해도 값이 같다.
+            // 눌린 순간을 만들 필요가 없으므로 IsForward 안쪽에 두지 않는다.
+            running = input.Buttons.IsSet((int)LobbyButton.Sprint);
+
+            // ⚠ 되돌려 다시 계산하는 틱에서는 "눌린 순간" 을 만들지 않는다.
+            //    Fusion 은 같은 틱을 여러 번 굴린다. 그대로 두면 한 번 누른 것이
+            //    여러 번으로 처리되어 점프가 두 번 튄다.
+            if (Runner.IsForward)
+            {
+                NetworkButtons pressed = input.Buttons.GetPressed(PreviousButtons);
+                PreviousButtons = input.Buttons;
+
+                jumped = pressed.IsSet((int)LobbyButton.Jump);
+            }
         }
 
         // 접지 중이면 살짝 눌러 두고, 아니면 중력을 누적한다.
-        verticalVelocity = controller.isGrounded
+        bool grounded = controller.isGrounded;
+
+        verticalVelocity = grounded
             ? -2f
             : verticalVelocity + gravity * Runner.DeltaTime;
 
-        Vector3 velocity = move * walkSpeed;
+        // 땅에 붙어 있을 때만 뛴다. 공중에서 또 누르면 무시한다.
+        //
+        // 솟는 속도는 v = √(2gh) 다. 높이만 적어두면 중력을 바꿔도 보이는 높이가 그대로다.
+        if (jumped && grounded)
+        {
+            verticalVelocity = Mathf.Sqrt(2f * jumpHeight * -gravity);
+        }
+
+        // 제자리에 서 있으면 달리는 것이 아니다. 가만히 Shift 만 눌러도
+        // 달리는 자세가 나오면 어색하다.
+        bool moving = move.sqrMagnitude > 0.0001f;
+        running = running && moving;
+
+        Vector3 velocity = move * (running ? runSpeed : walkSpeed);
         velocity.y = verticalVelocity;
 
         controller.Move(velocity * Runner.DeltaTime);
 
         AnimAxis = axis;
+        Running = running;
     }
 
     /// <summary>
@@ -154,8 +213,8 @@ public class NetworkPlayerMover : NetworkBehaviour
         animator.SetFloat(horizontalId, axis.x);
         animator.SetFloat(verticalId, axis.y);
 
-        // State 는 걷기(0)~뛰기(1) 블렌드다. 이번 단계에서는 뛰기가 없으므로 0 으로 둔다.
-        animator.SetFloat(stateId, 0f);
+        // State 는 걷기(0)~뛰기(1) 블렌드다. 서버가 정한 값을 모든 피어가 같이 본다.
+        animator.SetFloat(stateId, Running ? 1f : 0f);
     }
 
     private void Update()
