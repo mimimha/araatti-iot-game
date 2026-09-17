@@ -126,7 +126,9 @@ public class LobbyTutorial : MonoBehaviour
     ///    글자 칸을 안내 상자 전체로 넓힌다. (<see cref="Show"/>)
     ///    좁은 칸 그대로 두면 석 줄로 접히면서 아래가 잘린다.
     /// </summary>
-    private const string CloseText = "다양한 사람들을 만나, 바다의 심장 조각을 함께 모아보세요.";
+    /// ⚠ 쉼표 뒤에서 **직접 줄을 나눈다.** 맡겨 두면 "바다의 심 / 장 조각을" 처럼
+    ///    낱말 한가운데가 잘린다. 한글은 띄어쓰기가 드물어 자동 줄바꿈이 잘 안 맞는다.
+    private const string CloseText = "다양한 사람들을 만나,\n바다의 심장 조각을 함께 모아보세요.";
 
     /// <summary>안내를 넘기기 전에 실제로 움직여야 하는 시간(초).</summary>
     private const float MoveHoldSeconds = 1.2f;
@@ -180,10 +182,18 @@ public class LobbyTutorial : MonoBehaviour
     private static readonly Vector2 LabelSizeAlone = new Vector2(420f, 96f);
     private static readonly Vector2 LabelPosAlone = new Vector2(0f, 12f);
 
-    // 교체 프리팹이 글자 칸을 좌우로 늘려 둔 경우의 **왼쪽 여백**.
-    // 키 그림이 있을 때는 그림을 피해 들어가고, 없을 때는 판 끝까지 쓴다.
-    private const float LabelInsetBeside = 208f;
-    private const float LabelInsetAlone = 32f;
+    /// <summary>
+    /// 교체 프리팹이 글자 칸을 좌우로 늘려 둔 경우의 **왼쪽 여백**.
+    ///
+    /// ⚠ 숫자를 여기 적어 두지 않는다. 프리팹에서 자리를 옮겨 놓고 여기를 안 고치면
+    ///    첫 화면만 맞고 단계가 바뀌는 순간 글자가 원래 자리로 튄다.
+    ///    그래서 <b>프리팹이 만들어 둔 값을 그대로 읽어 쓴다.</b>
+    ///
+    ///   · 그림이 있을 때  — 프리팹에 적힌 왼쪽 여백 그대로 (그림을 피해 들어간 자리)
+    ///   · 그림이 없을 때  — 오른쪽 여백과 같은 값 (판 안에서 좌우 대칭)
+    /// </summary>
+    private float labelInsetBeside;
+    private float labelInsetAlone;
 
     /// <summary>글자 칸이 좌우로 늘어나 있는가. 늘어나 있으면 여백만 조절해도 된다.</summary>
     private static bool IsStretchedSideways(RectTransform rect)
@@ -399,6 +409,15 @@ public class LobbyTutorial : MonoBehaviour
     {
         label = FindByName<TMP_Text>(LabelName) ?? view.GetComponentInChildren<TMP_Text>(includeInactive: true);
         labelRect = label != null ? label.rectTransform : null;
+
+        // 프리팹이 잡아 둔 여백을 기억한다. 아래에서 단계마다 이 값으로 되돌린다.
+        if (labelRect != null && IsStretchedSideways(labelRect))
+        {
+            labelInsetBeside = labelRect.offsetMin.x;
+
+            // 오른쪽 여백만큼 왼쪽도 비운다. 판 안에서 좌우가 맞는다.
+            labelInsetAlone = -labelRect.offsetMax.x;
+        }
         keyGroup = FindChild(KeyGroupName);
         mouseGroup = FindChild(MouseGroupName);
         jumpGroup = FindChild(JumpGroupName);
@@ -861,7 +880,7 @@ public class LobbyTutorial : MonoBehaviour
             // 늘려 두지 않았다면 그쪽이 자리를 직접 정한 것이니 건드리지 않는다.
             // 좌우로 늘린 칸은 "남는 만큼 쓰겠다" 는 뜻이라고 본다.
             Vector2 offset = labelRect.offsetMin;
-            offset.x = hasGraphic ? LabelInsetBeside : LabelInsetAlone;
+            offset.x = hasGraphic ? labelInsetBeside : labelInsetAlone;
             labelRect.offsetMin = offset;
         }
 
