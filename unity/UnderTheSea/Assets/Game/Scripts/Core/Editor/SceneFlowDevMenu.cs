@@ -26,6 +26,16 @@ public static class SceneFlowDevMenu
         Debug.Log($"[SceneFlowDevMenu] \"{before}\" 를 지웠습니다. 다음 로그인부터 CharacterCreate 가 나옵니다.");
     }
 
+    [MenuItem(MenuRoot + "튜토리얼 다시 보기")]
+    private static void ClearTutorial()
+    {
+        // ⚠ "이미 나올 예정이면 아무것도 안 한다" 는 가드를 두지 않는다.
+        //    그 판단이 틀렸을 때 눌러도 아무 일이 안 일어나 원인을 못 찾는다.
+        //    실제로 그것 때문에 표시가 한 번도 안 세워졌다. 누르면 늘 세운다.
+        LobbyTutorial.ClearSeen();
+        Debug.Log("[SceneFlowDevMenu] 다음 로비 입장에서 튜토리얼이 나옵니다.");
+    }
+
     [MenuItem(MenuRoot + "저장된 캐릭터 이름 보기")]
     private static void ShowCharacter()
     {
