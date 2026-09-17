@@ -35,6 +35,33 @@ using UnityEngine;
 ///    거리를 시간으로 나눈 값, 즉 **평균 속도**를 넣으면 곱한 결과가 늘
 ///    거리와 같아집니다. 튀지 않고, 배가 빠르면 물도 빨라집니다.
 ///
+/// ⚠ **여기서 "시간" 은 `Time.timeSinceLevelLoad` 가 아닙니다.**
+///
+///    셰이더가 쓰는 시계는 따로 있고, 씬을 다시 열어도 <b>초기화되지 않습니다.</b>
+///    실측으로 두 값이 이만큼 달랐습니다.
+///
+///    <code>
+///    클라1   levelTime  24.3   shaderTime 110.1
+///    클라2   levelTime  11.4   shaderTime 104.9
+///    </code>
+///
+///    levelTime 으로 나누면 사람마다 다른 값이 들어갑니다. 같은 거리 30m 에서
+///    한쪽은 2.52, 다른 쪽은 3.46 이 들어갔고 <b>물살 속도가 37% 차이</b> 났습니다.
+///    앱을 켠 지 오래일수록 심해지고, 시간이 지나면 저절로 비슷해졌다가 다음 판에
+///    또 어긋납니다. 그래서 <c>Shader.GetGlobalVector("_Time")</c> 로
+///    <b>셰이더가 실제로 쓰는 시계를 직접 읽습니다.</b>
+///
+/// ⚠ **무늬 위치는 모두가 같은 값으로만 정합니다.**
+///
+///    <code>
+///    무늬 위치 = 출항 전 로컬 흐름(고정) + 간 거리 × 계수 + 최소흐름 × 경과시간
+///    </code>
+///
+///    간 거리와 경과 시간은 서버가 정해 모두에게 같은 값이 갑니다. 그래서 항해 중
+///    <b>물살 속도가 모든 화면에서 똑같아집니다.</b> 출항 전 흐름만 각자 다른데,
+///    그 차이는 이후 고정된 상수라 무늬가 조금 밀려 보일 뿐 속도는 같습니다.
+///    (대기실에서 물을 세우지 않으려는 타협입니다)
+///
 /// ⚠ **공용 재질이 아니라 사본에 씁니다.** (`renderer.material`)
 ///    `sharedMaterial` 에 쓰면 에디터에서 재질 파일이 실제로 바뀌어서,
 ///    플레이를 멈춰도 물이 흘러간 자리에 그대로 남습니다.
@@ -43,6 +70,9 @@ public class ShipCoopSeaFlow : MonoBehaviour
 {
     [Header("연결 — 비워두면 씬에서 찾는다")]
     [SerializeField] private ShipVoyage voyage;
+
+    [Tooltip("경과 시간을 읽는다. 서버가 정해 모두에게 같은 값이 온다. 비워두면 씬에서 찾는다.")]
+    [SerializeField] private ShipCoopGame game;
 
     [Tooltip("무늬를 흘릴 물 판들. 비워두면 이 오브젝트와 자식에서 찾는다.")]
     [SerializeField] private Renderer[] water;
@@ -63,11 +93,19 @@ public class ShipCoopSeaFlow : MonoBehaviour
     private Material[] _paints;
     private bool _ready;
 
+    /// <summary>출항 전에 로컬로 흘려 둔 양. 출항하면 더 늘지 않는다.</summary>
+    private float _driftBeforeSailing;
+
     private void Awake()
     {
         if (voyage == null)
         {
             voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
+        }
+
+        if (game == null)
+        {
+            game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
         }
 
         if (water == null || water.Length == 0)
@@ -108,15 +146,30 @@ public class ShipCoopSeaFlow : MonoBehaviour
             return;
         }
 
-        // 시작 직후에는 시간이 0 에 가까워서 나눌 수 없다.
-        float since = Mathf.Max(Time.timeSinceLevelLoad, 0.5f);
+        float elapsed = game != null ? game.Elapsed : 0f;
 
-        // 평균 속도. 곱한 결과(무늬 위치)가 늘 간 거리와 같아진다. (위 주석)
-        float pan = voyage.Distance / since * flowPerShipSpeed;
+        // 출항 전에는 나아간 거리가 없다. 그대로 두면 물이 얼어붙으므로 로컬로 조금씩 흘린다.
+        // 출항하면 그만두고, 그때까지 흘린 만큼은 상수로 남긴다. 사람마다 이 값이 다르지만
+        // 이후로는 변하지 않으므로 무늬가 조금 밀릴 뿐 **속도는 모두 같아진다.**
+        if (voyage.Distance <= 0f && elapsed <= 0f)
+        {
+            _driftBeforeSailing += leastFlow * Time.deltaTime;
+        }
+
+        // 모두가 같은 값으로만 무늬 위치를 정한다. (위 주석)
+        float phase = _driftBeforeSailing
+                      + voyage.Distance * flowPerShipSpeed
+                      + leastFlow * elapsed;
+
+        // ⚠ 셰이더가 쓰는 시계를 그대로 읽는다. Time.timeSinceLevelLoad 와 다르다. (위 주석)
+        float since = Mathf.Max(Shader.GetGlobalVector("_Time").y, 0.5f);
+
+        // 셰이더는 "시간 × 속도" 로 무늬 위치를 내므로, 원하는 위치를 시간으로 나눠 넣는다.
+        float pan = phase / since;
 
         for (int i = 0; i < _paints.Length; i++)
         {
-            _paints[i].SetFloat(PanName, Mathf.Max(pan, leastFlow));
+            _paints[i].SetFloat(PanName, pan);
         }
     }
 }
