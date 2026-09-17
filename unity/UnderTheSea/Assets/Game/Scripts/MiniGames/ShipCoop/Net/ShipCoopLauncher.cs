@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
+using MiniGames.Common;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -35,6 +36,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Header("서버 전용")]
         [Tooltip("Server 모드에서 열 포트. 실행 인자 -port 가 있으면 그쪽이 이긴다.")]
         [SerializeField] private ushort serverPort = 27016;
+
+        [Header("이 미니게임의 설정")]
+        [Tooltip("MiniGame_Ship 에셋을 연결한다. 정원(MaxPlayers)의 단일 출처다. " +
+                 "Lobby 나 PlayerRoster 를 거치지 않는다 — Dedicated Server 는 Lobby 없이 바로 뜨므로 " +
+                 "그쪽에 기대면 서버에서는 늘 비어 있다. 씬에서 직접 잇는다.")]
+        [SerializeField] private MiniGameConfig config;
 
         /// <summary>이 프로세스에서 세션을 시작한 인스턴스. 씬 재로드로 생긴 복사본을 막는다.</summary>
         private static ShipCoopLauncher active;
@@ -93,6 +100,24 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             // 서버에는 조작하는 사람이 없다. 입력을 만들지 않는다.
             runner.ProvideInput = !isServer;
 
+            if (isServer)
+            {
+                // 판이 끝났거나 항해 중이면 새 접속을 거절한다. **서버에서만 등록한다.**
+                //
+                // ⚠ 입력 제공자는 바로 아래 if (!isServer) 안에서 등록된다. 그래서 서버에서는
+                //    그쪽 OnConnectRequest 가 **아예 불리지 않는다.** 거기에 거절 코드를 넣으면
+                //    조용히 아무 일도 안 일어난다. 실측으로 확인했다.
+                MiniGameAdmission admission = GetComponent<MiniGameAdmission>();
+
+                if (admission == null)
+                {
+                    admission = gameObject.AddComponent<MiniGameAdmission>();
+                }
+
+                admission.Configure(config);
+                runner.AddCallbacks(admission);
+            }
+
             if (!isServer)
             {
                 // 배 협동 게임 전용 입력 제공자.
@@ -129,6 +154,20 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             if (isServer)
             {
                 args.Address = NetAddress.Any(port);
+
+                // 정원을 Photon 에게도 알린다. **동시에 두드리는 경쟁은 여기서만 막을 수 있다.**
+                // 우리 쪽 OnConnectRequest 는 승인됐지만 아직 합류하지 않은 사람을 세지 못한다.
+                if (config != null)
+                {
+                    args.PlayerCount = config.MaxPlayers;
+                    Debug.Log($"[ShipCoop] 세션 정원을 {config.MaxPlayers}명으로 엽니다. ({config.DisplayName})");
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        "[ShipCoop] 설정 에셋이 비어 있어 정원을 정하지 못했습니다. " +
+                        "ShipCoopBoot 씬의 ShipCoopLauncher 에 MiniGame_Ship 을 연결해 주세요.");
+                }
             }
 
             startedRunner = runner;
@@ -137,15 +176,21 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             if (!result.Ok)
             {
-                Debug.LogError($"[ShipCoop] 접속 실패: {result.ShutdownReason} — {result.ErrorMessage}");
+                // 거절은 고장이 아니다. 서버가 "지금은 안 받는다"고 제대로 답한 것이라
+                // 빨간 에러로 남기면 진짜 오류를 찾을 때 방해가 된다. 경고로 낮춘다.
+                bool refused = result.ShutdownReason == ShutdownReason.ConnectionRefused;
+
+                string line = $"[ShipCoop] 접속 실패: {result.ShutdownReason} — {result.ErrorMessage}";
+                if (refused) Debug.LogWarning(line); else Debug.LogError(line);
 
                 if (!isServer)
                 {
-                    Debug.LogError(Describe(result.ShutdownReason, session));
+                    string told = Describe(result.ShutdownReason, session);
+                    if (refused) Debug.LogWarning(told); else Debug.LogError(told);
 
                     // Lobby 에서 넘어온 경우라면 화면에 갇히지 않게 알린다.
                     // 듣는 사람이 없으면 아무 일도 일어나지 않는다 — 단독 실행은 그대로다.
-                    MiniGameEntry.ReportFailed(Describe(result.ShutdownReason, session));
+                    MiniGameEntry.ReportFailed(told);
                 }
 
                 return;
@@ -164,8 +209,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 case ShutdownReason.GameNotFound:
                     return $"[ShipCoop] Dedicated Server 를 먼저 실행하세요. \"{session}\" 세션이 열려 있지 않습니다.";
 
-                case ShutdownReason.ConnectionTimeout:
                 case ShutdownReason.ConnectionRefused:
+                    // 서버는 살아 있는데 지금은 안 받는 것이다. 이유는 서버 로그에만 있다 —
+                    // Fusion 의 Refuse() 는 사유를 실어 보내지 못한다. 그래서 한 문장으로 통일한다.
+                    return "[ShipCoop] 지금은 이 미니게임에 입장할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+
+                case ShutdownReason.ConnectionTimeout:
                     return $"[ShipCoop] Dedicated Server 를 먼저 실행하세요. \"{session}\" 에 연결하지 못했습니다. ({reason})";
 
                 case ShutdownReason.GameIsFull:
