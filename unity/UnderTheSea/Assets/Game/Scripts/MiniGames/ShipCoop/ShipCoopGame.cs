@@ -379,9 +379,18 @@ public class ShipCoopGame : MonoBehaviour
             cannons[i].ResetCannon();
         }
 
+        // 키도 마찬가지다. 꺾어 둔 각도가 남으면 다음 판이 그 각도에서 시작해
+        // 출항하자마자 배가 옆으로 쏠린다.
+        HelmTask[] helms = FindObjectsByType<HelmTask>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        for (int i = 0; i < helms.Length; i++)
+        {
+            helms[i].ResetHelm();
+        }
+
         Debug.Log(
             $"[ShipCoopGame] 판을 치웠다 — 사건 {running.Length}개, 구멍 {holes}개, " +
-            $"떨어진 물건 {lying.Length}개, 대포 {cannons.Length}문.", this);
+            $"떨어진 물건 {lying.Length}개, 대포 {cannons.Length}문, 키 {helms.Length}개.", this);
     }
 
     /// <summary>출항한다.</summary>
