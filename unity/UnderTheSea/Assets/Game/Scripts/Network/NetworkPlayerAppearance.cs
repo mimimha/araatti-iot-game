@@ -157,14 +157,23 @@ namespace UnderTheSea.Network
             //
             //    그래서 "바뀌었는가" 가 아니라 **"준비됐는데 아직 안 입혔는가"** 를 본다.
             //    상태를 보는 판정이라 순간을 놓쳐도 다음 프레임에 다시 잡힌다.
-            if (AppearanceReady && !everApplied)
+            //
+            // ⚠ **이 검사는 반드시 아래 가드 뒤에 와야 한다.** Render 는 Spawned 전후로도
+            //    불릴 수 있는데, 그때 [Networked] 값을 읽으면 Fusion 이 예외를 던진다.
+            //
+            //        InvalidOperationException: Networked properties can only be accessed
+            //        when Spawned() has been called.
+            //
+            //    changes 는 Spawned 에서만 채워지므로 "스폰됐는가" 의 표식 역할을 한다.
+            //    처음엔 이 검사를 가드 위에 뒀다가 개발 콘솔에 빨간 예외를 띄웠다.
+            if (changes == null)
             {
-                ApplyFromState("뒤늦게 확인");
                 return;
             }
 
-            if (changes == null)
+            if (AppearanceReady && !everApplied)
             {
+                ApplyFromState("뒤늦게 확인");
                 return;
             }
 
