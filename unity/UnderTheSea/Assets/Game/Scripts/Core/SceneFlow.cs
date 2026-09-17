@@ -157,6 +157,58 @@ public static class SceneFlow
         SceneManager.UnloadSceneAsync(screen);
     }
 
+    // ------------------------------------------------------------
+    // 미니게임 드나들기
+    //
+    // ⚠ 허브의 이름은 어디서나 **Lobby** 다. World 라는 이름은 쓰지 않는다.
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 미니게임 씬을 연다. **어떤 미니게임인지는 알지 못한다.**
+    ///
+    /// 씬 이름은 공통 설정(<c>MiniGameConfig.SceneName</c>)에서 오고, 이 파일은 그것을
+    /// 열기만 한다. 그래서 여기에 ShipCoop · 광산 · 검 같은 이름이 하나도 없다.
+    ///
+    /// ⚠ 네트워크 미니게임은 <b>시작 씬</b>(예: ShipCoopBoot)을 연다. 게임 씬을 바로 열면
+    ///    <c>PeerMode.Multiple</c> 이 같은 씬을 두 벌 띄운다. 그 판단은 설정이 한다.
+    /// </summary>
+    public static void ToMiniGame(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName))
+        {
+            Debug.LogError("[SceneFlow] 미니게임 씬 이름이 비어 있습니다. MiniGameConfig 의 SceneName 을 채워 주세요.");
+            return;
+        }
+
+        // 미니게임은 자기 Runner 로 자기 씬을 연다. Lobby 를 쥐고 있던 표시를 남겨 두면
+        // 돌아왔을 때 Lobby 가 열리지 않는다.
+        ReleaseNetworkLobby();
+
+        Debug.Log($"[SceneFlow] 미니게임으로 이동: {sceneName}");
+        Load(sceneName);
+    }
+
+    /// <summary>
+    /// Lobby 로 돌아간다.
+    ///
+    /// 미니게임 결과 화면의 [로비로] 와 매칭 취소가 쓴다. 실제 채널 재접속은
+    /// 네트워크 계층이 이어서 한다 — 이 파일은 씬만 연다.
+    ///
+    /// ⚠ 채널에 접속하면 <b>Fusion 이 Lobby 를 다시 올린다.</b> 그때는 여기서 열지 않는다.
+    ///    그 판단은 <see cref="LobbyLoadedByNetwork"/> 하나로 한다.
+    /// </summary>
+    public static void ToLobby()
+    {
+        if (LobbyLoadedByNetwork)
+        {
+            Debug.Log("[SceneFlow] Lobby 는 네트워크가 이미 로드했습니다. 씬을 다시 열지 않습니다.");
+            return;
+        }
+
+        Debug.Log("[SceneFlow] Lobby 로 돌아갑니다.");
+        Load(Lobby);
+    }
+
     /// <summary>
     /// 지금 씬을 처음부터 다시 시작한다. 미니게임 결과 화면의 [다시 하기] 용.
     ///
@@ -222,6 +274,24 @@ public static class SceneFlow
         LobbyLoadedByNetwork = false;
     }
 
+    /// <summary>
+    /// 미니게임 결과 화면의 [로비로].
+    ///
+    /// ⚠ <b>부르기 전에 네트워크 러너를 먼저 내려야 한다.</b> 미니게임은 자기 Fusion 세션에서
+    ///    도는데, 세션을 켜 둔 채 씬만 바꾸면 그 세션이 남아 다음 입장이 막힌다.
+    ///    러너를 내리는 것은 네트워크 계층의 일이고, 이 파일은 씬 전환만 한다.
+    ///    (GAME_STRUCTURE.md 3장의 역할 분담 그대로다)
+    ///
+    /// <c>LobbyLoadedByNetwork</c> 를 내리는 이유는 <see cref="BackToTitle"/> 과 같다 —
+    /// 네트워크가 올려 둔 Lobby 는 이미 사라졌으므로 이 값을 들고 있으면
+    /// 다음에 Lobby 를 열어야 할 때 "이미 있다" 고 잘못 판단한다.
+    /// </summary>
+    public static void BackToLobbyFromMiniGame()
+    {
+        ReleaseNetworkLobby();
+        Load(Lobby);
+    }
+
     /// <summary>Login 에서 [뒤로가기].</summary>
     public static void BackToTitle()
     {
@@ -249,6 +319,19 @@ public static class SceneFlow
     ///    생길 때를 위해 남겨 둔다.
     /// </summary>
     public static void BackToCharacterCreate() => Load(CharacterCreate);
+
+    /// <summary>
+    /// 채널 선택으로 되돌아간다.
+    ///
+    /// 미니게임에서 Lobby 로 돌아가려는데 <b>돌아갈 채널을 모르거나</b> 재접속에 실패했을 때
+    /// 쓴다. 채널을 다시 고르면 정상 흐름으로 복귀한다.
+    /// </summary>
+    public static void BackToChannelSelect()
+    {
+        ReleaseNetworkLobby();
+        Debug.Log("[SceneFlow] 채널 선택으로 돌아갑니다.");
+        Load(ChannelSelect);
+    }
 
     // ------------------------------------------------------------
     // 캐릭터 정보

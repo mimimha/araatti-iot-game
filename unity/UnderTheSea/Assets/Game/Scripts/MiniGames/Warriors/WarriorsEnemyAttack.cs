@@ -68,6 +68,13 @@ namespace Warriors
             approach?.ConfigureHoldDistance(attackRange);
         }
 
+        /// <summary>
+        /// **때릴 사람을 바꾼다.** 서버가 가장 가까운 생존자를 골라 넣는다.
+        ///
+        /// 쓰러진 사람은 대상에서 빠져야 하므로 한 번 정하고 마는 값이 아니다.
+        /// </summary>
+        public void RetargetPlayer(WarriorsHealth target) => playerHealth = target;
+
         private void OnDisable() => warning = false;
     }
 }

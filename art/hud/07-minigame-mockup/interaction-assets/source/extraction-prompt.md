@@ -1,0 +1,8 @@
+Use case: background-extraction / production sprite separation.
+Input image is the approved pirate interaction icon design sheet. Extract its seven main prop designs and two reusable UI components into a TRUE TRANSPARENT RGBA sprite atlas. Preserve the approved artwork's silhouettes, materials, colors and tasteful painted 2.5D detail faithfully. No redesign.
+Output square 1536x1536 pixels, perfectly regular 3 columns by 3 rows, each cell exactly 512x512 with 48px transparent padding. Nine completely disconnected assets, each centered inside its cell without touching any other cell.
+Row 1: wooden steering wheel; cream canvas sail on short wooden mast; dark iron cannon on wooden wheels.
+Row 2: repair hammer crossed with boards; plain dark iron cannonball (NO fuse); rope-bound repair planks.
+Row 3: wooden water bucket with turquoise water; empty navy rounded rectangular action panel with thin warm brass rim matching the approved bottom action cards (NO icon, NO text, NO keycap baked in); a single blank ivory keyboard keycap matching the Space key style (NO text).
+Panel fits 416x145 centered in its cell, keycap fits 260x110 centered in its cell.
+REMOVE ALL sheet background, title, text labels, banners, divider lines, decorations, boxes, lanterns, floors. Transparent empty space including inside wheel spokes and around sail rope and bucket handle. No checkerboard baked in, no opaque background, no drop shadow ground plane. Keep natural self shading of the objects. All artwork isolated with clean antialiased alpha edges. Seven props from the reference, not extra examples from its bottom strip. Empty card and empty keycap are separate UI assets.

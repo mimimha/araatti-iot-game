@@ -111,7 +111,12 @@ namespace Warriors
             trail.startWidth = 0.12f;
             trail.endWidth = 0.01f;
             trail.minVertexDistance = 0.04f;
-            trail.material = new Material(Shader.Find("Sprites/Default"));
+            // ⚠ Dedicated Server 빌드에는 셰이더가 들어 있지 않다. (Dedicated Server Optimizations)
+            //    그대로 두면 Shader.Find 가 null 을 돌려주고 new Material(null) 이 예외를 던져
+            //    Awake 가 중간에 끊긴다. 칼이 손에 붙지 않은 채로 남는다.
+            //    칼 궤적은 연출이라 서버에는 없어도 된다.
+            Shader trailShader = Shader.Find("Sprites/Default");
+            if (trailShader != null) trail.material = new Material(trailShader);
             trail.startColor = new Color(0.35f, 0.85f, 1f, 0.8f);
             trail.endColor = new Color(0.7f, 0.95f, 1f, 0f);
         }

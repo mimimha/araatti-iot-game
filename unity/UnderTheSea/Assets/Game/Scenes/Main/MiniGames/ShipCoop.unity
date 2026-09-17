@@ -2761,7 +2761,7 @@ MonoBehaviour:
   islandFarDistance: 400
   islandNearDistance: 25
   islandApproachCurve: 2
-  logIsland: 1
+  logIsland: 0
   courseHalfWidth: 5
   courseLineWidth: 0.35
   courseLineMaterial: {fileID: 2100000, guid: cbb41788c5a9f6344840f780c158461d, type: 2}
@@ -3744,6 +3744,63 @@ MonoBehaviour:
   allowedOffTime: 3.5
   floodOnFail: 0.35
   floodOnSucceed: 0.15
+--- !u!1001 &1013782251
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 216293967274194071, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_Name
+      value: MiniGameResultOverlay
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
 --- !u!1 &1014917016
 GameObject:
   m_ObjectHideFlags: 0
@@ -5841,6 +5898,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopStateSync
   crewToStart: 2
+  resultHoldSeconds: 3
   countdownSeconds: 10
 --- !u!114 &1666538690
 MonoBehaviour:
@@ -5876,6 +5934,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b184e051f112a248af957763cda8768, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopServerCleanup
+  serverFrameRate: 120
 --- !u!4 &1666538692
 Transform:
   m_ObjectHideFlags: 0
@@ -7781,3 +7840,4 @@ SceneRoots:
   - {fileID: 1603449122}
   - {fileID: 525450925}
   - {fileID: 1666538692}
+  - {fileID: 1013782251}

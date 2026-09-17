@@ -231,6 +231,75 @@ public class ShipCoopGame : MonoBehaviour
     /// </summary>
     public void RestartVoyage()
     {
+        ClearBoard();
+
+        // 이미 항해 중이면 StartVoyage 가 그냥 되돌아 나간다. 끝난 것으로 만들어 두고 다시 시작한다.
+        State = ShipCoopState.Ready;
+
+        StartVoyage();
+    }
+
+    /// <summary>
+    /// 다음 판을 받을 수 있는 **대기 상태**로 되돌린다. 출항은 하지 않는다.
+    ///
+    /// <b>왜 필요한가.</b> 한 판이 끝나면 배가 <c>침몰</c> · <c>시간 초과</c> 로 굳어 버린다.
+    /// 그 상태의 서버에 새로 들어오면 <b>들어오자마자 종료 화면</b>이 뜨고 아무것도 할 수 없다.
+    /// 그래서 QA 때마다 Dedicated Server 를 손으로 껐다 켰다. 판이 한 번밖에 안 돌아간다.
+    ///
+    /// <c>RestartVoyage</c> 와 치우는 것은 같지만 <b>끝을 다르게 둔다.</b>
+    ///
+    /// <code>
+    ///   RestartVoyage    치우고 → 바로 출항   (개발자 모드의 R)
+    ///   ResetToWaiting   치우고 → 대기        (사람이 다 나갔을 때)
+    /// </code>
+    ///
+    /// ⚠ <b>사람이 남아 있을 때 부르면 안 된다.</b> 결과를 보고 있는 사람의 화면을 빼앗는다.
+    ///    부르는 쪽(<c>ShipCoopStateSync</c>)이 아무도 없을 때만 부른다.
+    /// </summary>
+    public void ResetToWaiting()
+    {
+        ClearBoard();
+
+        // 출항 전 화면이 지난 판의 진행도와 시간을 들고 있으면 안 된다.
+        _elapsed = 0f;
+        _phaseIndex = -1;
+        _enemiesDestroyed = 0;
+        _leaksSealed = 0;
+        _obstaclesAvoided = 0;
+        FinalScore = 0;
+
+        if (voyage != null)
+        {
+            voyage.ResetVoyage();
+        }
+
+        if (flooding == null)
+        {
+            flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+        }
+
+        if (flooding != null)
+        {
+            flooding.ResetFlooding();
+        }
+
+        State = ShipCoopState.Ready;
+
+        // 결과 화면은 이 신호를 듣고 스스로 닫는다. 안 부르면 "침몰" 글자가 남는다.
+        Restarted?.Invoke();
+
+        Debug.Log("[ShipCoopGame] 대기 상태로 되돌렸습니다. 다음 판을 받을 수 있습니다.", this);
+        UpdatePhase();
+    }
+
+    /// <summary>
+    /// 판을 치운다 — 떠 있던 사건, 뚫린 구멍, 깎인 HP.
+    ///
+    /// <see cref="RestartVoyage"/> 와 <see cref="ResetToWaiting"/> 가 함께 쓴다.
+    /// 둘의 차이는 치운 **뒤에 무엇을 하느냐**뿐이다.
+    /// </summary>
+    private void ClearBoard()
+    {
         // 떠 있던 사건을 전부 끈다. 바다에 띄운 바위 · 적선도 각 사건의 OnHide 가 치운다.
         VoyageEvent[] running = new VoyageEvent[VoyageEvent.Active.Count];
         for (int i = 0; i < running.Length; i++)
@@ -285,12 +354,43 @@ public class ShipCoopGame : MonoBehaviour
             health.ResetHealth();
         }
 
-        // 이미 항해 중이면 StartVoyage 가 그냥 되돌아 나간다. 끝난 것으로 만들어 두고 다시 시작한다.
-        State = ShipCoopState.Ready;
+        // 갑판에 떨어져 있던 물건을 치운다. 안 치우면 지난 판의 양동이와 포탄이 그대로 남는다.
+        // AllDropped 는 Take() 안에서 줄어드므로 복사본을 돌아야 순회가 깨지지 않는다.
+        DroppedCargo[] lying = new DroppedCargo[DroppedCargo.All.Count];
 
-        Debug.Log($"[ShipCoopGame] 처음부터 다시 — 사건 {running.Length}개를 끄고 구멍 {holes}개를 치웠다.", this);
+        for (int i = 0; i < lying.Length; i++)
+        {
+            lying[i] = DroppedCargo.All[i];
+        }
 
-        StartVoyage();
+        for (int i = 0; i < lying.Length; i++)
+        {
+            if (lying[i] != null)
+            {
+                Destroy(lying[i].gameObject);
+            }
+        }
+
+        // 대포는 씬에 고정된 물건이라 사라지지 않는다. 장전해 둔 포탄이 다음 판으로 넘어간다.
+        CannonTask[] cannons = FindObjectsByType<CannonTask>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        for (int i = 0; i < cannons.Length; i++)
+        {
+            cannons[i].ResetCannon();
+        }
+
+        // 키도 마찬가지다. 꺾어 둔 각도가 남으면 다음 판이 그 각도에서 시작해
+        // 출항하자마자 배가 옆으로 쏠린다.
+        HelmTask[] helms = FindObjectsByType<HelmTask>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        for (int i = 0; i < helms.Length; i++)
+        {
+            helms[i].ResetHelm();
+        }
+
+        Debug.Log(
+            $"[ShipCoopGame] 판을 치웠다 — 사건 {running.Length}개, 구멍 {holes}개, " +
+            $"떨어진 물건 {lying.Length}개, 대포 {cannons.Length}문, 키 {helms.Length}개.", this);
     }
 
     /// <summary>출항한다.</summary>
@@ -413,10 +513,12 @@ public class ShipCoopGame : MonoBehaviour
         {
             Finished?.Invoke(state == ShipCoopState.Cleared, score);
         }
-        else if (state == ShipCoopState.Sailing)
+        else if (state == ShipCoopState.Sailing || state == ShipCoopState.Ready)
         {
-            // 끝났다가 다시 항해 중이 됐다 — 호스트가 판을 다시 시작한 것이다. (개발자 모드의 R)
-            // 이 화면은 StartVoyage 를 부르지 않으니 여기서 알리지 않으면 "침몰" 글자가 안 사라진다.
+            // 끝났다가 항해 중 또는 대기로 돌아왔다 — 서버가 판을 되돌린 것이다.
+            //   Sailing  개발자 모드의 R
+            //   Ready    사람이 다 나가 다음 판을 받으려고 (ResetToWaiting)
+            // 이 화면은 그 함수들을 부르지 않으니 여기서 알리지 않으면 "침몰" 글자가 안 사라진다.
             Restarted?.Invoke();
         }
     }

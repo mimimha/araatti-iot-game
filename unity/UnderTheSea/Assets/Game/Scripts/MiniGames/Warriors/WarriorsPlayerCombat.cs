@@ -48,6 +48,22 @@ namespace Warriors
         public int PlayerId => playerId;
 
         /// <summary>
+        /// 네트워크에서 서버가 정한 사람 번호(0 = 1P)를 받는다. (Warriors 네트워크 전환)
+        ///
+        /// 프리팹에는 0 이 박혀 있어 두 사람이 모두 1P 로 등록되던 것을 바로잡는다.
+        /// <see cref="WarriorsPlayers"/> 는 번호순으로 정렬해 두므로 다시 등록해 순서를 맞춘다.
+        /// 혼자 하는 씬에서는 아무도 부르지 않는다.
+        /// </summary>
+        public void ConfigurePlayerId(int id)
+        {
+            if (playerId == id) return;
+            bool registered = isActiveAndEnabled;
+            if (registered) WarriorsPlayers.Unregister(this);
+            playerId = id;
+            if (registered) WarriorsPlayers.Register(this);
+        }
+
+        /// <summary>
         /// Everything this player has personally connected with. Two player runs share
         /// one health pool, so the player strip used to show the same bar twice; this is
         /// something that actually differs between the two of them.
@@ -234,13 +250,21 @@ namespace Warriors
             attackTrail.enabled = false;
         }
 
+        /// <summary>이번 스윙의 사거리 안에 **종류가 안 맞는** 대상이 있었는가.</summary>
+        private bool mismatchedInReach;
+
         private void ApplyAreaAttack(WarriorsAttackDirection direction)
         {
             hitThisAttack.Clear();
+            mismatchedInReach = false;
             bool thrust = direction == WarriorsAttackDirection.Thrust;
             Vector3 center = transform.position + Vector3.up + transform.forward * (thrust ? thrustLength * .5f : 2.25f);
             float queryRadius = thrust ? thrustLength * .55f : attackRadius;
-            int count = Physics.OverlapSphereNonAlloc(center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
+            // ⚠ 정적 Physics.* 는 **기본 물리 씬**에만 묻는다. 네트워크 세션에서는 게임 씬이
+            //    러너 전용 물리 씬에 있어 결과가 늘 0 이 된다. (Warriors 네트워크 전환)
+            //    러너가 없는 싱글 씬에서는 안에서 예전 함수를 그대로 부른다.
+            int count = Warriors.Net.WarriorsNet.OverlapSphere(
+                center, queryRadius, areaHits, ~0, QueryTriggerInteraction.Collide);
             float attackAngle = direction == WarriorsAttackDirection.HorizontalSlash ? horizontalAttackAngle
                 : direction == WarriorsAttackDirection.Thrust ? thrustAttackAngle : verticalAttackAngle;
             float halfAngle = attackAngle * .5f;
@@ -259,9 +283,23 @@ namespace Warriors
                         sideDistance > thrustHalfWidth + target.DirectionalHitPadding) continue;
                 }
                 else if (toTarget.sqrMagnitude > .01f && Vector3.Angle(transform.forward, toTarget) > halfAngle) continue;
-                // Non-matching types are neutral bystanders: no damage, no rejection
-                // feedback, and no WRONG vibration or text.
-                if (target.RequiredDirection != direction) continue;
+                // 종류가 안 맞으면 피해는 없다. 다만 **휘둘렀는데 아무 일도 안 일어난 것**과
+                // **틀린 공격으로 빗나간 것**은 다르다. 앞엣것은 허공이고 뒤엣것은 실수다.
+                // 그 차이를 알려 주지 않으면 "왜 안 맞지" 만 남는다. 아래에서 신호를 낸다.
+                if (target.RequiredDirection != direction)
+                {
+                    // ⚠ **해변 몬스터는 오답으로 치지 않는다.** 1라운드는 물고기·게·해파리가 섞여
+                    //    서 있어서, 가로베기 한 번에도 게와 해파리가 늘 사거리 안에 있다.
+                    //    그것을 오답으로 울리면 정타를 냈는데도 매번 진동이 울린다.
+                    //    원래 주석대로 <b>딴 종류는 그냥 구경꾼</b>이다.
+                    //
+                    //    답이 하나로 정해진 촉수(2라운드)만 오답으로 본다. 표시된 약점과
+                    //    다른 방향으로 벤 것은 명백한 실수다. 3라운드 노트의 오답은
+                    //    <c>WarriorsPhase3Director</c> 가 따로 판정한다.
+                    if (target.IsBossPart) mismatchedInReach = true;
+                    continue;
+                }
+
                 attackCandidates.Add(target);
             }
 
@@ -272,7 +310,7 @@ namespace Warriors
                 // ROUND 2 is a pattern puzzle rather than a sweep.  One swing may only ever
                 // take the single nearest tentacle, so two tentacles that happen to share a
                 // weakness can never fall to the same slash.
-                if (tentacle.TryReceiveAttack(direction, damage))
+                if (tentacle.TryReceiveAttack(direction, damage, gameObject))
                 {
                     acceptedCount++;
                     tentacle.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
@@ -284,7 +322,7 @@ namespace Warriors
                 // point of the round.
                 foreach (WarriorsTarget target in attackCandidates)
                 {
-                    if (!target.TryReceiveAttack(direction, damage)) continue;
+                    if (!target.TryReceiveAttack(direction, damage, gameObject)) continue;
                     acceptedCount++;
                     target.GetComponent<WarriorsTargetFeedback>()?.PlayHit();
                 }
@@ -294,6 +332,15 @@ namespace Warriors
                 iotFeedback?.Request(playerId, WarriorsIoTFeedbackType.CorrectAttack, activeStrength);
                 combatCamera?.Shake(Mathf.Clamp(acceptedCount * .08f, .08f, .32f));
             }
+            else if (mismatchedInReach)
+            {
+                // **틀린 종류로 휘둘렀다.** 적은 반응하지 않는다(규칙 그대로). 대신 친 사람에게만
+                // 짧은 두 번 진동으로 알린다 — 화면의 적을 건드리지 않으므로 상대에게는 아무것도
+                // 보이지 않고, 자기 손에서만 "그거 아니다" 가 온다.
+                iotFeedback?.Request(playerId, WarriorsIoTFeedbackType.WrongAttack, .5f);
+            }
+
+            mismatchedInReach = false;
             LandedHits += acceptedCount;
             AttackResolved?.Invoke(direction, acceptedCount);
         }
@@ -311,7 +358,7 @@ namespace Warriors
                 // A tentacle that was just struck is still inside its hit cooldown. Picking it
                 // again would swallow the swing and leave the other tentacle untouchable, so
                 // the nearest one that can actually take the hit wins.
-                if (candidate.CanReceiveAttack(direction))
+                if (candidate.CanReceiveAttack(direction, gameObject))
                 {
                     if (distance >= nearestDistance) continue;
                     nearestDistance = distance;

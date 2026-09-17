@@ -93,6 +93,19 @@ namespace UnderTheSea.Network.Editor
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
 
         /// <summary>
+        /// Warriors 전환용 씬. <b>순서가 중요하다.</b>
+        ///
+        /// 첫 씬이 시작 씬(<c>WarriorsBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
+        /// Fusion 이 같은 씬을 한 벌 더 열어 아레나와 HUD 가 두 개가 된다.
+        /// </summary>
+        private static readonly string[] WarriorsScenes =
+        {
+            "Assets/Game/Scenes/Main/MiniGames/WarriorsBoot.unity",
+            "Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity",
+        };
+
+        private const string WarriorsServerOutput = "Builds/WarriorsServer/AraAtti-WarriorsServer.exe";
+        private const string WarriorsClientOutput = "Builds/WarriorsClient/AraAtti-WarriorsClient.exe";
         /// 광산 전환용 씬. <b>순서가 중요하다.</b>
         ///
         /// 첫 씬이 시작 씬(<c>MineBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
@@ -138,6 +151,110 @@ namespace UnderTheSea.Network.Editor
         public static void BuildClientFromCommandLine()
         {
             ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions));
+        }
+
+        [MenuItem(MenuRoot + "Warriors 서버 빌드 (Dedicated Server)")]
+        public static void BuildWarriorsServer()
+        {
+            ExitIfCommandLine(Build(
+                WarriorsServerOutput, StandaloneBuildSubtarget.Server, WarriorsScenes, BuildOptions.None));
+        }
+
+        [MenuItem(MenuRoot + "Warriors 클라이언트 빌드")]
+        public static void BuildWarriorsClient()
+        {
+            ExitIfCommandLine(Build(
+                WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildWarriorsServerFromCommandLine()
+        {
+            ExitWith(Build(
+                WarriorsServerOutput, StandaloneBuildSubtarget.Server, WarriorsScenes, BuildOptions.None));
+        }
+
+        /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
+        public static void BuildWarriorsClientFromCommandLine()
+        {
+            ExitWith(Build(
+                WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
+        }
+
+        /// <summary>
+        /// **커맨드라인용 — 서버와 클라이언트를 한 번의 Unity 실행에서 잇따라 만든다.**
+        ///
+        /// 왜 합치는가. 실측으로 Warriors 빌드 한 번은 Unity 실행 하나당 약 80~104초가 드는데
+        /// 그중 <b>실제 플레이어 빌드 작업은 41초</b>뿐이다. 나머지는 Unity 부팅 · 에셋 DB 로드 ·
+        /// 도메인 리로드 · 종료다. 서버와 클라를 따로 부르면 그 오버헤드를 <b>두 번</b> 낸다.
+        /// 한 프로세스 안에서 두 번 빌드하면 그 절반이 사라진다.
+        ///
+        /// 서버가 실패하면 클라는 만들지 않고 바로 1 로 빠진다 — 어차피 같은 코드가 안 되는 것이다.
+        /// </summary>
+        public static void BuildWarriorsBothFromCommandLine()
+        {
+            BuildReport server = Build(
+                WarriorsServerOutput, StandaloneBuildSubtarget.Server, WarriorsScenes, BuildOptions.None);
+
+            if (server == null || server.summary.result != BuildResult.Succeeded)
+            {
+                Debug.LogError("[FusionTestBuilds] 서버 빌드가 실패해 클라이언트는 건너뜁니다.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            ExitWith(Build(
+                WarriorsClientOutput, StandaloneBuildSubtarget.Player, WarriorsScenes, ClientOptions));
+        }
+
+        /// <summary>
+        /// 🧰 <b>QA 한 벌을 한 번에 만든다.</b> 정상 흐름 클라이언트 + 서버 셋.
+        ///
+        /// <see cref="BuildWarriorsBothFromCommandLine"/> 과 같은 이유다. 빌드 하나를 부를 때마다
+        /// Unity 를 새로 띄우면 <b>부팅 · 에셋 DB 로드 · 도메인 리로드 · 종료</b>를 매번 낸다.
+        /// 실측으로 그 고정 비용이 빌드 작업보다 컸다. 네 번 부르면 네 번 낸다.
+        ///
+        /// <code>
+        ///   FlowClient        Login 부터 도는 정상 흐름 클라이언트
+        ///   Server            Lobby Dedicated Server
+        ///   ShipCoopServer    배 게임 Dedicated Server
+        ///   WarriorsServer    검 게임 Dedicated Server
+        /// </code>
+        ///
+        /// 하나라도 실패하면 거기서 멈추고 1 로 빠진다. 반쯤 만들어진 한 벌로 QA 하면
+        /// 어느 것이 옛 빌드인지 몰라 문제를 잘못 짚는다.
+        /// </summary>
+        public static void BuildQaSetFromCommandLine()
+        {
+            // ⚠ **결과는 빌드 직후에 봐야 한다.**
+            //
+            //    처음에는 넷을 다 만들고 나서 보고서를 한꺼번에 확인했다. 그랬더니 네 개가
+            //    모두 "빌드 성공" 을 찍었는데도 첫 번째가 실패로 판정됐다. BuildReport 는
+            //    유니티 오브젝트라 다음 빌드가 돌면서 앞의 것이 정리돼 버린다.
+            //    들고 있다가 나중에 읽으면 빈 값이 나온다.
+            if (!Ok("FlowClient", BuildNormalFlow())) return;
+            if (!Ok("Lobby DS", Build(ServerOutput, StandaloneBuildSubtarget.Server))) return;
+
+            if (!Ok("ShipCoop DS", Build(
+                    ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                    ShipCoopScenes, BuildOptions.None))) return;
+
+            if (!Ok("Warriors DS", Build(
+                    WarriorsServerOutput, StandaloneBuildSubtarget.Server,
+                    WarriorsScenes, BuildOptions.None))) return;
+
+            Debug.Log("[FusionTestBuilds] QA 한 벌을 모두 만들었습니다. (클라이언트 1 · 서버 3)");
+            EditorApplication.Exit(0);
+        }
+
+        /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
+        private static bool Ok(string name, BuildReport report)
+        {
+            if (report != null && report.summary.result == BuildResult.Succeeded) return true;
+
+            Debug.LogError($"[FusionTestBuilds] QA 한 벌 — '{name}' 에서 실패했습니다.");
+            EditorApplication.Exit(1);
+            return false;
         }
 
         [MenuItem(MenuRoot + "ShipCoop 서버 빌드 (Dedicated Server)")]

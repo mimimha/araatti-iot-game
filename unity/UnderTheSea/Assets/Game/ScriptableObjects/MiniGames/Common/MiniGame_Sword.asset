@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameConfig
   gameId: 0
   displayName: "\uAC80 \uBBF8\uB2C8\uAC8C\uC784"
-  sceneName: 
+  sceneName: WarriorsBoot
   minPlayers: 1
   maxPlayers: 2
   requireFullParty: 0
