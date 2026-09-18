@@ -135,7 +135,17 @@ namespace Warriors.Net
 
                 if (!isServer)
                 {
-                    Debug.LogError(Describe(result.ShutdownReason, session));
+                    string told = Describe(result.ShutdownReason, session);
+                    Debug.LogError(told);
+
+                    // ⚠ **Lobby 에서 넘어온 경우 반드시 알려야 한다.**
+                    //
+                    //    알리지 않으면 MiniGameTransition 은 아직 입장 중인 줄 알고 로딩 화면을
+                    //    영원히 띄운다. 실제로 그렇게 갇혔다 — 서버가 방을 잃은 사이에 들어가서
+                    //    "게임에 입장 중..." 에서 나오지 못했다.
+                    //
+                    //    듣는 사람이 없으면 아무 일도 일어나지 않는다. 단독 실행은 그대로다.
+                    MiniGameEntry.ReportFailed(told);
                     return;
                 }
 
