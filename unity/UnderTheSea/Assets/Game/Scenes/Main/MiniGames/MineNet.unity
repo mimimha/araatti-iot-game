@@ -42657,7 +42657,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fbaf8e4ef88924a44a145e5b93ae7ff6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineMatchState
-  crewToStart: 4
+  crewToStart: 2
   countdownSeconds: 3
   turnSeconds: 30
   restoreBlocks: 5

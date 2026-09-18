@@ -15,7 +15,7 @@ MonoBehaviour:
   gameId: 1
   displayName: "\uAD11\uC0B0 \uBBF8\uB2C8\uAC8C\uC784"
   sceneName: MineBoot
-  minPlayers: 1
+  minPlayers: 2
   maxPlayers: 4
   requireFullParty: 0
   autoStartSeconds: 30
