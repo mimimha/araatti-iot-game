@@ -143,7 +143,17 @@ namespace Warriors.Net
 
         public override void Render()
         {
-            if (!HasInputAuthority || follow == null) return;
+            if (!HasInputAuthority) return;
+
+            // IoT 검에게 "이 화면의 주인은 몇 번인가" 를 알려 둔다. 카메라가 없어도 해야 하므로
+            // 아래 follow 검사보다 먼저 온다.
+            //
+            // ⚠ **Spawned 에서 한 번만 하면 안 된다.** PlayerIndex 는 서버가 정해 복제하는 값이라
+            //    스폰 직후에는 아직 0 일 수 있다. 매 프레임 맞춰 두면 복제가 도착한 순간 따라간다.
+            //    값이 같으면 SetLocalPlayerId 가 곧바로 빠져나오므로 부담은 없다.
+            SyncIoTOwner();
+
+            if (follow == null) return;
 
             // 2 · 3페이즈는 고정 구도. 두 화면이 같은 그림을 보고, 화면에 고정된 리듬 트랙이
             // 캐릭터 위에 정확히 얹힌다. 1페이즈는 해변을 뛰어다니므로 따라가는 카메라 그대로.
@@ -235,6 +245,25 @@ namespace Warriors.Net
         ///
         /// RenderTexture 로 그리는 카메라(반사 · 프리뷰)는 화면을 건드리지 않으므로 놔둔다.
         /// </summary>
+        /// <summary>내 번호를 IoT 검 입력원에 맞춰 둔다. 장치가 없으면 아무 일도 하지 않는다.</summary>
+        private void SyncIoTOwner()
+        {
+            if (myLife == null) myLife = GetComponent<WarriorsPlayerLife>();
+            if (myLife == null) return;
+
+            if (iotInput == null)
+            {
+                iotInput = FindFirstObjectByType<WarriorsIoTInput>(FindObjectsInactive.Include);
+                if (iotInput == null) return;
+            }
+
+            iotInput.SetLocalPlayerId(myLife.PlayerIndex);
+        }
+
+        private WarriorsPlayerLife myLife;
+
+        private Warriors.WarriorsIoTInput iotInput;
+
         private void KeepOnlyThisViewer(Camera keep)
         {
             if (keep == null) return;
