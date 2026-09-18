@@ -78056,6 +78056,7 @@ GameObject:
   - component: {fileID: 1849565740}
   - component: {fileID: 1849565739}
   - component: {fileID: 1849565741}
+  - component: {fileID: 1849565742}
   m_Layer: 0
   m_Name: MineGame
   m_TagString: Untagged
@@ -106093,6 +106094,25 @@ PrefabInstance:
       addedObject: {fileID: 777435611}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6f53cf820ac62a24c9995df6b7e73ed5, type: 3}
+--- !u!114 &1849565742
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1849565738}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6263b301a7f79454b88ee649e1b169fa, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::MineAnswerView
+  game: {fileID: 0}
+  view: {fileID: 0}
+  swapSeconds: 1.5
+  hintSwapSeconds: 0.5
+  label: {fileID: 0}
+  myDrawingLabel: "\uB0B4\uAC00 \uD55C \uADF8\uB9BC"
+  answerLabel: "\uC815\uB2F5"
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

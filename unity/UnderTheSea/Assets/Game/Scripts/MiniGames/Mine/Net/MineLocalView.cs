@@ -223,7 +223,11 @@ namespace Mine.Net
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
                     _shownSlot = int.MinValue;   // 끝나면 다시 붙이도록 기억을 지운다
 
-                    if (_board != null) { _board.SetTargetOffset(Vector2Int.zero); _board.SetOverlay(MineOverlay.Drawing); }
+                    // ⚠ Drawing 이 아니라 Answer 다. 이 분기는 공개와 힌트를 같이
+                    //   다루는데, Drawing 은 이미 판 칸을 회색으로 빼므로 힌트에서
+                    //   정답 위에 내가 판 자리가 겹쳐 보인다. 공개 때는 아직 파인 칸이
+                    //   없어 둘이 똑같이 그려지므로, Answer 로 두면 힌트만 달라진다.
+                    if (_board != null) { _board.SetTargetOffset(Vector2Int.zero); _board.SetOverlay(MineOverlay.Answer); }
                     if (_vision != null) { _vision.SetLit(true); _vision.Follow(null); }
                     _camera.ShowBoard();
                 }

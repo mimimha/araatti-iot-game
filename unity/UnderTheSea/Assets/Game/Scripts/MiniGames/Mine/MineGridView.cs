@@ -24,6 +24,16 @@ public enum MineOverlay
     /// AI 한 줄 평이 말해준다. (MINE.md 7장)
     /// </summary>
     Result,
+
+    /// <summary>
+    /// <b>정답만.</b> 결과 화면에서 내가 판 그림과 번갈아 보여줄 때 쓴다.
+    ///
+    /// <see cref="Drawing"/> 과 그림은 같지만 <b>판 칸을 회색으로 빼지 않는다.</b>
+    /// Drawing 은 힌트용이라 턴 중간에 쓰이고, 그때는 이미 판 칸이 있어서
+    /// 도안과 구분하려고 회색으로 뺀다. 결과 화면에서는 그 회색이 정답 위에
+    /// 겹쳐 보여서 오히려 헷갈린다. 여기서는 공개 7초와 똑같이 그린다.
+    /// </summary>
+    Answer,
 }
 
 /// <summary>
@@ -515,11 +525,30 @@ public class MineGridView : MonoBehaviour
     /// 발밑 표시처럼 칸 위에 얹는 것들이 이걸 물어본다.
     /// 각자 계산하면 깊이를 바꿀 때 한쪽만 고쳐서 따로 논다 —
     /// 실제로 발밑 표시가 파인 칸 위에 붕 떠 있었다.
+    ///
+    /// ⚠ <b>실제 높이가 아니라 보이는 높이를 돌려준다.</b> 정답 보기에서는 파인 칸을
+    ///   끌어올리므로 둘이 다르다. 여기서 실제 높이를 주면 발밑 표시가 올라온 블록
+    ///   속에 묻혀 안 보인다. 물리에는 쓰이지 않는다 — 쓰는 곳은 MineCursor 뿐이다.
     /// </summary>
     public Vector3 CellSurface(int x, int y)
     {
         if (_grid == null) return Vector3.zero;
-        return _grid.CellToWorld(x, y) + Vector3.down * SinkOf(x, y);
+        return _grid.CellToWorld(x, y) + Vector3.down * VisualSinkOf(x, y);
+    }
+
+    /// <summary>
+    /// <b>화면에 보이는</b> 높이. 블록을 놓는 것과 그 위에 얹는 것이 모두 이걸 봐야 한다.
+    ///
+    /// 정답 보기(<see cref="MineOverlay.Answer"/>)에서는 파인 칸을 안 판 높이로
+    /// 끌어올리므로 <see cref="SinkOf"/> 가 말하는 실제 높이와 달라진다. 따로 계산하면
+    /// 어긋난다 — 실제로 발밑 표시가 올라온 블록 속에 묻혀 안 보였다.
+    /// </summary>
+    private float VisualSinkOf(int x, int y)
+    {
+        if (_overlay != MineOverlay.Answer || _grid == null) return SinkOf(x, y);
+
+        // 파인 칸도 금 간 칸도 안 판 칸과 같은 높이로 올린다.
+        return _grid.IsHard(x, y) ? -hardRise - Jitter(x, y) : -Jitter(x, y);
     }
 
     /// <summary>
@@ -557,11 +586,20 @@ public class MineGridView : MonoBehaviour
         if (block == null) return;
 
         bool dug = _grid.IsDug(x, y);
-        bool cracked = !dug && _grid.IsCracked(x, y);
+
+        // ⚠ Answer 는 정답만 보여준다. 금도 **내가 친 흔적**이라 감춘다. 안 그러면
+        //   crackTint 로 25% 어두워진 칸과 금 표시가 얹혀서, 힌트 때 어디를 쳤는지
+        //   드러난다.
+        bool cracked = _overlay != MineOverlay.Answer && !dug && _grid.IsCracked(x, y);
         bool hard = _grid.IsHard(x, y);
 
         Vector3 top = _grid.CellToWorld(x, y);
-        float sink = SinkOf(x, y);
+
+        // ⚠ Answer 는 공개 7초와 **같은 그림**이어야 한다. 파인 칸이 내려가 있으면
+        //   색을 정답으로 칠해도 구멍이 그대로 남아 어디를 팠는지 다 보인다.
+        //   그 처리는 VisualSinkOf 안에 있다. 발밑 표시도 같은 함수를 봐야 안 어긋난다.
+        float sink = VisualSinkOf(x, y);
+
         block.position = top + Vector3.down * (blockHeight * 0.5f + sink);
 
         // 금은 돌 윗면에 얹는다. 돌이 내려가면 같이 내려간다.
@@ -680,16 +718,24 @@ public class MineGridView : MonoBehaviour
 
         // 도안을 돌로 그리는 동안에는 파야 하는 칸만 따로 칠한다.
         // 바탕은 아래 uniform 이 참이라 전부 무른 돌로 간다.
-        // ⚠ 결과 화면은 제외한다. 거기서 목표 칸을 따로 칠하면 정답을 알려주는 꼴이다.
+        //
+        // ⚠ Result 는 제외한다. 거기서 목표 칸을 따로 칠하면 정답을 알려주는 꼴이다.
         //   결과가 보여야 하는 것은 목표가 아니라 **내가 판 그림**이다.
-        if (StoneBoard && _overlay == MineOverlay.Drawing && !_grid.IsDug(x, y)
+        //
+        // Drawing 은 **안 판 칸만** 칠한다. 판 칸은 회색으로 빠져야 하기 때문이다.
+        // Answer 는 **판 칸도** 칠한다. 공개 7초와 같은 그림이어야 한다.
+        bool answerOnly = _overlay == MineOverlay.Answer;
+        if (StoneBoard && (answerOnly || _overlay == MineOverlay.Drawing)
+            && (answerOnly || !_grid.IsDug(x, y))
             && _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y))
         {
             if (r.sharedMaterial != drawingMaterial) r.sharedMaterial = drawingMaterial;
             return;
         }
 
-        Material m = _grid.IsDug(x, y)
+        // ⚠ Answer 에서는 판 칸도 안 판 칸처럼 칠한다. 안 그러면 목표가 아닌 판 칸이
+        //   dugMaterial 무늬에 밝은 intactColor 가 곱해져 **노란 얼룩**으로 뜬다.
+        Material m = !answerOnly && _grid.IsDug(x, y)
             ? (dugMaterial != null ? dugMaterial : softMaterial)
             : (!uniform && _grid.IsHard(x, y) ? hardMaterial : softMaterial);
 
@@ -727,6 +773,14 @@ public class MineGridView : MonoBehaviour
 
         // 도안 보기 — 무른 돌 바탕에 검은 돌로 그림만. 돌 종류는 감춘다.
         bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
+
+        // 정답만 보기 — 판 칸을 회색으로 빼지 않는다. 공개 7초와 똑같이 그린다.
+        // (아래 Drawing 쪽의 회색은 힌트에 필요한 것이다. 이유는 enum 주석에 있다.)
+        if (_overlay == MineOverlay.Answer)
+        {
+            return StoneBoard ? (isTarget ? drawingStoneColor : intactColor)
+                              : (isTarget ? drawingColor : intactColor);
+        }
 
         // ⚠ 판 칸을 dugColor 로 칠하면 도안과 **똑같은 검정**이 된다.
         //   (dugColor 0.07 · drawingColor 0.06 — 눈으로는 둘 다 그냥 검정이다.)
@@ -854,6 +908,22 @@ public class MineGridView : MonoBehaviour
                          Mathf.Lerp(c.b, gray, flatDesaturate) * flatColorScale,
                          c.a);
     }
+
+    /// <summary>목표 공개 때 <b>바탕</b>이 되는 색.</summary>
+    /// <remarks>쓰는 곳이 없어졌다. MineTargetThumbnail.cs 를 지우면 같이 지운다.</remarks>
+    public Color RevealBackColor => intactColor;
+
+    /// <summary>목표 공개 때 <b>도안</b>이 되는 색.</summary>
+    /// <remarks>쓰는 곳이 없어졌다. MineTargetThumbnail.cs 를 지우면 같이 지운다.</remarks>
+    public Color RevealDrawColor => drawingStoneColor;
+
+    /// <summary>
+    /// 정답 보기(<see cref="MineOverlay.Answer"/>)에서 파인 칸을 끌어올리는 높이.
+    ///
+    /// 그 칸 위에 서 있는 캐릭터도 이만큼 올려야 한다. 안 그러면 올라온 블록에
+    /// 묻힌다. (<c>MineGame.SetPlayersFrozen</c>)
+    /// </summary>
+    public float AnswerLift => digDepth;
 
     /// <summary>
     /// 칸마다 고정된 얼룩. 실제 돌은 장마다 톤이 다르다.
