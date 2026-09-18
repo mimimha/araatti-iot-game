@@ -167,7 +167,15 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             stickLeft: warriors ? Key.LeftArrow : Key.None,
             stickRight: warriors ? Key.RightArrow : Key.None,
             button1: Key.Space,
-            button2: warriors ? Key.None : Key.K,
+
+            // 광산은 오른손 면버튼 2 가 **달리기**다. (IOT_INPUT.md 3장 표)
+            //
+            // ⚠ 배와 달리 **토글이 아니라 누르고 있기**다. 광산은 판을 내려다보며 파는
+            //   게임이라 방향을 한 번 잡으면 그대로 간다. 카메라를 계속 돌릴 일이 없어서
+            //   엄지가 스틱을 떠나도 괜찮다. 그래서 상태를 들고 있지 않고 눌린 동안만 참이다.
+            //
+            //   배는 여기가 발사·망치질(K)이다. 그대로 둔다.
+            button2: warriors ? Key.None : mine ? Key.LeftShift : Key.K,
 
             // 동작(IMU) 흉내는 무쌍과 광산이 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
             // 따로 키를 두지 않는다. ShipCoopInput.ConsumeSwing 이 둘 다 받는다.
