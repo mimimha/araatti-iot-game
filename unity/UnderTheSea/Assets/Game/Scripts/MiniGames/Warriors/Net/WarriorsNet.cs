@@ -9,7 +9,7 @@ namespace Warriors.Net
     /// 세션 이름과 씬 경로를 여기 한 곳에 둔다. 런처 · 스포너 · 빌드 도구가 같은 값을 봐야
     /// "서버는 A 씬을 열었는데 클라이언트는 B 를 찾는" 일이 생기지 않는다.
     ///
-    /// 문서: WARRIORS.md 3장 (서버 연동)
+    /// 문서: WARRIORS.md 4장 (서버 연동)
     /// </summary>
     public static class WarriorsNet
     {
