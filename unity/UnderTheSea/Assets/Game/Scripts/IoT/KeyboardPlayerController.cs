@@ -17,7 +17,7 @@ public enum KeyboardControlProfile
 /// 배치를 바꾸려면 IOT_INPUT.md 를 먼저 고치세요. 네 미니게임이 함께 지키는 표입니다.
 ///
 ///   [프로필]
-///     Shared      광산·배 협동용 기존 배치
+///     Shared      광산 · 배 협동. IOT_INPUT.md 의 통일 키 표를 따른다
 ///     Warriors    이동 WASD · 카메라 우클릭 드래그 · 공격 J / K / L · 회피 Shift
 ///
 ///   [왼손 기기]
@@ -52,7 +52,7 @@ public enum KeyboardControlProfile
 public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 {
     [Header("키 배치 프로필")]
-    [Tooltip("Shared는 광산·배, Warriors는 무쌍의 기존 WASD·방향키·1/2/3 배치를 유지한다.")]
+    [Tooltip("Shared 는 광산·배, Warriors 는 무쌍. 둘 다 IOT_INPUT.md 1장의 통일 키 표를 따른다.")]
     [SerializeField] private KeyboardControlProfile controlProfile = KeyboardControlProfile.Shared;
 
     [Header("축 입력이 0 에서 1 까지 가는 속도")]
