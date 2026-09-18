@@ -99,7 +99,10 @@ namespace Mine.Net
                 GameMode = isServer ? GameMode.Server : GameMode.Client,
                 SessionName = session,
                 Scene = SceneRef.FromPath(MineNet.ScenePath),
-                SceneManager = GetComponent<NetworkSceneManagerDefault>()
+                SceneManager = GetComponent<NetworkSceneManagerDefault>(),
+
+                // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+                CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
             };
 
             if (isServer) args.Address = NetAddress.Any(port);

@@ -161,7 +161,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
             GameMode = GameMode.Client,
             SessionName = sessionName,
             Scene = lobby,
-            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>()
+            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+
+            // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+            CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
         });
 
         isConnecting = false;

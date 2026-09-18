@@ -470,6 +470,35 @@ $b = "C:\geonhee\UnderTheSea\unity\UnderTheSea\Builds"
 | `-mode server\|client\|autohostorclient` | 기동 모드 강제. 빌드 종류를 이긴다 | 빌드 종류로 자동 판정 |
 | `-devjoin` | 개발용 직접 접속 (Development Build 전용) | 꺼짐 |
 | `-logmoves` | 위치를 0.5초마다 로그로 남긴다. 동기화 확인용 | 꺼짐 |
+| `-appver <이름>` | Photon AppVersion. **같은 값을 준 사람하고만 만난다** | 없음(팀 공용) |
+
+#### `-appver` — 사람마다 방을 갈라놓기
+
+Photon 의 방은 `AppId + AppVersion + 지역` 안에서 **전 세계가 공유한다.** 팀이 AppId 하나를
+같이 쓰므로, 세션 이름이 같으면 옆자리 사람의 서버와 내 클라이언트가 그냥 만난다.
+
+실제로 이런 일이 있었다. 팀원이 먼저 `warriors-1` 로 DS 를 띄운 상태에서
+내 DS 는 `GameIdAlreadyExists` 로 방을 못 열었고, 내 클라이언트는 조용히 **팀원의 서버**에
+붙었다. 빌드가 서로 달라 네트워크 값 배치가 어긋났고 클라이언트에서 이렇게 터졌다.
+
+    AssertException: meta.WordCount == NetworkObject.GetWordCount(instance)
+
+화면에서는 몬스터가 투명하고, 처치 수가 안 오르고, 한 명인데 판이 시작했다.
+**어디에도 "남의 서버에 붙었다" 는 말은 나오지 않는다.**
+
+`-appver` 에 값을 주면 Photon 이 AppId 를 값마다 서로 다른 *가상 AppId* 로 갈라 놓는다.
+값이 다른 사람끼리는 방 목록조차 보이지 않으므로 세션 이름이 같아도 부딪히지 않는다.
+
+    AraAtti-Server.exe -batchmode -nographics -session warriors-1 -port 27017 -appver geonhee
+    AraAtti-Client.exe -mode client -session lobby-ch1 -appver geonhee
+
+- **서버와 클라이언트에 같은 값을 줘야 만난다.** 한쪽만 주면 서로 못 본다. 고장이 아니다.
+- **인자를 주지 않으면 지금까지와 똑같다.** 팀 전체가 같은 방을 본다.
+- 공용 `PhotonAppSettings.asset` 은 고치지 않는다. 복사본에만 값을 넣어 그 판에만 쓴다.
+- 접속 직전 로그에 어느 쪽인지 항상 남는다.
+
+      [FusionSessionIsolation] AppVersion "geonhee" — 같은 값을 준 사람하고만 만납니다.
+      [FusionSessionIsolation] AppVersion 없음 — 팀 공용입니다. 세션 이름이 겹치면 남의 서버에 붙을 수 있습니다.
 
 ### 개발용 직접 Lobby 실행 경로
 
