@@ -909,14 +909,6 @@ public class MineGridView : MonoBehaviour
                          c.a);
     }
 
-    /// <summary>목표 공개 때 <b>바탕</b>이 되는 색.</summary>
-    /// <remarks>쓰는 곳이 없어졌다. MineTargetThumbnail.cs 를 지우면 같이 지운다.</remarks>
-    public Color RevealBackColor => intactColor;
-
-    /// <summary>목표 공개 때 <b>도안</b>이 되는 색.</summary>
-    /// <remarks>쓰는 곳이 없어졌다. MineTargetThumbnail.cs 를 지우면 같이 지운다.</remarks>
-    public Color RevealDrawColor => drawingStoneColor;
-
     /// <summary>
     /// 정답 보기(<see cref="MineOverlay.Answer"/>)에서 파인 칸을 끌어올리는 높이.
     ///
