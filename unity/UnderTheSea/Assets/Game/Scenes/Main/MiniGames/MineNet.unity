@@ -58992,7 +58992,7 @@ MonoBehaviour:
   lookHeight: 1
   horizontalAxis: Horizontal
   verticalAxis: Vertical
-  jumpButton: Jump
+  jumpButton: 
   runKey: 304
 --- !u!1 &1399845531
 GameObject:
