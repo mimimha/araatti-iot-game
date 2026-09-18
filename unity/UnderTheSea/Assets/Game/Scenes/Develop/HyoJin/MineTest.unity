@@ -43043,8 +43043,8 @@ MonoBehaviour:
   crackMaterial: {fileID: 2100000, guid: 6cbdf39bdd20611469e1a56d7f9f4f15, type: 2}
   crackScale: 1
   showTarget: 1
-  intactColor: {r: 2.2725768, g: 2.0753343, b: 1.7794707, a: 1}
-  hardIntactColor: {r: 2.0997264, g: 1.9333332, b: 1.683743, a: 1}
+  intactColor: {r: 1.9630207, g: 1.9612504, b: 1.9630207, a: 1}
+  hardIntactColor: {r: 1.7814789, g: 1.7798724, b: 1.7814789, a: 1}
   cellMottle: 0.015
   dugColor: {r: 0.07, g: 0.06, b: 0.055, a: 1}
   crackTint: {r: 1, g: 1, b: 1, a: 1}
@@ -78132,8 +78132,8 @@ MonoBehaviour:
   darkFogStart: 20
   darkFogEnd: 70
   darkFogColor: {r: 0.025, g: 0.025, b: 0.035, a: 1}
-  litAmbient: {r: 0.1734, g: 0.1734, b: 0.1836, a: 1}
-  litSunIntensity: 0.15
+  litAmbient: {r: 0.26, g: 0.26, b: 0.275, a: 1}
+  litSunIntensity: 0.25
   litFog: 1
   litCaveTint: {r: 0.48584908, g: 0.4457436, b: 0.40563816, a: 1}
   litCrystalDim: 1
