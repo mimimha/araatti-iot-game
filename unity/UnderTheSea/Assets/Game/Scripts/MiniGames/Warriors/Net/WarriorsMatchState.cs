@@ -850,6 +850,21 @@ namespace Warriors.Net
         /// </summary>
         private void RunClock()
         {
+            // ⚠ **이미 끝난 판의 시계는 돌지 않는다.**
+            //
+            //    FixedUpdateNetwork 는 맨 위에서 IsOver 를 보고 물러나지만, 그것은 틱이
+            //    시작할 때의 상태다. 같은 틱 안에서 AdvancePendingPhase() 가 Cleared 로
+            //    바꾼 직후 바로 이 함수가 불린다. 크라켄을 쓰러뜨릴 때 FinishCleared 가
+            //    TimeLeft 를 0 으로 만들어 두므로, 그 한 틱에 시계가 "시간이 다 됐다" 로 읽고
+            //    이긴 판을 실패로 뒤집었다.
+            //
+            //        [WarriorsMatch] 전체 클리어입니다. 점수 4800
+            //        [WarriorsMatch] 시간이 다 됐습니다. TIME OVER
+            //        [Warriors 결과] 확정 — 실패, 점수 4800        ← 이겼는데 실패로 기록
+            //
+            //    실제로 클리어가 한 번도 성공으로 남지 않았다.
+            if (IsOver) return;
+
             // 라운드 소개 화면이 떠 있는 동안은 시계도 쉰다. 3초를 읽는 동안 시간이 새면 억울하다.
             // 종료 문구 구간도 마찬가지다 — 이미 깬 라운드를 보고 있는데 시간이 흐르면 안 된다.
             if (InIntro || InClearHold) return;
