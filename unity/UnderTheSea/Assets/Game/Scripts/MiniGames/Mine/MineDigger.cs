@@ -106,10 +106,10 @@ public class MineDigger : MonoBehaviour
         //   안 읽으면 그 입력이 지워지지 않고 남아 있다가, 내 턴이 시작되는 순간
         //   묵은 입력이 한꺼번에 터진다. 읽어서 버리는 것과 안 읽는 것은 다르다.
         //
-        // ⚠ 스윙은 `||` 가 아니라 `|` 다. `||` 는 앞이 true 면 뒤를 부르지 않는데,
-        //   ConsumeSwing 은 부를 때 상태를 지우므로 안 부르면 한 번 더 파인다.
+        // ⚠ 동작은 `||` 가 아니라 `|` 다. `||` 는 앞이 true 면 뒤를 부르지 않는데,
+        //   TryConsumeMotion 은 부를 때 상태를 지우므로 안 부르면 한 번 더 파인다.
         //   기기를 1대만 들면 Right 가 Left 와 같은 객체라 두 번째 호출은 false 다.
-        bool swung = _controller.Left.ConsumeSwing() | _controller.Right.ConsumeSwing();
+        bool swung = ConsumeDigSwing(_controller.Left) | ConsumeDigSwing(_controller.Right);
 
         // 버튼1·2 는 **왼손만** 읽는다. 오른손 버튼1 은 Space 인데
         // 그건 MovePlayerInput 의 점프와 겹친다. (MINE.md 8장 표)
@@ -127,6 +127,13 @@ public class MineDigger : MonoBehaviour
         // 눌렸다는 것만 적어둔다. 쓸 수 있는지는 MineGame 이 판단한다.
         if (restore) _restoreRequested = true;
         if (hint) _hintRequested = true;
+    }
+
+    private static bool ConsumeDigSwing(IHandDevice hand)
+    {
+        return hand != null
+               && hand.TryConsumeMotion(out HandMotion motion)
+               && motion.Type == HandMotionType.VerticalSwing;
     }
 
     private void Dig()

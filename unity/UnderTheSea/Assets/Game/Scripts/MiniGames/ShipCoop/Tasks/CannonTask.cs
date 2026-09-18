@@ -8,8 +8,8 @@ using UnityEngine;
 /// 이것이 "포탄 좀 가져와!" 가 나오는 지점이고, 운반이 이 게임의 접착제인 이유입니다.
 ///
 /// 입력
-///   발사 → ShipCoopInput.ConsumeFire. 키보드는 X.
-///   조준 → 오른손 스틱. 조준용 입력을 따로 두지 않습니다. (7장)
+///   발사 → ShipCoopInput.ConsumeFire. 오른손 면버튼 2. 키보드는 K.
+///   조준 → 오른손 스틱(마우스 우클릭 드래그). 조준용 입력을 따로 두지 않습니다. (7장)
 ///
 /// 비웠을 때 적선이 계속 포격해 배가 깎이는 것은 적선 쪽(순서 4번 EnemyShip)이 합니다.
 /// 대포가 스스로 피해를 주지는 않습니다.
@@ -71,6 +71,27 @@ public class CannonTask : TaskBase
         if (barrel != null)
         {
             _baseYaw = barrel.localEulerAngles.y;
+        }
+    }
+
+    /// <summary>
+    /// 판을 되돌릴 때 장전과 포신 각도를 처음으로 돌린다.
+    ///
+    /// <b>왜 필요한가.</b> 대포는 씬에 고정된 물건이라 판이 끝나도 사라지지 않는다.
+    /// 그대로 두면 <b>지난 판에서 장전해 둔 포탄을 다음 판이 그대로 물려받는다.</b>
+    /// 포신도 돌려 둔 각도로 남는다.
+    ///
+    /// <c>Awake</c> 와 같은 값으로 맞춘다. 두 곳이 어긋나면 첫 판과 두 번째 판이 달라진다.
+    /// </summary>
+    public void ResetCannon()
+    {
+        Ammo = Mathf.Clamp(startingAmmo, 0, maxAmmo);
+        TurretYaw = 0f;
+        _nextFireTime = 0f;
+
+        if (barrel != null)
+        {
+            barrel.localRotation = Quaternion.Euler(0f, _baseYaw, 0f);
         }
     }
 

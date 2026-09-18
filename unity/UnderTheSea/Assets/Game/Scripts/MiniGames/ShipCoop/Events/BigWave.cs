@@ -309,7 +309,7 @@ public class BigWave : VoyageEvent
                 : $"정면으로 맞춰라  ({heading:F0}°)";
         }
 
-        string turn = heading > 0f ? "A" : "D";
+        string turn = heading > 0f ? "J" : "L";
         return $"{turn} 로 정면으로!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)";
     }
 

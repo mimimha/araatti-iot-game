@@ -161,7 +161,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
             GameMode = GameMode.Client,
             SessionName = sessionName,
             Scene = lobby,
-            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>()
+            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+
+            // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+            CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
         });
 
         isConnecting = false;
@@ -182,6 +185,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         }
 
         connectedChannelId = serverId;
+
+        // ⚠ 미니게임에 들어가려면 이 세션을 반드시 끊어야 하고, 끊으면 위 값이 지워진다.
+        //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
+        LobbyReturnInfo.Remember(nickname, serverId);
 
         // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
         SceneFlow.LobbyLoadedByNetwork = true;
@@ -210,7 +217,20 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         connectedChannelId = null;
 
         SceneFlow.LobbyLoadedByNetwork = false;
-        TransitionStatus.SetReady();
+
+        // ⚠ **여기서 화면을 사용자에게 돌려주지 않는다.** 끊는 것과 "이제 놀아도 된다" 는 다르다.
+        //
+        //    미니게임으로 넘어가려면 반드시 Lobby Runner 를 먼저 끊어야 한다. 그때 여기서
+        //    SetReady 를 부르면 **로딩 화면이 씬을 열기도 전에 걷힌다.** 그러면 씬 로드의
+        //    프레임 멈춤과 그 뒤 틱 따라잡기가 사용자 눈앞에서 벌어진다. 로그로 실측했다.
+        //
+        //        Loading - 게임에 입장 중...
+        //        Ready                        ← 여기서 걷혔다
+        //        Runner 가 종료됐습니다.
+        //        씬 이동: → ShipCoopBoot   ← 멈춤은 이 뒤에 온다
+        //
+        //    그래서 화면을 언제 넘길지는 **부르는 쪽**이 정한다. 끊은 뒤 무엇을 할지 아는 것은
+        //    그쪽뿐이다. (MiniGameTransition 은 계속 가리고, 복구 경로는 스스로 SetReady 한다)
 
         OnDisconnected?.Invoke("접속을 종료했습니다.");
     }

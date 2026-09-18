@@ -45,7 +45,7 @@ public class DebugPlayerMover : MonoBehaviour
     [Tooltip("걷는 속도. 물건을 들고 있을 때도 이 속도다.")]
     [SerializeField, Min(0.1f)] private float walkSpeed = 4f;
 
-    [Tooltip("달릴 때 속도. 왼손 버튼 2(키보드 V)를 누르고 있는 동안.\n\n" +
+    [Tooltip("달릴 때 속도. 왼손 면버튼 2(키보드 Shift)로 켜 둔 동안. 토글이다.\n\n" +
              "걷기의 1.7배로 둔다. 이 비율이 줄면 '들면 못 달린다' 는 제약이 약해진다.\n" +
              "둘 중 하나만 올리지 않는다.")]
     [SerializeField, Min(0.1f)] private float sprintSpeed = 7f;

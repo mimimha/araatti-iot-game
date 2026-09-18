@@ -10,7 +10,13 @@ namespace Warriors
         PlayerDamaged,
         ComboMilestone,
         UltimateReady,
-        FinalSwingReady
+        FinalSwingReady,
+
+        /// <summary>동료가 쓰러졌다. 구조를 요청하는 패턴.</summary>
+        MateDown,
+
+        /// <summary>협동 창이 열렸다. "지금이다" 준비 신호.</summary>
+        CoopWindowOpen,
     }
 
     [Serializable]

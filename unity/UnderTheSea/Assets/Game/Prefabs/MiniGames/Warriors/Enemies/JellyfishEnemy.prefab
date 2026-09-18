@@ -138,7 +138,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsEnemyAttack
   playerHealth: {fileID: 0}
   approach: {fileID: 0}
-  damage: 5
+  damage: 10
   attackRange: 2.3
   warningSeconds: 0.75
   cooldownSeconds: 2.4

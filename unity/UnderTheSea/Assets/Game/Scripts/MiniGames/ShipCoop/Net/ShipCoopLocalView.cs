@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Collections.Generic;
 using Fusion;
+using UnderTheSea.Network;
 using UnityEngine;
 
 namespace UnderTheSea.MiniGames.ShipCoop.Net
@@ -54,6 +56,53 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             KeepOnlyThisViewer(boundCamera.GetComponent<Camera>());
             BindLocalWorker();
+
+            StartCoroutine(FinishLoadingWhenPlayable());
+        }
+
+        /// <summary>
+        /// **정말 놀 수 있게 됐을 때** 로딩 화면을 걷는다.
+        ///
+        /// <b>왜 필요한가.</b> 포탈로 들어오면 <c>MiniGameTransition</c> 이 "게임에 입장 중..." 을
+        /// 켜 두는데, ShipCoop 쪽에서 그것을 내리는 코드가 <b>하나도 없었다.</b> 그래서 Lobby Runner 가
+        /// 끊기는 순간 화면이 걷히고, <b>씬 로드의 프레임 멈춤과 그 뒤 틱 따라잡기가 사용자 눈앞에서</b>
+        /// 벌어졌다. 실측한 수치가 그것을 그대로 보여 준다.
+        ///
+        /// <code>
+        ///   씬 진입 직후   한 프레임 957ms 멈춤
+        ///   그 다음 1초    틱 493개를 몰아서 따라잡음 (정상은 64)
+        ///   약 10초 뒤     64/64 로 안착
+        /// </code>
+        ///
+        /// 그동안 입력이 제때 반영되지 않는다. 그것이 "처음엔 빠릿하지 않다" 의 정체다.
+        /// 멈춤 자체를 없애는 것은 씬을 가볍게 하는 일이고 범위가 크다. 우선 <b>가려서</b>
+        /// 사용자가 로딩으로 인식하게 하고, 다 끝난 뒤에 화면을 넘긴다.
+        ///
+        /// <b>무엇을 기다리는가.</b> Lobby 의 <c>LocalPlayerView</c> 와 같은 기준이다 —
+        /// 조작할 대상이 생기고, 외형이 입혀지고, 화면이 안정된 뒤.
+        /// "접속 성공" 이나 "씬 로드 완료" 로는 부족하다.
+        /// </summary>
+        private IEnumerator FinishLoadingWhenPlayable()
+        {
+            NetworkPlayerAppearance appearance = GetComponent<NetworkPlayerAppearance>();
+
+            // 서버가 내 외형을 정할 때까지. 안 기다리면 기본 옷을 입은 내 캐릭터가 한순간 보인다.
+            // MiniGameDefaultAppearance 가 늦어도 확정해 주므로 영원히 멈추지 않는다.
+            // ⚠ 사라지는 중인 캐릭터의 [Networked] 값을 읽으면 터진다. 판이 끝나 Despawn 되는
+            //    프레임에 걸릴 수 있다. 그때는 기다릴 이유도 없으므로 빠져나온다.
+            //    (같은 사고를 ShipCoopPortrait 에서 실제로 겪었다)
+            while (appearance != null && appearance.Object != null && appearance.Object.IsValid
+                   && !appearance.AppearanceReady)
+            {
+                yield return null;
+            }
+
+            // 외형을 입히고 그리는 데 한두 프레임이 더 든다. 그 사이를 보여 주지 않는다.
+            yield return null;
+            yield return null;
+
+            Debug.Log("[ShipCoopLocalView] 준비가 끝났습니다. 화면을 넘깁니다.");
+            TransitionStatus.SetReady();
         }
 
         /// <summary>

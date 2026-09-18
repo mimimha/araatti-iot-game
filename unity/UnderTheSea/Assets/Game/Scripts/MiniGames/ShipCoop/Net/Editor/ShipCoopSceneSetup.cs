@@ -126,7 +126,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
         ///   CarryTask · ShipCoopHelp     집고 나르기 · 도움 요청 (서버에서만 판정)
         ///   ShipCoopWorkerSync           서버가 정한 자리 · 손 상태를 모두에게 알린다
         ///   ShipCoopRider                배가 틀 때 같이 돈다 (서버에서만)
-        ///   ShipCoopDefaultAppearance    외형이 끝내 안 오면 기본 외형으로 — ShipCoop 전용
+        ///   MiniGameDefaultAppearance    외형이 끝내 안 오면 기본 외형으로 — 미니게임 전용
         /// </code>
         ///
         /// ⚠ 이 오브젝트의 <c>IPlayerController</c> 는 <b>하나뿐이어야 한다.</b>
@@ -364,7 +364,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
 
             // 외형이 끝내 안 오면 기본 외형으로 정하는 안전망. **이 프리팹에만 붙는다.**
             // Lobby 의 NetworkPlayer 에는 없으므로 거기서는 기본 외형 확정을 부르는 코드가 없다.
-            root.AddComponent<ShipCoopDefaultAppearance>();
+            root.AddComponent<global::MiniGames.Common.MiniGameDefaultAppearance>();
         }
 
         // ------------------------------------------------------------

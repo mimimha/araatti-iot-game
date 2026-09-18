@@ -49,7 +49,7 @@ public class TaskWorker : MonoBehaviour
     /// 서버가 정한 결과를 받아 <see cref="Join"/> · <see cref="LeaveCurrent"/> 로 따라간다.
     /// (<c>ShipCoopWorkerSync</c>)
     ///
-    /// 거짓이어도 <see cref="Nearby"/> 는 계속 찾는다. "여기서 E" 안내는 화면 쪽 일이라
+    /// 거짓이어도 <see cref="Nearby"/> 는 계속 찾는다. "여기서 Space" 안내는 화면 쪽 일이라
     /// 서버에 물을 필요가 없고, 물으면 왕복 시간만큼 늦게 뜬다.
     /// </summary>
     public bool DecidesJoin { get; set; } = true;
@@ -60,8 +60,13 @@ public class TaskWorker : MonoBehaviour
     /// <summary>붙거나 떨어졌다. (떨어졌으면 null)</summary>
     public event Action<TaskBase> CurrentChanged;
 
+    /// <summary>같은 오브젝트의 운반. 없을 수도 있다(자리 전용 NPC 등).</summary>
+    private CarryTask _carry;
+
     private void Awake()
     {
+        _carry = GetComponent<CarryTask>();
+
         Input = controllerSource as IPlayerController;
 
         if (Input == null)
@@ -127,15 +132,16 @@ public class TaskWorker : MonoBehaviour
             return;
         }
 
-        // ⚠ **쥐고 있으면 자리에 붙지 않는다.** 그 버튼은 운반이 가져간다. (SHIPCOOP.md 4장)
+        // ⚠ **집을 것이 손에 닿으면 붙지 않는다.** 그 버튼은 운반이 가져간다. (SHIPCOOP.md 4장)
         //
-        //   쥔 채로 버튼   집는다
-        //   그냥 버튼       붙는다
+        // 상자나 갑판에 놓인 물건이 자리와 겹칠 때 **둘이 같은 버튼을 두고 다툽니다.**
+        // 여기서 먼저 비켜주지 않으면 누가 가져갈지가 스크립트 실행 순서에 달리고,
+        // 그 순서는 매번 다를 수 있습니다.
         //
-        // 이 줄이 없으면 상자나 쌓인 포탄이 자리와 겹칠 때 **둘이 같은 버튼을 두고 다툽니다.**
-        // 누가 먼저 가져갈지는 스크립트 실행 순서에 달려 있어 매번 다를 수 있습니다.
-        // 특히 포탄을 대포 옆 바닥에 쌓게 되면서 집는 곳과 붙는 곳이 같은 자리가 됐습니다.
-        if (ShipCoopInput.HoldBoth(Input))
+        // 집기를 이기게 둔 이유가 있습니다. 반대로 하면 자리 위에 떨어진 물건을
+        // **영영 못 줍습니다.** 치우려면 집어야 하는데 자리가 먼저 버튼을 가져가기 때문입니다.
+        // 자리에 붙고 싶으면 물건에서 한 발짝 떨어지면 됩니다.
+        if (_carry != null && _carry.HasPickupInReach())
         {
             return;
         }

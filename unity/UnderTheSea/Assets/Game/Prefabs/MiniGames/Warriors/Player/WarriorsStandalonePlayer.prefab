@@ -910,6 +910,7 @@ GameObject:
   - component: {fileID: 5822488064314147591}
   - component: {fileID: 5167241058911804057}
   - component: {fileID: 1486302501494832232}
+  - component: {fileID: 9100000000000000001}
   - component: {fileID: 8958376183258251821}
   - component: {fileID: 4618462208384260735}
   - component: {fileID: 4875334965177300451}
@@ -1100,6 +1101,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 555ccad0cfb88d44abde31b1932e0a0b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsKeyboardInput
+  playerId: 0
+  playerControllerSource: {fileID: 9100000000000000001}
+--- !u!114 &9100000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1372944045376030072}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KeyboardPlayerController
+  controlProfile: 1
+  axisSpeed: 4
+  twoDevices: 1
+  logDeviceOutput: 0
 --- !u!114 &4618462208384260735
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1141,6 +1160,7 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSpeed: 720
   cameraTransform: {fileID: 0}
+  playerControllerSource: {fileID: 9100000000000000001}
 --- !u!114 &8674204825303238277
 MonoBehaviour:
   m_ObjectHideFlags: 0

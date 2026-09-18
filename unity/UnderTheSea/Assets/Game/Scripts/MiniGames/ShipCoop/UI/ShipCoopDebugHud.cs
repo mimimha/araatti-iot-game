@@ -241,7 +241,7 @@ public class ShipCoopDebugHud : MonoBehaviour
     {
         if (carry.FindLoadableCannon() != null)
         {
-            return "⚫ 운반 중 · 대포 앞 — Shift 를 놓으면 들어간다 ★";
+            return "⚫ 운반 중 · 대포 앞 — Space 로 싣는다 ★";
         }
 
         (CannonTask cannon, float distance) = carry.NearestCannon();
@@ -289,7 +289,7 @@ public class ShipCoopDebugHud : MonoBehaviour
 
             if (box.IsInReach(position))
             {
-                return "포탄 상자 앞 — Shift 누른 채 Space 로 집기";
+                return "포탄 상자 앞 — Space 로 집기";
             }
         }
 
@@ -299,16 +299,15 @@ public class ShipCoopDebugHud : MonoBehaviour
     private void AppendKeyGuide()
     {
         _sb.AppendLine("── 조작 ──");
-        _sb.AppendLine("방향키      이동");
-        _sb.AppendLine("Space       자리에 붙기");
-        _sb.AppendLine("Shift+Space 포탄 집기");
-        _sb.AppendLine("A  D        조타 꺾기 · 돛 당기기(D) / 풀기(A)");
-        _sb.AppendLine("Shift       포탄을 든 채로 유지");
-        _sb.AppendLine("            대포 앞에서 놓으면 → 싣기");
-        _sb.AppendLine("            그 밖에서 놓으면 → 떨어뜨림");
-        _sb.AppendLine("X           대포 발사");
-        _sb.AppendLine("F           망치질 (수리)");
-        _sb.AppendLine("Q  E        포신 조준");
+        _sb.AppendLine("W A S D     이동");
+        _sb.AppendLine("Shift       달리기 (한 번 눌러 켜고 끈다)");
+        _sb.AppendLine("우클릭 드래그 카메라");
+        _sb.AppendLine("Space       붙기 · 집기 · 놓기 · 싣기");
+        _sb.AppendLine("            빈손이고 집을 것이 있으면 → 집기");
+        _sb.AppendLine("            들고 있으면 → 놓기 (대포 앞이면 싣기)");
+        _sb.AppendLine("            그 밖에는 → 자리에 붙기");
+        _sb.AppendLine("K           대포 발사 · 망치질 (수리)");
+        _sb.AppendLine("J  L        조타 꺾기 · 돛 당기기(L) / 풀기(J)");
         _sb.AppendLine("C           도움 요청");
         _sb.AppendLine();
         _sb.AppendLine($"{toggleKey}          이 표시 켜기 / 끄기");

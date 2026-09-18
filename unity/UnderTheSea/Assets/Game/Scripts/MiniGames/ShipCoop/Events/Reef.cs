@@ -777,7 +777,7 @@ public class Reef : VoyageEvent
     public override string LiveHint()
     {
         string side = RockSide < 0f ? "좌현" : "우현";
-        string key = RockSide > 0f ? "A" : "D";
+        string key = RockSide > 0f ? "J" : "L";
 
         if (VoyageSea.Current == null)
         {

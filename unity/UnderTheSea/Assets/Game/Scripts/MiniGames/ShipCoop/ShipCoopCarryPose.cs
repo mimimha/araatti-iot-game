@@ -134,7 +134,7 @@ public class ShipCoopCarryPose : MonoBehaviour
     //    "이 값을 올리면 어느 쪽으로 도는지" 를 코드만 보고는 알 수 없다. 그래서 **결과를 찍어 본다.**
     //    포탄을 들고 있는 동안 1초마다, IK 까지 다 끝난 **최종 손 방향**을 캐릭터 기준으로 남긴다.
     [Tooltip("포탄을 들었을 때 최종 손 방향을 1초마다 로그로 남긴다. 각도를 맞출 때만 켠다.")]
-    [SerializeField] private bool logAmmoHands = true;
+    [SerializeField] private bool logAmmoHands = false;
 
     private float _nextHandLog;
 

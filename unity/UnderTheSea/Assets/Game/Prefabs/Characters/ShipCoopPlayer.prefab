@@ -1693,7 +1693,7 @@ MonoBehaviour:
   leftHandFixEuler: {x: 0, y: -90, z: -90}
   rightHandFixEuler: {x: 0, y: 90, z: 90}
   drawHandAxes: 0
-  logAmmoHands: 1
+  logAmmoHands: 0
 --- !u!114 &7276708486594036018
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1706,7 +1706,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f0c4d1c5b37b2614baed2be28462f2b9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopDefaultAppearance
-  waitSeconds: 3
+  waitSeconds: 20
 --- !u!1 &2877561824165893445
 GameObject:
   m_ObjectHideFlags: 0

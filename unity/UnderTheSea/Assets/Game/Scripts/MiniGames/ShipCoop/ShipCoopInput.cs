@@ -67,24 +67,15 @@ public static class ShipCoopInput
     }
 
     // ------------------------------------------------------------
-    // 쥐기 — 압력센서
-    // ------------------------------------------------------------
-
-    /// <summary>💪 버티기. 한 손이라도 쥐고 있으면 된다. (돛 붙잡기, 파도 때 조타륜)</summary>
-    public static bool Hold(IPlayerController controller)
-    {
-        return controller != null && (controller.Left.Grip || controller.Right.Grip);
-    }
-
-    // ------------------------------------------------------------
     // 달리기
     // ------------------------------------------------------------
 
     /// <summary>
-    /// 🏃 달리기. 누르고 있는 동안 빨라진다. 왼손 버튼 2. 키보드는 V.
+    /// 🏃 달리기. 켜져 있는 동안 빨라진다. 왼손 버튼 2. 키보드는 Shift.
     ///
-    /// **새 부품을 쓰지 않습니다.** 7장 표에서 왼손 버튼 2 는 "(여유)" 로 비어 있었고,
-    /// 갑판이 3층으로 넓어지면서 그 자리가 채워졌습니다. 조작 개수는 그대로입니다.
+    /// **켜고 끄는 것은 장치가 들고 있습니다.** 엄지는 스틱과 면버튼 중 하나만 잡을 수 있어,
+    /// 누르고 있는 방식으로는 달리면서 걸을 수가 없습니다. 그래서 한 번 눌러 켜고 다시 눌러 끕니다.
+    /// 여기는 켜져 있는지만 보면 되므로 토글인 것을 몰라도 됩니다. (IOT_INPUT.md 2장)
     ///
     /// ⚠ **물건을 들고 있으면 달릴 수 없습니다.** (DebugPlayerMover 가 막습니다)
     /// 양손으로 포탄을 안고 뛸 수는 없고, 그래야 운반이 진짜 대가를 치릅니다. (4장)
@@ -106,26 +97,6 @@ public static class ShipCoopInput
         return controller.HasTwoDevices && controller.Left.Button2;
     }
 
-    /// <summary>
-    /// ⚫ 양손으로 들기. 무거운 포탄을 나를 때.
-    /// 한 손이라도 놓으면 떨어뜨립니다. 그래서 나르는 동안 다른 일을 못 합니다.
-    /// 기기를 1대만 들었으면 한 손으로도 인정합니다.
-    /// </summary>
-    public static bool HoldBoth(IPlayerController controller)
-    {
-        if (controller == null)
-        {
-            return false;
-        }
-
-        if (!controller.HasTwoDevices)
-        {
-            return controller.Left.Grip;
-        }
-
-        return controller.Left.Grip && controller.Right.Grip;
-    }
-
     // ------------------------------------------------------------
     // 버튼 — 한 번 누르는 것
     //
@@ -133,13 +104,35 @@ public static class ShipCoopInput
     //    같은 버튼을 한 프레임에 두 곳에서 부르면 한쪽이 놓칩니다.
     // ------------------------------------------------------------
 
-    /// <summary>자리에 붙기 · 포탄 집기 / 놓기. 오른손 버튼 1.</summary>
+    /// <summary>
+    /// 자리에 붙기 · 집기 · 놓기 · 장전. 오른손 버튼 1. 키보드는 Space.
+    ///
+    /// **버튼 하나가 다 합니다.** 빈손이고 손 닿는 곳에 집을 것이 있으면 집고,
+    /// 들고 있으면 놓거나 넘기고, 그 밖에는 가까운 자리에 붙습니다.
+    /// 무엇이 될지는 상황이 정하므로 부르는 쪽은 한 곳이어야 합니다.
+    /// </summary>
     public static bool ConsumeInteract(IPlayerController controller)
     {
         return controller != null && controller.Right.ConsumeButton1Press();
     }
 
-    /// <summary>💥 대포 발사. 오른손 버튼 2.</summary>
+    /// <summary>
+    /// 그 버튼을 **지금 누르고 있는가.** 누르는 순간이 아니라 눌린 채로 있는 동안 참이다.
+    ///
+    /// 짐(포탄 · 수리 자재 · 물)을 드는 데 씁니다. 집을 때는 <see cref="ConsumeInteract"/> 로
+    /// 순간을 잡고, 드는 동안은 이걸로 계속 확인해서 손을 떼면 놓게 합니다.
+    ///
+    /// ⚠ Consume 계열과 달리 **값을 지우지 않습니다.** 여러 곳에서 물어봐도 안전합니다.
+    ///
+    /// 네트워크에서도 그대로 옵니다. 눌린 상태가 `ShipCoopInputData` 의
+    /// `RightButton1` 비트로 실려 오기 때문입니다.
+    /// </summary>
+    public static bool IsInteractHeld(IPlayerController controller)
+    {
+        return controller != null && controller.Right.Button1;
+    }
+
+    /// <summary>💥 대포 발사 · 망치질. 오른손 버튼 2. 키보드는 K.</summary>
     public static bool ConsumeFire(IPlayerController controller)
     {
         return controller != null && controller.Right.ConsumeButton2Press();
@@ -162,10 +155,50 @@ public static class ShipCoopInput
         return controller.Left.ConsumeButton1Press();
     }
 
-    /// <summary>🔨 망치질. 오른손을 내리치는 동작.</summary>
+    /// <summary>
+    /// 🔨 망치질. 오른손 버튼 2, 또는 오른손을 내리치는 동작. 키보드는 K.
+    ///
+    /// **발사와 같은 버튼입니다.** 대포에 붙어 있으면서 동시에 파손 지점에 있을 수는 없어
+    /// 서로 다투지 않습니다. 부르는 쪽이 이미 자리로 갈려 있습니다.
+    ///
+    /// IMU 가 휘두름을 잡아 주면 그쪽으로도 됩니다. 없어도 버튼으로 다 됩니다.
+    ///
+    /// 동작 판정은 <see cref="IHandDevice.TryConsumeMotion"/> 이 합니다. 어느 손인지로
+    /// 추측하지 않고 센서가 내놓은 종류를 그대로 봅니다. 배가 쓰는 것은 **내리치기**뿐입니다.
+    /// </summary>
     public static bool ConsumeSwing(IPlayerController controller)
     {
-        return controller != null && controller.Right.ConsumeSwing();
+        if (controller == null)
+        {
+            return false;
+        }
+
+        // ⚠ 둘 다 읽는 순간 사라진다. `||` 의 단축 평가에 기대면 안 된다.
+        //    버튼이 눌린 프레임에 휘두름이 남아 있으면 다음 프레임에 한 번 더 친다.
+        bool swung = ConsumeSwingMotion(controller);
+        bool pressed = controller.Right.ConsumeButton2Press();
+
+        return swung || pressed;
+    }
+
+    /// <summary>
+    /// 🔨 내리치기 **동작만.** 면버튼 2 는 보지 않는다.
+    ///
+    /// ⚠ 네트워크로 실어 보낼 때는 반드시 이쪽을 쓴다. (<c>ShipCoopInputProvider</c>)
+    ///
+    /// <see cref="ConsumeSwing"/> 을 실어 보내면 **면버튼 2 까지 휘두름으로 둔갑합니다.**
+    /// 그러면 대포에서 K 로 쏠 때마다 서버의 휘두름 깃발이 함께 켜지는데, 대포 쪽은
+    /// 그것을 가져가지 않아 그대로 쌓입니다. 나중에 파손 지점에 붙는 순간 쌓여 있던 것이
+    /// 공짜 망치질로 터집니다.
+    ///
+    /// 면버튼은 눌림 상태로 따로 가고, **누른 순간은 서버가 직접 계산합니다.**
+    /// 그래서 여기서 같이 보낼 이유가 없습니다.
+    /// </summary>
+    public static bool ConsumeSwingMotion(IPlayerController controller)
+    {
+        return controller != null
+               && controller.Right.TryConsumeMotion(out HandMotion motion)
+               && motion.Type == HandMotionType.VerticalSwing;
     }
 
     // ------------------------------------------------------------

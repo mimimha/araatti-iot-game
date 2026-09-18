@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameConfig
   gameId: 2
   displayName: "\uBC30 \uD611\uB3D9 \uBBF8\uB2C8\uAC8C\uC784"
-  sceneName: 
+  sceneName: ShipCoopBoot
   minPlayers: 4
   maxPlayers: 4
   requireFullParty: 1

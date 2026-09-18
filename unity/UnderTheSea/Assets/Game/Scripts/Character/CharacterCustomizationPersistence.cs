@@ -150,6 +150,16 @@ namespace UnderTheSea.Character
                 $"[CharacterCustomization] 캐릭터를 만들었습니다. " +
                 $"id={(created != null ? created.id : 0)}, 이름 \"{savedNickname}\"", this);
 
+            // 막 만든 캐릭터에게만 로비 튜토리얼을 띄운다.
+            //
+            // ⚠ **여기서 표시를 세우는 것이 중요하다.** 튜토리얼 쪽에서 "본 적 없으면 띄운다"
+            //    로 하면, 이 기능이 생기기 전에 만들어진 캐릭터나 남의 컴퓨터에서 처음
+            //    로그인한 캐릭터까지 전부 튜토리얼을 보게 된다.
+            if (created != null)
+            {
+                LobbyTutorial.MarkPending(created.id);
+            }
+
             FinishCreation(savedNickname);
         }
 

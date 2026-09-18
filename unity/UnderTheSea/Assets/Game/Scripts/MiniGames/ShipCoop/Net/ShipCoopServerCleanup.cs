@@ -25,6 +25,20 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     [DisallowMultipleComponent]
     public sealed class ShipCoopServerCleanup : MonoBehaviour
     {
+        /// <summary>
+        /// 창 없는 서버의 프레임률. <b>화면용이 아니라 안정성용이다.</b>
+        ///
+        /// 서버는 아무것도 그리지 않지만 <c>Update</c> · <c>LateUpdate</c> 는 프레임마다 돈다.
+        /// 제한이 없으면 갈 수 있는 만큼 돌아서(실측: Lobby 900fps · ShipCoop 7,000fps)
+        /// <b>아무 이득 없이 코어를 태운다.</b> 한 PC 에 서버 둘과 클라이언트 둘을 같이
+        /// 띄우면 그 낭비가 그대로 경합이 된다.
+        ///
+        /// <b>왜 120인가.</b> Fusion 틱이 64Hz 라 틱 하나에 1.875 프레임이 들어간다.
+        /// 64 로 딱 맞추면 프레임이 하나만 밀려도 틱을 놓치지만, 120 이면 OS 스케줄링이
+        /// 흔들려도 삼킬 여유가 있다. 광산 서버가 같은 이유로 120 을 쓰고 있다.
+        /// </summary>
+        [SerializeField, Min(30)] private int serverFrameRate = 120;
+
         private void Awake()
         {
             if (!FusionLaunchArguments.IsDedicatedServerProcess())
@@ -69,7 +83,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             // 조명 — 서버는 아무것도 그리지 않으므로 그림자 계산이 통째로 낭비다
             count += DisableAll<Light>("조명");
 
-            Debug.Log($"[ShipCoopServerCleanup] 서버이므로 화면·소리 컴포넌트 {count}개를 껐습니다.");
+            // 화면이 없으니 vSync 는 의미가 없다. 끄고 프레임률을 직접 잡는다.
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = serverFrameRate;
+
+            Debug.Log($"[ShipCoopServerCleanup] 서버이므로 화면·소리 컴포넌트 {count}개를 껐습니다. " +
+                      $"프레임률을 {serverFrameRate}로 맞췄습니다.");
         }
 
         /// <summary>씬에 있는 이 종류를 전부 끈다. 꺼진 오브젝트 안의 것도 포함한다.</summary>

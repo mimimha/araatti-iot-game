@@ -58952,25 +58952,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KeyboardPlayerController
+  controlProfile: 2
   axisSpeed: 4
   twoDevices: 1
   logDeviceOutput: 0
-  leftStickUp: 63
-  leftStickDown: 64
-  leftStickLeft: 61
-  leftStickRight: 62
-  leftGrip: 51
-  leftButton1: 17
-  leftButton2: 36
-  leftSwing: 0
-  rightStickUp: 0
-  rightStickDown: 0
-  rightStickLeft: 31
-  rightStickRight: 19
-  rightGrip: 52
-  rightButton1: 1
-  rightButton2: 38
-  rightSwing: 20
 --- !u!114 &1398097744
 MonoBehaviour:
   m_ObjectHideFlags: 0

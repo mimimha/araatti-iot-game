@@ -1498,7 +1498,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KeyboardPlayerController
+  controlProfile: 0
   axisSpeed: 4
+  lookSensitivity: 0.15
   twoDevices: 1
   logDeviceOutput: 0
 --- !u!23 &338714896
@@ -3317,7 +3319,7 @@ MonoBehaviour:
   islandFarDistance: 400
   islandNearDistance: 25
   islandApproachCurve: 2
-  logIsland: 1
+  logIsland: 0
   courseHalfWidth: 5
   courseLineWidth: 0.35
   courseLineMaterial: {fileID: 2100000, guid: cbb41788c5a9f6344840f780c158461d, type: 2}
@@ -4604,7 +4606,7 @@ MonoBehaviour:
   leftHandFixEuler: {x: 0, y: -90, z: -90}
   rightHandFixEuler: {x: 0, y: 90, z: 90}
   drawHandAxes: 0
-  logAmmoHands: 1
+  logAmmoHands: 0
 --- !u!1 &1140791620
 GameObject:
   m_ObjectHideFlags: 0
@@ -5373,7 +5375,7 @@ MonoBehaviour:
   leftHandFixEuler: {x: 0, y: -90, z: -90}
   rightHandFixEuler: {x: 0, y: 90, z: 90}
   drawHandAxes: 0
-  logAmmoHands: 1
+  logAmmoHands: 0
 --- !u!1 &1448395559
 GameObject:
   m_ObjectHideFlags: 0
@@ -7778,7 +7780,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KeyboardPlayerController
+  controlProfile: 0
   axisSpeed: 4
+  lookSensitivity: 0.15
   twoDevices: 1
   logDeviceOutput: 0
 --- !u!23 &1927483866

@@ -43,8 +43,42 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         public const string DefaultSession = "shipcoop-1";
 
         /// <summary>이 프로세스가 쓸 세션 이름.</summary>
+        /// <summary>
+        /// **다음에 들어갈 세션.** Lobby 에서 미니게임으로 넘어가기 직전에 채운다.
+        ///
+        /// <b>왜 필요한가.</b> 세션 이름은 지금까지 실행 인자 <c>-session</c> 으로만 정할 수
+        /// 있었다. 그것은 <b>프로세스가 뜰 때 고정</b>되므로, 매칭이 "너희는 이 방으로" 라고
+        /// 정해 줘도 클라이언트가 받을 자리가 없다.
+        ///
+        /// 비워 두면 예전 그대로 실행 인자를 따르므로, 지금까지의 실행 방법이 그대로 살아 있다.
+        ///
+        /// ⚠ 이번 단계에서는 늘 <see cref="DefaultSession"/> 하나를 넣는다. 진짜 매칭이
+        ///    붙기 전까지는 고정 세션이고, 그 사실을 감추지 않는다.
+        ///
+        /// 실제 저장은 게임을 가리지 않는 <see cref="MiniGameSessionRequest"/> 가 한다.
+        /// </summary>
+        public static string PendingSession
+        {
+            get => MiniGameSessionRequest.Pending;
+            set => MiniGameSessionRequest.Pending = value;
+        }
+
+        /// <summary>
+        /// 이 프로세스가 쓸 세션 이름.
+        ///
+        /// <code>
+        ///   PendingSession 이 있으면  그것   (Lobby 에서 넘어온 경우)
+        ///   없으면 실행 인자 -session        (서버 · 단독 실행)
+        ///   그것도 없으면 기본값
+        /// </code>
+        /// </summary>
         public static string ResolveSession()
         {
+            if (!string.IsNullOrWhiteSpace(PendingSession))
+            {
+                return PendingSession;
+            }
+
             return FusionLaunchArguments.GetString(FusionLaunchArguments.SessionKey, DefaultSession);
         }
 

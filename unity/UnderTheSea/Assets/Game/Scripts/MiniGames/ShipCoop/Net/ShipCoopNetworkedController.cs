@@ -57,13 +57,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             twoDevices = input.Buttons.IsSet((int)ShipCoopButton.TwoDevices);
 
             left.Apply(input.LeftTilt, input.LeftRotation,
-                grip: input.Buttons.IsSet((int)ShipCoopButton.LeftGrip),
                 button1: input.Buttons.IsSet((int)ShipCoopButton.LeftButton1),
                 button2: input.Buttons.IsSet((int)ShipCoopButton.LeftButton2),
                 stick: input.Move);
 
             right.Apply(input.RightTilt, input.RightRotation,
-                grip: input.Buttons.IsSet((int)ShipCoopButton.RightGrip),
                 button1: input.Buttons.IsSet((int)ShipCoopButton.RightButton1),
                 button2: input.Buttons.IsSet((int)ShipCoopButton.RightButton2),
                 stick: input.Look);
@@ -146,8 +144,6 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             public float Rotation { get; private set; }
 
-            public bool Grip { get; private set; }
-
             public bool Button1 { get; private set; }
 
             public bool Button2 { get; private set; }
@@ -158,11 +154,10 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 isLeft = left;
             }
 
-            public void Apply(float tilt, float rotation, bool grip, bool button1, bool button2, Vector2 stick)
+            public void Apply(float tilt, float rotation, bool button1, bool button2, Vector2 stick)
             {
                 Tilt = tilt;
                 Rotation = rotation;
-                Grip = grip;
                 Button1 = button1;
                 Button2 = button2;
                 Stick = stick;
@@ -190,10 +185,13 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 return had;
             }
 
-            public bool ConsumeSwing()
+            public bool TryConsumeMotion(out HandMotion motion)
             {
                 bool had = swing;
                 swing = false;
+                motion = had
+                    ? new HandMotion(HandMotionType.VerticalSwing, 1f)
+                    : default;
                 return had;
             }
 

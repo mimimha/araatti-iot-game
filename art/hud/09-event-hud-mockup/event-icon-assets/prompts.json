@@ -1,0 +1,21 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "../event-icon-style-sheet-v1.png",
+  "jobs": [
+    {
+      "id": "reef",
+      "ko": "암초",
+      "prompt": "Use case: background-extraction.\nAsset type: production game HUD icon sprite.\nInput image 1: approved icon style-sheet reference. Match its exact warm-ivory pictogram system, dark navy edge weight, restrained 2.5D bevel, lighting direction, palette, and simple readable silhouette.\nOutput exactly ONE centered icon on a genuinely transparent RGBA background, square canvas, generous even transparent padding, front-facing, suitable for a 48–64 px HUD display. No circular medallion, no container, no badge, no text, no label, no border around canvas, no scene, no shadow detached from the icon, no watermark. Preserve clean antialiased edges. Subject: REEF icon from the approved sheet — one asymmetrical hazardous three-peak rock silhouette in warm ivory, with one restrained cyan wave curl at the base. Broad chunky shapes. It must read as a sea hazard, not an iceberg, mountain landscape or island. Use only warm ivory, cyan and the dark navy outline."
+    },
+    {
+      "id": "enemy-ship",
+      "ko": "적선",
+      "prompt": "Use case: background-extraction.\nAsset type: production game HUD icon sprite.\nInput image 1: approved icon style-sheet reference. Match its exact warm-ivory pictogram system, dark navy edge weight, restrained 2.5D bevel, lighting direction, palette, and simple readable silhouette.\nOutput exactly ONE centered icon on a genuinely transparent RGBA background, square canvas, generous even transparent padding, front-facing, suitable for a 48–64 px HUD display. No circular medallion, no container, no badge, no text, no label, no border around canvas, no scene, no shadow detached from the icon, no watermark. Preserve clean antialiased edges. Subject: ENEMY SHIP icon from the approved sheet — compact side-view sailing ship silhouette in warm ivory, with one tiny coral-red triangular flag. Broad simplified hull and sails, immediately readable. No skull, face, cannon, ropes, ocean, waves, realistic wood or miniature scene. Use only warm ivory, tiny coral flag and dark navy outline."
+    },
+    {
+      "id": "hull-damage",
+      "ko": "선체 파손",
+      "prompt": "Use case: background-extraction.\nAsset type: production game HUD icon sprite.\nInput image 1: approved icon style-sheet reference. Match its exact warm-ivory pictogram system, dark navy edge weight, restrained 2.5D bevel, lighting direction, palette, and simple readable silhouette.\nOutput exactly ONE centered icon on a genuinely transparent RGBA background, square canvas, generous even transparent padding, front-facing, suitable for a 48–64 px HUD display. No circular medallion, no container, no badge, no text, no label, no border around canvas, no scene, no shadow detached from the icon, no watermark. Preserve clean antialiased edges. Subject: HULL DAMAGE icon from the approved sheet — exactly two overlapping warm-ivory wooden plank shapes, one bold coral-red zigzag crack through the center, and exactly two small cyan water droplets. Broad clean shapes. No nails, bandage symbolism, extra boards, tools, scene or realistic wood texture. Use only warm ivory, coral, cyan and dark navy outline."
+    }
+  ]
+}
