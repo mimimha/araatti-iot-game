@@ -349,7 +349,10 @@ public class MineHud : MonoBehaviour
         DrawCenterNotice();
 
         // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
-        SetActive(resultPanel, NetworkResultShow);
+        //
+        // hideOnFinish 를 켜면 이 칸을 통째로 감춘다. 공용 결과 화면이 붙은 씬에서는
+        // 결과가 두 번 뜨기 때문이다. 배·검 게임과 마찬가지로 화면은 하나여야 한다.
+        SetActive(resultPanel, NetworkResultShow && !hideOnFinish);
 
         if (NetworkResultShow)
         {
