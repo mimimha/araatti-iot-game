@@ -1,6 +1,8 @@
+using System.Collections;
 using System.Linq;
 using System.Text;
 using Fusion;
+using MiniGames.Common;
 using UnityEngine;
 
 namespace Warriors.Net
@@ -150,6 +152,10 @@ namespace Warriors.Net
         // ------------------------------------------------------------
 
         /// <summary>지금 어느 칸인가.</summary>
+        [Header("결과 화면")]
+        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 기다리는 동안 보여 줄 것이 있을 때만 쓴다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds;
+
         [Networked] public WarriorsMatchPhase Phase { get; private set; }
 
         /// <summary>시작까지 남은 초. 0 이면 세는 중이 아니다.</summary>
@@ -236,8 +242,35 @@ namespace Warriors.Net
         // 승패·점수·시간은 이미 위에 다 있다. 여기서 새로 정하는 것은 **언제 확정됐는가**
         // 하나뿐이다. 그 틱을 찍어 두면 화면이 "이미 보여 준 결과인가" 를 가릴 수 있다.
 
+        /// <summary>
+        /// <b>개발자 모드의 무적.</b> 켜져 있으면 아무도 목숨을 잃지 않는다.
+        ///
+        /// ⚠ <b>일부러 <c>[Networked]</c> 가 아니다.</b> 이 값을 네트워크 값으로 두었더니
+        ///    오브젝트가 주고받는 칸 수가 달라졌고, 씬·프리팹에 구워진 정보와 어긋나
+        ///    클라이언트에서 이렇게 터졌다.
+        ///
+        ///    <code>
+        ///      AssertException: meta.WordCount == NetworkObject.GetWordCount(instance)
+        ///    </code>
+        ///
+        ///    그러면 그 오브젝트의 값이 통째로 엉뚱하게 읽힌다 — 몬스터가 투명하게 나오고,
+        ///    처치 수가 안 오르고, 한 명인데 판이 시작했다. QA 편의를 위한 값 하나 때문에
+        ///    치를 값이 아니다.
+        ///
+        ///    <b>서버만 알면 되는 값이다.</b> 맞는지 판정하는 것이 서버이므로 굳이 복제할
+        ///    이유가 없다. 화면에 켜짐/꺼짐을 보여 주지 못하는 것은 감수한다.
+        ///
+        /// 판을 되돌릴 때 반드시 꺼야 한다. 안 그러면 다음 사람이 무적인 채로 시작한다.
+        /// </summary>
+        public bool Invincible { get; private set; }
+
         /// <summary>결과가 확정된 틱. 0 이면 아직 안 끝났다.</summary>
         [Networked] private int ResultTick { get; set; }
+
+        /// <summary>이미 띄운 결과인가. 클라이언트마다 따로 센다.</summary>
+        private int shownResultTick;
+
+        private Coroutine resultRelease;
 
 
         /// <summary>방금 깬 라운드 번호. 종료 문구를 고르는 데 쓴다.</summary>
@@ -420,6 +453,9 @@ namespace Warriors.Net
             Phase = WarriorsMatchPhase.Waiting;
             Countdown = 0f;
             IntroTimer = TickTimer.None;
+
+            // ⚠ 개발자 모드로 켜 둔 무적을 끈다. 남겨 두면 다음 사람이 무적으로 시작한다.
+            Invincible = false;
 
             // ⚠ 결과 도장을 지운다. 남겨 두면 다음 판이 끝나도 화면이 "이미 보여 준 결과" 로 보고
             //    결과 판을 열지 않는다.
@@ -760,22 +796,166 @@ namespace Warriors.Net
         }
 
         /// <summary>
-        /// <b>공용 결과 화면은 쓰지 않는다.</b>
+        /// <b>공용 결과 화면을 연다.</b> 배 게임과 같은 판을 쓴다.
         ///
-        /// 배 게임은 <c>MiniGameResultOverlay</c> 가 결과를 보여 주지만, 검 게임에는 서연님이
-        /// 만든 결과 화면(<c>WarriorsHudPresenter</c> 의 CLEAR · GAME OVER 와
-        /// <c>WarriorsPauseControl</c> 의 버튼)이 이미 있다. 둘 다 띄우면 같은 내용이 두 번
-        /// 겹치고 버튼이 네 개가 된다.
-        ///
-        /// ⚠ <b>그래서 결과를 Gateway 에 제출하지 않는다.</b> 제출해 놓고 아무도 받지 않으면
-        ///    Gateway 가 결과를 들고 있다가 Lobby 의 <c>MatchFlowController</c> 에 넘기고,
-        ///    그쪽은 <c>RewardService.Grant</c> 로 <b>보상을 적립한다.</b>
-        ///    아이템도 인벤토리도 없는 단계라 그 경로를 타면 안 된다.
-        ///
-        /// 서버가 찍는 <see cref="ResultTick"/> 은 남겨 둔다. 결과가 언제 확정됐는지 서버
-        /// 로그로 볼 수 있어야 하고, <see cref="ResetToWaiting"/> 이 그것을 지우는 것이
-        /// "판이 정말 처음으로 돌아갔는가" 의 표시가 된다.
+        /// 서버가 찍은 틱을 보고 한 번만 연다. 다시 대기 상태로 돌아가면 <c>ResultTick</c> 이
+        /// 0 이 되므로 여기 기억도 같이 풀린다 — 다음 판의 결과가 다시 열린다.
         /// </summary>
+        private void PublishResultWhenReady()
+        {
+            if (ResultTick == 0)
+            {
+                shownResultTick = 0;
+                return;
+            }
+
+            if (ResultTick == shownResultTick)
+            {
+                return;
+            }
+
+            shownResultTick = ResultTick;
+
+            if (resultRelease != null)
+            {
+                StopCoroutine(resultRelease);
+            }
+
+            resultRelease = StartCoroutine(ShowResultAfterHold(
+                Phase == WarriorsMatchPhase.Cleared, Score, Elapsed, Crew));
+        }
+
+        /// <summary>
+        /// <b>공용 결과 판을 연다.</b> 기본은 기다리지 않고 바로 연다.
+        ///
+        /// 배 게임은 자기 성공·실패 연출을 3초 보여 준 뒤 결과 판을 연다. 검 게임에는 그런
+        /// 연출이 없다 — 옛 결과 카드를 쓰지 않기로 했고, 판이 끝나면 HUD 도 같이 꺼진다.
+        /// 그래서 여기서 기다리면 <b>사람은 빈 화면을 보고 앉아 있게 된다.</b> 실제로 3초를
+        /// 기다리게 해 놨더니 "게임이 끝났는데 아무것도 안 나온다" 가 됐다.
+        ///
+        /// 보여 줄 것이 생기면 그때 이 값을 올리면 된다. 그때까지는 0 이다.
+        ///
+        /// 성공·실패 문구는 결과 판이 알아서 가른다 — GAME CLEAR / GAME OVER.
+        /// 여기서는 서버가 정한 값을 그대로 넘기기만 한다.
+        ///
+        /// ⚠ <b>설정(MiniGameConfig)은 넘기지 않는다.</b> 결과 판은 그것이 있어야 보상 칸을
+        ///    켠다. 아이템도 인벤토리도 없는 단계라 "조각을 받았습니다" 는 거짓말이 된다.
+        ///    받는 쪽(<c>MiniGameResultOverlay</c>)이 null 을 넘기므로 여기서 할 일은 없다.
+        /// </summary>
+        private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int crew)
+        {
+            yield return new WaitForSeconds(resultHoldSeconds);
+
+            MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
+                MiniGameId.Sword,
+                clear,
+                score,
+                playTime,
+                playerCount: crew));
+
+            resultRelease = null;
+        }
+
+        // ------------------------------------------------------------
+        // 개발자 모드 — QA 를 빨리 돌리기 위한 것. 서버가 실행한다.
+        // ------------------------------------------------------------
+
+        /// <summary>개발자 모드가 서버에 부탁할 수 있는 일.</summary>
+        public enum DevCommand
+        {
+            /// <summary>다음 페이즈로 건너뛴다.</summary>
+            NextPhase = 0,
+
+            /// <summary>앞 페이즈로 되돌아간다.</summary>
+            PreviousPhase = 1,
+
+            /// <summary>지금 페이즈의 목표를 그만큼 채운다. 2·3 페이즈에서는 보스를 때리는 것과 같다.</summary>
+            Advance = 2,
+
+            /// <summary>무적을 켜고 끈다.</summary>
+            ToggleInvincible = 3,
+        }
+
+        /// <summary>
+        /// <b>개발자 모드의 부탁을 서버가 실행한다.</b>
+        ///
+        /// 화면에서 직접 값을 바꾸면 그 사람 화면만 바뀌고 서버와 어긋난다. 판의 상태는
+        /// 전부 서버가 정하므로 부탁만 보내고 결과를 받는다. 배 게임과 같은 방식이다.
+        ///
+        /// ⚠ 끝난 판에는 듣지 않는다. 결과 화면에서 눌러 판이 되살아나면 안 된다.
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void Rpc_DevCommand(DevCommand command, int amount, RpcInfo info = default)
+        {
+            if (IsOver || !HasStarted)
+            {
+                Debug.Log($"[Warriors 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
+                return;
+            }
+
+            switch (command)
+            {
+                case DevCommand.NextPhase:
+                    StepPhase(+1);
+                    break;
+
+                case DevCommand.PreviousPhase:
+                    StepPhase(-1);
+                    break;
+
+                case DevCommand.Advance:
+                    Advance(Mathf.Max(1, amount));
+                    break;
+
+                case DevCommand.ToggleInvincible:
+                    Invincible = !Invincible;
+                    Debug.Log($"[Warriors 개발자] 무적 {(Invincible ? "켜짐" : "꺼짐")}");
+                    break;
+            }
+        }
+
+        /// <summary>페이즈를 한 칸 옮긴다. 1~3 밖으로는 나가지 않는다.</summary>
+        private void StepPhase(int step)
+        {
+            int round = RoundOf(Phase);
+            if (round == 0) return;
+
+            int next = Mathf.Clamp(round + step, 1, 3);
+            if (next == round) return;
+
+            WarriorsMatchPhase phase = next switch
+            {
+                1 => WarriorsMatchPhase.Phase1,
+                2 => WarriorsMatchPhase.Phase2,
+                _ => WarriorsMatchPhase.Phase3,
+            };
+
+            // 전환 대기를 지운다. 남겨 두면 옮기자마자 종료 문구가 뜬다.
+            ClearHoldTimer = TickTimer.None;
+            PendingPhase = 0;
+
+            Debug.Log($"[Warriors 개발자] {round}페이즈 → {next}페이즈");
+            OpenPhase(phase);
+        }
+
+        /// <summary>지금 페이즈의 목표를 그만큼 채운다. 목표를 넘기면 다음 페이즈로 간다.</summary>
+        private void Advance(int amount)
+        {
+            switch (Phase)
+            {
+                case WarriorsMatchPhase.Phase1:
+                    for (int i = 0; i < amount; i++) ReportPhase1Kill();
+                    break;
+
+                case WarriorsMatchPhase.Phase2:
+                    for (int i = 0; i < amount; i++) ReportPhase2Hit();
+                    break;
+
+                case WarriorsMatchPhase.Phase3:
+                    for (int i = 0; i < amount; i++) ReportPhase3Hit();
+                    break;
+            }
+        }
 
         /// <summary>매치 실패. <paramref name="reason"/> 1 모두 쓰러짐 · 2 시간 초과.</summary>
         private void Fail(int reason)
@@ -850,6 +1030,21 @@ namespace Warriors.Net
         /// </summary>
         private void RunClock()
         {
+            // ⚠ **이미 끝난 판의 시계는 돌지 않는다.**
+            //
+            //    FixedUpdateNetwork 는 맨 위에서 IsOver 를 보고 물러나지만, 그것은 틱이
+            //    시작할 때의 상태다. 같은 틱 안에서 AdvancePendingPhase() 가 Cleared 로
+            //    바꾼 직후 바로 이 함수가 불린다. 크라켄을 쓰러뜨릴 때 FinishCleared 가
+            //    TimeLeft 를 0 으로 만들어 두므로, 그 한 틱에 시계가 "시간이 다 됐다" 로 읽고
+            //    이긴 판을 실패로 뒤집었다.
+            //
+            //        [WarriorsMatch] 전체 클리어입니다. 점수 4800
+            //        [WarriorsMatch] 시간이 다 됐습니다. TIME OVER
+            //        [Warriors 결과] 확정 — 실패, 점수 4800        ← 이겼는데 실패로 기록
+            //
+            //    실제로 클리어가 한 번도 성공으로 남지 않았다.
+            if (IsOver) return;
+
             // 라운드 소개 화면이 떠 있는 동안은 시계도 쉰다. 3초를 읽는 동안 시간이 새면 억울하다.
             // 종료 문구 구간도 마찬가지다 — 이미 깬 라운드를 보고 있는데 시간이 흐르면 안 된다.
             if (InIntro || InClearHold) return;
@@ -1103,6 +1298,8 @@ namespace Warriors.Net
 
         public override void Render()
         {
+            PublishResultWhenReady();
+
             if (hud == null) return;
 
             // HUD 는 원래 싱글용 부품(WarriorsBattleScore · WarriorsGameFlow)을 읽는다.

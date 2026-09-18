@@ -148,7 +148,10 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
                 // ⚠ PeerMode.Multiple 이라 클라이언트도 반드시 지정해야 한다.
                 Scene = SceneRef.FromPath(ShipCoopNet.ScenePath),
-                SceneManager = GetComponent<NetworkSceneManagerDefault>()
+                SceneManager = GetComponent<NetworkSceneManagerDefault>(),
+
+                // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+                CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
             };
 
             if (isServer)
