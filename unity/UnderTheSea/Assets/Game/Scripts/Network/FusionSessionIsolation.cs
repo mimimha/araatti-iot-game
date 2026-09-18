@@ -41,10 +41,33 @@ public static class FusionSessionIsolation
     /// <summary>Photon AppVersion 으로 쓸 값. 없으면 지금까지처럼 팀 전체가 같은 방을 본다.</summary>
     public const string AppVersionKey = "-appver";
 
+    /// <summary>
+    /// <b>붙을 Photon 지역을 못 박는다.</b> (예: <c>kr</c> · <c>jp</c> · <c>asia</c>)
+    ///
+    /// ⚠ <b>Photon 의 방 목록은 지역마다 완전히 따로다.</b> 서버가 A 지역에 방을 열었는데
+    ///    클라이언트가 B 지역을 고르면, 방은 멀쩡히 있는데 없다고 나온다.
+    ///
+    ///        Photon Cloud Operation failed [32758]: 'Game does not exist'
+    ///        ShutdownReason: GameNotFound
+    ///
+    ///    이 값을 주지 않으면 Photon 이 <b>접속할 때마다 전 세계에 핑을 쏴서</b> 가장 가까운
+    ///    지역을 고른다. 핑이 비슷하면 알파벳 순으로 고르므로(RegionHandler 참고)
+    ///    <b>몇 ms 차이로 지역이 갈린다.</b> 고른 결과는 저장되지도 않아 띄울 때마다 다시 뽑는다.
+    ///    서버와 클라이언트가 같은 PC 일 때는 같은 핑이 나와 잘 맞았고, 다른 컴퓨터가
+    ///    들어오자 누구는 되고 누구는 "방이 없다" 가 나왔다.
+    ///
+    /// <b>게임 지연에는 영향이 없다.</b> Fusion Server 모드에서 지역은 <b>서로를 찾는 데만</b>
+    /// 쓰이고, 실제 게임 트래픽은 클라이언트와 DS 가 직통으로 주고받는다. 그래서 나중에
+    /// 서버가 EC2 로 가도 이 값은 배포 설정 한 줄로 맞추면 된다.
+    /// </summary>
+    public const string RegionKey = "-region";
+
     /// <summary>한 번만 읽는다. 커맨드라인은 프로세스가 사는 동안 바뀌지 않는다.</summary>
     private static bool resolved;
 
     private static string version;
+
+    private static string region;
 
     private static FusionAppSettings settings;
 
@@ -55,6 +78,16 @@ public static class FusionSessionIsolation
         {
             Resolve();
             return version;
+        }
+    }
+
+    /// <summary>못 박은 Photon 지역. 인자가 없으면 빈 문자열(= 핑으로 자동 선택).</summary>
+    public static string Region
+    {
+        get
+        {
+            Resolve();
+            return region;
         }
     }
 
@@ -81,9 +114,15 @@ public static class FusionSessionIsolation
     /// <summary>서버 로그 맨 앞에 남길 한 줄.</summary>
     public static string Describe()
     {
-        return Isolated
+        string room = Isolated
             ? $"AppVersion \"{AppVersion}\" — 같은 값을 준 사람하고만 만납니다."
             : "AppVersion 없음 — 팀 공용입니다. 세션 이름이 겹치면 남의 서버에 붙을 수 있습니다.";
+
+        string where = string.IsNullOrEmpty(Region)
+            ? "지역 자동 — 띄울 때마다 핑으로 다시 고릅니다. 서버와 다른 지역을 고르면 방을 못 찾습니다."
+            : $"지역 \"{Region}\" 고정 — 서버와 클라이언트가 같은 값이어야 만납니다.";
+
+        return $"{room} / {where}";
     }
 
     private static void Resolve()
@@ -94,34 +133,46 @@ public static class FusionSessionIsolation
         }
 
         resolved = true;
-        version = FusionLaunchArguments.GetString(AppVersionKey, string.Empty);
 
-        if (string.IsNullOrWhiteSpace(version))
+        version = (FusionLaunchArguments.GetString(AppVersionKey, string.Empty) ?? string.Empty).Trim();
+        region = (FusionLaunchArguments.GetString(RegionKey, string.Empty) ?? string.Empty).Trim();
+
+        // 둘 다 없으면 손댈 것이 없다. null 을 넘기면 Fusion 이 공용 설정을 쓴다.
+        if (version.Length == 0 && region.Length == 0)
         {
-            // ⚠ 갈라지지 않은 쪽도 반드시 남긴다. 사고가 나는 것은 이쪽이다.
-            //    "왜 남의 서버에 붙었지" 를 나중에 로그에서 찾을 수 있어야 한다.
-            version = string.Empty;
+            // ⚠ 아무것도 안 박은 쪽도 반드시 남긴다. 사고가 나는 것은 이쪽이다.
+            //    "왜 남의 서버에 붙었지" · "왜 방이 없다고 하지" 를 로그에서 찾을 수 있어야 한다.
             Debug.Log($"[FusionSessionIsolation] {Describe()}");
             return;
         }
-
-        version = version.Trim();
 
         if (!PhotonAppSettings.TryGetGlobal(out PhotonAppSettings global) || global.AppSettings == null)
         {
             // 여기까지 오면 Photon 설정 자체가 없다. 방을 가르기는커녕 접속도 안 된다.
             // 이 인자 때문에 못 떴다고 오해하지 않도록 이유를 남기고 공용으로 둔다.
             Debug.LogError(
-                $"[FusionSessionIsolation] 공용 Photon 설정을 찾지 못해 {AppVersionKey} 를 적용하지 못합니다. " +
+                "[FusionSessionIsolation] 공용 Photon 설정을 찾지 못해 " +
+                $"{AppVersionKey} · {RegionKey} 를 적용하지 못합니다. " +
                 "Assets/Photon/Fusion/Resources/PhotonAppSettings.asset 을 확인해 주세요.");
             version = string.Empty;
+            region = string.Empty;
             return;
         }
 
         // ⚠ 공용 설정을 고치지 않고 복사본에만 값을 넣는다. 위 주석 참고.
         FusionAppSettings copy = new FusionAppSettings();
         global.AppSettings.CopyTo(copy);
-        copy.AppVersion = version;
+
+        if (version.Length > 0)
+        {
+            copy.AppVersion = version;
+        }
+
+        if (region.Length > 0)
+        {
+            // FixedRegion 을 주면 Photon 이 핑 단계를 건너뛰고 이 지역으로 바로 간다.
+            copy.FixedRegion = region;
+        }
 
         settings = copy;
 
