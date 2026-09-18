@@ -73,6 +73,9 @@ public class MineVision : MonoBehaviour
              "  그래서 밝기를 씬에 맡기지 않고 여기서 직접 정한다.")]
     [SerializeField] private Color litAmbient = new Color(0.34f, 0.34f, 0.36f);
 
+    [Tooltip("밝을 때 태양(Directional Light)을 얼마나 남길 것인가. 1 이면 씬에 적힌 세기 그대로다. 낮추면 탑뷰가 3인칭 시점처럼 어두워진다.")]
+    [SerializeField, Range(0f, 1f)] private float litSunIntensity = 0.4f;
+
     [Tooltip("밝을 때도 판 바깥은 안개로 덮는다. 끄면 동굴 전체가 환하게 보인다.")]
     [SerializeField] private bool litFog = true;
 
@@ -283,7 +286,7 @@ public class MineVision : MonoBehaviour
         DimCave(lit);
 
         if (sun != null)
-            sun.intensity = lit ? _savedSunIntensity : _savedSunIntensity * darkSunIntensity;
+            sun.intensity = _savedSunIntensity * (lit ? litSunIntensity : darkSunIntensity);
 
         if (_lantern != null) _lantern.enabled = !lit && _follow != null;
     }

@@ -20913,6 +20913,55 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 483197420}
   m_Mesh: {fileID: 4300000, guid: 5247e7a39eff10041a34797ba958d1cf, type: 2}
+--- !u!1 &491895429
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 491895431}
+  - component: {fileID: 491895430}
+  m_Layer: 0
+  m_Name: MinePostFX
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &491895430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 491895429}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
+  m_IsGlobal: 1
+  priority: 0
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: e2313946be8b15441a41a308ca6a9800, type: 2}
+--- !u!4 &491895431
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 491895429}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.18288, y: 0, z: -4.53331}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &492657002
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -79653,20 +79702,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MineVision
   lanternRange: 18
-  lanternIntensity: 2.2807894
-  lanternHeight: 1.3
-  lanternColor: {r: 1, g: 0.9625, b: 0.9, a: 1}
+  lanternIntensity: 4
+  lanternHeight: 3.5
+  lanternColor: {r: 1, g: 0.87058824, b: 0.69411767, a: 1}
   darkAmbient: {r: 0.17, g: 0.17, b: 0.17, a: 1}
   darkSunIntensity: 0.03
   darkFog: 1
   darkFogStart: 20
   darkFogEnd: 70
   darkFogColor: {r: 0.025, g: 0.025, b: 0.035, a: 1}
-  litAmbient: {r: 0.289, g: 0.289, b: 0.30600002, a: 1}
+  litAmbient: {r: 0.1734, g: 0.1734, b: 0.1836, a: 1}
+  litSunIntensity: 0.4
   litFog: 1
-  litCaveTint: {r: 0.3, g: 0.3, b: 0.34, a: 1}
-  litFogNear: 1.02
-  litFogFar: 1.35
+  litCaveTint: {r: 0.62, g: 0.59, b: 0.55, a: 1}
+  litFogNear: 1.25
+  litFogFar: 2
   sun: {fileID: 0}
   boardCamera: {fileID: 2137228885}
   grid: {fileID: 1014668933}
@@ -92462,7 +92512,7 @@ MonoBehaviour:
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
-  m_RenderPostProcessing: 0
+  m_RenderPostProcessing: 1
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
   m_StopNaN: 0
@@ -93145,3 +93195,4 @@ SceneRoots:
   - {fileID: 7477196501657947837}
   - {fileID: 439003812}
   - {fileID: 6253398032163072717}
+  - {fileID: 491895431}
