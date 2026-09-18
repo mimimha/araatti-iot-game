@@ -65,8 +65,8 @@ namespace UnderTheSea.Character
 
         public CharacterPartCatalog Catalog => catalog;
 
-        /// <summary>모델 전체가 감춰져 있는가.</summary>
-        public bool ModelHidden => modelHidden;
+        /// <summary>모델 전체가 감춰져 있는가. 두 이유 중 하나라도 걸리면 참이다.</summary>
+        public bool ModelHidden => modelHidden || presenceHidden;
 
         /// <summary>
         /// 모델 전체를 감추거나 보인다. <b>자리별 규칙과 한 곳에서 계산된다.</b>
@@ -78,6 +78,23 @@ namespace UnderTheSea.Character
         public void SetModelHidden(bool hidden)
         {
             modelHidden = hidden;
+            RefreshVisibility();
+        }
+
+        /// <summary>
+        /// <b>지금 이 자리에 있어도 되는 사람인가.</b> 아니면 감춘다.
+        ///
+        /// <see cref="SetModelHidden"/> 과 <b>이유가 다르다.</b> 저쪽은 "외형이 아직 안 왔다",
+        /// 이쪽은 "지금 네 차례가 아니다" 다. 광산에서 대기 중인 사람을 감출 때 쓴다.
+        ///
+        /// ⚠ <b>두 이유를 한 스위치에 담지 않는다.</b> 둘 다 <c>forceRenderingOff</c> 하나를
+        ///    쓰는데, 각자 <c>SetModelHidden</c> 을 부르면 <b>나중에 부른 쪽이 앞의 판단을
+        ///    지운다.</b> 외형이 도착하는 순간 대기 중인 사람이 도로 나타나는 식이다.
+        ///    그래서 이유를 따로 들고 있다가 <b>하나라도 걸리면 감춘다.</b>
+        /// </summary>
+        public void SetPresenceHidden(bool hidden)
+        {
+            presenceHidden = hidden;
             RefreshVisibility();
         }
 
@@ -119,6 +136,9 @@ namespace UnderTheSea.Character
         /// 그래서 준비되기 전에는 통째로 감춰 두고, 준비된 뒤에 자리별 규칙을 입힌다.
         /// </summary>
         private bool modelHidden;
+
+        /// <summary>"지금 차례가 아니라서" 감춘 상태인가. <see cref="modelHidden"/> 과 따로 센다.</summary>
+        private bool presenceHidden;
 
         // ------------------------------------------------------------
         // 스냅샷 적용 — 바깥에서 부르는 입구
@@ -426,11 +446,11 @@ namespace UnderTheSea.Character
             {
                 if (draw != null)
                 {
-                    draw.forceRenderingOff = modelHidden;
+                    draw.forceRenderingOff = ModelHidden;
                 }
             }
 
-            if (modelHidden)
+            if (ModelHidden)
             {
                 return;
             }
