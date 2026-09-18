@@ -68,10 +68,14 @@ namespace Mine.Net
                 data.Move = move;
 
                 data.Buttons.Set((int)MineButton.Run, keys.leftShiftKey.isPressed);
-                data.Buttons.Set((int)MineButton.Jump, keys.spaceKey.isPressed);
-                data.Buttons.Set((int)MineButton.Swing, keys.fKey.isPressed);
+                data.Buttons.Set((int)MineButton.Swing, keys.spaceKey.isPressed);
                 data.Buttons.Set((int)MineButton.Restore, keys.cKey.isPressed);
-                data.Buttons.Set((int)MineButton.Hint, keys.vKey.isPressed);
+                data.Buttons.Set((int)MineButton.Hint, keys.jKey.isPressed);
+
+                // ⚠ 점프는 키를 빼 둔다. 채굴이 Space 를 쓰면서 한 키에
+                //   두 동작이 걸리기 때문이다. 조작 안내에도 점프는 없다.
+                //   다시 쓰려면 안 겹치는 키로 아래를 살린다.
+                //   data.Buttons.Set((int)MineButton.Jump, keys.<다른키>.isPressed);
             }
 
             // 각도는 포커스와 상관없이 채운다. 서버가 이 값으로 이동을 풀고,

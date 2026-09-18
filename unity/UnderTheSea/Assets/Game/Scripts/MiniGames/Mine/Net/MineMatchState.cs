@@ -28,7 +28,7 @@ namespace Mine.Net
     ///
     /// <code>
     ///   대기        정해진 인원이 모일 때까지
-    ///   카운트다운  다 모이면 10초. 중간에 빠지면 취소하고 다시 대기
+    ///   카운트다운  다 모이면 3초. 중간에 빠지면 취소하고 다시 대기
     ///   턴          P1 → P2 → P3 → P4 순서로 한 번씩. 30초씩
     ///   끝          모든 턴 소진
     /// </code>
@@ -55,14 +55,14 @@ namespace Mine.Net
         [SerializeField, Range(1, MineNet.MaxCrew)] private int crewToStart = MineNet.DefaultCrewToStart;
 
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
-        [SerializeField, Min(1f)] private float countdownSeconds = 10f;
+        [SerializeField, Min(1f)] private float countdownSeconds = 3f;
 
         [Header("턴")]
         [Tooltip("한 턴의 시간(초). MINE.md 2장 기준값은 30초다.")]
         [SerializeField, Min(1f)] private float turnSeconds = 30f;
 
-        [Tooltip("사람 한 명당 복구 블록 몇 개. 시작 인원 × 이 값이 팀 공용 총량이 된다.")]
-        [SerializeField, Min(0)] private int restoresPerPlayer = 1;
+        [Tooltip("이번 판에 주어지는 복구 블록 수. 인원과 무관한 고정값이며 팀 공용이다.")]
+        [SerializeField, Min(0)] private int restoreBlocks = 5;
 
         [Header("공개와 힌트 (MINE.md 2·3장)")]
         [Tooltip("목표 그림을 보여 주는 시간(초). 여기부터 기억으로 그린다.")]
@@ -147,6 +147,19 @@ namespace Mine.Net
         /// <summary>지금 목표 그림을 보여 줘야 하는가. 공개 시간이거나 힌트 중이다.</summary>
         public bool ShowingTarget => Phase == MineMatchPhase.Reveal || HintLeft > 0f;
 
+        /// <summary>
+        /// 목표를 보여 주는 동안 <b>미리 움직여 볼 수 있는 자리.</b> 아니면 -1.
+        ///
+        /// 공개가 끝나면 <see cref="DriveReveal"/> 가 <c>OpenTurnFrom(0)</c> 로
+        /// 첫 턴을 여므로, 미리 움직일 수 있는 사람도 그 0번이다.
+        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 첫 턴은
+        /// 앞사람이 없어 <c>TakeTurnAt</c> 으로 옥기지 않기 때문이다.
+        ///
+        /// ⚠ <b>힐트는 여기 해당하지 않는다.</b> 힐트 중에도 <c>ShowingTarget</c> 은
+        ///   참이지만 그때는 <c>Phase</c> 가 <c>Turn</c> 이라 본인은 이미 움직일 수 있다.
+        /// </summary>
+        public int WarmupSlot => Phase == MineMatchPhase.Reveal ? 0 : -1;
+
         /// <summary>이미 시작했는가. 늦게 들어온 사람이 다시 시작시키면 안 된다.</summary>
         public bool HasStarted => Phase >= MineMatchPhase.Reveal;
 
@@ -189,6 +202,9 @@ namespace Mine.Net
 
             Crew = Runner.ActivePlayers.Count();
 
+            // 판은 기다리는 동안 미리 깔아 둔다. 카운트다운 중에도 모두가 같은 돌 배치를 봐야 한다.
+            EnsureBoardOpen();
+
             if (IsOver) return;
 
             TickHint();
@@ -207,7 +223,7 @@ namespace Mine.Net
         ///
         /// <code>
         ///   인원 부족       기다린다. 들어온 순서대로 자리를 다시 나눈다
-        ///   인원이 모임     10초를 센다
+        ///   인원이 모임     3초를 센다
         ///   세는 중에 이탈  센 것을 버리고 다시 대기로 돌아간다
         ///   다 셈           참가자 목록을 굳히고 첫 턴을 연다
         /// </code>
@@ -268,6 +284,32 @@ namespace Mine.Net
                 crew[i].AssignSlot(i < MineNet.MaxCrew ? i : -1);
             }
         }
+        /// <summary>
+        /// 판이 아직 안 깔렸으면 깔고 시드를 복제한다. <b>한 번만 한다.</b>
+        ///
+        /// ⚠ <b>기다리는 동안 미리 깔아야 한다.</b>
+        ///
+        ///   <see cref="MineGrid"/> 는 Awake 에서 <c>Scatter(Environment.TickCount)</c> 로
+        ///   돌을 뿌린다. 그 값은 PC 마다 다르므로 <b>클라이언트마다 배치가 다르다.</b>
+        ///   예전에는 시작할 때서야 공통 시드를 보냈기 때문에, 카운트다운 동안
+        ///   서로 다른 판을 보다가 시작 순간에 같아졌다. 실측해서 확인한 문제다.
+        ///
+        /// ⚠ 시드를 한 번 정하면 판이 끝날 때까지 바꾸지 않는다.
+        ///   중간에 다시 깔면 플레이어 눈앞에서 판이 통째로 바뀐다.
+        ///
+        /// 기다리는 동안에는 아무도 파지 못한다 — <c>CurrentSlot</c> 이 -1 이라
+        /// <c>MineNetPlayerActions</c> 가 전부 걸러낸다. 그래서 미리 깔아도 안전하다.
+        /// </summary>
+        private void EnsureBoardOpen()
+        {
+            if (BoardSeed != 0) return;
+            if (MineGridSync.Current == null) return;
+
+            BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
+            MineGridSync.Current.ServerOpenBoard(BoardSeed);
+        }
+
+
 
         /// <summary>
         /// **참가자를 굳히고 첫 턴을 연다.**
@@ -285,19 +327,17 @@ namespace Mine.Net
 
             RosterSize = Mathf.Min(roster.Length, MineNet.MaxCrew);
 
-            // 복구 블록은 **시작 시점의 참가 인원 × 1회**다. 2명이면 2개다.
-            TotalRestores = RosterSize * restoresPerPlayer;
+            // 복구 블록은 **인원과 무관한 고정값**이다. 2명이든 4명이든 같다.
+            TotalRestores = restoreBlocks;
             RestoresLeft = TotalRestores;
-
-            // 돌 배치 시드. 2단계에서 격자가 이 값을 받아 네 명이 같은 판을 본다.
-            BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
 
             CurrentSlot = -1;
             HintLeft = 0f;
             HintSlot = -1;
 
-            // 판을 깐다. 시드와 도안이 복제되어 모두가 같은 격자를 만든다.
-            if (MineGridSync.Current != null) MineGridSync.Current.ServerOpenBoard(BoardSeed);
+            // 판은 기다리는 동안 이미 깔렸다. 여기서는 혹시 못 깔았을 때를 대비한다.
+            // 이미 깔렸으면 아무것도 하지 않는다 — 시드가 바뀌면 시작 순간 판이 바뀐다.
+            EnsureBoardOpen();
 
             Phase = MineMatchPhase.Reveal;
             RevealLeft = revealSeconds;
@@ -513,19 +553,29 @@ namespace Mine.Net
             _hud.NetworkPhaseText = PhaseLine();
             _hud.NetworkTurnText = HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}" : string.Empty;
 
+            _hud.NetworkRosterSize = RosterSize;
+            _hud.NetworkCurrentSlot = CurrentSlot;
+
+            // 복구 총량은 BeginMatch 에서야 정해진다. 그 전에 그리면 "0 / 0" 이 뜬다.
+            _hud.NetworkRestoreText = TotalRestores > 0
+                ? $"{RestoresLeft} / {TotalRestores}"
+                : string.Empty;
+
             _hud.NetworkCountdown = Phase == MineMatchPhase.Countdown
                 ? Mathf.Max(1, Mathf.CeilToInt(Countdown))
                 : 0;
 
-            if (Phase == MineMatchPhase.Turn && CurrentSlot >= 0)
-            {
-                int seconds = Mathf.Max(0, Mathf.CeilToInt(TurnTimeLeft));
-                _hud.NetworkTimeText = $"{seconds / 60:00}:{seconds % 60:00}";
-            }
-            else
-            {
-                _hud.NetworkTimeText = string.Empty;
-            }
+            // 공개 7초도 채굴 30초와 **같은 칸에** 센다. 남은 시간을 읽는 곳이
+            // 둘로 나뉘면(위는 --:--, 문구는 "(7초)") 어디를 봐야 하는지 매번 헷갈린다.
+            if (Phase == MineMatchPhase.Turn && CurrentSlot >= 0) _hud.NetworkTimeText = Clock(TurnTimeLeft);
+            else if (Phase == MineMatchPhase.Reveal) _hud.NetworkTimeText = Clock(RevealLeft);
+            else _hud.NetworkTimeText = string.Empty;
+        }
+
+        private static string Clock(float secondsLeft)
+        {
+            int seconds = Mathf.Max(0, Mathf.CeilToInt(secondsLeft));
+            return $"{seconds / 60:00}:{seconds % 60:00}";
         }
 
         private string PhaseLine()
@@ -539,7 +589,8 @@ namespace Mine.Net
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";
 
                 case MineMatchPhase.Reveal:
-                    return $"목표를 외우세요  ({Mathf.CeilToInt(RevealLeft)}초)";
+                    // 초는 위 타이머가 센다. 여기서 또 적으면 두 숫자가 한 프레임씩 어긋난다.
+                    return "목표를 외우세요";
 
                 case MineMatchPhase.Turn:
                     if (HintLeft > 0f) return $"P{HintSlot + 1} 힌트 보는 중";

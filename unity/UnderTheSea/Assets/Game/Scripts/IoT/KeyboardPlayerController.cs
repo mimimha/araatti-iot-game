@@ -5,6 +5,7 @@ public enum KeyboardControlProfile
 {
     Shared,
     Warriors,
+    Mine,
 }
 
 /// <summary>
@@ -132,6 +133,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
     private void BuildHands()
     {
         bool warriors = controlProfile == KeyboardControlProfile.Warriors;
+        bool mine = controlProfile == KeyboardControlProfile.Mine;
 
         _left = new KeyboardHand(
             axisSpeed,
@@ -144,7 +146,16 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
             // 배는 왼손 면버튼 2 가 달리기 토글이라 키가 아니라 밖에서 채운다.
             // 무쌍은 develop 그대로 V 다.
-            button2: warriors ? Key.V : Key.None);
+            //
+            // 광산은 이 버튼이 **힌트**다. IOT_INPUT.md 1장의 게임별 배치 표가 J 로
+            // 정해 두었고, 그 문서는 "J K L 은 게임마다 다르다. 여기는 맞추지 않는다"
+            // 고 적고 있다.
+            //
+            // ⚠ Shared 에 J 를 넣으면 안 된다. 배가 같은 프로필을 쓰므로 배에서 J 를
+            //   누를 때 달리기가 토글된다. 그래서 프로필을 갈랐다.
+            button2: warriors ? Key.V
+                   : controlProfile == KeyboardControlProfile.Mine ? Key.J
+                   : Key.None);
 
         _right = new KeyboardHand(
             axisSpeed,
@@ -158,11 +169,17 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             button1: Key.Space,
             button2: warriors ? Key.None : Key.K,
 
-            // 동작(IMU) 흉내는 무쌍만 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
+            // 동작(IMU) 흉내는 무쌍과 광산이 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
             // 따로 키를 두지 않는다. ShipCoopInput.ConsumeSwing 이 둘 다 받는다.
+            //
+            // 광산의 **땅 파기**가 내리치기(VerticalSwing)다. MineDigger.ConsumeDigSwing
+            // 이 그 동작을 읽는다. IOT_INPUT.md 1장 표대로 Space 다.
+            //
+            // ⚠ 오른손 면버튼 1 도 Space 인데 광산은 그것을 **읽지 않는다.**
+            //   MineDigger 가 버튼1·2 를 왼손만 읽는다(복구 C · 힌트 J). 겹쳐도 무해하다.
             horizontalMotion: warriors ? Key.Digit1 : Key.None,
             alternateHorizontalMotion: warriors ? Key.Numpad1 : Key.None,
-            verticalMotion: warriors ? Key.Digit2 : Key.None,
+            verticalMotion: warriors ? Key.Digit2 : mine ? Key.Space : Key.None,
             alternateVerticalMotion: warriors ? Key.Numpad2 : Key.None,
             secondAlternateVerticalMotion: warriors ? Key.F : Key.None,
             thrustMotion: warriors ? Key.Digit3 : Key.None,
@@ -195,6 +212,11 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         //    무쌍을 드래그 카메라로 옮기는 것은 7장에서 서연 담당으로 잡혀 있다.
         bool warriors = controlProfile == KeyboardControlProfile.Warriors;
 
+        // ⚠ 광산은 왼손 면버튼 2 가 **힌트**다. 배처럼 달리기 토글로 밀어 넣으면
+        //   Shift 를 누를 때마다 힌트가 나간다. 광산의 달리기는 이 부품을 안 거치고
+        //   MineMoveInput.runKey 가 따로 읽는다.
+        bool mine = controlProfile == KeyboardControlProfile.Mine;
+
         // 키보드로는 두 손을 따로 기울일 수 없다. 한 쌍을 양손이 함께 쓴다.
         float target = 0f;
 
@@ -223,7 +245,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         if (twoDevices)
         {
             _left.Tick(keyboard, target, Time.deltaTime,
-                forceButton2: !warriors && _sprintOn,
+                forceButton2: !warriors && !mine && _sprintOn,
                 stickOverride: null);
 
             // 무쌍의 오른손 스틱은 방향키다. 배만 마우스 드래그로 채운다.

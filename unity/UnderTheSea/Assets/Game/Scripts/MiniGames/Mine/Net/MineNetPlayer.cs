@@ -51,6 +51,50 @@ namespace Mine.Net
         /// <summary>이번 판의 참가자인가. 늦게 들어온 사람은 거짓이다.</summary>
         public bool InRoster => Slot >= 0;
 
+        /// <summary>
+        /// 지금 이 몸이 <b>움직일 수 있는가.</b>
+        ///
+        /// 자기 턴이거나, 목표를 보여 주는 동안 곳 첫 턴을 받을 사람이다.
+        /// 공개 때 미리 자리를 잡을 수 있게 하려는 것이다.
+        ///
+        /// ⚠ <b>파는 것은 여기에 걸리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
+        ///   <see cref="IsMyTurn"/> 과 <c>ShowingTarget</c> 으로 따로 막는다.
+        ///   공개 중에는 이동만 되고 채굴·복구·힐트는 안 된다.
+        /// </summary>
+        public bool CanMoveNow
+        {
+            get
+            {
+                if (IsMyTurn) return true;
+
+                MineMatchState match = MineMatchState.Current;
+                return match != null && Slot >= 0 && match.WarmupSlot == Slot;
+            }
+        }
+
+        /// <summary>
+        /// <b>내 힌트를 보는 중인가.</b> 그동안에는 몸을 굴리지 않는다.
+        ///
+        /// 탑뷰로 올라가 발밑이 안 보이는데 그대로 움직이면 어디로 가는지 모른다.
+        /// 게다가 정답 보기가 파인 칸을 0.25m 끌어올려서 콜라이더가 캐릭터를 떠민다 —
+        /// 솔로에서 실제로 토글마다 점프했다. (<c>MineGame.SyncFrozen</c>)
+        ///
+        /// ⚠ <b><see cref="CanMoveNow"/> 에 넣으면 안 된다.</b> 그 값은 이동 판정만
+        ///   하는 것이 아니라 <c>ApplyPresence</c> 로 <b>렌더러를 켜고 끄는 데도</b>
+        ///   쓰인다. 거기에 힌트 조건을 넣었다가 힌트 토글마다 캐릭터가 사라졌다.
+        ///   막을 것은 몸을 굴리는 것뿐이므로 <c>MineNetPlayerMover</c> 만 이걸 본다.
+        /// </summary>
+        public bool WatchingOwnHint
+        {
+            get
+            {
+                if (Slot < 0) return false;
+
+                MineMatchState match = MineMatchState.Current;
+                return match != null && match.HintLeft > 0f && match.HintSlot == Slot;
+            }
+        }
+
         /// <summary>지금 이 사람의 턴인가.</summary>
         public bool IsMyTurn
         {
@@ -110,7 +154,7 @@ namespace Mine.Net
         }
 
         /// <summary>
-        /// **지금 턴인 사람만 격자 위에 보인다.**
+        /// **움직일 수 있는 사람만 격자 위에 보인다.** (지금 턴 또는 공개 중 첫 턴 예정자)
         ///
         /// 네 명이 다 서 있으면 서로의 몸이 도안을 가린다. 채굴 위치를 읽을 수 없게 되고,
         /// 무엇보다 이 게임은 "지금 누가 파고 있는가" 가 화면의 전부다.
@@ -128,12 +172,12 @@ namespace Mine.Net
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority) return;
-            ApplyPresence(IsMyTurn);
+            ApplyPresence(CanMoveNow);
         }
 
         public override void Render()
         {
-            ApplyPresence(IsMyTurn);
+            ApplyPresence(CanMoveNow);
         }
 
         private void ApplyPresence(bool visible)

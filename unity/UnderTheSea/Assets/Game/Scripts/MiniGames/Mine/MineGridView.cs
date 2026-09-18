@@ -24,6 +24,16 @@ public enum MineOverlay
     /// AI 한 줄 평이 말해준다. (MINE.md 7장)
     /// </summary>
     Result,
+
+    /// <summary>
+    /// <b>정답만.</b> 결과 화면에서 내가 판 그림과 번갈아 보여줄 때 쓴다.
+    ///
+    /// <see cref="Drawing"/> 과 그림은 같지만 <b>판 칸을 회색으로 빼지 않는다.</b>
+    /// Drawing 은 힌트용이라 턴 중간에 쓰이고, 그때는 이미 판 칸이 있어서
+    /// 도안과 구분하려고 회색으로 뺀다. 결과 화면에서는 그 회색이 정답 위에
+    /// 겹쳐 보여서 오히려 헷갈린다. 여기서는 공개 7초와 똑같이 그린다.
+    /// </summary>
+    Answer,
 }
 
 /// <summary>
@@ -73,6 +83,13 @@ public class MineGridView : MonoBehaviour
     [Tooltip("도안과 결과를 보여주는 동안 쓸 무늬 없는 돌. 비우면 안 바꾼다.")]
     [SerializeField] private Material flatMaterial;
 
+    [Tooltip("목표 도안에서 **파야 하는 칸**에 쓸 돌. 비워두면 예전처럼 무늬 없는 돌 위에 색으로만 그린다. 넣으면 공개와 힌트에서 바탕은 무른 돌, 도안 칸만 이 돌이 된다.")]
+    [SerializeField] private Material drawingMaterial;
+
+    [Tooltip("도안 칸의 색. drawingMaterial 을 넣었을 때만 쓴다. 재질이 그대로 보이게 흰색 근처로 두고, 바탕과 대비가 부족하면 낮춘다.")]
+    [SerializeField, ColorUsage(false, true)]
+    private Color drawingStoneColor = Color.white;
+
     [Tooltip("무늬 없는 돌을 쓸 때 칸 색에 곱할 값. 색은 MaterialPropertyBlock 으로 " +
              "가는데 그것이 머티리얼의 밑색을 덮어쓰므로, 머티리얼을 고쳐서는 밝기를 못 바꾼다.")]
     [SerializeField, Range(0.05f, 1f)] private float flatColorScale = 0.4f;
@@ -86,6 +103,26 @@ public class MineGridView : MonoBehaviour
     [Tooltip("칸마다 90도씩 무작위로 돌려 텍스처 반복을 깬다.\n" +
              "끄면 400칸이 똑같이 보여 격자무늬가 도드라진다.")]
     [SerializeField] private bool varyRotation = true;
+
+    [Tooltip("윗면 모서리를 깎는 폭(m). 0 이면 각진 큐브 그대로다. 깎인 띠가 빛을 받아 돌마다 가는 하이라이트 선이 생긴다. 어두운 광산에서 칸의 형태를 살리는 것이 이 값이다.")]
+    [SerializeField, Range(0f, 0.15f)] private float bevel = 0.04f;
+
+    [Header("판 테두리")]
+    [Tooltip("판 바깥을 둘러싸는 돌 테두리의 두께(칸). 0 이면 안 만든다. 콜라이더가 남아 캐릭터가 판 밖으로 못 나간다.")]
+    [SerializeField, Range(0, 3)] private int borderRing = 1;
+
+    [Tooltip("테두리 돌. 비우면 단단한 돌 재질을 쓰고, 그것도 없으면 무른 돌 것을 쓴다.")]
+    [SerializeField] private Material borderMaterial;
+
+    [Tooltip("테두리가 판보다 솟은 높이(m). 턱이 지면 판이 '만들어진 자리'로 읽힌다.")]
+    [SerializeField, Range(0f, 1f)] private float borderRise = 0.6f;
+
+    [Tooltip("테두리 색. 재질이 그대로 보이게 흰색 근처로 두고, 판과 구분이 필요하면 조절한다.")]
+    [SerializeField, ColorUsage(false, true)]
+    private Color borderColor = Color.white;
+
+    [Tooltip("판을 둘러싸는 보이지 않는 벽의 높이(m). 0 이면 안 세운다. 캐릭터가 판 밖으로 못 나가게 막는다.")]
+    [SerializeField, Range(0f, 10f)] private float borderWallHeight = 3f;
 
     [Tooltip("단단한 돌이 더 솟은 높이(m). 어두운 곳에서 실루엣으로 구분된다.\n" +
              "걸려 넘어질 정도로 크게 주면 안 된다.")]
@@ -114,12 +151,24 @@ public class MineGridView : MonoBehaviour
     [SerializeField] private bool showTarget = true;
 
     [Header("색")]
+    // ⚠ 아래 두 색은 **HDR 로 연다.**
+    //
+    // 칸 색은 머티리얼의 `_BaseColor` 를 덮어쓰는 곱셈값이라, 텍스처를 밝히려면
+    // 1 을 넘겨야 한다. 씬에는 실제로 1.83 같은 값이 들어 있었다.
+    // 그런데 일반 Color 필드의 피커는 0~1 에서 자른다. 색조만 손보려고 피커를
+    // 한 번 여는 것만으로 밝기가 함께 잘려 판이 어두워지고, 되돌릴 방법도 없었다.
+    // ColorUsage 로 열어 두면 Intensity 슬라이더로 1 을 넘는 값을 다룰 수 있다.
     [Tooltip("건드릴 필요 없는 칸 — 무른 돌. 흙빛.")]
-    [SerializeField] private Color intactColor = new Color(0.55f, 0.50f, 0.42f);
+    [SerializeField, ColorUsage(false, true)]
+    private Color intactColor = new Color(0.55f, 0.50f, 0.42f);
 
     [Tooltip("건드릴 필요 없는 칸 — 단단한 돌. 푸른 잿빛.\n" +
              "머티리얼이 무엇이든 색이 다르면 구분된다. 어두운 곳에서는 특히.")]
-    [SerializeField] private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
+    [SerializeField, ColorUsage(false, true)]
+    private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
+
+    [Tooltip("칸마다 색을 흔드는 폭. 0 이면 모든 칸이 똑같아 플라스틱 한 장처럼 보인다. 칸 사이 폭은 이 값의 2배가 되는데, 그것이 무른 돌과 단단한 돌의 휘도 차이(6.9%)를 넘으면 밝은 단단한 칸이 어두운 무른 칸처럼 보여 구분이 무너진다. 0.034 가 그 한계다. 올릴수록 얼룩덜룩해진다.")]
+    [SerializeField, Range(0f, 0.05f)] private float cellMottle = 0.015f;
 
     [Tooltip("판 칸. 채굴 중에도 결과 화면에도 이 색이다.")]
     [SerializeField] private Color dugColor = new Color(0.15f, 0.13f, 0.12f);
@@ -148,6 +197,12 @@ public class MineGridView : MonoBehaviour
     private MineOverlay _overlay = MineOverlay.None;
 
     private MaterialPropertyBlock _props;
+
+    /// <summary>깎인 상자. 400칸이 한 장을 나눠 쓴다.</summary>
+    private Mesh _blockMesh;
+
+    /// <summary>켜지면 단단한 돌도 무른 돌처럼 그린다. <see cref="SetUniformStone"/></summary>
+    private bool _uniformStone;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     private Vector2Int _targetOffset;
@@ -190,6 +245,17 @@ public class MineGridView : MonoBehaviour
         _grid.OnTargetChanged -= RefreshAll;
     }
 
+    private void OnDestroy()
+    {
+        // 코드로 만든 메시는 씬이 바뀌어도 안 없어진다. 직접 지운다.
+        if (_blockMesh == null) return;
+
+        if (Application.isPlaying) Destroy(_blockMesh);
+        else DestroyImmediate(_blockMesh);
+
+        _blockMesh = null;
+    }
+
     private void Build()
     {
         int size = _grid.Size;
@@ -197,6 +263,9 @@ public class MineGridView : MonoBehaviour
         _cracks = crackMaterial != null ? new Transform[size * size] : null;
 
         float side = Mathf.Max(0.01f, _grid.CellSize - gap);
+
+        // 깎인 상자를 한 장만 만들어 400칸이 나눠 쓴다.
+        _blockMesh = bevel > 0f ? BuildBeveledCube(side, blockHeight, bevel) : null;
 
         for (int y = 0; y < size; y++)
         {
@@ -213,6 +282,13 @@ public class MineGridView : MonoBehaviour
                         Quaternion.Euler(0f, 90f * ((x * 7 + y * 13) % 4), 0f);
                 }
 
+                // ⚠ 메시만 바꾸고 BoxCollider 는 그대로 둔다. 캐릭터가 밟고 다니는
+                //   판정이라 깎인 모양까지 따라갈 이유가 없다.
+                if (_blockMesh != null && block.TryGetComponent(out MeshFilter filter))
+                {
+                    filter.sharedMesh = _blockMesh;
+                }
+
                 ApplyMaterial(block, x, y);
 
                 // CellToWorld 는 평면 위 중심. 블록은 그 아래로 두께만큼 잠기게 놓는다.
@@ -226,12 +302,221 @@ public class MineGridView : MonoBehaviour
                 block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
                 block.transform.localScale = new Vector3(side, blockHeight, side);
 
-                SetColor(block, ColorFor(x, y, false));
+                SetColor(block, Mottle(ColorFor(x, y, false), x, y));
                 _cells[y * size + x] = block.transform;
 
                 if (_cracks != null) _cracks[y * size + x] = CreateCrack(x, y);
             }
         }
+
+        BuildBorder(size, side);
+        BuildBorderWall(size);
+    }
+
+    /// <summary>
+    /// 판 둘레에 <b>보이지 않는 벽</b>을 세운다. 캐릭터가 판 밖으로 못 나가게 막는다.
+    ///
+    /// ⚠ <b>테두리 블록의 콜라이더로는 못 막는다.</b> 캐릭터의 <c>CharacterController</c> 는
+    ///   <c>stepOffset</c> 이 1.2 — 키(<c>height</c>)와 같은 값이라, 그보다 낮은 턱은
+    ///   전부 걸어 올라간다. 실측으로 확인했다. 테두리를 1.2m 넘게 올리면 막히긴 하지만
+    ///   그러면 판을 가리는 벽이 되어 보기 위해 둔 테두리의 뜻이 사라진다.
+    ///
+    /// 그래서 <b>보이는 것과 막는 것을 나눈다.</b> 테두리는 보기만 맡고, 막는 것은
+    /// 렌더러 없는 콜라이더 넷이 맡는다. 덕분에 <see cref="borderRise"/> 는 순수하게
+    /// 보기 좋은 값으로 정할 수 있다.
+    ///
+    /// 벽은 <b>판 가장자리</b>에 세운다. 테두리 턱에 부딪혀 멈추는 것으로 읽힌다.
+    /// 아래로 1m 더 내려 파인 칸에 서 있어도 빠져나가지 못하게 한다.
+    /// </summary>
+    private void BuildBorderWall(int size)
+    {
+        if (borderWallHeight <= 0f) return;
+
+        float half = size * _grid.CellSize * 0.5f;
+        const float thick = 0.5f;
+
+        float h = borderWallHeight;
+        float centerY = (h - 1f) * 0.5f;   // -1 ~ h 를 덮는다
+        float sizeY = h + 1f;
+        float span = 2f * half + 2f * thick;
+
+        var root = new GameObject("BorderWall");
+        root.transform.SetParent(transform, false);
+
+        Add(root, "Wall_X+", new Vector3(half + thick * 0.5f, centerY, 0f), new Vector3(thick, sizeY, span));
+        Add(root, "Wall_X-", new Vector3(-half - thick * 0.5f, centerY, 0f), new Vector3(thick, sizeY, span));
+        Add(root, "Wall_Z+", new Vector3(0f, centerY, half + thick * 0.5f), new Vector3(span, sizeY, thick));
+        Add(root, "Wall_Z-", new Vector3(0f, centerY, -half - thick * 0.5f), new Vector3(span, sizeY, thick));
+
+        // 테두리 블록의 콜라이더는 이제 필요 없다. 벽 바깥이라 닿을 일이 없고,
+        // 84개가 물리 계산에 남을 이유도 없다.
+        foreach (Transform child in transform)
+        {
+            if (!child.name.StartsWith("Border_")) continue;
+            if (child.TryGetComponent(out Collider col)) Destroy(col);
+        }
+
+        static void Add(GameObject parent, string name, Vector3 center, Vector3 size)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent.transform, false);
+
+            var box = go.AddComponent<BoxCollider>();
+            box.center = Vector3.zero;
+            box.size = size;
+            go.transform.localPosition = center;
+        }
+    }
+
+    /// <summary>
+    /// 판 바깥을 돌로 둘러싼다.
+    ///
+    /// <b>판이 그냥 끊겨 있으면 떠 있는 것처럼 보인다.</b> 한 바퀴 두르고 살짝 턱을 주면
+    /// 같은 판이 '만들어진 자리' 로 읽힌다.
+    ///
+    /// ⚠ <b>콜라이더를 남긴다.</b> 테두리가 곧 벽이라 캐릭터가 판 밖으로 못 나간다.
+    ///
+    /// 테두리는 <see cref="_cells"/> 에 넣지 않는다. 파이지도, 색이 바뀌지도, 발밑 표시에
+    /// 잡히지도 않아야 한다. <c>MineGrid</c> 가 판 안쪽만 아는 것으로 이미 갈리지만,
+    /// 배열에 섞으면 언젠가 한쪽만 고쳐서 따로 논다.
+    ///
+    /// 좌표만으로 정해지므로 네트워크에서 복제할 것이 없다. 모든 화면이 같게 그린다.
+    /// </summary>
+    private void BuildBorder(int size, float side)
+    {
+        if (borderRing <= 0) return;
+
+        Material mat = borderMaterial != null ? borderMaterial
+                     : hardMaterial != null ? hardMaterial
+                     : softMaterial;
+
+        for (int y = -borderRing; y < size + borderRing; y++)
+        {
+            for (int x = -borderRing; x < size + borderRing; x++)
+            {
+                // 판 안쪽은 건너뛴다. 테두리는 바깥 링뿐이다.
+                if (x >= 0 && x < size && y >= 0 && y < size) continue;
+
+                var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                block.name = $"Border_{x}_{y}";
+                block.transform.SetParent(transform, false);
+
+                if (varyRotation)
+                {
+                    block.transform.localRotation =
+                        Quaternion.Euler(0f, 90f * ((x * 7 + y * 13) % 4), 0f);
+                }
+
+                if (_blockMesh != null && block.TryGetComponent(out MeshFilter filter))
+                {
+                    filter.sharedMesh = _blockMesh;
+                }
+
+                if (mat != null && block.TryGetComponent(out Renderer r)) r.sharedMaterial = mat;
+
+                // 판과 같은 높이에서 borderRise 만큼 올린다.
+                Vector3 top = _grid.CellToWorld(x, y) + Vector3.up * borderRise;
+                block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
+                block.transform.localScale = new Vector3(side, blockHeight, side);
+
+                SetColor(block, Mottle(borderColor, x, y));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 윗면 네 모서리를 깎은 상자를 만든다.
+    ///
+    /// <b>왜 메시를 코드로 만드는가.</b> 블록은 <c>localScale = (side, blockHeight, side)</c> 로
+    /// **비균일 스케일**이 걸린다. 모델링 툴에서 만든 메시를 그대로 넣으면 깎인 폭이
+    /// 축마다 다르게 늘어난다 — blockHeight 가 2 면 세로 쪽만 두 배로 두꺼워진다.
+    /// 여기서는 실제 치수를 알고 만들므로 스케일을 미리 나눠 보정한다.
+    ///
+    /// <b>UV 가 이 작업의 절반이다.</b> 깎인 띠에 UV 를 안 주면 그 좁은 면에 텍스처가
+    /// 늘어나 번진다. 윗면과 띠를 <b>하나의 평면 매핑</b>으로 이어 붙여, 돌 무늬가
+    /// 윗면에서 모서리까지 끊기지 않고 넘어가게 한다.
+    ///
+    /// 옆면과 아랫면은 기본 큐브와 같게 둔다. 파인 구멍에서만 잠깐 보이는 면이다.
+    /// </summary>
+    private static Mesh BuildBeveledCube(float side, float height, float bevel)
+    {
+        // 월드에서 같은 폭으로 깎이도록 축별 스케일로 나눈다.
+        float ix = Mathf.Clamp(bevel / Mathf.Max(0.0001f, side), 0f, 0.45f);
+        float iy = Mathf.Clamp(bevel / Mathf.Max(0.0001f, height), 0f, 0.45f);
+
+        float a = 0.5f - ix;    // 윗면이 줄어든 반폭
+        float hd = 0.5f - iy;   // 깎인 띠가 끝나고 옆면이 시작하는 높이
+
+        // 사각형을 한 바퀴 도는 네 귀퉁이. (x, z) 의 부호다.
+        var corner = new[] { new Vector2(1, 1), new Vector2(1, -1), new Vector2(-1, -1), new Vector2(-1, 1) };
+
+        var verts = new Vector3[40];
+        var uvs = new Vector2[40];
+        var tris = new int[60];
+        int v = 0, t = 0;
+
+        void Quad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
+                  Vector2 u0, Vector2 u1, Vector2 u2, Vector2 u3)
+        {
+            int b = v;
+            verts[v] = p0; uvs[v++] = u0;
+            verts[v] = p1; uvs[v++] = u1;
+            verts[v] = p2; uvs[v++] = u2;
+            verts[v] = p3; uvs[v++] = u3;
+
+            tris[t++] = b; tris[t++] = b + 1; tris[t++] = b + 2;
+            tris[t++] = b; tris[t++] = b + 2; tris[t++] = b + 3;
+        }
+
+        // 윗면과 띠는 같은 평면 매핑을 쓴다. 이래야 무늬가 모서리를 넘어간다.
+        Vector2 Plane(Vector3 p) => new Vector2(p.x + 0.5f, p.z + 0.5f);
+
+        // 윗면
+        Vector3 t0 = new Vector3(-a, 0.5f, -a), t1 = new Vector3(-a, 0.5f, a);
+        Vector3 t2 = new Vector3(a, 0.5f, a), t3 = new Vector3(a, 0.5f, -a);
+        Quad(t0, t1, t2, t3, Plane(t0), Plane(t1), Plane(t2), Plane(t3));
+
+        for (int k = 0; k < 4; k++)
+        {
+            Vector2 c = corner[k];
+            Vector2 n = corner[(k + 1) % 4];
+
+            Vector3 inA = new Vector3(c.x * a, 0.5f, c.y * a);
+            Vector3 inB = new Vector3(n.x * a, 0.5f, n.y * a);
+            Vector3 outA = new Vector3(c.x * 0.5f, hd, c.y * 0.5f);
+            Vector3 outB = new Vector3(n.x * 0.5f, hd, n.y * 0.5f);
+
+            // 깎인 띠
+            Quad(inA, outA, outB, inB, Plane(inA), Plane(outA), Plane(outB), Plane(inB));
+
+            // 옆면 — 띠 아래부터 바닥까지. 가로는 변을 따라, 세로는 높이를 따라 편다.
+            Vector3 lowA = new Vector3(c.x * 0.5f, -0.5f, c.y * 0.5f);
+            Vector3 lowB = new Vector3(n.x * 0.5f, -0.5f, n.y * 0.5f);
+
+            bool alongZ = Mathf.Abs(c.x - n.x) < 0.001f;   // x 가 같으면 ±X 면이라 z 로 편다
+            Vector2 Wall(Vector3 p) => new Vector2((alongZ ? p.z : p.x) + 0.5f, p.y + 0.5f);
+
+            Quad(outA, lowA, lowB, outB, Wall(outA), Wall(lowA), Wall(lowB), Wall(outB));
+        }
+
+        // 아랫면 — 칸이 붙어 있어 거의 안 보이지만 뚫려 있으면 안 된다.
+        Vector3 b0 = new Vector3(-0.5f, -0.5f, -0.5f), b1 = new Vector3(0.5f, -0.5f, -0.5f);
+        Vector3 b2 = new Vector3(0.5f, -0.5f, 0.5f), b3 = new Vector3(-0.5f, -0.5f, 0.5f);
+        Quad(b0, b1, b2, b3, Plane(b0), Plane(b1), Plane(b2), Plane(b3));
+
+        var mesh = new Mesh { name = "MineBlock_Beveled" };
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.triangles = tris;
+
+        // 꼭짓점을 면마다 따로 두었으므로 여기서 각진 면이 나온다. 띠만 따로 빛을 받는다.
+        mesh.RecalculateNormals();
+
+        // ⚠ 탄젠트가 없으면 노멀맵이 먹지 않는다. 돌 재질이 노멀맵을 쓴다.
+        mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
+
+        return mesh;
     }
 
     /// <summary>
@@ -240,11 +525,30 @@ public class MineGridView : MonoBehaviour
     /// 발밑 표시처럼 칸 위에 얹는 것들이 이걸 물어본다.
     /// 각자 계산하면 깊이를 바꿀 때 한쪽만 고쳐서 따로 논다 —
     /// 실제로 발밑 표시가 파인 칸 위에 붕 떠 있었다.
+    ///
+    /// ⚠ <b>실제 높이가 아니라 보이는 높이를 돌려준다.</b> 정답 보기에서는 파인 칸을
+    ///   끌어올리므로 둘이 다르다. 여기서 실제 높이를 주면 발밑 표시가 올라온 블록
+    ///   속에 묻혀 안 보인다. 물리에는 쓰이지 않는다 — 쓰는 곳은 MineCursor 뿐이다.
     /// </summary>
     public Vector3 CellSurface(int x, int y)
     {
         if (_grid == null) return Vector3.zero;
-        return _grid.CellToWorld(x, y) + Vector3.down * SinkOf(x, y);
+        return _grid.CellToWorld(x, y) + Vector3.down * VisualSinkOf(x, y);
+    }
+
+    /// <summary>
+    /// <b>화면에 보이는</b> 높이. 블록을 놓는 것과 그 위에 얹는 것이 모두 이걸 봐야 한다.
+    ///
+    /// 정답 보기(<see cref="MineOverlay.Answer"/>)에서는 파인 칸을 안 판 높이로
+    /// 끌어올리므로 <see cref="SinkOf"/> 가 말하는 실제 높이와 달라진다. 따로 계산하면
+    /// 어긋난다 — 실제로 발밑 표시가 올라온 블록 속에 묻혀 안 보였다.
+    /// </summary>
+    private float VisualSinkOf(int x, int y)
+    {
+        if (_overlay != MineOverlay.Answer || _grid == null) return SinkOf(x, y);
+
+        // 파인 칸도 금 간 칸도 안 판 칸과 같은 높이로 올린다.
+        return _grid.IsHard(x, y) ? -hardRise - Jitter(x, y) : -Jitter(x, y);
     }
 
     /// <summary>
@@ -282,11 +586,20 @@ public class MineGridView : MonoBehaviour
         if (block == null) return;
 
         bool dug = _grid.IsDug(x, y);
-        bool cracked = !dug && _grid.IsCracked(x, y);
+
+        // ⚠ Answer 는 정답만 보여준다. 금도 **내가 친 흔적**이라 감춘다. 안 그러면
+        //   crackTint 로 25% 어두워진 칸과 금 표시가 얹혀서, 힌트 때 어디를 쳤는지
+        //   드러난다.
+        bool cracked = _overlay != MineOverlay.Answer && !dug && _grid.IsCracked(x, y);
         bool hard = _grid.IsHard(x, y);
 
         Vector3 top = _grid.CellToWorld(x, y);
-        float sink = SinkOf(x, y);
+
+        // ⚠ Answer 는 공개 7초와 **같은 그림**이어야 한다. 파인 칸이 내려가 있으면
+        //   색을 정답으로 칠해도 구멍이 그대로 남아 어디를 팠는지 다 보인다.
+        //   그 처리는 VisualSinkOf 안에 있다. 발밑 표시도 같은 함수를 봐야 안 어긋난다.
+        float sink = VisualSinkOf(x, y);
+
         block.position = top + Vector3.down * (blockHeight * 0.5f + sink);
 
         // 금은 돌 윗면에 얹는다. 돌이 내려가면 같이 내려간다.
@@ -312,7 +625,7 @@ public class MineGridView : MonoBehaviour
         // 낮출 곳은 보내는 색이다.
         if (UseFlat && flatMaterial != null) c = Flatten(c);
 
-        SetColor(block.gameObject, c);
+        SetColor(block.gameObject, Mottle(c, x, y));
     }
 
     /// <summary>
@@ -392,7 +705,7 @@ public class MineGridView : MonoBehaviour
 
         // 그림을 보여주는 동안에는 바탕을 하나로 통일한다.
         // 돌 종류가 섞여 보이면 그림을 읽기 어렵다. 도안이든 결과든 마찬가지다.
-        bool uniform = _overlay != MineOverlay.None;
+        bool uniform = _overlay != MineOverlay.None || _uniformStone;
 
         // 그때는 **무늬도 지운다.** 탑뷰에서 내려다보면 돌결이 도안 위에
         // 겹쳐 보여서, 어느 칸이 파였는지 읽는 데 방해가 된다.
@@ -403,7 +716,26 @@ public class MineGridView : MonoBehaviour
             return;
         }
 
-        Material m = _grid.IsDug(x, y)
+        // 도안을 돌로 그리는 동안에는 파야 하는 칸만 따로 칠한다.
+        // 바탕은 아래 uniform 이 참이라 전부 무른 돌로 간다.
+        //
+        // ⚠ Result 는 제외한다. 거기서 목표 칸을 따로 칠하면 정답을 알려주는 꼴이다.
+        //   결과가 보여야 하는 것은 목표가 아니라 **내가 판 그림**이다.
+        //
+        // Drawing 은 **안 판 칸만** 칠한다. 판 칸은 회색으로 빠져야 하기 때문이다.
+        // Answer 는 **판 칸도** 칠한다. 공개 7초와 같은 그림이어야 한다.
+        bool answerOnly = _overlay == MineOverlay.Answer;
+        if (StoneBoard && (answerOnly || _overlay == MineOverlay.Drawing)
+            && (answerOnly || !_grid.IsDug(x, y))
+            && _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y))
+        {
+            if (r.sharedMaterial != drawingMaterial) r.sharedMaterial = drawingMaterial;
+            return;
+        }
+
+        // ⚠ Answer 에서는 판 칸도 안 판 칸처럼 칠한다. 안 그러면 목표가 아닌 판 칸이
+        //   dugMaterial 무늬에 밝은 intactColor 가 곱해져 **노란 얼룩**으로 뜬다.
+        Material m = !answerOnly && _grid.IsDug(x, y)
             ? (dugMaterial != null ? dugMaterial : softMaterial)
             : (!uniform && _grid.IsHard(x, y) ? hardMaterial : softMaterial);
 
@@ -424,7 +756,7 @@ public class MineGridView : MonoBehaviour
     {
         // 안 판 칸은 돌 종류에 따라 색이 다르다. 이것이 무른 돌과 단단한 돌을
         // 구분하는 주된 수단이다. 머티리얼만으로는 어두운 곳에서 잘 안 갈린다.
-        Color intact = _grid.IsHard(x, y) ? hardIntactColor : intactColor;
+        Color intact = !_uniformStone && _grid.IsHard(x, y) ? hardIntactColor : intactColor;
 
         if (!showTarget || _overlay == MineOverlay.None || _grid.TargetCells == null)
             return dug ? dugColor : intact;
@@ -442,6 +774,14 @@ public class MineGridView : MonoBehaviour
         // 도안 보기 — 무른 돌 바탕에 검은 돌로 그림만. 돌 종류는 감춘다.
         bool isTarget = _grid.IsTarget(x + _targetOffset.x, y + _targetOffset.y);
 
+        // 정답만 보기 — 판 칸을 회색으로 빼지 않는다. 공개 7초와 똑같이 그린다.
+        // (아래 Drawing 쪽의 회색은 힌트에 필요한 것이다. 이유는 enum 주석에 있다.)
+        if (_overlay == MineOverlay.Answer)
+        {
+            return StoneBoard ? (isTarget ? drawingStoneColor : intactColor)
+                              : (isTarget ? drawingColor : intactColor);
+        }
+
         // ⚠ 판 칸을 dugColor 로 칠하면 도안과 **똑같은 검정**이 된다.
         //   (dugColor 0.07 · drawingColor 0.06 — 눈으로는 둘 다 그냥 검정이다.)
         //   공개 7초에는 아직 아무것도 안 파여 문제가 없었지만, 힌트는 턴 중간에 뜨므로
@@ -453,6 +793,10 @@ public class MineGridView : MonoBehaviour
         //
         // 결과 화면은 그대로 둔다. 거기서는 판 칸 자체가 그림이므로 검정이 맞다.
         if (dug) return hintDugColor;
+
+        // 돌로 그릴 때는 검정으로 덮으면 재질이 안 보인다. 색을 따로 둔다.
+        if (StoneBoard) return isTarget ? drawingStoneColor : intactColor;
+
         return isTarget ? drawingColor : intactColor;
     }
 
@@ -462,9 +806,47 @@ public class MineGridView : MonoBehaviour
     /// 도안 보기와 결과는 목적이 다르다. 도안은 그림을 외우는 것이고,
     /// 결과는 맞고 틀림을 따지는 것이다. 그래서 칠하는 방식이 다르다.
     /// </summary>
+    /// <summary>
+    /// 판의 반폭(m). <b>테두리까지 포함한다.</b>
+    ///
+    /// 탑뷰 카메라가 이 값으로 높이를 잡는다. 판 크기만 보면 테두리가 화면 밖으로
+    /// 밀려나고, 그만큼 판이 꽉 차 보여 HUD 를 가린다.
+    ///
+    /// ⚠ <c>Awake</c> 를 기다리지 않는다. 카메라가 다른 컴포넌트의 Awake 에서 물어보는
+    ///   길이 있어 그때는 <c>_grid</c> 가 아직 비어 있다. 여기서 직접 찾는다.
+    /// </summary>
+    public float BoardHalfExtent
+    {
+        get
+        {
+            MineGrid g = _grid != null ? _grid : GetComponent<MineGrid>();
+            if (g == null) return 0f;
+
+            return g.Size * g.CellSize * 0.5f + borderRing * g.CellSize;
+        }
+    }
+
     public void SetOverlay(MineOverlay overlay)
     {
         _overlay = overlay;
+        RefreshAll();
+    }
+
+    /// <summary>
+    /// 돌 종류를 감추고 판을 <b>한 가지 밝은 돌</b>로 보여줄 것인가.
+    ///
+    /// 시작 카운트다운에 쓴다. 아직 아무도 못 파는 시간인데 단단한 돌이 어두운
+    /// 얼룩으로 먼저 드러나면, 판이 지저분해 보이고 어디가 단단한지도 미리 알려준다.
+    ///
+    /// 도안·결과 화면도 같은 이유로 바탕을 하나로 통일하는데, 그쪽은
+    /// <see cref="_overlay"/> 로 이미 갈린다. 카운트다운은 overlay 가 None 이라
+    /// 따로 알려줄 길이 필요했다.
+    /// </summary>
+    public void SetUniformStone(bool on)
+    {
+        if (_uniformStone == on) return;
+
+        _uniformStone = on;
         RefreshAll();
     }
 
@@ -488,7 +870,27 @@ public class MineGridView : MonoBehaviour
     //
     // 원래는 도안과 결과를 보여주는 동안만 썼다. 탑뷰로 그림을 읽는 시간이라
     // 돌결이 방해가 되기 때문이다. flatAlways 를 켜면 채굴 중에도 쓴다.
-    private bool UseFlat => flatAlways || _overlay != MineOverlay.None;
+    /// <summary>
+    /// 목표 도안을 <b>돌 재질로</b> 그리는가. <see cref="drawingMaterial"/> 을 넣었을 때만이다.
+    ///
+    /// 원래 공개·결과 화면은 무늬 없는 돌 하나로 덮고 색으로만 그림을 그렸다.
+    /// 돌결이 도안 위에 겹쳐 읽기 어렵다는 이유였다. 이 길은 그 대신
+    /// <b>바탕은 무른 돌, 파야 하는 칸은 다른 돌</b>로 갈라 보여 준다.
+    ///
+    /// 결과 화면은 건드리지 않는다. 거기서는 판 칸 자체가 그림이다.
+    /// </summary>
+    /// <summary>
+    /// 판을 <b>돌 재질로</b> 보여주는가. 목표 공개(힌트 포함)와 결과 화면 둘 다다.
+    ///
+    /// 원래 두 화면은 무늬 없는 돌 하나로 덮고 색으로만 그림을 그렸다. 돌결이 그림 위에
+    /// 겹쳐 읽기 어렵다는 이유였다. 지금은 바탕을 실제 돌로 두고 그림만 갈라 보여 준다.
+    ///
+    /// 켜지는 조건을 <see cref="drawingMaterial"/> 하나로 묶어 두었다. 비우면 두 화면
+    /// 모두 예전 방식으로 돌아간다.
+    /// </summary>
+    private bool StoneBoard => _overlay != MineOverlay.None && drawingMaterial != null;
+
+    private bool UseFlat => !StoneBoard && (flatAlways || _overlay != MineOverlay.None);
 
     // 무늬 없는 돌을 쓸 때 칸 색을 손본다. 밝기를 낮추고 색조를 지운다.
     //
@@ -505,6 +907,53 @@ public class MineGridView : MonoBehaviour
                          Mathf.Lerp(c.g, gray, flatDesaturate) * flatColorScale,
                          Mathf.Lerp(c.b, gray, flatDesaturate) * flatColorScale,
                          c.a);
+    }
+
+    /// <summary>
+    /// 정답 보기(<see cref="MineOverlay.Answer"/>)에서 파인 칸을 끌어올리는 높이.
+    ///
+    /// 그 칸 위에 서 있는 캐릭터도 이만큼 올려야 한다. 안 그러면 올라온 블록에
+    /// 묻힌다. (<c>MineGame.SetPlayersFrozen</c>)
+    /// </summary>
+    public float AnswerLift => digDepth;
+
+    /// <summary>
+    /// 칸마다 고정된 얼룩. 실제 돌은 장마다 톤이 다르다.
+    ///
+    /// ⚠ <b>좌표 해시로 뽑는다.</b> <c>Random</c> 을 쓰면 다시 그릴 때마다 값이 바뀌어
+    ///   칸을 팔 때마다 판 전체가 깜박인다. 같은 칸은 언제 불러도 같은 값이어야 한다.
+    ///
+    /// 밝기와 색조를 <b>서로 무관하게</b> 흔든다(salt 가 다르다). 둘이 같이 움직이면
+    /// 밝은 칸이 늘 따뜻해서 얼룩이 규칙적으로 보인다.
+    ///
+    /// ⚠ 폭을 키우면 금방 얼룩덜룩해진다. 한 번 ±3% 로 해봤더니 너무 시끄러웠다.
+    ///   실제 돌은 이웃끼리 비슷하고 가끔만 튀는데, 여기 얼룩은 칸마다 무관한
+    ///   잡음이라 폭이 커지면 TV 노이즈처럼 보인다.
+    /// </summary>
+    private Color Mottle(Color c, int x, int y)
+    {
+        if (cellMottle <= 0f) return c;
+
+        float bright = 1f + (Hash01(x, y, 1) * 2f - 1f) * cellMottle;
+        float warm = 1f + (Hash01(x, y, 2) * 2f - 1f) * cellMottle;
+
+        return new Color(c.r * bright * warm,
+                         c.g * bright,
+                         c.b * bright / warm,
+                         c.a);
+    }
+
+    /// <summary>좌표에서 0~1 을 뽑는다. salt 를 바꾸면 서로 무관한 값이 나온다.</summary>
+    private static float Hash01(int x, int y, int salt)
+    {
+        unchecked
+        {
+            int h = x * 73856093 ^ y * 19349663 ^ salt * 83492791;
+            h ^= h >> 13;
+            h *= 1274126177;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) / (float)0xFFFFFF;
+        }
     }
 
     private void SetColor(GameObject go, Color color)

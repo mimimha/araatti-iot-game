@@ -3005,6 +3005,7 @@ MonoBehaviour:
   m_RotateSpeed: 720
   m_Space: 1
   m_JumpHeight: 0.2
+  m_JumpReload: 1
   m_HorizontalID: Hor
   m_VerticalID: Vert
   m_StateID: State
