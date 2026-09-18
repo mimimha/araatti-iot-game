@@ -32,8 +32,25 @@ namespace Mine.Net
         private MineCursor _cursor;
         private MineHud _hud;
 
+        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.")]
+        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1.5f;
+
+        [Tooltip("힌트 볼 때 몇 초마다 바꿀 것인가. 힌트는 짧으므로 더 빠르게 넘긴다.")]
+        [SerializeField, Min(0.1f)] private float hintSwapSeconds = 0.5f;
+
         private int _shownSlot = int.MinValue;
         private bool? _shownTarget;
+
+        /// <summary>지금 정답을 보여주고 있는가. 같은 겹침을 매 프레임 다시 칠하지 않으려고 기억한다.</summary>
+        private bool? _shownAnswer;
+
+        /// <summary>
+        /// 교대를 세기 시작한 시각. 결과 화면이나 힌트가 열린 순간이다.
+        ///
+        /// 이것이 없으면 <c>SimulationTime</c> 의 절대값으로 홀짝을 따지게 되어
+        /// <b>화면이 정답부터 열릴 수 있다.</b> 내 그림을 먼저 봐야 한다.
+        /// </summary>
+        private double _toggleAnchor;
 
         public override void Spawned()
         {
@@ -110,9 +127,8 @@ namespace Mine.Net
         /// ⚠ <b>쓸 수 없는 때</b>와 <b>써버린 때</b>를 가른다. 내 턴이 아니면 "대기" 다.
         ///   그걸 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
         ///
-        /// ⚠ 키는 <b>J</b> 다. 솔로(<c>MineHud.RefreshHint</c>)는 V 라고 적는데,
-        ///   그쪽 힌트는 <c>KeyboardPlayerController</c> 의 button2(V)이고
-        ///   네트워크는 <c>MineInputProvider</c> 의 jKey 라서 실제로 키가 다르다.
+        /// 키는 <b>J</b> 다. 솔로도 같다 — 솔로는 <c>KeyboardPlayerController</c> 의
+        /// button2 가 J 로 묶여 있고, 네트워크는 <c>MineInputProvider</c> 의 jKey 다.
         /// </summary>
         private string HintCell(MineMatchState match)
         {
@@ -135,6 +151,33 @@ namespace Mine.Net
         private bool IsWatchingMyHint(MineMatchState match)
         {
             return match.HintLeft > 0f && match.HintSlot == _who.Slot;
+        }
+
+        /// <summary>
+        /// 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 <c>MineAnswerView</c> 와 같은 일이다.
+        ///
+        /// ⚠ <b>각자 타이머를 돌리지 않고 복제되는 시간에서 뽑는다.</b> 로컬 타이머는
+        ///   들어온 시각이 사람마다 달라서 화면끼리 박자가 엇갈린다. 옆 사람 화면을
+        ///   같이 보며 "저기 봐" 하는 게임인데 서로 다른 것을 보고 있으면 안 된다.
+        ///   <c>SimulationTime</c> 은 모두가 같은 값을 본다.
+        ///
+        /// 결과 화면에서 캐릭터가 떠밀릴 걱정은 없다. 정답 보기가 파인 칸을 끌어올리지만
+        /// 그때는 <c>MineNetPlayer.CanMoveNow</c> 가 false 여서 <c>MineNetPlayerMover</c>
+        /// 가 이미 <c>CharacterMover</c> 를 꺼 둔다. 힌트 중에는 자기 턴이라 켜져 있으므로
+        /// <c>CanMoveNow</c> 에서 따로 막는다.
+        /// </summary>
+        private void TickAnswerToggle(MineMatchState match, float period, bool startOnAnswer)
+        {
+            if (_board == null || period <= 0f) return;
+
+            // (long) 으로 받는다. 판이 길어져도 int 로는 넘칠 수 있다.
+            long step = (long)((match.Runner.SimulationTime - _toggleAnchor) / period);
+            bool answer = ((step & 1) == 1) != startOnAnswer;
+
+            if (_shownAnswer == answer) return;
+
+            _shownAnswer = answer;
+            _board.SetOverlay(answer ? MineOverlay.Answer : MineOverlay.Result);
         }
 
         /// <summary>
@@ -181,6 +224,8 @@ namespace Mine.Net
                 {
                     _shownTarget = null;
                     _shownSlot = int.MinValue;
+                    _shownAnswer = null;
+                    _toggleAnchor = match.Runner.SimulationTime;
 
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
 
@@ -191,6 +236,8 @@ namespace Mine.Net
                     _camera.ShowBoard(finale: true);
                 }
 
+                // 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
+                TickAnswerToggle(match, resultSwapSeconds, startOnAnswer: false);
                 return;
             }
 
@@ -230,7 +277,15 @@ namespace Mine.Net
                     if (_board != null) { _board.SetTargetOffset(Vector2Int.zero); _board.SetOverlay(MineOverlay.Answer); }
                     if (_vision != null) { _vision.SetLit(true); _vision.Follow(null); }
                     _camera.ShowBoard();
+
+                    _shownAnswer = true;   // 위에서 Answer 로 켰다
+                    _toggleAnchor = match.Runner.SimulationTime;
                 }
+
+                // ⚠ 힌트만 번갈아 보여준다. 공개 7초는 **외우는 시간**이라 그대로 둔다 —
+                //   거기서 내 그림으로 넘어가면 외울 대상이 사라진다. 어차피 공개 때는
+                //   파인 칸이 없어 내 그림이 빈 판이다.
+                if (match.HintLeft > 0f) TickAnswerToggle(match, hintSwapSeconds, startOnAnswer: true);
 
                 return;
             }
