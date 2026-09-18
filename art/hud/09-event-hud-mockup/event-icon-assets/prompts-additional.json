@@ -1,0 +1,21 @@
+{
+  "mode": "built-in image_gen",
+  "references": [
+    "../event-icon-style-sheet-v1.png",
+    "icons/event-reef.png",
+    "icons/event-enemy-ship.png",
+    "icons/event-hull-damage.png"
+  ],
+  "jobs": [
+    {
+      "id": "big-wave",
+      "ko": "거대한 파도",
+      "prompt": "Use case: background-extraction.\nAsset type: production game HUD event icon sprite.\nInput image 1 is the approved icon system sheet. Images 2–4 are the three finalized event sprites; match their exact warm-ivory pictogram system, thick dark-navy edge weight, restrained polished 2.5D bevel, lighting direction, saturation, padding and visual weight.\nOutput exactly ONE centered icon on a genuinely transparent RGBA background, square canvas, generous even transparent padding, front-facing and readable at 48–64 px. No circular medallion, container, badge, text, label, border around canvas, full scene, detached shadow or watermark. Subject: BIG WAVE. One bold curling ocean wave sweeping from left to right, primarily vivid cyan and medium ocean blue, with a single chunky warm-ivory foam crest. Use no boat, rock, face, eyes, hands, weather cloud, lightning or extra splashes. Strong simple crescent silhouette clearly distinct from the small wave under the reef icon."
+    },
+    {
+      "id": "squall",
+      "ko": "돌풍",
+      "prompt": "Use case: background-extraction.\nAsset type: production game HUD event icon sprite.\nInput image 1 is the approved icon system sheet. Images 2–4 are the three finalized event sprites; match their exact warm-ivory pictogram system, thick dark-navy edge weight, restrained polished 2.5D bevel, lighting direction, saturation, padding and visual weight.\nOutput exactly ONE centered icon on a genuinely transparent RGBA background, square canvas, generous even transparent padding, front-facing and readable at 48–64 px. No circular medallion, container, badge, text, label, border around canvas, full scene, detached shadow or watermark. Subject: SQUALL. One compact warm-ivory triangular sail leaning slightly under wind pressure, crossed by exactly three broad curved cyan wind streaks. Add a tiny coral tension accent at one lower sail corner only. No boat hull, tornado funnel, cloud, lightning, face, eyes, rain or scene. It must read as wind stressing a sail and remain clearly distinct from the existing sailboat/navigation icon."
+    }
+  ]
+}
