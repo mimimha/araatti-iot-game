@@ -271,6 +271,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineLauncher
   serverPort: 27032
+  config: {fileID: 11400000, guid: 184fa0a6af6010b419acc7fd7595b9a3, type: 2}
 --- !u!114 &824463939
 MonoBehaviour:
   m_ObjectHideFlags: 0

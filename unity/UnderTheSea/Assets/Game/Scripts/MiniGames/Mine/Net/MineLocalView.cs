@@ -1,3 +1,4 @@
+using System.Collections;
 using Fusion;
 using UnityEngine;
 
@@ -58,6 +59,12 @@ namespace Mine.Net
 
             if (!Object.HasInputAuthority) return;
 
+            // ⚠ **로딩 화면을 걷는 일은 아래 어떤 실패보다 먼저 예약한다.**
+            //    아래에서 카메라를 못 찾아 return 하면 그 뒤 줄은 아예 안 돈다. 예전에는
+            //    이 호출 자체가 없어서 광산에 들어가면 "게임에 입장 중..." 화면만 보다가
+            //    판이 끝나 로비로 튕겼다. 배·검에는 있고 광산에만 빠져 있었다.
+            StartCoroutine(FinishLoadingWhenPlayable());
+
             _camera = FindAnyObjectByType<MineCamera>();
             _vision = FindAnyObjectByType<MineVision>();
             _board = FindAnyObjectByType<MineGridView>();
@@ -72,6 +79,56 @@ namespace Mine.Net
 
             KeepOnlyThisViewer(_camera.GetComponent<Camera>());
         }
+
+        /// <summary>
+        /// <b>정말 볼 수 있게 됐을 때</b> 로딩 화면을 걷는다.
+        ///
+        /// 포탈로 들어오면 <c>MiniGameTransition</c> 이 "게임에 입장 중..." 을 켜 두는데,
+        /// 그것을 내리는 쪽은 미니게임이다. <b>내리지 않으면 로딩 화면에 갇힌다.</b>
+        /// 배(<c>ShipCoopLocalView</c>)·검(<c>WarriorsLocalView</c>)과 같은 자리다.
+        ///
+        /// 광산이 기다리는 것은 <b>판</b>이다. 격자가 복제되기 전에 화면을 넘기면 캄캄한
+        /// 동굴만 보인다. 랜턴 반경만 밝은 게임이라(MINE.md 6장) 사용자는 그것을
+        /// "안 들어가졌다" 로 읽는다.
+        ///
+        /// ⚠ <b>어떤 경우에도 갇히지 않는다.</b> 판이 끝내 오지 않아도 상한을 넘기면 넘긴다.
+        ///    화면이 잠깐 허전한 것보다 갇히는 쪽이 훨씬 나쁘다.
+        /// </summary>
+        private IEnumerator FinishLoadingWhenPlayable()
+        {
+            float waited = 0f;
+
+            while (waited < GiveUpAfterSeconds && !BoardIsUp())
+            {
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            if (!BoardIsUp())
+            {
+                Debug.LogWarning(
+                    $"[MineLocalView] 판이 {GiveUpAfterSeconds:0}초 안에 오지 않아 그대로 화면을 넘깁니다.", this);
+            }
+
+            // 격자를 그리는 데 한두 프레임이 더 든다. 그 사이를 보여 주지 않는다.
+            yield return null;
+            yield return null;
+
+            TransitionStatus.SetReady();
+
+            Debug.Log("[MineLocalView] 준비가 끝나 화면을 넘깁니다.");
+        }
+
+        /// <summary>판이 복제되어 그릴 수 있는 상태인가.</summary>
+        private static bool BoardIsUp()
+        {
+            return MineMatchState.Current != null
+                   && MineGridSync.Current != null
+                   && MineGridSync.Current.BoardStamp > 0;
+        }
+
+        /// <summary>판을 이만큼 기다려도 안 오면 포기하고 넘긴다. (초)</summary>
+        private const float GiveUpAfterSeconds = 15f;
 
         /// <summary>
         /// 화면에 그려지는 카메라를 **하나로** 만든다.
