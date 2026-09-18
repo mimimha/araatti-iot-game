@@ -78360,8 +78360,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7405dfb615285c43893106ba90cab91, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MineVision
-  lanternRange: 18
-  lanternIntensity: 4
+  lanternRange: 9
+  lanternIntensity: 5
   lanternHeight: 3.5
   lanternColor: {r: 1, g: 0.87058824, b: 0.69411767, a: 1}
   darkAmbient: {r: 0.17, g: 0.17, b: 0.17, a: 1}
@@ -78371,7 +78371,7 @@ MonoBehaviour:
   darkFogEnd: 70
   darkFogColor: {r: 0.025, g: 0.025, b: 0.035, a: 1}
   litAmbient: {r: 0.1734, g: 0.1734, b: 0.1836, a: 1}
-  litSunIntensity: 0.4
+  litSunIntensity: 0.15
   litFog: 1
   litCaveTint: {r: 0.48584908, g: 0.4457436, b: 0.40563816, a: 1}
   litCrystalDim: 1
