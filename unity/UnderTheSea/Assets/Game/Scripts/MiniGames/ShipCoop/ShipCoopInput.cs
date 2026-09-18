@@ -116,6 +116,22 @@ public static class ShipCoopInput
         return controller != null && controller.Right.ConsumeButton1Press();
     }
 
+    /// <summary>
+    /// 그 버튼을 **지금 누르고 있는가.** 누르는 순간이 아니라 눌린 채로 있는 동안 참이다.
+    ///
+    /// 짐(포탄 · 수리 자재 · 물)을 드는 데 씁니다. 집을 때는 <see cref="ConsumeInteract"/> 로
+    /// 순간을 잡고, 드는 동안은 이걸로 계속 확인해서 손을 떼면 놓게 합니다.
+    ///
+    /// ⚠ Consume 계열과 달리 **값을 지우지 않습니다.** 여러 곳에서 물어봐도 안전합니다.
+    ///
+    /// 네트워크에서도 그대로 옵니다. 눌린 상태가 `ShipCoopInputData` 의
+    /// `RightButton1` 비트로 실려 오기 때문입니다.
+    /// </summary>
+    public static bool IsInteractHeld(IPlayerController controller)
+    {
+        return controller != null && controller.Right.Button1;
+    }
+
     /// <summary>💥 대포 발사 · 망치질. 오른손 버튼 2. 키보드는 K.</summary>
     public static bool ConsumeFire(IPlayerController controller)
     {

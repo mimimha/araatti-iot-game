@@ -11,12 +11,18 @@ using UnityEngine;
 /// 양손이 묶여서 그동안 다른 일을 못 하는 것이 이 작업의 전부입니다. (7장)
 /// 어려워서 의미가 있는 게 아니라, 자리를 비우게 만들어서 의미가 있습니다.
 ///
-/// 입력 — **버튼 하나로 다 합니다.** (ShipCoopInput.ConsumeInteract, 키보드는 Space)
+/// 입력 — **버튼 하나로 다 합니다.** (키보드는 Space)
 ///
-///   집기        → 빈손이고 손 닿는 곳에 물건이 있을 때 누릅니다.
-///   유지        → 집으면 계속 들고 있습니다. 누르고 있을 필요가 없습니다.
-///   놓기 · 넘기기 → 들고 있을 때 한 번 더 누릅니다.
-///   싣기        → 대포 앞에서 한 번 더 누릅니다. (loadTrigger 로 바꿀 수 있습니다)
+///   집기        → 빈손이고 손 닿는 곳에 물건이 있을 때 누릅니다. (ConsumeInteract)
+///   유지        → **누르고 있는 동안만** 들고 있습니다. (IsInteractHeld)
+///   놓기 · 넘기기 · 싣기 → **손을 떼는 순간** 일어납니다. 목적지 앞이면 넘어가고
+///                        아무 데서나 떼면 갑판에 떨어집니다.
+///
+/// ⚠ **포탄 · 자재 · 물이 모두 같은 규칙입니다.** 들고 있는 것에 따라 손이 달라지면
+///    "들면 잡고 있는다" 가 몸에 안 붙습니다.
+///
+/// 원래 쥐기(압력센서)로 이렇게 동작했는데, 장치에서 쥐기가 빠지면서 한동안
+/// "한 번 더 누르기" 였습니다. 그때 **들고 있다는 감각이 손에서 사라졌습니다.**
 ///
 /// 예전에는 쥐기(압력센서)가 집기와 붙기를 갈라 줬지만, 장치에서 쥐기가 빠지면서
 /// **손 닿는 곳에 집을 것이 있으면 집기가 이기는** 규칙으로 바뀌었습니다.
@@ -184,40 +190,49 @@ public class CarryTask : MonoBehaviour
 
     private void UpdateCarrying(IPlayerController input)
     {
-        // 포탄이 아닌 것은 넘기는 방식이 하나뿐이다. 누르면 넘어간다.
-        // 대포처럼 사거리·정원·발사 타이밍이 얽힌 것이 아니라서 규칙을 늘릴 이유가 없다.
-        if (Carrying != Cargo.Ammo)
-        {
-            if (ShipCoopInput.ConsumeInteract(input) && !TryHandOver(input))
-            {
-                DropInternal(notify: true);
-            }
-
-            return;
-        }
-
-        CannonTask cannon = FindLoadableCannon();
+        // ⚓ **세 가지 모두 꾹 누르고 있어야 들고 있다.**
+        //
+        // 예전에는 압력센서로 쥐고 있었고, 놓으면 넘어갔습니다. IoT 기기가 면버튼으로
+        // 바뀌면서 쥐기가 사라졌고(`쥐기 삭제` 커밋), 그때 "한 번 더 누르기" 로 바뀌었습니다.
+        // 그 결과 **들고 있다는 사실이 손에서 사라졌습니다.** 여기서 되돌립니다.
+        //
+        // 누르고 있는 동안 들고 있고, **떼는 순간이 곧 넘기거나 놓는 순간**입니다.
+        // 목적지 앞에서 떼면 넘어가고, 아무 데서나 떼면 갑판에 떨어집니다.
+        //
+        // 포탄 · 자재 · 물이 규칙이 다르면 무엇을 들었는지에 따라 손이 달라져야 합니다.
+        // 하나로 맞춰야 "들면 잡고 있는다" 가 몸에 붙습니다.
 
         // 대포에 닿기만 하면 저절로 들어가는 설정. 버튼을 보지 않는다.
-        if (loadTrigger == LoadTrigger.OnReach)
+        if (Carrying == Cargo.Ammo && loadTrigger == LoadTrigger.OnReach)
         {
-            if (cannon != null)
+            CannonTask reached = FindLoadableCannon();
+            if (reached != null)
             {
-                TryLoad(cannon, input);
+                TryLoad(reached, input);
             }
 
             return;
         }
 
-        // ⚠ 대포를 **먼저 찾은 뒤에** 버튼을 소비한다. 순서를 바꾸면 사거리 밖에서
-        //    누른 것이 그냥 사라져서, 눌렀는데 아무 일도 안 일어난 것처럼 보인다.
-        if (!ShipCoopInput.ConsumeInteract(input))
+        // 아직 잡고 있다. 계속 들고 간다.
+        if (ShipCoopInput.IsInteractHeld(input))
         {
             return;
         }
 
-        // 대포 앞이면 넣고, 아니면 갑판에 내려놓는다. 버튼 하나가 둘을 겸한다.
-        if (cannon != null && TryLoad(cannon, input))
+        // 손을 뗐다. 넘길 곳이 있으면 넘기고, 없으면 갑판에 내려놓는다.
+        //
+        // ⚠ 포탄만 따로 본다. 대포는 사거리 · 정원 · 장전 시점이 얽혀 있어
+        //    TryHandOver 가 아니라 TryLoad 가 맡는다.
+        if (Carrying == Cargo.Ammo)
+        {
+            CannonTask cannon = FindLoadableCannon();
+            if (cannon != null && TryLoad(cannon, input))
+            {
+                return;
+            }
+        }
+        else if (TryHandOver(input))
         {
             return;
         }
