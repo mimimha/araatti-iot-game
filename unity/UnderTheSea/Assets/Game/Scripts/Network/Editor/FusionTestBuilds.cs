@@ -93,6 +93,17 @@ namespace UnderTheSea.Network.Editor
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
 
         /// <summary>
+        /// <b>시연용 클라이언트.</b> <see cref="FlowOutput"/> 과 씬은 같고 Development 만 뺀다.
+        ///
+        /// 사람 앞에서 도는 빌드라 화면 구석의 "Development Build" 워터마크가 남으면 안 되고,
+        /// 로그마다 스택 트레이스를 뜨느라 느려질 이유도 없다.
+        ///
+        /// ⚠ Development 가 빠지면 <c>-devjoin</c> 같은 개발용 경로와 개발자 모드 패널이
+        ///    <b>같이 사라진다.</b> 시연은 정상 로그인 경로만 쓴다.
+        /// </summary>
+        private const string ShowcaseOutput = "Builds/Showcase/AraAtti-Flow.exe";
+
+        /// <summary>
         /// Warriors 전환용 씬. <b>순서가 중요하다.</b>
         ///
         /// 첫 씬이 시작 씬(<c>WarriorsBoot</c>)이어야 한다. 게임 씬에서 바로 시작하면
@@ -247,6 +258,52 @@ namespace UnderTheSea.Network.Editor
             EditorApplication.Exit(0);
         }
 
+        /// <summary>
+        /// <b>시연 한 벌.</b> Release 클라이언트 1 + Dedicated Server 3.
+        ///
+        /// <see cref="BuildQaSetFromCommandLine"/> 과 같은 구성이되 클라이언트만 Release 다.
+        /// 서버는 창이 없어 워터마크가 없고 로그는 오히려 남아야 하므로 그대로 둔다.
+        /// </summary>
+        public static void BuildShowcaseSetFromCommandLine()
+        {
+            if (!Ok("시연 클라이언트(Release)", BuildShowcaseClient())) return;
+            if (!Ok("Lobby DS", Build(ServerOutput, StandaloneBuildSubtarget.Server))) return;
+
+            if (!Ok("ShipCoop DS", Build(
+                    ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                    ShipCoopScenes, BuildOptions.None))) return;
+
+            if (!Ok("Warriors DS", Build(
+                    WarriorsServerOutput, StandaloneBuildSubtarget.Server,
+                    WarriorsScenes, BuildOptions.None))) return;
+
+            Debug.Log("[FusionTestBuilds] 시연 한 벌을 모두 만들었습니다. (Release 클라이언트 1 · 서버 3)");
+            EditorApplication.Exit(0);
+        }
+
+        /// <summary>시연용 Release 클라이언트. 씬 목록은 정상 흐름 빌드와 같다.</summary>
+        private static BuildReport BuildShowcaseClient()
+        {
+            string[] scenes = EditorBuildSettings.scenes
+                .Where(s => s.enabled)
+                .Select(s => s.path)
+                .ToArray();
+
+            if (scenes.Length == 0)
+            {
+                Debug.LogError(
+                    "[FusionTestBuilds] 제품 Scene List 가 비어 있습니다. " +
+                    "File > Build Profiles 의 Scene List 를 확인해 주세요.");
+                return null;
+            }
+
+            Debug.Log(
+                $"[FusionTestBuilds] 시연 클라이언트(Release) — 제품 Scene List {scenes.Length}개: " +
+                string.Join(", ", scenes));
+
+            return Build(ShowcaseOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.None);
+        }
+
         /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
         private static bool Ok(string name, BuildReport report)
         {
@@ -385,6 +442,18 @@ namespace UnderTheSea.Network.Editor
                 $"[FusionTestBuilds] 빌드 시작 — 서브타깃 {subtarget}\n" +
                 $"  씬 {scenes.Length}개, 첫 씬: {scenes[0]}\n" +
                 $"  출력: {output}");
+
+            // ⚠ **평문 HTTP 를 허용해 둔다.**
+            //
+            //    Unity 는 http:// 요청을 기본으로 막는다. localhost 만 예외라서, 개발 중에는
+            //    아무도 이것을 만나지 않는다. 클라이언트가 다른 PC 의 API 를 가리키는 순간
+            //    로그인에서 이렇게 터진다.
+            //
+            //        InvalidOperationException: Insecure connection not allowed
+            //
+            //    ProjectSettings.asset 을 손으로 고쳐서는 빌드에 반영되지 않았다.
+            //    빌드하는 그 세션에서 직접 지정해야 확실히 들어간다.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
