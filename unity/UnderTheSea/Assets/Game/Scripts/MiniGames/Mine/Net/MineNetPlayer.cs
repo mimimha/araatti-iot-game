@@ -65,21 +65,33 @@ namespace Mine.Net
         {
             get
             {
-                MineMatchState match = MineMatchState.Current;
-
-                // ⚠ 힌트를 보는 동안에는 못 움직인다.
-                //
-                //   탑뷰로 올라가 발밑이 안 보이는데 그대로 움직이면 어디로 가는지 모른다.
-                //   게다가 정답 보기가 파인 칸을 0.25m 끌어올려서 콜라이더가 캐릭터를
-                //   떠민다 — 솔로에서 실제로 토글마다 점프했다. (MineGame.SyncFrozen)
-                //
-                //   결과 단계는 따로 막을 필요가 없다. 그때는 아래 두 줄이 모두 false 다.
-                if (match != null && Slot >= 0 && match.HintLeft > 0f && match.HintSlot == Slot)
-                    return false;
-
                 if (IsMyTurn) return true;
 
+                MineMatchState match = MineMatchState.Current;
                 return match != null && Slot >= 0 && match.WarmupSlot == Slot;
+            }
+        }
+
+        /// <summary>
+        /// <b>내 힌트를 보는 중인가.</b> 그동안에는 몸을 굴리지 않는다.
+        ///
+        /// 탑뷰로 올라가 발밑이 안 보이는데 그대로 움직이면 어디로 가는지 모른다.
+        /// 게다가 정답 보기가 파인 칸을 0.25m 끌어올려서 콜라이더가 캐릭터를 떠민다 —
+        /// 솔로에서 실제로 토글마다 점프했다. (<c>MineGame.SyncFrozen</c>)
+        ///
+        /// ⚠ <b><see cref="CanMoveNow"/> 에 넣으면 안 된다.</b> 그 값은 이동 판정만
+        ///   하는 것이 아니라 <c>ApplyPresence</c> 로 <b>렌더러를 켜고 끄는 데도</b>
+        ///   쓰인다. 거기에 힌트 조건을 넣었다가 힌트 토글마다 캐릭터가 사라졌다.
+        ///   막을 것은 몸을 굴리는 것뿐이므로 <c>MineNetPlayerMover</c> 만 이걸 본다.
+        /// </summary>
+        public bool WatchingOwnHint
+        {
+            get
+            {
+                if (Slot < 0) return false;
+
+                MineMatchState match = MineMatchState.Current;
+                return match != null && match.HintLeft > 0f && match.HintSlot == Slot;
             }
         }
 

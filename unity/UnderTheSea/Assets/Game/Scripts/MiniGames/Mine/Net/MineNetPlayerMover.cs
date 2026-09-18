@@ -257,7 +257,10 @@ namespace Mine.Net
             // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 관전자는 여기서 걸러진다.
             //   목표 공개(7초) 중에도 첫 턴을 받을 사람은 여기를 통과한다 —
             //   미리 자리를 잡게 하려는 것이다. 파는 것은 MineNetPlayerActions 가 따로 막는다.
-            bool mine = _who != null && _who.CanMoveNow;
+            //   힌트를 보는 동안에는 굴리지 않는다. 판이 정답 보기로 올라오면서
+            //   콜라이더가 캐릭터를 떠밀기 때문이다. 표시는 그대로 둔다 —
+            //   MineNetPlayer.WatchingOwnHint 의 주석에 이유가 있다.
+            bool mine = _who != null && _who.CanMoveNow && !_who.WatchingOwnHint;
 
             SetSimulated(mine);
 
