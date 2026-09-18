@@ -78373,7 +78373,8 @@ MonoBehaviour:
   litAmbient: {r: 0.1734, g: 0.1734, b: 0.1836, a: 1}
   litSunIntensity: 0.4
   litFog: 1
-  litCaveTint: {r: 0.62, g: 0.59, b: 0.55, a: 1}
+  litCaveTint: {r: 0.48584908, g: 0.4457436, b: 0.40563816, a: 1}
+  litCrystalDim: 1
   litFogNear: 1.25
   litFogFar: 2
   sun: {fileID: 0}

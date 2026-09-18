@@ -82,6 +82,9 @@ public class MineVision : MonoBehaviour
     [Tooltip("밝을 때 동굴에 곱할 색. 어두울수록 판만 도드라진다. 흰색이면 안 낮춘다.")]
     [SerializeField] private Color litCaveTint = new Color(0.3f, 0.3f, 0.34f);
 
+    [Tooltip("밝을 때 광물 밝기. 1 이면 제 색 그대로다. 암반과 따로 정한다 — 동굴을 어둡게 하면서 광물은 도드라지게 하려면 이 둘이 묶여 있으면 안 된다.")]
+    [SerializeField, Range(0f, 2f)] private float litCrystalDim = 1f;
+
     [Tooltip("판 귀퉁이에서 이 배율만큼 떨어진 곳부터 안개가 시작한다. 1 보다 커야 판이 안 흐려진다.")]
     [SerializeField, Min(1f)] private float litFogNear = 1.02f;
 
@@ -319,7 +322,7 @@ public class MineVision : MonoBehaviour
         // 광물은 덮어쓰는 대신 제 색에 곱하게 한다.
         if (_caveTints != null)
         {
-            float dim = lit ? (litCaveTint.r + litCaveTint.g + litCaveTint.b) / 3f : 1f;
+            float dim = lit ? litCrystalDim : 1f;
             for (int i = 0; i < _caveTints.Length; i++)
             {
                 if (_caveTints[i] != null) _caveTints[i].SetDim(dim);
