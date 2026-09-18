@@ -97,7 +97,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             //
             // ⚠ 여기서 가져가면서 지운다. 이 컴퓨터에서 같은 동작을 다른 곳이 또 가져가면
             //    한쪽이 놓친다. 작업 판정은 전부 서버로 넘어갔으므로 가져가는 곳은 여기뿐이다.
-            data.Buttons.Set((int)ShipCoopButton.RightSwing, ShipCoopInput.ConsumeSwing(devices));
+            //
+            // ⚠ ConsumeSwing 이 아니라 **ConsumeSwingMotion** 이다. 앞엣것은 면버튼 2 도
+            //    휘두름으로 쳐서, 대포에서 K 로 쏠 때마다 서버의 휘두름 깃발이 함께 켜진다.
+            //    대포 쪽은 그것을 안 가져가므로 그대로 쌓이고, 나중에 파손 지점에 붙는 순간
+            //    공짜 망치질로 터진다. 면버튼은 위의 RightButton2 로 이미 따로 간다.
+            data.Buttons.Set((int)ShipCoopButton.RightSwing, ShipCoopInput.ConsumeSwingMotion(devices));
         }
 
         #region 쓰지 않는 콜백

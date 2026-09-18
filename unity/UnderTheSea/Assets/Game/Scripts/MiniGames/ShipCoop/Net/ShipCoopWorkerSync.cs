@@ -16,7 +16,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
     /// 자리가 하나뿐인데 두 사람이 동시에 잡았다고 믿는 일도 생긴다.
     ///
     /// ⚠ <b>가까운 자리 찾기(<c>Nearby</c>)는 클라이언트에서도 계속 돈다.</b>
-    ///    "여기서 E" 안내는 화면 쪽 일이라 서버에 물을 필요가 없다.
+    ///    "여기서 Space" 안내는 화면 쪽 일이라 서버에 물을 필요가 없다.
     ///    물으면 왕복 시간만큼 늦게 떠서 손맛이 나빠진다.
     /// </summary>
     [DisallowMultipleComponent]

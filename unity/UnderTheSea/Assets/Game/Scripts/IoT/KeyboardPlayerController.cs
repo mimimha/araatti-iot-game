@@ -17,7 +17,7 @@ public enum KeyboardControlProfile
 /// 배치를 바꾸려면 IOT_INPUT.md 를 먼저 고치세요. 네 미니게임이 함께 지키는 표입니다.
 ///
 ///   [프로필]
-///     Shared      광산·배 협동용 기존 배치
+///     Shared      광산 · 배 협동. IOT_INPUT.md 의 통일 키 표를 따른다
 ///     Warriors    이동 WASD · 카메라 방향키 · 공격 1 / 2 / 3
 ///
 ///   [왼손 기기]

@@ -49,7 +49,7 @@ public class TaskWorker : MonoBehaviour
     /// 서버가 정한 결과를 받아 <see cref="Join"/> · <see cref="LeaveCurrent"/> 로 따라간다.
     /// (<c>ShipCoopWorkerSync</c>)
     ///
-    /// 거짓이어도 <see cref="Nearby"/> 는 계속 찾는다. "여기서 E" 안내는 화면 쪽 일이라
+    /// 거짓이어도 <see cref="Nearby"/> 는 계속 찾는다. "여기서 Space" 안내는 화면 쪽 일이라
     /// 서버에 물을 필요가 없고, 물으면 왕복 시간만큼 늦게 뜬다.
     /// </summary>
     public bool DecidesJoin { get; set; } = true;
