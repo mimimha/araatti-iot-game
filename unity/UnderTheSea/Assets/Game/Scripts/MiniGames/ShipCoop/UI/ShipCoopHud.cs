@@ -198,6 +198,13 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Sprite taskIconCannon;
     [SerializeField] private Sprite taskIconRepair;
 
+    [Header("운반물 그림")]
+    // 예전에는 작업 그림을 돌려썼다. 포탄이 대포로, 자재와 물이 나란히 망치로 나와서
+    // 무엇을 들고 있는지 그림만으로는 알 수가 없었다. 셋 다 전용 그림이 생겨 나눈다.
+    [SerializeField] private Sprite taskIconAmmo;
+    [SerializeField] private Sprite taskIconPlank;
+    [SerializeField] private Sprite taskIconWater;
+
     [Header("사건 단계 색")]
     [Tooltip("예고 중. 아직 아무것도 안 깎였다는 것을 흐리게 보여준다.")]
     [SerializeField] private Color eventWarning = new Color(1f, 1f, 1f, 0.45f);
@@ -643,7 +650,7 @@ public class ShipCoopHud : MonoBehaviour
         if (carry != null && carry.IsCarrying)
         {
             Show(WithHint($"{CarryTask.NameOf(carry.Carrying)} 운반 중", CarryHintOf(carry)),
-                 -1f, taskIconCannon);
+                 -1f, IconOfCargo(carry.Carrying));
             return;
         }
 
@@ -882,10 +889,16 @@ public class ShipCoopHud : MonoBehaviour
         }
     }
 
-    /// <summary>들고 있는 것에 맞는 그림. 자재와 물은 아직 전용 그림이 없다.</summary>
+    /// <summary>들고 있는 것에 맞는 그림.</summary>
     private Sprite IconOfCargo(Cargo cargo)
     {
-        return cargo == Cargo.Ammo ? taskIconCannon : taskIconRepair;
+        switch (cargo)
+        {
+            case Cargo.Ammo: return taskIconAmmo;
+            case Cargo.Plank: return taskIconPlank;
+            case Cargo.Water: return taskIconWater;
+            default: return null;
+        }
     }
 
     private static string HintOf(TaskBase task)

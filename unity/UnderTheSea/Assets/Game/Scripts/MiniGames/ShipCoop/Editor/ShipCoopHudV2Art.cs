@@ -140,6 +140,7 @@ public static class ShipCoopHudV2Art
         public TextMeshProUGUI InteractLabel;
         public Image InteractGauge;
         public Image InteractIcon;
+        public TextMeshProUGUI InteractKeycap;
         public ShipCoopHud.EventRow[] EventRows;
         public ShipCoopHud.PortraitSlot[] Portraits;
     }
@@ -325,21 +326,24 @@ public static class ShipCoopHudV2Art
     private static void BuildAction(RectTransform canvas, Wiring wired)
     {
         // 화면 오른쪽·아래에서 40px 씩 띄운다. README 는 28 인데 그러면 모서리에 붙어 보인다.
+        //
+        // **패널을 그림 원본 크기(424 × 150)로 둔다.** 옛 패널은 배경과 테두리를 따로 깔고
+        // 9-slice 로 382 × 180 까지 늘렸지만, 새 그림은 금테와 리벳이 그려져 있어서
+        // 늘리면 테두리가 뭉갠다. 원본 크기로 두면 다시 그릴 일이 없어 가장 깨끗하고,
+        // 폭이 42 늘어난 덕에 글자 자리는 오히려 넓어진다. 높이 30 은 빈 자리였다.
         RectTransform group = Rect("InteractPanel", canvas);
-        Place(group, BottomRight, new Vector2(-(40f + 191f), 40f + 90f), new Vector2(382f, 180f));
-        Img(group, Sprite("panel-action-background"), new Color(1f, 1f, 1f, 0.9f));
+        Place(group, BottomRight, new Vector2(-(40f + 212f), 40f + 75f), new Vector2(424f, 150f));
 
-        RectTransform frame = Rect("Frame", group);
-        Stretch(frame, 0f, 0f, 0f, 0f);
-        Img(frame, Sprite("panel-action-frame"), Color.white);
+        Image plaque = Img(group, Sprite("panel-action-plaque"), Color.white);
+        plaque.preserveAspect = true;
 
         // ── 원형 진행 링 ─────────────────────
         //
-        // 패널 반폭이 191 이다. 링을 -118 에 두면 왼쪽 끝이 -182 라 여백이 9px 뿐이고,
-        // **패널 모서리가 둥글어서 링이 밖으로 삐져나온 것처럼 보인다.**
-        // 지름을 줄이고 안쪽으로 당겨 여백을 28px 로 둔다.
+        // 패널 반폭이 212 이고 금테가 20 쯤 되므로 안쪽 왼쪽 끝은 -192 다.
+        // 링을 -120 에 지름 104 로 두면 왼쪽 끝이 -172 라 금테까지 20 이 남는다.
+        // 위아래로도 반높이 75 에서 금테를 빼면 52 인데 링 반지름이 52 라 딱 맞는다.
         RectTransform ring = Rect("Ring", group);
-        Place(ring, Half, new Vector2(-107f, 0f), new Vector2(112f, 112f));
+        Place(ring, Half, new Vector2(-120f, 0f), new Vector2(104f, 104f));
         Img(ring, Sprite("ring-background"), Color.white);
 
         RectTransform ringTrack = Rect("Track", ring);
@@ -360,19 +364,26 @@ public static class ShipCoopHudV2Art
         Stretch(ringFrame, 0f, 0f, 0f, 0f);
         Img(ringFrame, Sprite("ring-frame"), Color.white);
 
-        wired.InteractIcon = Icon(ring, "Icon", Sprite("icon-helm"), Vector2.zero, 54f);
+        wired.InteractIcon = Icon(ring, "Icon", Sprite("icon-helm"), Vector2.zero, 50f);
 
         // ── 안내 문구와 키 ────────────────────
         //
-        // 링 오른쪽 끝이 -51 이고 패널 오른쪽 끝이 191 이다. 그 사이 140 폭을
+        // 링 오른쪽 끝이 -68 이고 금테 안쪽 오른쪽 끝이 192 다. 그 사이 260 폭을
         // 글자와 키가 나눠 쓴다. 글자는 위, 키는 아래.
         wired.InteractLabel = Text("Label", group, "", 21f, TextAlignmentOptions.TopLeft);
-        Place((RectTransform)wired.InteractLabel.transform, Half, new Vector2(56f, 22f), new Vector2(180f, 84f));
+        Place((RectTransform)wired.InteractLabel.transform, Half, new Vector2(58f, 22f), new Vector2(196f, 60f));
 
+        // 키캡도 새 그림으로. 311 × 141 이라 비율이 72 × 34 와 거의 같아 그대로 들어간다.
+        // 옛 키캡처럼 9-slice 로 늘리지 않으므로 비율을 지키게 해둔다.
         RectTransform key = Rect("Keycap", group);
-        Place(key, Half, new Vector2(0f, -54f), new Vector2(72f, 34f));
-        Img(key, Sprite("keycap"), Color.white);
-        Text("Label", key, "Space", 15f, TextAlignmentOptions.Center).color = OnBadge;
+        Place(key, Half, new Vector2(48f, -34f), new Vector2(72f, 34f));
+        Img(key, Sprite("keycap-plain"), Color.white).preserveAspect = true;
+
+        // ⚠ **키캡 글자를 반드시 연결한다.** 여기서 자식을 새로 만들기 때문에
+        //    연결하지 않으면 예전처럼 무엇을 하든 "Space" 로 굳는다.
+        TextMeshProUGUI keyLabel = Text("Label", key, "Space", 15f, TextAlignmentOptions.Center);
+        keyLabel.color = OnBadge;
+        wired.InteractKeycap = keyLabel;
 
         group.gameObject.SetActive(false);
         wired.InteractPanel = group.gameObject;
@@ -496,6 +507,7 @@ public static class ShipCoopHudV2Art
         Set(so, "interactLabel", w.InteractLabel);
         Set(so, "interactGauge", w.InteractGauge);
         Set(so, "interactIcon", w.InteractIcon);
+        Set(so, "interactKeycap", w.InteractKeycap);
 
         // 사건 아이콘 다섯 종류. 암초와 파도가 같은 그림이면 목록에서 구분이 안 된다.
         Set(so, "eventIconHull", Sprite("icon-hull-breach"));
@@ -510,6 +522,11 @@ public static class ShipCoopHudV2Art
         Set(so, "taskIconSails", Sprite("icon-sails"));
         Set(so, "taskIconCannon", Sprite("icon-cannon"));
         Set(so, "taskIconRepair", Sprite("icon-repair"));
+
+        // 운반물 세 가지. 전에는 작업 그림을 돌려써서 자재와 물이 구분되지 않았다.
+        Set(so, "taskIconAmmo", Sprite("icon-cannonball"));
+        Set(so, "taskIconPlank", Sprite("icon-plank"));
+        Set(so, "taskIconWater", Sprite("icon-bucket"));
 
         so.FindProperty("floodShallow").colorValue = FloodShallow;
         so.FindProperty("floodDeep").colorValue = FloodDeep;
