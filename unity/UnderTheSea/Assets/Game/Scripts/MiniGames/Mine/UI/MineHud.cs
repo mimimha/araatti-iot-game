@@ -629,7 +629,7 @@ public class MineHud : MonoBehaviour
             //   이미 쓴 것처럼 보인다. 쓸 수 없는 때와 써버린 때를 갈라야 한다.
             if (game.HintShowing) hintText.text = "보는 중";
             else if (game.State != MineState.Turn) hintText.text = "대기";
-            else hintText.text = ready ? "V · 1회" : "사용함";
+            else hintText.text = ready ? "J · 1회" : "사용함";
 
             hintText.color = lit ? hintReady : hintUsed;
         }
