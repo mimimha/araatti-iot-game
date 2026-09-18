@@ -42663,7 +42663,7 @@ MonoBehaviour:
   restoreBlocks: 5
   revealSeconds: 7
   hintSeconds: 3
-  resultHoldSeconds: 3
+  resultHoldSeconds: 6
   successThreshold: 60
   _Phase: 0
   _Countdown: 0

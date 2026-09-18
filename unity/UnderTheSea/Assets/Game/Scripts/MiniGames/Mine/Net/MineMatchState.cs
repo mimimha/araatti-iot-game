@@ -75,8 +75,8 @@ namespace Mine.Net
         [SerializeField, Min(0.5f)] private float hintSeconds = 3f;
 
         [Header("결과 화면")]
-        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 이 동안 완성된 그림을 위에서 보여 준다.")]
-        [SerializeField, Min(0f)] private float resultHoldSeconds = 3f;
+        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 이 동안 정답과 내가 판 그림을 번갈아 보여 준다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds = 6f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
         [Tooltip("이 값 이상이면 성공.")]
@@ -219,6 +219,10 @@ namespace Mine.Net
             if (!HasStateAuthority) return;
 
             Crew = Runner.ActivePlayers.Count();
+
+            // ⚠ **판을 다시 깔기 전에 되돌린다.** 순서가 중요하다. 여기서 BoardSeed 를 0 으로
+            //    되돌려야 바로 아래 EnsureBoardOpen 이 다음 팀을 위한 새 판을 깐다.
+            ResetWhenEveryoneLeft();
 
             // 판은 기다리는 동안 미리 깔아 둔다. 카운트다운 중에도 모두가 같은 돌 배치를 봐야 한다.
             EnsureBoardOpen();
@@ -511,6 +515,77 @@ namespace Mine.Net
         /// 결과를 <c>[Networked]</c> 로 두는 이유는 두 가지다. 모두가 <b>같은 순간에
         /// 같은 값</b>을 보고, <b>늦게 들어온 사람</b>도 끝난 판이면 결과를 그대로 받는다.
         /// </summary>
+        // ------------------------------------------------------------
+        // 판 되돌리기 — 같은 서버가 다음 팀을 받는다
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// <b>판이 끝나고 아무도 남지 않으면 대기 상태로 되돌린다.</b>
+        ///
+        /// 이것이 없으면 <b>끝난 판이 그대로 남는다.</b> 다음 사람이 들어오면 지난 판의
+        /// 결과 화면부터 보게 된다 — 들어가자마자 "실패 26.7%" 다. 서버를 다시 띄워야만
+        /// 풀렸다. 배 게임과 검 게임에서 똑같이 겪었다.
+        ///
+        /// <b>기준은 "아무도 없을 때" 하나다.</b> 끝난 판만이 아니라 진행 중이던 판도
+        /// 사람이 전부 나가면 되돌린다. 남은 사람이 없는 판을 지켜 줄 이유가 없고,
+        /// 오히려 남겨 두면 다음 팀이 남의 판 한가운데로 떨어진다.
+        ///
+        /// ⚠ <b>한 명이라도 남아 있으면 건드리지 않는다.</b> 둘 중 하나가 잠깐 끊겼다고
+        ///    판을 날리면 돌아왔을 때 진행이 사라진다.
+        /// </summary>
+        private void ResetWhenEveryoneLeft()
+        {
+            if (Crew != 0 || Phase == MineMatchPhase.Waiting) return;
+
+            Debug.Log($"[MineMatch] 판이 끝나고 아무도 남지 않았습니다. ({Phase}) 대기 상태로 되돌립니다.");
+            ResetToWaiting();
+        }
+
+        /// <summary>
+        /// 다음 팀을 받을 수 있는 상태로 모든 값을 되돌린다.
+        ///
+        /// ⚠ <b>네트워크 값을 하나라도 빠뜨리면 그 값만 지난 판에서 살아 넘어온다.</b>
+        ///    복제되는 값이라 새로 들어온 사람이 그것을 그대로 받는다. 특히 두 개가 위험하다.
+        ///
+        /// <code>
+        ///   ResultTick   남으면 들어가자마자 지난 판 결과 화면이 뜬다
+        ///   BoardSeed    남으면 EnsureBoardOpen 이 건너뛰어 지난 판의 파인 격자를 그대로 쓴다
+        /// </code>
+        /// </summary>
+        private void ResetToWaiting()
+        {
+            Phase = MineMatchPhase.Waiting;
+            Countdown = 0f;
+            TurnTimeLeft = 0f;
+
+            RosterSize = 0;
+            CurrentSlot = -1;
+
+            RestoresLeft = 0;
+            TotalRestores = 0;
+
+            RevealLeft = 0f;
+            HintLeft = 0f;
+            HintSlot = -1;
+
+            // 판을 새로 깔게 한다. 바로 다음 줄의 EnsureBoardOpen 이 새 시드로 깐다.
+            BoardSeed = 0;
+
+            Elapsed = 0f;
+
+            // 결과 도장을 지운다. 남겨 두면 다음 판이 끝나도 화면이 "이미 보여 준 결과" 로
+            // 보고 결과 판을 열지 않는다.
+            ResultTick = 0;
+
+            ResultPercent = 0f;
+            ResultSuccess = false;
+            ResultScore = 0;
+            ResultTargetCount = 0;
+            ResultDugCount = 0;
+            ResultAlignX = 0;
+            ResultAlignY = 0;
+        }
+
         private void EnterFinished()
         {
             Phase = MineMatchPhase.Finished;
@@ -586,8 +661,20 @@ namespace Mine.Net
         /// 잠깐 기다렸다가 결과를 넘긴다.
         ///
         /// ⚠ <b>기다리는 동안 보여 줄 것이 있을 때만 값을 준다.</b> 검 게임에서 3초를 뒀다가
-        ///    그 동안 아무것도 없는 검은 화면만 남았다. 광산은 끝나면 완성된 그림을 위에서
-        ///    보여 주므로(<c>MineLocalView</c>) 그 시간을 두는 것이 자연스럽다.
+        ///    그 동안 아무것도 없는 검은 화면만 남았다.
+        ///
+        /// 광산은 판이 끝나면 <c>MineLocalView</c> 가 <b>정답과 내가 판 그림을 번갈아</b>
+        /// 보여 준다. 그 교대 주기가 1.5초(<c>resultSwapSeconds</c>)라서, 여기를 3초로 두면
+        /// <b>한 번 바뀌고 덮여</b> 비교할 시간이 안 된다. 6초면 네 번 바뀐다.
+        ///
+        ///     0.0s  내가 판 그림
+        ///     1.5s  정답
+        ///     3.0s  내가 판 그림
+        ///     4.5s  정답
+        ///     6.0s  ← 결과 판이 열린다
+        ///
+        /// ⚠ 이 값은 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다. 한쪽만 바꾸면
+        ///    엉뚱한 지점에서 잘린다.
         /// </summary>
         private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int dug, int crew)
         {
