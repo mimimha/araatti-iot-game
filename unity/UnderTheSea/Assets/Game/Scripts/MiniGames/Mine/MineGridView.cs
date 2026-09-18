@@ -157,6 +157,9 @@ public class MineGridView : MonoBehaviour
     [SerializeField, ColorUsage(false, true)]
     private Color hardIntactColor = new Color(0.42f, 0.46f, 0.52f);
 
+    [Tooltip("칸마다 색을 흔드는 폭. 0 이면 모든 칸이 똑같아 플라스틱 한 장처럼 보인다. 칸 사이 폭은 이 값의 2배가 되는데, 그것이 무른 돌과 단단한 돌의 휘도 차이(6.9%)를 넘으면 밝은 단단한 칸이 어두운 무른 칸처럼 보여 구분이 무너진다. 0.034 가 그 한계다. 올릴수록 얼룩덜룩해진다.")]
+    [SerializeField, Range(0f, 0.05f)] private float cellMottle = 0.015f;
+
     [Tooltip("판 칸. 채굴 중에도 결과 화면에도 이 색이다.")]
     [SerializeField] private Color dugColor = new Color(0.15f, 0.13f, 0.12f);
 
@@ -289,7 +292,7 @@ public class MineGridView : MonoBehaviour
                 block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
                 block.transform.localScale = new Vector3(side, blockHeight, side);
 
-                SetColor(block, ColorFor(x, y, false));
+                SetColor(block, Mottle(ColorFor(x, y, false), x, y));
                 _cells[y * size + x] = block.transform;
 
                 if (_cracks != null) _cracks[y * size + x] = CreateCrack(x, y);
@@ -406,7 +409,7 @@ public class MineGridView : MonoBehaviour
                 block.transform.position = top + Vector3.down * (blockHeight * 0.5f);
                 block.transform.localScale = new Vector3(side, blockHeight, side);
 
-                SetColor(block, borderColor);
+                SetColor(block, Mottle(borderColor, x, y));
             }
         }
     }
@@ -584,7 +587,7 @@ public class MineGridView : MonoBehaviour
         // 낮출 곳은 보내는 색이다.
         if (UseFlat && flatMaterial != null) c = Flatten(c);
 
-        SetColor(block.gameObject, c);
+        SetColor(block.gameObject, Mottle(c, x, y));
     }
 
     /// <summary>
@@ -850,6 +853,45 @@ public class MineGridView : MonoBehaviour
                          Mathf.Lerp(c.g, gray, flatDesaturate) * flatColorScale,
                          Mathf.Lerp(c.b, gray, flatDesaturate) * flatColorScale,
                          c.a);
+    }
+
+    /// <summary>
+    /// 칸마다 고정된 얼룩. 실제 돌은 장마다 톤이 다르다.
+    ///
+    /// ⚠ <b>좌표 해시로 뽑는다.</b> <c>Random</c> 을 쓰면 다시 그릴 때마다 값이 바뀌어
+    ///   칸을 팔 때마다 판 전체가 깜박인다. 같은 칸은 언제 불러도 같은 값이어야 한다.
+    ///
+    /// 밝기와 색조를 <b>서로 무관하게</b> 흔든다(salt 가 다르다). 둘이 같이 움직이면
+    /// 밝은 칸이 늘 따뜻해서 얼룩이 규칙적으로 보인다.
+    ///
+    /// ⚠ 폭을 키우면 금방 얼룩덜룩해진다. 한 번 ±3% 로 해봤더니 너무 시끄러웠다.
+    ///   실제 돌은 이웃끼리 비슷하고 가끔만 튀는데, 여기 얼룩은 칸마다 무관한
+    ///   잡음이라 폭이 커지면 TV 노이즈처럼 보인다.
+    /// </summary>
+    private Color Mottle(Color c, int x, int y)
+    {
+        if (cellMottle <= 0f) return c;
+
+        float bright = 1f + (Hash01(x, y, 1) * 2f - 1f) * cellMottle;
+        float warm = 1f + (Hash01(x, y, 2) * 2f - 1f) * cellMottle;
+
+        return new Color(c.r * bright * warm,
+                         c.g * bright,
+                         c.b * bright / warm,
+                         c.a);
+    }
+
+    /// <summary>좌표에서 0~1 을 뽑는다. salt 를 바꾸면 서로 무관한 값이 나온다.</summary>
+    private static float Hash01(int x, int y, int salt)
+    {
+        unchecked
+        {
+            int h = x * 73856093 ^ y * 19349663 ^ salt * 83492791;
+            h ^= h >> 13;
+            h *= 1274126177;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) / (float)0xFFFFFF;
+        }
     }
 
     private void SetColor(GameObject go, Color color)
