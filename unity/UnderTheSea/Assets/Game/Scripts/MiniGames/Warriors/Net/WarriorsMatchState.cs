@@ -242,6 +242,28 @@ namespace Warriors.Net
         // 승패·점수·시간은 이미 위에 다 있다. 여기서 새로 정하는 것은 **언제 확정됐는가**
         // 하나뿐이다. 그 틱을 찍어 두면 화면이 "이미 보여 준 결과인가" 를 가릴 수 있다.
 
+        /// <summary>
+        /// <b>개발자 모드의 무적.</b> 켜져 있으면 아무도 목숨을 잃지 않는다.
+        ///
+        /// ⚠ <b>일부러 <c>[Networked]</c> 가 아니다.</b> 이 값을 네트워크 값으로 두었더니
+        ///    오브젝트가 주고받는 칸 수가 달라졌고, 씬·프리팹에 구워진 정보와 어긋나
+        ///    클라이언트에서 이렇게 터졌다.
+        ///
+        ///    <code>
+        ///      AssertException: meta.WordCount == NetworkObject.GetWordCount(instance)
+        ///    </code>
+        ///
+        ///    그러면 그 오브젝트의 값이 통째로 엉뚱하게 읽힌다 — 몬스터가 투명하게 나오고,
+        ///    처치 수가 안 오르고, 한 명인데 판이 시작했다. QA 편의를 위한 값 하나 때문에
+        ///    치를 값이 아니다.
+        ///
+        ///    <b>서버만 알면 되는 값이다.</b> 맞는지 판정하는 것이 서버이므로 굳이 복제할
+        ///    이유가 없다. 화면에 켜짐/꺼짐을 보여 주지 못하는 것은 감수한다.
+        ///
+        /// 판을 되돌릴 때 반드시 꺼야 한다. 안 그러면 다음 사람이 무적인 채로 시작한다.
+        /// </summary>
+        public bool Invincible { get; private set; }
+
         /// <summary>결과가 확정된 틱. 0 이면 아직 안 끝났다.</summary>
         [Networked] private int ResultTick { get; set; }
 
@@ -431,6 +453,9 @@ namespace Warriors.Net
             Phase = WarriorsMatchPhase.Waiting;
             Countdown = 0f;
             IntroTimer = TickTimer.None;
+
+            // ⚠ 개발자 모드로 켜 둔 무적을 끈다. 남겨 두면 다음 사람이 무적으로 시작한다.
+            Invincible = false;
 
             // ⚠ 결과 도장을 지운다. 남겨 두면 다음 판이 끝나도 화면이 "이미 보여 준 결과" 로 보고
             //    결과 판을 열지 않는다.
@@ -829,6 +854,107 @@ namespace Warriors.Net
                 playerCount: crew));
 
             resultRelease = null;
+        }
+
+        // ------------------------------------------------------------
+        // 개발자 모드 — QA 를 빨리 돌리기 위한 것. 서버가 실행한다.
+        // ------------------------------------------------------------
+
+        /// <summary>개발자 모드가 서버에 부탁할 수 있는 일.</summary>
+        public enum DevCommand
+        {
+            /// <summary>다음 페이즈로 건너뛴다.</summary>
+            NextPhase = 0,
+
+            /// <summary>앞 페이즈로 되돌아간다.</summary>
+            PreviousPhase = 1,
+
+            /// <summary>지금 페이즈의 목표를 그만큼 채운다. 2·3 페이즈에서는 보스를 때리는 것과 같다.</summary>
+            Advance = 2,
+
+            /// <summary>무적을 켜고 끈다.</summary>
+            ToggleInvincible = 3,
+        }
+
+        /// <summary>
+        /// <b>개발자 모드의 부탁을 서버가 실행한다.</b>
+        ///
+        /// 화면에서 직접 값을 바꾸면 그 사람 화면만 바뀌고 서버와 어긋난다. 판의 상태는
+        /// 전부 서버가 정하므로 부탁만 보내고 결과를 받는다. 배 게임과 같은 방식이다.
+        ///
+        /// ⚠ 끝난 판에는 듣지 않는다. 결과 화면에서 눌러 판이 되살아나면 안 된다.
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void Rpc_DevCommand(DevCommand command, int amount, RpcInfo info = default)
+        {
+            if (IsOver || !HasStarted)
+            {
+                Debug.Log($"[Warriors 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
+                return;
+            }
+
+            switch (command)
+            {
+                case DevCommand.NextPhase:
+                    StepPhase(+1);
+                    break;
+
+                case DevCommand.PreviousPhase:
+                    StepPhase(-1);
+                    break;
+
+                case DevCommand.Advance:
+                    Advance(Mathf.Max(1, amount));
+                    break;
+
+                case DevCommand.ToggleInvincible:
+                    Invincible = !Invincible;
+                    Debug.Log($"[Warriors 개발자] 무적 {(Invincible ? "켜짐" : "꺼짐")}");
+                    break;
+            }
+        }
+
+        /// <summary>페이즈를 한 칸 옮긴다. 1~3 밖으로는 나가지 않는다.</summary>
+        private void StepPhase(int step)
+        {
+            int round = RoundOf(Phase);
+            if (round == 0) return;
+
+            int next = Mathf.Clamp(round + step, 1, 3);
+            if (next == round) return;
+
+            WarriorsMatchPhase phase = next switch
+            {
+                1 => WarriorsMatchPhase.Phase1,
+                2 => WarriorsMatchPhase.Phase2,
+                _ => WarriorsMatchPhase.Phase3,
+            };
+
+            // 전환 대기를 지운다. 남겨 두면 옮기자마자 종료 문구가 뜬다.
+            ClearHoldTimer = TickTimer.None;
+            PendingPhase = 0;
+
+            Debug.Log($"[Warriors 개발자] {round}페이즈 → {next}페이즈");
+            OpenPhase(phase);
+        }
+
+        /// <summary>지금 페이즈의 목표를 그만큼 채운다. 목표를 넘기면 다음 페이즈로 간다.</summary>
+        private void Advance(int amount)
+        {
+            switch (Phase)
+            {
+                case WarriorsMatchPhase.Phase1:
+                    for (int i = 0; i < amount; i++) ReportPhase1Kill();
+                    break;
+
+                case WarriorsMatchPhase.Phase2:
+                    for (int i = 0; i < amount; i++) ReportPhase2Hit();
+                    break;
+
+                case WarriorsMatchPhase.Phase3:
+                    for (int i = 0; i < amount; i++) ReportPhase3Hit();
+                    break;
+            }
         }
 
         /// <summary>매치 실패. <paramref name="reason"/> 1 모두 쓰러짐 · 2 시간 초과.</summary>

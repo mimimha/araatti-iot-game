@@ -211,6 +211,15 @@ namespace Warriors.Net
 
             if (!health.IsDead) return;
 
+            // ⚠ **개발자 모드의 무적.** 죽을 때마다 다시 세우고 목숨은 건드리지 않는다.
+            //    판이 되돌아갈 때 서버가 이 값을 끄므로 다음 판까지 따라가지 않는다.
+            if (WarriorsMatchState.Current != null && WarriorsMatchState.Current.Invincible)
+            {
+                health.ResetHealth();
+                Hp = health.CurrentHealth;
+                return;
+            }
+
             Lives = Mathf.Max(0, Lives - 1);
 
             if (Lives > 0)
