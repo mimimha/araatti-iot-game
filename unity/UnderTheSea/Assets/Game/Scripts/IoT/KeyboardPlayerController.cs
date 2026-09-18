@@ -133,6 +133,7 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
     private void BuildHands()
     {
         bool warriors = controlProfile == KeyboardControlProfile.Warriors;
+        bool mine = controlProfile == KeyboardControlProfile.Mine;
 
         _left = new KeyboardHand(
             axisSpeed,
@@ -168,11 +169,17 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             button1: Key.Space,
             button2: warriors ? Key.None : Key.K,
 
-            // 동작(IMU) 흉내는 무쌍만 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
+            // 동작(IMU) 흉내는 무쌍과 광산이 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
             // 따로 키를 두지 않는다. ShipCoopInput.ConsumeSwing 이 둘 다 받는다.
+            //
+            // 광산의 **땅 파기**가 내리치기(VerticalSwing)다. MineDigger.ConsumeDigSwing
+            // 이 그 동작을 읽는다. IOT_INPUT.md 1장 표대로 Space 다.
+            //
+            // ⚠ 오른손 면버튼 1 도 Space 인데 광산은 그것을 **읽지 않는다.**
+            //   MineDigger 가 버튼1·2 를 왼손만 읽는다(복구 C · 힌트 J). 겹쳐도 무해하다.
             horizontalMotion: warriors ? Key.Digit1 : Key.None,
             alternateHorizontalMotion: warriors ? Key.Numpad1 : Key.None,
-            verticalMotion: warriors ? Key.Digit2 : Key.None,
+            verticalMotion: warriors ? Key.Digit2 : mine ? Key.Space : Key.None,
             alternateVerticalMotion: warriors ? Key.Numpad2 : Key.None,
             secondAlternateVerticalMotion: warriors ? Key.F : Key.None,
             thrustMotion: warriors ? Key.Digit3 : Key.None,
