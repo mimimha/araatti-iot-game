@@ -484,6 +484,14 @@ namespace Mine.Net
                     if (previous != null && previous != next)
                     {
                         mover.TakeTurnAt(previous.transform.position, previous.transform.rotation);
+
+                        // ⚠ **시야 각도까지 이어받는다.** 자리만 물려주면 카메라가 홱 돈다.
+                        //
+                        //    관전자는 지금 턴인 사람의 CameraYaw/Pitch 로 화면을 만든다
+                        //    (MineLocalView.ApplyOrbit). 다음 사람이 자기 각도를 들고 있으면,
+                        //    턴이 넘어가는 프레임에 **같은 자리에서 시점만 홱 돌아간다.**
+                        //    앞사람이 보던 각도를 그대로 넘기면 자리도 각도도 같아 이어진다.
+                        next.RecordLook(previous.CameraYaw, previous.CameraPitch);
                     }
                     else
                     {
