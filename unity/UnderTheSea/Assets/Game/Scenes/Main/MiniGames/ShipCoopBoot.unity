@@ -271,7 +271,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 787986c2eb36ba14799f185cec53a0a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KeyboardPlayerController
+  controlProfile: 0
   axisSpeed: 4
+  lookSensitivity: 0.15
   twoDevices: 1
   logDeviceOutput: 0
 --- !u!114 &229818258

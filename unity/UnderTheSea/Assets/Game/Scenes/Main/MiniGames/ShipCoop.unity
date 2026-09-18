@@ -1645,6 +1645,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSeaFlow
   voyage: {fileID: 0}
+  game: {fileID: 0}
   water: []
   flowPerShipSpeed: 4
   leastFlow: 1.5
