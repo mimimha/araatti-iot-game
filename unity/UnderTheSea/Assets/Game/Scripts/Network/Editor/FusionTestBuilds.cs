@@ -386,6 +386,18 @@ namespace UnderTheSea.Network.Editor
                 $"  씬 {scenes.Length}개, 첫 씬: {scenes[0]}\n" +
                 $"  출력: {output}");
 
+            // ⚠ **평문 HTTP 를 허용해 둔다.**
+            //
+            //    Unity 는 http:// 요청을 기본으로 막는다. localhost 만 예외라서, 개발 중에는
+            //    아무도 이것을 만나지 않는다. 클라이언트가 다른 PC 의 API 를 가리키는 순간
+            //    로그인에서 이렇게 터진다.
+            //
+            //        InvalidOperationException: Insecure connection not allowed
+            //
+            //    ProjectSettings.asset 을 손으로 고쳐서는 빌드에 반영되지 않았다.
+            //    빌드하는 그 세션에서 직접 지정해야 확실히 들어간다.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = scenes,
