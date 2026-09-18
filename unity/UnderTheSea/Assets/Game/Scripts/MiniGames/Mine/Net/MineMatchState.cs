@@ -49,7 +49,7 @@ namespace Mine.Net
     ///    <c>MineDigger</c> 를 꺼 둔다.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class MineMatchState : NetworkBehaviour
+    public sealed class MineMatchState : NetworkBehaviour, IMiniGameAdmissionSource
     {
         [Header("시작 대기")]
         [Tooltip("이 인원이 모여야 카운트다운을 시작한다. 정식 기본값은 4인 릴레이다.\n" +
@@ -515,6 +515,41 @@ namespace Mine.Net
         /// 결과를 <c>[Networked]</c> 로 두는 이유는 두 가지다. 모두가 <b>같은 순간에
         /// 같은 값</b>을 보고, <b>늦게 들어온 사람</b>도 끝난 판이면 결과를 그대로 받는다.
         /// </summary>
+        // ------------------------------------------------------------
+        // 입장 판정 — 받아도 되는 사람만 받는다
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// <b>지금 이 판에 사람을 받아도 되는가.</b> <c>MiniGameAdmission</c> 이 접속 요청마다 묻는다.
+        ///
+        /// 광산은 <b>참가자 목록이 시작하는 순간 굳는다.</b> 그 뒤에 들어온 사람은
+        /// <c>Slot = -1</c> 인 관전 전용이라 턴도 힌트도 못 받는다. 판이 끝날 때까지
+        /// 아무것도 못 하고 보고만 있게 되므로, 들여보내지 않는 쪽이 낫다.
+        ///
+        /// ⚠ <b>상태를 캐시하지 않고 그때그때 본다.</b> 캐시하면 "굳었다" 와 "요청이 왔다"
+        ///    사이에 틈이 생기고, 그 틈으로 들어온 사람이 정확히 위의 상태가 된다.
+        ///
+        /// ⚠ 정원은 여기서 보지 않는다. <c>MiniGameAdmission</c> 이 <c>MiniGameConfig</c> 의
+        ///    값으로 따로 막는다. 두 곳에서 같은 숫자를 들면 한쪽만 고치는 일이 생긴다.
+        /// </summary>
+        public bool CanAdmitNow(out string why)
+        {
+            if (IsOver)
+            {
+                why = $"이미 끝난 판입니다. ({Phase})";
+                return false;
+            }
+
+            if (HasStarted)
+            {
+                why = $"이미 시작한 판입니다. ({Phase}) 참가자는 시작할 때 굳었습니다.";
+                return false;
+            }
+
+            why = null;
+            return true;
+        }
+
         // ------------------------------------------------------------
         // 판 되돌리기 — 같은 서버가 다음 팀을 받는다
         // ------------------------------------------------------------
