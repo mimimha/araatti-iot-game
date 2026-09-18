@@ -148,7 +148,18 @@ namespace Warriors.Net
             // 2 · 3페이즈는 고정 구도. 두 화면이 같은 그림을 보고, 화면에 고정된 리듬 트랙이
             // 캐릭터 위에 정확히 얹힌다. 1페이즈는 해변을 뛰어다니므로 따라가는 카메라 그대로.
             WarriorsMatchState match = WarriorsMatchState.Current;
-            bool arenaShot = match != null && match.Object != null && match.Object.IsValid && match.MovementLocked;
+            bool live = match != null && match.Object != null && match.Object.IsValid;
+
+            // ⚠ **판이 끝나면 카메라를 그 자리에 세운다.**
+            //
+            //    끝나는 순간 MovementLocked 가 풀려 고정 구도에서 추적 구도로 되돌아갔다.
+            //    화면이 어두워진 뒤였지만 페이드가 82% 라 그 움직임이 비쳐 보였고,
+            //    "결과가 나오기 직전에 카메라가 튄다" 로 느껴졌다.
+            //
+            //    결과 판이 뜨는 동안 보여 줄 그림은 없다. 마지막 구도 그대로 멈춰 둔다.
+            if (live && match.IsOver) return;
+
+            bool arenaShot = live && match.MovementLocked;
 
             if (arenaShot)
             {

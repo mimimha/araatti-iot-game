@@ -515,7 +515,14 @@ namespace Warriors
             // 부품과 갱신 코드는 남겨 둔다. 다시 켜고 싶으면 이 한 줄만 되돌리면 된다.
             SetActive(playerStatusRoot, false);
             SetActive(rhythmRoot, isRhythm);
-            SetActive(finalRoot, isFinalOverlay);
+
+            // ⚠ **포탈로 들어온 판에서는 옛 결과 카드를 띄우지 않는다.**
+            //
+            //    세 게임이 같은 결과 판(MiniGameResultOverlay)을 쓰기로 했다. 이 카드는 그보다
+            //    앞서 만든 것이라 둘 다 띄우면 같은 내용이 두 번 겹친다.
+            //
+            //    단독 실행에는 공용 판이 없다. 그때는 이것이 유일한 결과 화면이므로 그대로 둔다.
+            SetActive(finalRoot, isFinalOverlay && !MiniGameTransition.InMiniGame);
 
             // ROUND 1 teaches the monster -> attack mapping; Fish/Crab/Jellyfish do not
             // appear from ROUND 2 on, so only the three attacks stay on screen there.
@@ -870,7 +877,25 @@ namespace Warriors
 
             float target = 0f;
 
-            if (NetworkMatchActive && elapsed >= 0f)
+            // ⚠ **판이 끝나면 어두운 채로 둔다.**
+            //
+            //    예전에는 전환이 끝나면서 다시 밝아졌다. 그 순간 무대가 정리되고 카메라가
+            //    제자리로 돌아가는 것이 그대로 보여 **화면이 한 번 튀었다.** 그 뒤에 결과 판이
+            //    떴으니 사람 눈에는 "끝났는데 화면이 흔들리고 나서 결과가 나온다" 가 된다.
+            //
+            //    결과 판은 어두워진 화면 위에 뜨는 것으로 충분하다. 뒤에서 무엇이 정리되든
+            //    보이지 않는다.
+            if (NetworkMatchActive && NetworkFinal != 0)
+            {
+                // 라운드 사이(82%)보다는 짙게, 그렇다고 완전히 검게는 하지 않는다.
+                //
+                // 완전히 덮었더니 결과 판만 뜬 검은 화면이 되어 "게임이 꺼진" 느낌이었다.
+                // 무대가 희미하게 비치는 편이 방금 무엇을 하다 끝났는지 남는다.
+                // 뒤에서 카메라가 움직이는 것은 WarriorsLocalView 가 멈춰 두므로
+                // 비쳐도 흔들리지 않는다.
+                target = FinalFade;
+            }
+            else if (NetworkMatchActive && elapsed >= 0f)
             {
                 if (elapsed < gate)
                 {
@@ -912,6 +937,9 @@ namespace Warriors
 
         /// <summary>전환 페이드가 가장 진할 때의 알파.</summary>
         private const float FadePeak = .82f;
+
+        /// <summary>판이 끝난 뒤 결과 판 뒤를 덮는 정도. 무대가 희미하게 비칠 만큼만 남긴다.</summary>
+        private const float FinalFade = .92f;
 
         /// <summary>다시 밝아지는 데 걸리는 시간(초).</summary>
         private const float FadeInSeconds = .45f;
