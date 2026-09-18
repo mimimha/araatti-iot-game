@@ -376,10 +376,6 @@ MonoBehaviour:
   patternRestSeconds: 0.55
   finisherBonusHits: 1
   finisherScore: 500
-  coopNoteEveryNthPattern: 2
-  coopNoteExtraGap: 0.9
-  coopNoteScore: 600
-  finaleWindowSeconds: 0.45
   _Running:
     RawValue: 0
   _FinishSerial: 0
@@ -387,13 +383,6 @@ MonoBehaviour:
   _HitSerial: 0
   _HitStrength: 0
   _HitLane: 0
-  _CoopNoteSerial: 0
-  _CoopNoteTick: 0
-  _CoopNoteSuccess: 0
-  _FinaleDone:
-    RawValue: 0
-  _FinaleOpen:
-    RawValue: 0
 --- !u!114 &664164394
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -459,17 +448,15 @@ MonoBehaviour:
   phase1KillsPerExtraPlayer: 14
   phase2TargetTentacleHits: 22
   phase3TargetRhythmHits: 16
-  coopWindowSeconds: 2
-  coopGaugePerAlternation: 0.2
-  teamBoostSeconds: 8
-  coopBoostScore: 400
   matchSeconds: 240
   roundIntroSeconds: 2.4
   clearNoticeSeconds: 1.4
   transitionGapSeconds: 0.5
+  finaleFadeSeconds: 1.6
   killScore: 100
   tentacleScore: 200
   rhythmScore: 150
+  resultHoldSeconds: 0
   _Phase: 0
   _Countdown: 0
   _Crew: 0
@@ -486,14 +473,11 @@ MonoBehaviour:
   _Elapsed: 0
   _RunSeed: 0
   _Score: 0
-  _CoopGauge: 0
-  _CoopHits: 0
-  _BoostCount: 0
-  _RescueCount: 0
-  _TeamBoostUntil: 0
-  _CoopSerial: 0
   _FailReason: 0
   _ReachedRound: 0
+  _PendingPhase: 0
+  _ClearedRound: 0
+  _ClearHoldSeconds: 0
 --- !u!114 &664164397
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -985,6 +969,63 @@ Transform:
   m_Children: []
   m_Father: {fileID: 664164399}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &2017028740
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 216293967274194071, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_Name
+      value: MiniGameResultOverlay
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3078408005171674147, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -994,3 +1035,4 @@ SceneRoots:
   - {fileID: 890356076}
   - {fileID: 773893324}
   - {fileID: 664164399}
+  - {fileID: 2017028740}

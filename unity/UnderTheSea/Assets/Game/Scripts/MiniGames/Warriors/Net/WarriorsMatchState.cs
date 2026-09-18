@@ -1,6 +1,8 @@
+using System.Collections;
 using System.Linq;
 using System.Text;
 using Fusion;
+using MiniGames.Common;
 using UnityEngine;
 
 namespace Warriors.Net
@@ -150,6 +152,10 @@ namespace Warriors.Net
         // ------------------------------------------------------------
 
         /// <summary>지금 어느 칸인가.</summary>
+        [Header("결과 화면")]
+        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 기다리는 동안 보여 줄 것이 있을 때만 쓴다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds;
+
         [Networked] public WarriorsMatchPhase Phase { get; private set; }
 
         /// <summary>시작까지 남은 초. 0 이면 세는 중이 아니다.</summary>
@@ -238,6 +244,11 @@ namespace Warriors.Net
 
         /// <summary>결과가 확정된 틱. 0 이면 아직 안 끝났다.</summary>
         [Networked] private int ResultTick { get; set; }
+
+        /// <summary>이미 띄운 결과인가. 클라이언트마다 따로 센다.</summary>
+        private int shownResultTick;
+
+        private Coroutine resultRelease;
 
 
         /// <summary>방금 깬 라운드 번호. 종료 문구를 고르는 데 쓴다.</summary>
@@ -760,22 +771,65 @@ namespace Warriors.Net
         }
 
         /// <summary>
-        /// <b>공용 결과 화면은 쓰지 않는다.</b>
+        /// <b>공용 결과 화면을 연다.</b> 배 게임과 같은 판을 쓴다.
         ///
-        /// 배 게임은 <c>MiniGameResultOverlay</c> 가 결과를 보여 주지만, 검 게임에는 서연님이
-        /// 만든 결과 화면(<c>WarriorsHudPresenter</c> 의 CLEAR · GAME OVER 와
-        /// <c>WarriorsPauseControl</c> 의 버튼)이 이미 있다. 둘 다 띄우면 같은 내용이 두 번
-        /// 겹치고 버튼이 네 개가 된다.
-        ///
-        /// ⚠ <b>그래서 결과를 Gateway 에 제출하지 않는다.</b> 제출해 놓고 아무도 받지 않으면
-        ///    Gateway 가 결과를 들고 있다가 Lobby 의 <c>MatchFlowController</c> 에 넘기고,
-        ///    그쪽은 <c>RewardService.Grant</c> 로 <b>보상을 적립한다.</b>
-        ///    아이템도 인벤토리도 없는 단계라 그 경로를 타면 안 된다.
-        ///
-        /// 서버가 찍는 <see cref="ResultTick"/> 은 남겨 둔다. 결과가 언제 확정됐는지 서버
-        /// 로그로 볼 수 있어야 하고, <see cref="ResetToWaiting"/> 이 그것을 지우는 것이
-        /// "판이 정말 처음으로 돌아갔는가" 의 표시가 된다.
+        /// 서버가 찍은 틱을 보고 한 번만 연다. 다시 대기 상태로 돌아가면 <c>ResultTick</c> 이
+        /// 0 이 되므로 여기 기억도 같이 풀린다 — 다음 판의 결과가 다시 열린다.
         /// </summary>
+        private void PublishResultWhenReady()
+        {
+            if (ResultTick == 0)
+            {
+                shownResultTick = 0;
+                return;
+            }
+
+            if (ResultTick == shownResultTick)
+            {
+                return;
+            }
+
+            shownResultTick = ResultTick;
+
+            if (resultRelease != null)
+            {
+                StopCoroutine(resultRelease);
+            }
+
+            resultRelease = StartCoroutine(ShowResultAfterHold(
+                Phase == WarriorsMatchPhase.Cleared, Score, Elapsed, Crew));
+        }
+
+        /// <summary>
+        /// <b>공용 결과 판을 연다.</b> 기본은 기다리지 않고 바로 연다.
+        ///
+        /// 배 게임은 자기 성공·실패 연출을 3초 보여 준 뒤 결과 판을 연다. 검 게임에는 그런
+        /// 연출이 없다 — 옛 결과 카드를 쓰지 않기로 했고, 판이 끝나면 HUD 도 같이 꺼진다.
+        /// 그래서 여기서 기다리면 <b>사람은 빈 화면을 보고 앉아 있게 된다.</b> 실제로 3초를
+        /// 기다리게 해 놨더니 "게임이 끝났는데 아무것도 안 나온다" 가 됐다.
+        ///
+        /// 보여 줄 것이 생기면 그때 이 값을 올리면 된다. 그때까지는 0 이다.
+        ///
+        /// 성공·실패 문구는 결과 판이 알아서 가른다 — GAME CLEAR / GAME OVER.
+        /// 여기서는 서버가 정한 값을 그대로 넘기기만 한다.
+        ///
+        /// ⚠ <b>설정(MiniGameConfig)은 넘기지 않는다.</b> 결과 판은 그것이 있어야 보상 칸을
+        ///    켠다. 아이템도 인벤토리도 없는 단계라 "조각을 받았습니다" 는 거짓말이 된다.
+        ///    받는 쪽(<c>MiniGameResultOverlay</c>)이 null 을 넘기므로 여기서 할 일은 없다.
+        /// </summary>
+        private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int crew)
+        {
+            yield return new WaitForSeconds(resultHoldSeconds);
+
+            MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
+                MiniGameId.Sword,
+                clear,
+                score,
+                playTime,
+                playerCount: crew));
+
+            resultRelease = null;
+        }
 
         /// <summary>매치 실패. <paramref name="reason"/> 1 모두 쓰러짐 · 2 시간 초과.</summary>
         private void Fail(int reason)
@@ -1118,6 +1172,8 @@ namespace Warriors.Net
 
         public override void Render()
         {
+            PublishResultWhenReady();
+
             if (hud == null) return;
 
             // HUD 는 원래 싱글용 부품(WarriorsBattleScore · WarriorsGameFlow)을 읽는다.

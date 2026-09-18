@@ -114,32 +114,27 @@ namespace Warriors.Net
                 pauseButtonRoot.SetActive(showButton);
             }
 
-            // 판이 끝나면 버튼을 띄운다. **[로비로] 는 언제나, [다시 하기] 는 단독 실행일 때만.**
+            // 판이 끝나면 버튼을 띄운다. **단, 포탈로 들어온 판에서는 띄우지 않는다.**
             //
-            // 포탈로 들어온 판에서는 [다시 하기] 가 갈 곳이 없다. 같은 미니게임을 다시 여는
-            // 경로가 아직 없어서, 눌러도 아무 일이 없으면 고장으로 보인다. 반대로 [로비로] 는
-            // 그때가 오히려 꼭 필요하다 — 시간이 지나기를 기다리지 않고 바로 나갈 수 있어야 한다.
+            // 그때는 공용 결과 판(MiniGameResultOverlay)이 점수 · 시간 · [로비로] 를 다 보여
+            // 준다. 세 게임이 같은 판을 쓰기로 했고, 서연님이 그렇게 만들어 두셨다.
+            // 여기 버튼은 그보다 앞서 만든 것이라 둘 다 띄우면 버튼이 네 개가 된다.
+            //
+            // 단독 실행에는 공용 판이 없다. 그때는 이 버튼들이 유일한 출구이므로 그대로 둔다.
             bool over = live && match.IsOver;
-            bool showRetry = over && !MiniGameTransition.InMiniGame;
+            bool showEndButtons = over && !MiniGameTransition.InMiniGame;
 
-            if (lobbyButtonRoot != null && lobbyButtonRoot.activeSelf != over)
+            if (lobbyButtonRoot != null && lobbyButtonRoot.activeSelf != showEndButtons)
             {
-                lobbyButtonRoot.SetActive(over);
-                PlaceEndButtons(showRetry);
-
-                // 결과 화면이 뜬 순간부터 센다. 꺼질 때는 멈춘다.
-                autoLobbyAt = over && MiniGameTransition.InMiniGame
-                    ? Time.unscaledTime + autoLobbySeconds
-                    : 0f;
+                lobbyButtonRoot.SetActive(showEndButtons);
+                PlaceEndButtons(withRetry: true);
             }
 
-            CountDownToLobby();
-
-            if (retryButtonRoot != null && retryButtonRoot.activeSelf != showRetry)
+            if (retryButtonRoot != null && retryButtonRoot.activeSelf != showEndButtons)
             {
-                retryButtonRoot.SetActive(showRetry);
+                retryButtonRoot.SetActive(showEndButtons);
 
-                if (over)
+                if (showEndButtons)
                 {
                     // 결과 화면이 뜨는 순간에 이미 눌려 있던 입력이 그대로 버튼으로 흘러가지 않게
                     // 선택을 비우고 잠깐 잠가 둔다. 위 MakeButton 의 navigation=None 과 한 쌍이다.
@@ -251,8 +246,6 @@ namespace Warriors.Net
                 // 버튼과 시계가 겹쳐 눌려도 한 번만 나간다.
                 if (leaving) return;
                 leaving = true;
-                autoLobbyAt = 0f;
-
                 Debug.Log("[WarriorsPause] 로비로 돌아갑니다. (포탈로 들어온 판)");
                 MiniGameTransition.ReturnToLobby();
                 return;
@@ -272,29 +265,10 @@ namespace Warriors.Net
             SceneFlow.BackToLobbyFromMiniGame();
         }
 
-        /// <summary>
-        /// <b>아무것도 누르지 않아도 결국은 로비로 보낸다.</b>
-        ///
-        /// 결과 화면을 띄워 놓고 자리를 비우면 그 사람은 판에 남는다. 그동안 서버는 끝난 판을
-        /// 붙들고 있어 다음 사람을 받지 못한다. 배 게임에서 쓰던 것과 같은 규칙이다.
-        ///
-        /// ⚠ 포탈로 들어온 판에서만 센다. 단독 실행에는 돌아갈 채널이 없다.
-        /// </summary>
-        private void CountDownToLobby()
-        {
-            if (autoLobbyAt <= 0f || Time.unscaledTime < autoLobbyAt) return;
+        // ⚠ 시간이 지나면 로비로 보내는 일은 **여기서 하지 않는다.**
+        //    공용 결과 판이 그 시계를 들고 있다. 두 곳이 같이 세면 한쪽이 먼저 나가면서
+        //    다른 쪽이 헛돈다. 버튼도 판도 결국 MiniGameTransition.ReturnToLobby() 로 모인다.
 
-            autoLobbyAt = 0f;
-
-            Debug.Log($"[WarriorsPause] {autoLobbySeconds:0}초가 지났습니다. 로비로 돌아갑니다.");
-            RequestLobby();
-        }
-
-        [Tooltip("결과 화면에서 아무것도 누르지 않으면 이만큼 뒤에 로비로 보낸다. (초)")]
-        [SerializeField, Min(1f)] private float autoLobbySeconds = 5f;
-
-        /// <summary>돌아갈 시각. 0 이면 세지 않는다.</summary>
-        private float autoLobbyAt;
 
         /// <summary>이미 나가기로 했는가. 버튼과 시계가 겹쳐도 한 번만 간다.</summary>
         private bool leaving;
