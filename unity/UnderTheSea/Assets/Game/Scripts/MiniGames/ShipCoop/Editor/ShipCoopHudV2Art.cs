@@ -9,16 +9,23 @@ using UnityEngine.UI;
 /// 배치와 크기는 `art/hud/06-redesign-components/README.md` 의 권장값을 그대로 씁니다.
 /// 1920 × 1080 기준이고, 그 숫자에 맞춰 에셋이 만들어졌기 때문입니다.
 ///
+/// 금테 패널 한 벌(`art/hud/07-minigame-mockup/hud-transparent-assets`)로 갈아입혔습니다.
+/// 패널에 아이콘과 빈 트랙이 **그려져 있으므로** 글자 · 숫자 · 게이지 채움만 얹습니다.
+/// 늘리면 그 아이콘이 뭉개지니 9-slice 대신 **비율을 지켜** 놓습니다.
+///
 /// <code>
-/// 페이즈      좌상       180×56
-/// 배 HP       상단중앙   520×64
-/// 시간        상단중앙   184×64
-/// 항해        상단중앙   720×68
-/// 사건 목록   좌상       410×104 씩, 간격 12
-/// 팀원 4명    좌하       570×176
-/// 침수        하단중앙   560×94
-/// 현재 작업   우하       382×180
+/// 단계        좌상       320×86     phase-panel
+/// 배 HP       우하(상호작용 위) 세로 620 · 두께 86   hp-panel-noheart 을 90° 돌림 + hp-heart
+/// 시간        우상단     301×86     timer-panel (단계 패널과 높이를 맞춤)
+/// 항해        상단중앙   620×85     voyage-panel  + voyage-fill-cyan
+/// 지연 경고   (지금은 안 띄웁니다. 항해 바 안의 붉은 구간이 대신 말해줍니다)
+/// 사건 목록   좌상       480×126 씩, 간격 10   event-card-background + 픽토그램 5종
+/// 팀원 4명    좌하       600×200    crew-panel + 4색 테두리 (세로만 1.1 배)
+/// 침수        하단중앙   560×94     (옛 에셋 그대로)
+/// 상호작용    하단우측   424×150    panel-action-plaque + 원형 링 (도넛)
 /// </code>
+///
+/// 침수만 새 에셋에 없어서 옛 에셋을 그대로 씁니다. 지우지 않았습니다.
 ///
 /// ⚠ **자식을 전부 새로 만듭니다.** 그래서 씬에 놓인 HUD 인스턴스의 override 가 끊어집니다.
 ///    확인해보니 지금 override 는 TMP 가 스스로 찍는 값(m_TextStyleHashCode)과
@@ -33,6 +40,23 @@ public static class ShipCoopHudV2Art
 {
     private const string PrefabPath = "Assets/Game/Prefabs/MiniGames/ShipCoop/ShipCoopHud.prefab";
     private const string ArtRoot = "Assets/Game/Art/UI/ShipCoopHudV2";
+
+    /// <summary>
+    /// 금테 패널 한 벌. (`art/hud/07-minigame-mockup/hud-transparent-assets`)
+    ///
+    /// ⚠ **패널에 아이콘과 빈 트랙이 이미 그려져 있습니다.** 하트 · 시계 · 돛 · 경고 ·
+    ///    손 · 조타를 따로 얹으면 두 번 보입니다. 늘리면 그 아이콘과 금테가 뭉개지므로
+    ///    9-slice 를 쓰지 않고 **비율을 지켜** 놓습니다. 글자 · 숫자 · 게이지 채움만 얹습니다.
+    /// </summary>
+    private const string ArtRootV3 = "Assets/Game/Art/UI/ShipCoopHudV3";
+
+    /// <summary>
+    /// 사건 카드 한 벌. (`art/hud/09-event-hud-mockup`)
+    ///
+    /// 배경 · 배지 · 타이머는 9-slice 로 늘려 쓰고, 배지와 타이머 채움은
+    /// **흰색이라 런타임이 단계 색으로 물들입니다.** 그림 5종은 512 × 512 입니다.
+    /// </summary>
+    private const string ArtRootEvent = "Assets/Game/Art/UI/ShipCoopEventV1";
 
     // ------------------------------------------------------------------ 색
     // README 가 지정한 값. 바 색은 여기서만 바꾼다.
@@ -49,12 +73,65 @@ public static class ShipCoopHudV2Art
     /// <summary>밝은 배지 위에 올리는 글자. 흰 글자를 올리면 흰 바탕에 묻혀 안 보인다.</summary>
     private static readonly Color OnBadge = Hex(0x1C2A3A);
 
+    // 사건 카드 글자색. `event-ui-assets/manifest.json` 이 지정한 값.
+    private static readonly Color EventTitle = Hex(0xFFF0D0);
+    private static readonly Color EventSecondary = Hex(0xB8D8E8);
+
     /// <summary>침수가 중간쯤 찼을 때. 하늘색에서 빨강으로 곧장 가면 보라가 된다.</summary>
     private static readonly Color FloodMid = Hex(0xFFBC55);
+
+    /// <summary>
+    /// 링 안쪽 바탕. 원본 그대로 깔면 **포탄이 안 보인다.**
+    ///
+    /// 포탄은 검은 쇠구슬이라 남색 바탕과 명도가 붙어서 아래쪽 실루엣이 묻혔다.
+    /// 곱하기 틴트라 밝게는 못 만들고, 바탕을 반으로 어둡게 깔아 대비를 벌린다.
+    /// 0.35 까지 내리면 그냥 검은 구멍이 되고, 0.7 로는 포탄이 여전히 묻는다.
+    /// </summary>
+    private static readonly Color RingInk = new Color(0.5f, 0.5f, 0.5f);
+
+    // ------------------------------------------------------------------ 배치
+    //
+    // 1920 × 1080 기준. 패널은 전부 원본 비율을 지키므로 **폭만 정하고 높이는 계산**한다.
+    // 화면 가운데는 비워 둔다. 위쪽에 상태, 아래쪽에 사람과 상호작용만 둔다.
+
+    private const float Margin = 28f;
+    private const float TopMargin = 24f;
+
+    private const float PhaseWidth = 320f;      // 512 × 138
+    // 체력은 **거리(항해) 바와 크기를 맞춘다.** 두 그림이 1024 × 142 와 1024 × 140 으로
+    // 사실상 같은 비율이라, 길이만 같게 두면 두께도 따라서 같아진다.
+    private const float HpWidth = VoyageWidth;  // 1024 × 142 — 세로로 세우므로 이건 "길이" 다
+    // 시계는 **출항 패널과 높이를 맞춘다.** 두 그림의 비율이 달라서(3.71 대 3.49)
+    // 가로세로를 둘 다 같게는 못 하고, 나란히 놓였을 때 눈에 걸리는 건 높이다.
+    // 320 × 138/512 = 86.25 가 출항 높이고, 그 높이를 내려면 시계는 301.1 이 된다.
+    private const float TimerWidth = PhaseWidth * (138f / 512f) * (384f / 110f);  // 384 × 110
+    private const float VoyageWidth = 620f;     // 1024 × 140
+    private const float WarningWidth = 400f;    // 768 × 123
+    private const float CrewWidth = 600f;       // 1024 × 310
+
+    // ── 사건 카드 ──
+    //
+    // 배경이 9-slice(테두리 64) 라서 원본 비율을 지킬 필요가 없다. 읽기 좋은 크기로 정한다.
+    private const float EventCardWidth = 480f;
+    private const float EventCardHeight = 126f;
+    private const float EventCardGap = 10f;
+
+    /// <summary>첫 카드가 시작하는 높이. 단계 패널(86) 아래로 내려온다.</summary>
+    private const float EventListTop = 122f;
+
+    /// <summary>
+    /// 상호작용 패널을 그림 원본(424 × 150) 의 몇 배로 띄우는가.
+    ///
+    /// 원본 크기로는 글자와 키캡이 작아서 눈에 잘 안 들어왔습니다. 1.2 배면
+    /// 화면 오른쪽 아래가 답답해지지 않으면서 문구가 편하게 읽힙니다.
+    /// 안쪽 배치 값도 전부 이 값을 곱하므로 **여기 하나만 바꾸면 통째로 커집니다.**
+    /// </summary>
+    private const float ActionScale = 1.2f;
 
     private static readonly Vector2 Half = new Vector2(0.5f, 0.5f);
     private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
     private static readonly Vector2 TopCenter = new Vector2(0.5f, 1f);
+    private static readonly Vector2 TopRight = new Vector2(1f, 1f);
     private static readonly Vector2 BottomLeft = new Vector2(0f, 0f);
     private static readonly Vector2 BottomCenter = new Vector2(0.5f, 0f);
     private static readonly Vector2 BottomRight = new Vector2(1f, 0f);
@@ -88,6 +165,10 @@ public static class ShipCoopHudV2Art
             }
 
             var wired = new Wiring();
+
+            // ⚠ **맨 먼저 짓습니다.** 화면 전체를 덮는 비네트라, 나중에 지으면
+            //    형제 순서상 위로 올라와 HUD 를 붉게 덮습니다.
+            BuildCourseWarning(canvas, wired);
 
             BuildPhase(canvas, wired);
             BuildTopBars(canvas, wired);
@@ -129,10 +210,12 @@ public static class ShipCoopHudV2Art
         public TextMeshProUGUI HpLabel;
         public TextMeshProUGUI TimeLabel;
         public Image ProgressFill;
-        public RectTransform ShipMarker;
         public RectTransform ExpectedMarker;
         public RectTransform DelayFill;
         public GameObject BehindWarning;
+        public GameObject CourseWarningRoot;
+        public Image CourseWarningVignette;
+        public TextMeshProUGUI CourseWarningLabel;
         public GameObject FloodRoot;
         public Image FloodFill;
         public TextMeshProUGUI FloodLabel;
@@ -145,15 +228,68 @@ public static class ShipCoopHudV2Art
         public ShipCoopHud.PortraitSlot[] Portraits;
     }
 
+    // ------------------------------------------------------------------ 항로 이탈 경고
+
+    /// <summary>
+    /// 뱃머리가 틀어졌을 때 화면 가장자리를 붉게 물들이는 경고.
+    ///
+    /// 가운데는 비워 둡니다. 배와 갑판을 가리면 정작 조타를 잡으러 갈 수가 없습니다.
+    /// 그래서 테두리만 물들이고, 문구는 아래쪽 침수 게이지 위에 둡니다.
+    ///
+    /// 진하기와 깜빡임은 <see cref="ShipCoopHud"/> 가 매 프레임 넣습니다.
+    /// 여기서는 **꺼진 상태로** 만들어 둡니다.
+    /// </summary>
+    private static void BuildCourseWarning(RectTransform canvas, Wiring wired)
+    {
+        RectTransform group = Rect("CourseWarning", canvas);
+        Stretch(group, 0f, 0f, 0f, 0f);
+
+        RectTransform edge = Rect("Vignette", group);
+        Stretch(edge, 0f, 0f, 0f, 0f);
+        wired.CourseWarningVignette = Img(edge, ShipCoopVignetteArt.Ensure(),
+                                          new Color(DangerRed.r, DangerRed.g, DangerRed.b, 0f));
+
+        // 문구는 아래쪽. 침수 게이지(높이 28~122) 위에 얹되 겹치지 않게 띄운다.
+        // 글자는 **크림색**이다. 붉은 테두리 위에 붉은 글씨를 올리면 서로 묻힌다.
+        // 위험하다는 말은 테두리 색이 이미 하고 있으므로, 글자는 읽히기만 하면 된다.
+        TextMeshProUGUI label = Text("Label", group, "", 30f, TextAlignmentOptions.Center);
+        Place((RectTransform)label.transform, BottomCenter, new Vector2(0f, 196f), new Vector2(760f, 84f));
+        label.color = Cream;
+        label.fontStyle = FontStyles.Bold;
+        wired.CourseWarningLabel = label;
+
+        group.gameObject.SetActive(false);
+        wired.CourseWarningRoot = group.gameObject;
+    }
+
     // ------------------------------------------------------------------ 페이즈
 
+    /// <summary>
+    /// 좌상단. 패널 원본 512 × 138 을 0.625 로 줄인 320 × 86.25.
+    ///
+    /// 조타륜이 왼쪽에 박혀 있으므로 **글자는 그 오른쪽 남색 판 안에서만** 쓴다.
+    /// 남색 판에서 조타륜을 뺀 빈 칸은 원본 x 124~476 이라 그 한가운데는 +44 인데,
+    /// 그렇게 두면 **패널 전체로 볼 때 오른쪽으로 쏠려** 보인다. 눈이 조타륜을 글이
+    /// 아니라 테두리 장식으로 읽기 때문이다. 그래서 +20 까지 당기고, 대신 상자 왼쪽
+    /// 끝이 조타륜(x 124) 을 넘지 않게 폭을 272 로 줄였다.
+    /// </summary>
     private static void BuildPhase(RectTransform canvas, Wiring wired)
     {
-        RectTransform group = Rect("Phase", canvas);
-        Place(group, TopLeft, new Vector2(28f + 90f, -(24f + 28f)), new Vector2(180f, 56f));
-        Capsule(group);
+        const float Scale = PhaseWidth / 512f;
 
-        wired.PhaseLabel = Text("Label", group, "출항", 26f, TextAlignmentOptions.Center);
+        RectTransform group = Rect("Phase", canvas);
+        Place(group, TopLeft,
+              new Vector2(Margin + PhaseWidth * 0.5f, -(TopMargin + PhaseWidth * 138f / 512f * 0.5f)),
+              new Vector2(PhaseWidth, PhaseWidth * 138f / 512f));
+        Panel(group, "phase-panel");
+
+        wired.PhaseLabel = Text("Label", group, "출항", 24f, TextAlignmentOptions.Center);
+        Place((RectTransform)wired.PhaseLabel.transform, Half,
+              new Vector2(20f * Scale, 0f), new Vector2(272f * Scale, 56f * Scale));
+
+        // ⚠ `플레이어 입장중...` 처럼 긴 문구가 조타륜을 덮거나 패널을 넘지 않게
+        //    **글자가 스스로 줄어들게** 둔다. 고정 크기로 두면 둘 중 하나가 난다.
+        Shrink(wired.PhaseLabel, 13f, 24f);
     }
 
     // ------------------------------------------------------------------ 상단 바
@@ -164,38 +300,98 @@ public static class ShipCoopHudV2Art
     /// </summary>
     private static void BuildTopBars(RectTransform canvas, Wiring wired)
     {
-        RectTransform group = Rect("TopBars", canvas);
-        Place(group, TopCenter, new Vector2(0f, -(24f + 34f)), new Vector2(720f, 68f));
+        float hpHeight = HpWidth * 142f / 1024f;
+        float timerHeight = TimerWidth * 110f / 384f;
+        float voyageHeight = VoyageWidth * 140f / 1024f;
 
-        // ── 배 HP ─────────────────────────────
-        RectTransform hp = Rect("Hp", group);
-        Place(hp, new Vector2(0f, 0.5f), new Vector2(260f, 0f), new Vector2(520f, 64f));
-        Capsule(hp);
+        // ── 배 HP — **세로로 세워 오른쪽 끝에** ─────────
+        //
+        // 화면 오른쪽 가장자리에 세로로 붙입니다. 왼쪽 아래는 프로필 넉 장이 이미
+        // 넓게 자리를 쓰고 있어서, HP 까지 거기 두면 왼쪽만 무거워집니다.
+        // 아래 끝은 상호작용 패널 바로 위에 맞춥니다.
+        // 위쪽 가로줄은 항해 하나만 남아 바다를 덜 가립니다.
+        //
+        // ⚠ **패널을 90° 돌립니다.** 돌리면 패널 왼쪽(하트)이 화면 아래로 가고,
+        //    채움이 **아래에서 위로** 자랍니다. 물이 차오르듯 읽혀서 HP 에 맞습니다.
+        //    돌려도 안쪽 배치 값은 그대로 쓸 수 있습니다 — 자식이 같이 돌기 때문입니다.
+        const float HpScale = HpWidth / 1024f;
 
-        RectTransform hpBar = Bar(hp, "HpBar", new Vector2(30f, 0f), new Vector2(440f, 28f),
-                                  HpGreen, out Image hpFill);
-        wired.HpFill = hpFill;
-        wired.HpLabel = Text("HpLabel", hpBar, "100 / 100", 20f, TextAlignmentOptions.Center);
+        float hpBottom = Margin + 150f * ActionScale + 14f;  // 상호작용 패널 위
 
-        Icon(hp, "Icon", Sprite("icon-ship"), new Vector2(-228f, 0f), 34f);
+        RectTransform hp = Rect("Hp", canvas);
+        Place(hp, BottomRight,
+              new Vector2(-(Margin + hpHeight * 0.5f), hpBottom + HpWidth * 0.5f),
+              new Vector2(HpWidth, hpHeight));
+        hp.localRotation = Quaternion.Euler(0f, 0f, 90f);
+
+        // ⚠ **하트를 떼어낸 패널을 쓴다.** (`hp-panel-noheart`)
+        //
+        //    하트가 패널에 박혀 있어서 패널을 돌리면 하트도 같이 눕는다. 그래서
+        //    하트를 알파로 오려 `hp-heart` 로 빼고, 패널 쪽 하트 자리는 옆 남색으로 메웠다.
+        //    가로로 쓸 일이 생기면 원본 `hp-panel` 을 그대로 쓰면 된다.
+        Panel(hp, "hp-panel-noheart");
+
+        wired.HpFill = Fill(hp, "hp-fill-green",
+                            new Vector2(43.5f, 1f), new Vector2(806f, 45f), HpScale, Color.white);
+
+        // 하트는 **거꾸로 돌려** 세워 둔다. 패널이 +90° 니까 -90° 를 주면 서로 상쇄돼
+        // 화면에서는 똑바로 선다. 자리는 원본에서 떼어낸 그 자리(그림 기준 50,35 에 89×83) 에서
+        // 화면 왼쪽으로 1px. 패널이 +90° 라 화면 왼쪽은 이 안에서 +y 다.
+        RectTransform heart = Rect("Heart", hp);
+        Place(heart, Half,
+              new Vector2((50f + 89f * 0.5f - 512f) * HpScale, (71f - (35f + 83f * 0.5f)) * HpScale + 1f),
+              new Vector2(89f * HpScale, 83f * HpScale));
+        heart.localRotation = Quaternion.Euler(0f, 0f, -90f);
+        Img(heart, Sprite3("hp-heart"), Color.white).preserveAspect = true;
+
+        // 숫자(`100 / 100`)는 **두지 않는다.**
+        //
+        // 막대가 이미 얼마나 남았는지 말한다. 세로로 세우면서 숫자를 넣을 자리가
+        // 막대 밖뿐이었는데, 거기 두면 왼쪽 세로줄에 읽을 것만 하나 더 늘어난다.
+        // 정확한 수치가 필요한 순간이 이 게임에는 없다 — 많이 남았나 적게 남았나뿐이다.
+        //
+        // `hpLabel` 은 비워 둔다. 런타임이 null 이면 그냥 넘어간다.
 
         // ── 시간 ─────────────────────────────
-        RectTransform time = Rect("Time", group);
-        Place(time, new Vector2(0f, 0.5f), new Vector2(536f + 92f, 0f), new Vector2(184f, 64f));
-        Capsule(time);
+        //
+        // 시계도 패널에 그려져 있다. 글자는 그 오른쪽 남색 판 안에서만 쓴다.
+        // 빈 칸 한가운데는 +40 인데 그대로 두면 오른쪽으로 쏠려 보여 +30 으로 조금 당겼다.
+        // 상자 왼쪽 끝이 시계(원본 x 112) 를 넘지 않게 폭은 196.
+        const float TimerScale = TimerWidth / 384f;
 
-        Icon(time, "Icon", Sprite("icon-clock"), new Vector2(-60f, 0f), 30f);
-        wired.TimeLabel = Text("Label", time, "3:00", 28f, TextAlignmentOptions.Center);
-        Place((RectTransform)wired.TimeLabel.transform, Half, new Vector2(14f, 0f), new Vector2(120f, 40f));
+        // 오른쪽 끝에 붙인다. 앵커가 화면 오른쪽이라 해상도가 바뀌어도 그대로 따라간다.
+        // 항해 바와 **위를 맞춘다.**
+        RectTransform time = Rect("Time", canvas);
+        Place(time, TopRight,
+              new Vector2(-(Margin + TimerWidth * 0.5f), -(TopMargin + timerHeight * 0.5f)),
+              new Vector2(TimerWidth, timerHeight));
+        Panel(time, "timer-panel");
+
+        wired.TimeLabel = Text("Label", time, "3:00", 26f, TextAlignmentOptions.Center);
+        Place((RectTransform)wired.TimeLabel.transform, Half,
+              new Vector2(30f * TimerScale, 0f), new Vector2(196f * TimerScale, 44f * TimerScale));
+        Shrink(wired.TimeLabel, 14f, 26f);
 
         // ── 항해 ─────────────────────────────
-        RectTransform voyage = Rect("Voyage", canvas);
-        Place(voyage, TopCenter, new Vector2(0f, -(102f + 34f)), new Vector2(720f, 68f));
-        Capsule(voyage);
+        //
+        // 돛도 패널에 그려져 있다. 트랙은 원본에서 x 171~947 · y 52~88 로 쟀다.
+        const float VoyageScale = VoyageWidth / 1024f;
 
-        RectTransform track = Bar(voyage, "Track", new Vector2(0f, 0f), new Vector2(640f, 28f),
-                                  VoyageBlue, out Image progressFill);
-        wired.ProgressFill = progressFill;
+        // 상단 한가운데. HP 가 왼쪽 아래로 내려가서 이제 위쪽 가로줄은 이것 하나다.
+        float voyageY = -(TopMargin + voyageHeight * 0.5f);
+
+        RectTransform voyage = Rect("Voyage", canvas);
+        Place(voyage, TopCenter, new Vector2(0f, voyageY), new Vector2(VoyageWidth, voyageHeight));
+        Panel(voyage, "voyage-panel");
+
+        // 표식(지금 위치 · 있어야 할 위치)이 이 안에서 움직이므로 트랙 자리를 실제로 만든다.
+        RectTransform track = Rect("Track", voyage);
+        Place(track, Half,
+              new Vector2(47f * VoyageScale, 0f), new Vector2(777f * VoyageScale, 37f * VoyageScale));
+
+        wired.ProgressFill = Fill(track, "voyage-fill-cyan",
+                                  Vector2.zero, new Vector2(777f, 37f), VoyageScale, Color.white);
+        Stretch((RectTransform)wired.ProgressFill.transform, 0f, 0f, 0f, 0f);
 
         // 늦은 만큼의 구간. 배 위치에서 기준선까지 폭만 늘어난다. (README)
         RectTransform delay = Rect("Delay", track);
@@ -210,16 +406,23 @@ public static class ShipCoopHudV2Art
         Img(delay, Sprite("bar-delay"), new Color(1f, 0.35f, 0.42f, 0.45f));
         wired.DelayFill = delay;
 
-        wired.ExpectedMarker = Marker(track, "Expected", Sprite("voyage-reference"), new Vector2(8f, 44f), Cream);
-        wired.ShipMarker = Marker(track, "Ship", Sprite("icon-ship"), new Vector2(38f, 38f), Color.white);
+        // ⚠ **배 표식을 두지 않습니다.** 패널 왼쪽에 돛단배가 이미 그려져 있어서
+        //    트랙 안에 또 배를 놓으면 배가 두 척으로 보입니다. 지금 어디까지 왔는지는
+        //    채움의 오른쪽 끝이 그대로 말해줍니다. 기준선은 남겨야 늦었는지가 보입니다.
+        wired.ExpectedMarker = Marker(track, "Expected", Sprite("voyage-reference"), new Vector2(8f, 40f), Cream);
 
-        // 늦고 있다는 경고. 항해 바 아래.
-        RectTransform behind = Rect("BehindWarning", canvas);
-        Place(behind, TopCenter, new Vector2(0f, -(176f + 22f)), new Vector2(320f, 40f));
-        Img(behind, Sprite("panel-event-background"), new Color(1f, 1f, 1f, 0.9f));
-        Text("Label", behind, "⚠ 이 속도면 늦는다!", 22f, TextAlignmentOptions.Center).color = DangerRed;
-        behind.gameObject.SetActive(false);
-        wired.BehindWarning = behind.gameObject;
+        // ── 늦고 있다는 경고 — 지금은 안 짓습니다 ──
+        //
+        // `warning-panel` 로 항해 바 아래에 띄웠던 "이 속도면 늦는다!" 를 뺐습니다.
+        //
+        // ⚠ **늦고 있다는 신호가 사라진 것은 아닙니다.** 항해 바 안의 붉은 구간(`Delay`)이
+        //    배와 기준선 사이만큼 벌어지므로 뒤처진 정도는 그대로 보입니다.
+        //    다만 글자로 말해주지는 않습니다. 숫자만으로는 늦은 줄 모른다는 것이
+        //    원래 이 경고를 만든 이유였으니(9장), 다시 필요해지면 되살리세요.
+        //
+        // 되살리려면 여기서 `warning-panel` 패널을 짓고 글자를 얹은 뒤
+        // `wired.BehindWarning` 에 넣으면 됩니다. 런타임(`behindWarning`)은 그대로 있고,
+        // 비어 있어도 그냥 넘어갑니다. 그림도 `ShipCoopHudV3/panels` 에 그대로 둡니다.
     }
 
     // ------------------------------------------------------------------ 사건 목록
@@ -227,12 +430,22 @@ public static class ShipCoopHudV2Art
     /// <summary>
     /// 왼쪽 위. **이 게임에서 가장 중요한 UI 다.** (9장)
     ///
-    /// 카드 한 장이 410 × 104. README 의 640 × 156 기준 배치를 0.64 로 줄인 값이다.
+    /// 목업(`art/hud/09-event-hud-mockup`)대로 한 장을 이렇게 나눕니다.
+    /// <code>
+    /// [ 그림 ]  제목            남은초  [예고/발생]
+    ///           보조 문구 · 갑판
+    ///           ▬▬▬▬▬▬▬▬▬ 타이머
+    /// </code>
+    ///
+    /// 카드 배경은 9-slice(테두리 64)라 크기를 자유롭게 정합니다.
+    /// 배지와 타이머 채움은 **흰색 에셋**이고 런타임이 단계 색으로 물들입니다.
     /// </summary>
     private static void BuildEventList(RectTransform canvas, Wiring wired)
     {
         RectTransform group = Rect("Events", canvas);
-        Place(group, TopLeft, new Vector2(28f + 205f, -(116f + 52f)), new Vector2(410f, 104f));
+        Place(group, TopLeft,
+              new Vector2(Margin + EventCardWidth * 0.5f, -(EventListTop + EventCardHeight * 0.5f)),
+              new Vector2(EventCardWidth, EventCardHeight));
 
         wired.EventRows = new ShipCoopHud.EventRow[EventRowCount];
 
@@ -244,48 +457,92 @@ public static class ShipCoopHudV2Art
 
     private static ShipCoopHud.EventRow BuildEventRow(RectTransform group, int index)
     {
+        const float W = EventCardWidth;
+        const float H = EventCardHeight;
+
         RectTransform card = Rect($"Row_{index + 1}", group);
-        Place(card, Half, new Vector2(0f, -index * (104f + 12f)), new Vector2(410f, 104f));
-        Img(card, Sprite("panel-event-background"), new Color(1f, 1f, 1f, 0.92f));
+        Place(card, Half, new Vector2(0f, -index * (H + EventCardGap)), new Vector2(W, H));
 
-        RectTransform frame = Rect("Frame", card);
-        Stretch(frame, 0f, 0f, 0f, 0f);
-        Image frameImage = Img(frame, Sprite("event-frame-warning"), Color.white);
+        Image back = Img(card, Sprite4("event-card-background"), new Color(1f, 1f, 1f, 0.95f));
+        back.type = Image.Type.Sliced;
 
-        // 카드 왼쪽 상태선. 예고면 주황, 발생이면 빨강. (9장)
-        RectTransform accent = Rect("Accent", card);
-        Place(accent, new Vector2(0f, 0.5f), new Vector2(8f, 0f), new Vector2(10f, 84f));
-        Image accentImage = Img(accent, Sprite("event-accent-warning"), WarnOrange);
+        // ⚠ **9-slice 테두리를 줄여야 한다.** 원본 테두리가 64px 인데 카드 높이가 126 이라,
+        //    그대로 두면 위아래 테두리(64+64=128)가 카드보다 커져서 **알약 모양**이 된다.
+        //    `pixelsPerUnitMultiplier` 는 테두리를 그 배수만큼 얇게 그린다. 3 이면 약 21px.
+        back.pixelsPerUnitMultiplier = 3f;
 
-        // 아래 좌표는 README 의 640 × 156 기준 배치를 410 × 104 로 줄인 값이다.
-        //   아이콘 (20,36,80,80) · 제목+설명 (118,20,382,90) · 카운트다운 (118,128,314,8)
-        Image icon = Icon(card, "Icon", null, new Vector2(-167f, 3f), 51f);
+        // ── 그림 ─────────────────────────────
+        Image icon = Icon(card, "Icon", null, new Vector2(-W * 0.40f, 0f), H * 0.58f);
+        icon.color = Color.white;   // 사건 그림은 채색이라 크림색을 곱하면 탁해진다
 
-        TextMeshProUGUI label = Text("Label", card, "⚠ 사건", 21f, TextAlignmentOptions.TopLeft);
-        Place((RectTransform)label.transform, Half, new Vector2(28f, 10f), new Vector2(314f, 58f));
+        // ── 제목 ─────────────────────────────
+        TextMeshProUGUI title = Text("Title", card, "사건", 23f, TextAlignmentOptions.Left);
+        Place((RectTransform)title.transform, Half,
+              new Vector2(-W * 0.332f + W * 0.20f, H * 0.23f), new Vector2(W * 0.40f, H * 0.28f));
+        title.color = EventTitle;
+        Shrink(title, 15f, 23f);
 
-        // 남은 시간. 카드 아래쪽 얇은 줄. 프레임 안쪽으로 들어와야 한다.
-        RectTransform timerTrack = Rect("Timer", card);
-        Place(timerTrack, Half, new Vector2(28f, -33f), new Vector2(314f, 6f));
-        Img(timerTrack, Sprite("bar-track"), new Color(1f, 1f, 1f, 0.5f));
+        // ── 보조 문구 · 갑판 ──────────────────
+        TextMeshProUGUI label = Text("Label", card, "", 15f, TextAlignmentOptions.Left);
+        Place((RectTransform)label.transform, Half,
+              new Vector2(-W * 0.332f + W * 0.24f, 0f), new Vector2(W * 0.48f, H * 0.22f));
+        label.color = EventSecondary;
+        Shrink(label, 11f, 15f);
 
-        RectTransform timerFill = Rect("Fill", timerTrack);
-        Stretch(timerFill, 2f, 2f, 2f, 2f);
-        Image timer = Img(timerFill, Sprite("bar-fill-white"), WarnOrange);
+        // ── 남은 초 ──────────────────────────
+        // 오른쪽 정렬이라 글자가 배지 쪽으로 자라지 않는다. 배지와 겹치지 않게 왼쪽에 둔다.
+        TextMeshProUGUI seconds = Text("Seconds", card, "", 21f, TextAlignmentOptions.Right);
+        Place((RectTransform)seconds.transform, Half,
+              new Vector2(W * 0.255f, H * 0.23f), new Vector2(W * 0.13f, H * 0.26f));
+        seconds.fontStyle = FontStyles.Bold;
+
+        // ── 예고 / 발생 배지 ─────────────────
+        //
+        // 색만으로 단계를 말하면 색각 이상이 있을 때 안 읽힌다. 글자를 같이 둔다.
+        RectTransform badge = Rect("Badge", card);
+        Place(badge, Half, new Vector2(W * 0.40f, H * 0.23f), new Vector2(W * 0.135f, H * 0.26f));
+        Image badgeImage = Img(badge, Sprite4("event-state-badge"), WarnOrange);
+        badgeImage.type = Image.Type.Sliced;
+        badgeImage.pixelsPerUnitMultiplier = 3f;
+
+        TextMeshProUGUI badgeLabel = Text("Label", badge, "예고", 15f, TextAlignmentOptions.Center);
+        badgeLabel.color = OnBadge;
+        badgeLabel.fontStyle = FontStyles.Bold;
+        Shrink(badgeLabel, 10f, 15f);
+
+        // ── 타이머 ───────────────────────────
+        //
+        // 셀 것이 없는 사건(선체 파손)에서는 바탕과 채움을 **둘 다** 끈다.
+        // 채움만 끄면 빈 홈이 남아서 "0 초 남았다" 로 읽힌다.
+        RectTransform track = Rect("Timer", card);
+        Place(track, Half, new Vector2(W * 0.055f, -H * 0.31f), new Vector2(W * 0.656f, H * 0.09f));
+
+        Image trackImage = Img(track, Sprite4("event-timer-track"), Color.white);
+        trackImage.type = Image.Type.Sliced;
+        trackImage.pixelsPerUnitMultiplier = 4f;
+
+        RectTransform fillRect = Rect("Fill", track);
+        Stretch(fillRect, 0f, 0f, 0f, 0f);
+        Image timer = Img(fillRect, Sprite4("event-timer-fill"), WarnOrange);
         timer.type = Image.Type.Filled;
         timer.fillMethod = Image.FillMethod.Horizontal;
         timer.fillOrigin = (int)Image.OriginHorizontal.Left;
         timer.fillAmount = 1f;
 
+        // 옛 왼쪽 경고선은 배지가 대신한다. 같은 것을 두 번 말하지 않는다.
         card.gameObject.SetActive(false);
 
         return new ShipCoopHud.EventRow
         {
             root = card.gameObject,
+            title = title,
             label = label,
+            seconds = seconds,
+            badge = badgeImage,
+            badgeLabel = badgeLabel,
             timer = timer,
+            timerTrack = track.gameObject,
             icon = icon,
-            accent = accentImage,
         };
     }
 
@@ -294,7 +551,7 @@ public static class ShipCoopHudV2Art
     private static void BuildFlood(RectTransform canvas, Wiring wired)
     {
         RectTransform group = Rect("Flood", canvas);
-        Place(group, BottomCenter, new Vector2(0f, 1080f - 958f - 47f), new Vector2(560f, 94f));
+        Place(group, BottomCenter, new Vector2(0f, Margin + 47f), new Vector2(560f, 94f));
         Img(group, Sprite("panel-flood-background"), new Color(1f, 1f, 1f, 0.9f));
 
         RectTransform frame = Rect("Frame", group);
@@ -316,35 +573,36 @@ public static class ShipCoopHudV2Art
     }
 
     // ------------------------------------------------------------------ 현재 작업
-
     /// <summary>
-    /// 오른쪽 아래. 원형 진행 링과 키 표시. (README)
+    /// 오른쪽 아래. **원형 진행 링**과 키 표시.
     ///
-    /// 하단 중앙에서 **우하단으로 옮겼습니다.** 가운데 아래에 두면 갑판에 내려놓은
-    /// 물건을 가립니다. 4장에서 아무 데나 내려놓을 수 있게 되면서 생긴 문제입니다.
+    /// 손이 그려진 가로 막대(`interaction-panel`)로 갔다가 링으로 돌아왔습니다.
+    /// 가로 막대는 조타 · 돛처럼 **양쪽으로 차는 게이지를 표현하지 못합니다.**
+    /// 링은 위(중앙)에서 좌우로 갈라 채울 수 있어 어느 쪽으로 꺾였는지가 그대로 보입니다.
+    ///
+    /// 아래 숫자는 전부 **그림 원본 424 × 150 을 기준으로 잰 값**이고,
+    /// <see cref="ActionScale"/> 만 곱해 한 번에 키웁니다. 비율이 그대로라 금테가 안 뭉갭니다.
+    /// 크기를 다시 바꾸고 싶으면 그 상수 하나만 만지면 됩니다.
     /// </summary>
     private static void BuildAction(RectTransform canvas, Wiring wired)
     {
-        // 화면 오른쪽·아래에서 40px 씩 띄운다. README 는 28 인데 그러면 모서리에 붙어 보인다.
-        //
-        // **패널을 그림 원본 크기(424 × 150)로 둔다.** 옛 패널은 배경과 테두리를 따로 깔고
-        // 9-slice 로 382 × 180 까지 늘렸지만, 새 그림은 금테와 리벳이 그려져 있어서
-        // 늘리면 테두리가 뭉갠다. 원본 크기로 두면 다시 그릴 일이 없어 가장 깨끗하고,
-        // 폭이 42 늘어난 덕에 글자 자리는 오히려 넓어진다. 높이 30 은 빈 자리였다.
+        const float W = 424f * ActionScale;
+        const float H = 150f * ActionScale;
+
         RectTransform group = Rect("InteractPanel", canvas);
-        Place(group, BottomRight, new Vector2(-(40f + 212f), 40f + 75f), new Vector2(424f, 150f));
+        Place(group, BottomRight, new Vector2(-(Margin + W * 0.5f), Margin + H * 0.5f), new Vector2(W, H));
 
         Image plaque = Img(group, Sprite("panel-action-plaque"), Color.white);
         plaque.preserveAspect = true;
 
         // ── 원형 진행 링 ─────────────────────
         //
-        // 패널 반폭이 212 이고 금테가 20 쯤 되므로 안쪽 왼쪽 끝은 -192 다.
+        // 원본 기준으로 패널 반폭이 212 이고 금테가 20 쯤이라 안쪽 왼쪽 끝은 -192 다.
         // 링을 -120 에 지름 104 로 두면 왼쪽 끝이 -172 라 금테까지 20 이 남는다.
         // 위아래로도 반높이 75 에서 금테를 빼면 52 인데 링 반지름이 52 라 딱 맞는다.
         RectTransform ring = Rect("Ring", group);
-        Place(ring, Half, new Vector2(-120f, 0f), new Vector2(104f, 104f));
-        Img(ring, Sprite("ring-background"), Color.white);
+        Place(ring, Half, new Vector2(-120f, 0f) * ActionScale, new Vector2(104f, 104f) * ActionScale);
+        Img(ring, Sprite("ring-background"), RingInk);
 
         RectTransform ringTrack = Rect("Track", ring);
         Stretch(ringTrack, 0f, 0f, 0f, 0f);
@@ -364,25 +622,27 @@ public static class ShipCoopHudV2Art
         Stretch(ringFrame, 0f, 0f, 0f, 0f);
         Img(ringFrame, Sprite("ring-frame"), Color.white);
 
-        wired.InteractIcon = Icon(ring, "Icon", Sprite("icon-helm"), Vector2.zero, 50f);
+        wired.InteractIcon = Icon(ring, "Icon", Sprite("icon-helm"), Vector2.zero, 50f * ActionScale);
 
         // ── 안내 문구와 키 ────────────────────
         //
         // 링 오른쪽 끝이 -68 이고 금테 안쪽 오른쪽 끝이 192 다. 그 사이 260 폭을
         // 글자와 키가 나눠 쓴다. 글자는 위, 키는 아래.
-        wired.InteractLabel = Text("Label", group, "", 21f, TextAlignmentOptions.TopLeft);
-        Place((RectTransform)wired.InteractLabel.transform, Half, new Vector2(58f, 22f), new Vector2(196f, 60f));
+        wired.InteractLabel = Text("Label", group, "", 21f * ActionScale, TextAlignmentOptions.TopLeft);
+        Place((RectTransform)wired.InteractLabel.transform, Half,
+              new Vector2(58f, 22f) * ActionScale, new Vector2(196f, 60f) * ActionScale);
 
-        // 키캡도 새 그림으로. 311 × 141 이라 비율이 72 × 34 와 거의 같아 그대로 들어간다.
-        // 옛 키캡처럼 9-slice 로 늘리지 않으므로 비율을 지키게 해둔다.
+        // 키캡은 311 × 141 이라 비율이 72 × 34 와 거의 같아 그대로 들어간다.
+        // 9-slice 로 늘리지 않으므로 비율을 지키게 해둔다.
         RectTransform key = Rect("Keycap", group);
-        Place(key, Half, new Vector2(48f, -34f), new Vector2(72f, 34f));
+        Place(key, Half, new Vector2(48f, -34f) * ActionScale, new Vector2(72f, 34f) * ActionScale);
         Img(key, Sprite("keycap-plain"), Color.white).preserveAspect = true;
 
         // ⚠ **키캡 글자를 반드시 연결한다.** 여기서 자식을 새로 만들기 때문에
         //    연결하지 않으면 예전처럼 무엇을 하든 "Space" 로 굳는다.
-        TextMeshProUGUI keyLabel = Text("Label", key, "Space", 15f, TextAlignmentOptions.Center);
+        TextMeshProUGUI keyLabel = Text("Label", key, "Space", 15f * ActionScale, TextAlignmentOptions.Center);
         keyLabel.color = OnBadge;
+        Shrink(keyLabel, 11f * ActionScale, 15f * ActionScale);
         wired.InteractKeycap = keyLabel;
 
         group.gameObject.SetActive(false);
@@ -391,89 +651,149 @@ public static class ShipCoopHudV2Art
 
     // ------------------------------------------------------------------ 팀원
 
+    /// <summary>
+    /// 왼쪽 아래. 새 프로필 바탕(1024 × 310) 위에 네 칸을 가로로 놓는다.
+    ///
+    /// **왼쪽 끝을 기준으로 둔다.** 사람 수에 따라 폭이 줄어드는 구조였는데,
+    /// 가운데 기준이면 줄어들 때 패널이 왼쪽으로 밀려 화면 밖으로 나간다.
+    /// 지금은 폭이 고정이지만 기준은 그대로 둔다.
+    /// </summary>
     private static void BuildTeam(RectTransform canvas, Wiring wired)
     {
-        // **왼쪽 끝을 기준으로 둔다.** 사람 수에 따라 폭이 줄어드는데,
-        // 가운데 기준이면 줄어들 때 패널이 왼쪽으로 밀려 화면 밖으로 나간다.
+        // ⚠ 이 패널만 비율을 1.1 배 **세로로 늘립니다.** 원본대로면 초상화와 두 줄 글자가
+        //    위아래로 꽉 차서 답답합니다. 다른 패널과 달리 crew-panel 은 아이콘도 장식도 없는
+        //    둥근 판 한 장이라, 10% 늘려도 눈에 띄는 것은 모서리 곡률뿐입니다.
+        //    그래서 여기만 `preserveAspect` 를 끕니다.
+        float height = CrewWidth * 310f / 1024f * 1.1f;
+
         RectTransform row = Rect("TeamRow", canvas);
         row.anchorMin = BottomLeft;
         row.anchorMax = BottomLeft;
-        row.pivot = new Vector2(0f, 0.5f);
-        row.anchoredPosition = new Vector2(28f, 1080f - 876f - 88f);
-        row.sizeDelta = new Vector2(570f, 176f);
+        row.pivot = Half;
+        row.anchoredPosition = new Vector2(Margin + CrewWidth * 0.5f, Margin + height * 0.5f);
+        row.sizeDelta = new Vector2(CrewWidth, height);
 
-        Img(row, Sprite("panel-team-background"), new Color(1f, 1f, 1f, 0.85f));
+        Panel(row, "crew-panel").preserveAspect = false;
 
-        RectTransform frame = Rect("Frame", row);
-        Stretch(frame, 0f, 0f, 0f, 0f);
-        Img(frame, Sprite("panel-team-frame"), Color.white);
+        // 빨강 · 노랑 · 초록 · 보라. 사람을 구분하는 색이지 직업이 아니다.
+        string[] frames = { "frame-red", "frame-yellow", "frame-green", "frame-purple" };
 
-        string[] frames = { "portrait-frame-red", "portrait-frame-yellow", "portrait-frame-green", "portrait-frame-purple" };
-        // ⚠ 얼굴 그림(`portrait-captain` 등)은 **더 이상 안 씁니다.**
-        //    4명이 각자 커스터마이징한 캐릭터로 들어오면 박아둔 그림은
-        //    사람을 구분해 주지 못합니다. 대신 `ShipCoopPortrait` 가
-        //    각자의 캐릭터를 찍어서 넣습니다.
+        // ⚠ **박아둔 얼굴 그림은 쓰지 않습니다.** 4명이 각자 커스터마이징한 캐릭터로
+        //    들어오는데, 선장 · 광대 같은 고정 그림은 누가 누구인지 말해주지 못합니다.
+        //    `ShipCoopPortrait` 가 찍은 각자의 캐릭터만 씁니다.
         wired.Portraits = new ShipCoopHud.PortraitSlot[4];
+
+        // 금테 안쪽만 쓴다. 네 칸을 그 안에 고르게 나눈다.
+        float inner = CrewWidth - 40f;
+        float step = inner / 4f;
+        float first = -inner * 0.5f + step * 0.5f;
 
         for (int i = 0; i < 4; i++)
         {
-            wired.Portraits[i] = BuildSlot(row, i, frames[i]);
+            wired.Portraits[i] = BuildSlot(row, i, frames[i],
+                                           first + i * step, step, height);
         }
     }
 
-    private static ShipCoopHud.PortraitSlot BuildSlot(RectTransform row, int index, string frameSprite)
+    private static ShipCoopHud.PortraitSlot BuildSlot(RectTransform row, int index,
+                                                      string frameSprite,
+                                                      float x, float step, float panelHeight)
     {
-        // 칸도 왼쪽 끝 기준. 패널이 줄어도 있던 자리에 그대로 있어야 한다.
         RectTransform slot = Rect($"Slot_{index + 1}", row);
-        slot.anchorMin = new Vector2(0f, 0.5f);
-        slot.anchorMax = new Vector2(0f, 0.5f);
-        slot.pivot = Half;
-        slot.anchoredPosition = new Vector2(13f + 68f + index * 136f, 0f);
-        slot.sizeDelta = new Vector2(128f, 168f);
+        Place(slot, Half, new Vector2(x, 0f), new Vector2(step, panelHeight - 16f));
 
-        RectTransform plate = Rect("Backplate", slot);
-        Place(plate, Half, new Vector2(0f, 16f), new Vector2(100f, 100f));
-        Img(plate, Sprite("portrait-backplate"), Color.white);
+        // ── 세로 가운데 정렬 ─────────────────
+        //
+        // 초상화 · 이름 · 갑판을 **한 덩어리로 묶어 칸 한가운데**에 놓는다.
+        // 예전에는 위에서부터 쌓아서 아래쪽 글자가 패널 테두리에 닿았다.
+        const float NameHeight = 24f;
+        const float DeckHeight = 22f;
+        const float NameGap = 6f;
+        const float DeckGap = 2f;
+
+        float portrait = Mathf.Min(step - 18f, panelHeight * 0.52f);
+        float block = portrait + NameGap + NameHeight + DeckGap + DeckHeight;
+
+        float portraitY = block * 0.5f - portrait * 0.5f;
+        float nameY = portraitY - portrait * 0.5f - NameGap - NameHeight * 0.5f;
+        float deckY = nameY - NameHeight * 0.5f - DeckGap - DeckHeight * 0.5f;
+
+        // ── 사람이 있을 때 ───────────────────
+        RectTransform filled = Rect("Filled", slot);
+        Stretch(filled, 0f, 0f, 0f, 0f);
+
+        RectTransform plate = Rect("Backplate", filled);
+        Place(plate, Half, new Vector2(0f, portraitY), new Vector2(portrait, portrait));
+        Img(plate, Sprite3("portrait-backplate"), Color.white);
 
         Mask mask = plate.gameObject.AddComponent<Mask>();
         mask.showMaskGraphic = false;
 
         // ⚠ Image 가 아니라 **RawImage** 입니다. 사진이 스프라이트가 아니라
         //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
-        //    그림 한 장을 박아두면 4명이 전부 같은 얼굴이 됩니다.
+        //    **찍은 사진이 먼저입니다.** 준비된 그림은 그때까지만 보입니다.
         RectTransform face = Rect("Face", plate);
         Stretch(face, 0f, 0f, 0f, 0f);
 
         RawImage faceImage = face.gameObject.AddComponent<RawImage>();
         faceImage.raycastTarget = false;
 
-        // 사진이 아직 없을 때 보이는 것. 찍히면 덮인다.
+        // ⚠ **사진이 오기 전에는 거의 투명해야 합니다.** RawImage 는 텍스처가 없으면
+        //    흰색으로 칠해집니다. 불투명하게 두면 네 칸이 전부 흰 네모가 됩니다.
+        //    사진이 찍히면 런타임이 흰색으로 되돌립니다.
         faceImage.color = new Color(1f, 1f, 1f, 0.15f);
 
         // 색 테두리는 마스크 밖에 둔다. 안에 두면 같이 잘린다.
         RectTransform ring = Rect("Frame", slot);
-        Place(ring, Half, new Vector2(0f, 16f), new Vector2(108f, 108f));
-        Image ringImage = Img(ring, Sprite(frameSprite), Color.white);
+        Place(ring, Half, new Vector2(0f, portraitY), new Vector2(portrait + 8f, portrait + 8f));
+        Image ringImage = Img(ring, Sprite3(frameSprite), Color.white);
+        ringImage.preserveAspect = true;
 
-        // P1 ~ P4 배지는 두지 않는다. 색 테두리 네 가지가 이미 사람을 구분한다.
-        // 같은 것을 두 번 말하면 읽을 것만 늘어난다.
+        // 이름. 원격 플레이어는 이름이 동기화되지 않아 런타임이 번호로 적는다.
+        TextMeshProUGUI nameLabel = Text("Name", filled, $"선원 {index + 1}", 17f, TextAlignmentOptions.Center);
+        Place((RectTransform)nameLabel.transform, Half,
+              new Vector2(0f, nameY), new Vector2(step - 8f, NameHeight));
+        Shrink(nameLabel, 11f, 17f);
 
-        TextMeshProUGUI deck = Text("Deck", slot, "—", 20f, TextAlignmentOptions.Center);
-        Place((RectTransform)deck.transform, Half, new Vector2(0f, -56f), new Vector2(128f, 30f));
+        TextMeshProUGUI deck = Text("Deck", filled, "—", 15f, TextAlignmentOptions.Center);
+        Place((RectTransform)deck.transform, Half,
+              new Vector2(0f, deckY), new Vector2(step - 8f, DeckHeight));
+        deck.color = Cream;
+        Shrink(deck, 10f, 15f);
 
         // 🆘 — 그림 대신 **빨간 글씨**를 초상화 아래쪽에 겹친다.
         //
         // 경고 아이콘을 초상화 옆에 붙여봤더니 무슨 뜻인지 안 읽혔다.
         // 얼굴 위에 빨갛게 덮이는 편이 훨씬 빨리 눈에 들어온다.
-        RectTransform help = Rect("HelpBadge", slot);
-        Place(help, Half, new Vector2(0f, -18f), new Vector2(104f, 30f));
+        RectTransform help = Rect("HelpBadge", filled);
+        Place(help, Half, new Vector2(0f, portraitY - portrait * 0.28f), new Vector2(portrait - 4f, 28f));
         Img(help, Sprite("portrait-backplate"), new Color(0f, 0f, 0f, 0.55f));
 
-        TextMeshProUGUI helpText = Text("Label", help, "도움!", 20f, TextAlignmentOptions.Center);
+        TextMeshProUGUI helpText = Text("Label", help, "🆘 도와줘", 16f, TextAlignmentOptions.Center);
         helpText.color = DangerRed;
         helpText.fontStyle = FontStyles.Bold;
+        Shrink(helpText, 10f, 16f);
 
         help.gameObject.SetActive(false);
+
+        // ── 아직 아무도 안 들어온 칸 ──────────
+        //
+        // 칸을 통째로 숨기면 **누가 빠졌는지가 화면에서 사라진다.** 자리를 비워 두고
+        // 비었다고 말해줘야 기다릴지 시작할지를 정할 수 있다.
+        RectTransform empty = Rect("Empty", slot);
+        Stretch(empty, 0f, 0f, 0f, 0f);
+
+        RectTransform emptyPlate = Rect("Plate", empty);
+        Place(emptyPlate, Half, new Vector2(0f, portraitY), new Vector2(portrait, portrait));
+        Img(emptyPlate, Sprite3("portrait-backplate"), new Color(1f, 1f, 1f, 0.25f));
+
+        TextMeshProUGUI emptyText = Text("Label", empty, "빈 자리", 15f, TextAlignmentOptions.Center);
+        Place((RectTransform)emptyText.transform, Half,
+              new Vector2(0f, nameY), new Vector2(step - 8f, NameHeight));
+        emptyText.color = new Color(Cream.r, Cream.g, Cream.b, 0.55f);
+        Shrink(emptyText, 10f, 15f);
+
+        empty.gameObject.SetActive(false);
 
         return new ShipCoopHud.PortraitSlot
         {
@@ -482,6 +802,9 @@ public static class ShipCoopHudV2Art
             deckLabel = deck,
             helpBadge = help.gameObject,
             face = faceImage,
+            nameLabel = nameLabel,
+            filled = filled.gameObject,
+            empty = empty.gameObject,
         };
     }
 
@@ -496,7 +819,6 @@ public static class ShipCoopHudV2Art
         Set(so, "hpLabel", w.HpLabel);
         Set(so, "timeLabel", w.TimeLabel);
         Set(so, "progressFill", w.ProgressFill);
-        Set(so, "shipMarker", w.ShipMarker);
         Set(so, "expectedMarker", w.ExpectedMarker);
         Set(so, "delayFill", w.DelayFill);
         Set(so, "behindWarning", w.BehindWarning);
@@ -509,14 +831,22 @@ public static class ShipCoopHudV2Art
         Set(so, "interactIcon", w.InteractIcon);
         Set(so, "interactKeycap", w.InteractKeycap);
 
+        Set(so, "courseWarningRoot", w.CourseWarningRoot);
+        Set(so, "courseWarningVignette", w.CourseWarningVignette);
+        Set(so, "courseWarningLabel", w.CourseWarningLabel);
+
         // 사건 아이콘 다섯 종류. 암초와 파도가 같은 그림이면 목록에서 구분이 안 된다.
-        Set(so, "eventIconHull", Sprite("icon-hull-breach"));
-        Set(so, "eventIconSail", Sprite("icon-sails"));
-        Set(so, "eventIconCannon", Sprite("icon-cannon"));
-        Set(so, "eventIconHelm", Sprite("icon-helm"));
-        Set(so, "eventIconReef", Sprite("icon-reef"));
-        Set(so, "eventIconWave", Sprite("icon-water"));
-        Set(so, "eventIconEnemy", Sprite("icon-enemy-ship"));
+        // 새 픽토그램 5종. 사건마다 그림이 다르지 않으면 목록에서 구분이 안 된다.
+        //
+        // 돌풍(Sail) 과 조타(Helm) 는 전용 그림이 따로 없다. 돌풍은 그대로 돌풍 그림을 쓰고,
+        // 조타로 넘기는 사건은 암초와 파도뿐이라 각자 자기 그림으로 간다.
+        Set(so, "eventIconHull", Sprite4("event-hull-damage"));
+        Set(so, "eventIconSail", Sprite4("event-squall"));
+        Set(so, "eventIconCannon", Sprite4("event-enemy-ship"));
+        Set(so, "eventIconHelm", Sprite4("event-reef"));
+        Set(so, "eventIconReef", Sprite4("event-reef"));
+        Set(so, "eventIconWave", Sprite4("event-big-wave"));
+        Set(so, "eventIconEnemy", Sprite4("event-enemy-ship"));
 
         Set(so, "taskIconHelm", Sprite("icon-helm"));
         Set(so, "taskIconSails", Sprite("icon-sails"));
@@ -544,6 +874,11 @@ public static class ShipCoopHudV2Art
             item.FindPropertyRelative("timer").objectReferenceValue = w.EventRows[i].timer;
             item.FindPropertyRelative("icon").objectReferenceValue = w.EventRows[i].icon;
             item.FindPropertyRelative("accent").objectReferenceValue = w.EventRows[i].accent;
+            item.FindPropertyRelative("title").objectReferenceValue = w.EventRows[i].title;
+            item.FindPropertyRelative("seconds").objectReferenceValue = w.EventRows[i].seconds;
+            item.FindPropertyRelative("badge").objectReferenceValue = w.EventRows[i].badge;
+            item.FindPropertyRelative("badgeLabel").objectReferenceValue = w.EventRows[i].badgeLabel;
+            item.FindPropertyRelative("timerTrack").objectReferenceValue = w.EventRows[i].timerTrack;
         }
 
         SerializedProperty slots = so.FindProperty("portraits");
@@ -556,6 +891,9 @@ public static class ShipCoopHudV2Art
             item.FindPropertyRelative("deckLabel").objectReferenceValue = w.Portraits[i].deckLabel;
             item.FindPropertyRelative("helpBadge").objectReferenceValue = w.Portraits[i].helpBadge;
             item.FindPropertyRelative("face").objectReferenceValue = w.Portraits[i].face;
+            item.FindPropertyRelative("nameLabel").objectReferenceValue = w.Portraits[i].nameLabel;
+            item.FindPropertyRelative("filled").objectReferenceValue = w.Portraits[i].filled;
+            item.FindPropertyRelative("empty").objectReferenceValue = w.Portraits[i].empty;
         }
 
         so.ApplyModifiedPropertiesWithoutUndo();
@@ -635,6 +973,86 @@ public static class ShipCoopHudV2Art
         Image image = Img(rt, sprite, Cream);
         image.preserveAspect = true;
         return image;
+    }
+
+    /// <summary>
+    /// 금테 패널을 **비율 그대로** 깐다.
+    ///
+    /// `preserveAspect` 가 핵심이다. 패널 안에 아이콘과 트랙이 그려져 있어서
+    /// 가로세로를 따로 늘리면 조타륜이 타원이 되고 금테 굵기가 달라진다.
+    /// </summary>
+    private static Image Panel(RectTransform rt, string name)
+    {
+        Image image = Img(rt, Sprite3(name), Color.white);
+        image.preserveAspect = true;
+        return image;
+    }
+
+    /// <summary>
+    /// 패널의 빈 트랙 안에 딱 맞춰 넣는 게이지 채움.
+    ///
+    /// `position` 과 `size` 는 **패널 원본 픽셀에서 잰 값**을 그대로 받는다.
+    /// 여기서 화면 크기 비율(`scale`)을 곱한다. 그래야 패널 크기를 바꿔도
+    /// 채움이 트랙을 벗어나지 않는다.
+    /// </summary>
+    private static Image Fill(RectTransform parent, string name, Vector2 position, Vector2 size,
+                              float scale, Color color)
+    {
+        RectTransform rt = Rect("Fill", parent);
+        Place(rt, Half, position * scale, size * scale);
+
+        Image image = Img(rt, Sprite3(name), color);
+        image.type = Image.Type.Filled;
+        image.fillMethod = Image.FillMethod.Horizontal;
+        image.fillOrigin = (int)Image.OriginHorizontal.Left;
+        image.fillAmount = 1f;
+        return image;
+    }
+
+    /// <summary>
+    /// 글자가 자리를 넘으면 스스로 줄어들게 한다.
+    ///
+    /// 단계 문구는 `출항` 두 글자일 때도 있고 `플레이어 입장중...` 일 때도 있다.
+    /// 고정 크기로 두면 짧은 쪽에 맞추면 긴 쪽이 넘치고, 긴 쪽에 맞추면 짧은 쪽이 초라하다.
+    /// 한 줄로 묶어 두는 것도 같은 이유다 — 두 줄로 접히면 패널 위아래로 삐져나온다.
+    /// </summary>
+    private static void Shrink(TextMeshProUGUI text, float min, float max)
+    {
+        text.enableAutoSizing = true;
+        text.fontSizeMin = min;
+        text.fontSizeMax = max;
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Ellipsis;
+    }
+
+    /// <summary>사건 카드 한 벌에서 찾는다.</summary>
+    private static Sprite Sprite4(string name)
+    {
+        foreach (string guid in AssetDatabase.FindAssets($"{name} t:Sprite", new[] { ArtRootEvent }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(path) == name)
+            {
+                return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            }
+        }
+
+        throw new System.IO.FileNotFoundException($"{ArtRootEvent} 아래에 {name} 이 없다.");
+    }
+
+    /// <summary>새 패널 한 벌에서 찾는다. 옛 에셋과 이름이 겹쳐도 섞이지 않게 나눠 둔다.</summary>
+    private static Sprite Sprite3(string name)
+    {
+        foreach (string guid in AssetDatabase.FindAssets($"{name} t:Sprite", new[] { ArtRootV3 }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(path) == name)
+            {
+                return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            }
+        }
+
+        throw new System.IO.FileNotFoundException($"{ArtRootV3} 아래에 {name} 이 없다.");
     }
 
     private static Sprite Sprite(string name)
@@ -723,3 +1141,4 @@ public static class ShipCoopHudV2Art
         return new Color(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 }
+

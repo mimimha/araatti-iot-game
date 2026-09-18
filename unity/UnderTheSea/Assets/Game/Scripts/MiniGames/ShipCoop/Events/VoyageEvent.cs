@@ -228,6 +228,26 @@ public abstract class VoyageEvent : MonoBehaviour
     public bool HasCountdown =>
         CurrentStage == Stage.Warning ? warnSeconds > 0f : duration > 0f;
 
+    /// <summary>
+    /// 남은 초. 카드에 숫자로 띄우는 값이다.
+    ///
+    /// <see cref="HasCountdown"/> 가 거짓이면 셀 것이 없으므로 0 이다.
+    /// 올림해서 준다 — 0.4 초 남았는데 "0초" 라고 적으면 이미 끝난 것처럼 보인다.
+    /// </summary>
+    public int RemainingSeconds
+    {
+        get
+        {
+            if (!HasCountdown)
+            {
+                return 0;
+            }
+
+            float span = CurrentStage == Stage.Warning ? warnSeconds : duration;
+            return Mathf.Max(0, Mathf.CeilToInt(span - Elapsed));
+        }
+    }
+
     /// <summary>남은 비율. 1 에서 0 으로 줄어든다. 셀 것이 없으면 항상 1.</summary>
     public float Remaining01
     {

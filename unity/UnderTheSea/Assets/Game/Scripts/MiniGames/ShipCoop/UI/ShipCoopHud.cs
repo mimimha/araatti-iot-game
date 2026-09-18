@@ -40,6 +40,21 @@ public class ShipCoopHud : MonoBehaviour
 
         [Tooltip("왼쪽 경고선. 예고인지 이미 터졌는지를 색으로 보여준다.")]
         public Image accent;
+
+        [Tooltip("타이머 바탕. 셀 것이 없는 사건(선체 파손)에서는 채움과 함께 꺼진다.")]
+        public GameObject timerTrack;
+
+        [Tooltip("오른쪽 위 '예고 / 발생' 배지 바탕. 색으로 단계를 말한다.")]
+        public Image badge;
+
+        [Tooltip("배지 안의 글자.")]
+        public TextMeshProUGUI badgeLabel;
+
+        [Tooltip("남은 초. 셀 것이 없으면 꺼진다.")]
+        public TextMeshProUGUI seconds;
+
+        [Tooltip("사건 이름. 갑판은 여기 넣지 않는다 — 아래 보조 문구로 간다.")]
+        public TextMeshProUGUI title;
     }
 
     /// <summary>
@@ -76,6 +91,15 @@ public class ShipCoopHud : MonoBehaviour
         //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
         [Tooltip("그 사람의 캐릭터를 찍은 사진. ShipCoopPortrait 가 채운다.")]
         public RawImage face;
+
+        [Tooltip("그 사람의 이름. 원격 플레이어는 이름이 동기화되지 않아 '선원 N' 으로 적는다.")]
+        public TextMeshProUGUI nameLabel;
+
+        [Tooltip("사람이 있을 때 켜는 묶음 — 사진 · 이름 · 갑판.")]
+        public GameObject filled;
+
+        [Tooltip("아직 아무도 안 들어온 칸에 켜는 표시.")]
+        public GameObject empty;
     }
 
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
@@ -116,6 +140,39 @@ public class ShipCoopHud : MonoBehaviour
 
     [Tooltip("늦고 있을 때만 켜진다.")]
     [SerializeField] private GameObject behindWarning;
+
+    [Header("항로 이탈 경고")]
+    // ⚠ **조타를 놓친 것은 화면 어디에도 안 나와 있었습니다.**
+    //
+    //    뱃머리가 틀어지면 속도가 깎이는데, 깎이고 있다는 사실을 알려주는 것이
+    //    아무것도 없었습니다. 배는 그냥 느려지고 왜 느린지는 아무도 모릅니다.
+    //    조타에 붙어 있는 사람만 게이지로 알 수 있고, 나머지 셋은 알 방법이 없습니다.
+    //
+    //    손실은 40° 근처부터 급해집니다. (0° 기준 30°는 -10%, 45°는 -22%, 60°는 -38%)
+    //    그래서 그 언저리부터 화면 가장자리를 붉게 물들여 **누구든** 알아채게 합니다.
+    [Tooltip("항로를 벗어났을 때 켜지는 묶음. 화면 가장자리 붉은 테두리와 문구.")]
+    [SerializeField] private GameObject courseWarningRoot;
+
+    [Tooltip("화면 가장자리에 까는 비네트. 깜빡임은 이 색의 알파로 준다.")]
+    [SerializeField] private Image courseWarningVignette;
+
+    [Tooltip("무엇을 해야 하는지 알려주는 문구.")]
+    [SerializeField] private TextMeshProUGUI courseWarningLabel;
+
+    [Tooltip("항로 계수(뱃머리가 목적지를 향한 정도)가 이 아래로 내려가면 경고를 켠다.\n" +
+             "0.82 는 약 35°. 이보다 덜 틀어진 것은 속도 손실이 5% 안쪽이라 알릴 값이 아니다.")]
+    [SerializeField, Range(0f, 1f)] private float courseWarnBelow = 0.82f;
+
+    [Tooltip("이 아래로는 경고가 가장 세게 뜬다.\n0.55 는 약 57°. 조타 최대각(60°)이 거의 여기다.")]
+    [SerializeField, Range(0f, 1f)] private float courseCriticalBelow = 0.55f;
+
+    [Tooltip("깜빡이는 빠르기 (초당 회)")]
+    [SerializeField, Min(0f)] private float coursePulseSpeed = 2.2f;
+
+    [Tooltip("가장 약할 때와 가장 셀 때의 진하기")]
+    [SerializeField, Range(0f, 1f)] private float courseAlphaMin = 0.16f;
+
+    [SerializeField, Range(0f, 1f)] private float courseAlphaMax = 0.52f;
 
     [Header("침수")]
     [Tooltip("물이 찼을 때만 켜진다. 물이 0 이면 아무것도 안 보여야 한다.\n" +
@@ -166,7 +223,7 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Sprite eventIconEnemy;
 
     [Header("팀원 초상화 — 층과 🆘 만 보여준다")]
-    [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 꺼진다.")]
+    [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 '빈 자리' 로 남는다 — 누가 빠졌는지 보여야 한다.")]
     [SerializeField] private PortraitSlot[] portraits;
 
     [Tooltip("아직 어느 갑판인지 모를 때 (배 밖이거나 떨어지는 중)")]
@@ -280,9 +337,65 @@ public class ShipCoopHud : MonoBehaviour
         UpdatePhase();
         UpdateProgress();
         UpdateFlooding();
+        UpdateCourseWarning();
         UpdateEvents();
         UpdatePortraits();
         UpdateInteract();
+    }
+
+    /// <summary>
+    /// 뱃머리가 틀어졌다고 화면 가장자리로 알린다.
+    ///
+    /// **속도가 왜 떨어지는지를 말해주는 유일한 표시입니다.** 조타에 붙은 사람은
+    /// 게이지로 알지만, 수리하거나 포탄을 나르는 나머지 셋은 알 방법이 없었습니다.
+    /// 가장자리를 물들이면 어디를 보고 있든 눈에 들어옵니다.
+    ///
+    /// ⚠ **조금 틀어진 것으로는 뜨지 않습니다.** cos 곡선이라 30° 까지는 손실이
+    ///    10% 뿐인데, 그걸로도 경고를 띄우면 경고가 늘 켜져 있는 것이 되어
+    ///    아무도 안 봅니다. 손실이 급해지는 35° 근처부터 켭니다.
+    /// </summary>
+    private void UpdateCourseWarning()
+    {
+        if (courseWarningRoot == null || voyage == null)
+        {
+            return;
+        }
+
+        // 1 이면 정면, 0.5 면 60° 로 최대까지 틀어진 상태다.
+        float course = Mathf.Clamp01(voyage.CourseFactor);
+
+        // 켤지 말지와 얼마나 세게 켤지. 경계에서 갑자기 켜지지 않도록 사이를 편다.
+        float severity = Mathf.InverseLerp(courseWarnBelow, courseCriticalBelow, course);
+
+        bool show = severity > 0f;
+        if (courseWarningRoot.activeSelf != show)
+        {
+            courseWarningRoot.SetActive(show);
+        }
+
+        if (!show)
+        {
+            return;
+        }
+
+        if (courseWarningVignette != null)
+        {
+            // 깜빡임. 0 까지 내려가면 꺼진 것처럼 보여서 바닥을 남긴다.
+            float pulse = 0.65f + 0.35f * Mathf.Sin(Time.time * coursePulseSpeed * Mathf.PI * 2f);
+
+            Color color = courseWarningVignette.color;
+            color.a = Mathf.Lerp(courseAlphaMin, courseAlphaMax, severity) * pulse;
+            courseWarningVignette.color = color;
+        }
+
+        if (courseWarningLabel != null)
+        {
+            // 각도를 숫자로 적지 않는다. 얼마나 틀어졌는지가 아니라
+            // **무엇을 해야 하는지**가 필요한 순간이다.
+            courseWarningLabel.text = severity >= 1f
+                ? "항로를 크게 벗어났다\n<size=65%>조타를 가운데로 — 속도가 절반 가까이 떨어진다</size>"
+                : "뱃머리가 틀어졌다\n<size=65%>조타를 가운데로</size>";
+        }
     }
 
     /// <summary>
@@ -350,14 +463,32 @@ public class ShipCoopHud : MonoBehaviour
 
             bool has = i < crew.Length && crew[i] != null;
 
+            // ⚠ **빈 칸을 통째로 숨기지 않는다.** 예전에는 숨겼는데, 그러면 아직 안 들어온
+            //    사람이 있다는 사실이 화면에서 사라진다. 네 칸을 늘 보여주고 빈 칸은
+            //    비었다고 말해준다. 누가 빠졌는지가 보여야 기다릴지 말지를 정할 수 있다.
             if (slot.root != null)
             {
-                slot.root.SetActive(has);
+                slot.root.SetActive(true);
+            }
+
+            if (slot.filled != null)
+            {
+                slot.filled.SetActive(has);
+            }
+
+            if (slot.empty != null)
+            {
+                slot.empty.SetActive(!has);
             }
 
             if (!has)
             {
                 continue;
+            }
+
+            if (slot.nameLabel != null)
+            {
+                slot.nameLabel.text = NameOf(crew[i], i);
             }
 
             if (slot.deckLabel != null)
@@ -384,8 +515,31 @@ public class ShipCoopHud : MonoBehaviour
                     slot.face.texture = shot;
                     slot.face.color = Color.white;
                 }
+
             }
         }
+    }
+
+    /// <summary>
+    /// 칸에 적을 이름.
+    ///
+    /// ⚠ **원격 플레이어의 이름은 동기화되지 않습니다.** 네트워크로 스폰된 캐릭터는
+    ///    전부 <c>ShipCoopPlayer(Clone)</c> 라 이름이 없습니다. 내 이름만 로컬에
+    ///    저장돼 있어서, 내 칸은 그 이름을 쓰고 나머지는 번호로 적습니다.
+    ///    진짜 이름을 넷 다 띄우려면 네트워크 값이 하나 더 있어야 합니다.
+    /// </summary>
+    private string NameOf(TaskWorker who, int index)
+    {
+        if (who != null && who == LocalWorker)
+        {
+            string mine = SceneFlow.Nickname;
+            if (!string.IsNullOrWhiteSpace(mine))
+            {
+                return mine;
+            }
+        }
+
+        return $"선원 {index + 1}";
     }
 
     /// <summary>
@@ -595,6 +749,28 @@ public class ShipCoopHud : MonoBehaviour
                 row.label.text = WithHint(e.WarningLine, showHint ? e.LiveHint() : null);
             }
 
+            // 제목과 보조 문구를 따로 쓰는 카드. (`label` 하나로 쓰던 옛 방식과 함께 둔다)
+            //
+            // 갑판 이름은 **제목이 아니라 보조 문구로** 간다. 제목은 무슨 일인지만
+            // 말해야 크게 뽑을 수 있고, 어디인지는 그 아래 작은 줄이 말해준다.
+            if (row.title != null)
+            {
+                row.title.text = e.WarningText;
+            }
+
+            if (row.label != null && row.title != null)
+            {
+                string hint = e.IsWarning || e.HintIsUrgent ? e.LiveHint() : null;
+                ShipDeck deck = e.Where;
+
+                if (deck != null)
+                {
+                    hint = string.IsNullOrEmpty(hint) ? deck.DeckName : $"{hint}  ·  {deck.DeckName}";
+                }
+
+                row.label.text = hint ?? string.Empty;
+            }
+
             if (row.icon != null)
             {
                 Sprite icon = IconOf(e);
@@ -613,17 +789,45 @@ public class ShipCoopHud : MonoBehaviour
                 row.accent.color = stage;
             }
 
+            // 예고인지 발생인지를 글자로도 말한다. 색만으로는 색각 이상이 있으면 안 읽힌다.
+            if (row.badge != null)
+            {
+                row.badge.color = stage;
+            }
+
+            if (row.badgeLabel != null)
+            {
+                row.badgeLabel.text = e.IsWarning ? "예고" : "발생";
+            }
+
+            // 셀 것이 없으면 게이지도 숫자도 숨긴다. 줄어들지 않는 게이지는 오해를 준다.
+            // 예고 중이면 발생까지, 터진 뒤면 실패까지 센다.
+            bool timed = e.HasCountdown;
+
             if (row.timer != null)
             {
-                // 셀 것이 없으면 게이지를 숨긴다. 줄어들지 않는 게이지는 오해를 준다.
-                // 예고 중이면 발생까지, 터진 뒤면 실패까지 센다.
-                bool timed = e.HasCountdown;
                 row.timer.gameObject.SetActive(timed);
 
                 if (timed)
                 {
                     row.timer.fillAmount = e.Remaining01;
                     row.timer.color = stage;
+                }
+            }
+
+            if (row.timerTrack != null)
+            {
+                row.timerTrack.SetActive(timed);
+            }
+
+            if (row.seconds != null)
+            {
+                row.seconds.gameObject.SetActive(timed);
+
+                if (timed)
+                {
+                    row.seconds.text = $"{e.RemainingSeconds}초";
+                    row.seconds.color = stage;
                 }
             }
         }
@@ -679,7 +883,7 @@ public class ShipCoopHud : MonoBehaviour
             DroppedCargo lying = carry.FindReachableDrop();
             if (lying != null)
             {
-                Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "두고 간 것을 다시 든다"),
+                Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "꾹 누른 채로 들고 간다"),
                      -1f, IconOfCargo(lying.Kind));
                 return;
             }
@@ -860,8 +1064,9 @@ public class ShipCoopHud : MonoBehaviour
             return "구멍부터 막아라 — 퍼내도 다시 찬다";
         }
 
-        // 키는 키캡이 말한다. 제목이 이미 "… 집기" 라 더 붙일 말이 없다.
-        return null;
+        // ⚓ 셋 다 누르고 있어야 들려 있다. 집는 순간 그 말을 해줘야 한다.
+        //    한 번 누르고 손을 떼면 그 자리에 도로 떨어져서 고장 난 줄 안다.
+        return "꾹 누른 채로 들고 간다";
     }
 
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
@@ -869,20 +1074,28 @@ public class ShipCoopHud : MonoBehaviour
     {
         switch (carry.Carrying)
         {
-            case Cargo.Ammo:
-                return carry.FindLoadableCannon() != null ? "싣기" : "대포로";
-
+            // ⚓ **셋 다 꾹 누르고 있어야 들려 있다.** 떼는 순간이 곧 내려놓는 순간이라
+            //    "싣기 · 건네기 · 버리기" 가 아니라 **손을 떼라**고 말해줘야 한다.
+            //    누르라고 적으면 이미 누르고 있는 사람에게 누르라고 말하는 셈이다.
+            //
             // ⚠ "빨간 지점으로" 가 아니라 "**자재가 필요한** 빨간 지점으로" 다.
-            //    이미 자재를 받은 지점 앞에 서 있으면 건네기가 안 되고 Space 는
-            //    갑판에 내려놓는다. 그냥 "빨간 지점으로" 라고 하면 이미 그 앞에 서 있는
-            //    사람에게 거기로 가라고 말하는 셈이라 고장 난 줄 안다.
+            //    이미 자재를 받은 지점 앞에서 손을 떼면 건네기가 안 되고 갑판에 떨어진다.
+            //    그냥 "빨간 지점으로" 라고 하면 이미 그 앞에 서 있는 사람에게
+            //    거기로 가라고 말하는 셈이라 고장 난 줄 안다.
+            case Cargo.Ammo:
+                return carry.FindLoadableCannon() != null
+                    ? "손 떼서 싣기"
+                    : "꾹 누른 채로 · 대포로";
+
             case Cargo.Plank:
                 return carry.FindPointWantingPlank() != null
-                    ? "건네기"
-                    : "자재가 필요한 빨간 지점으로";
+                    ? "손 떼서 건네기"
+                    : "꾹 누른 채로 · 자재가 필요한 빨간 지점으로";
 
             case Cargo.Water:
-                return carry.FindReachableDump() != null ? "버리기" : "파란 뱃전으로";
+                return carry.FindReachableDump() != null
+                    ? "손 떼서 버리기"
+                    : "꾹 누른 채로 · 파란 뱃전으로";
 
             default:
                 return null;
