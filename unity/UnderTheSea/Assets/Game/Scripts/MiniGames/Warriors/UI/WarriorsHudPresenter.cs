@@ -147,6 +147,14 @@ namespace Warriors
 
         public int NetworkScore { get; set; }
 
+        /// <summary>
+        /// 내 연속 처치 수. <c>WarriorsLocalView</c> 가 내 캐릭터의 복제 값을 넣어 준다.
+        ///
+        /// 싱글 씬의 <c>WarriorsComboSystem</c> 은 네트워크에서 서버에만 붙어 있어
+        /// 클라이언트에서는 늘 0 이었다. 그래서 점수·처치처럼 복제 값을 따로 받는다.
+        /// </summary>
+        public int NetworkCombo { get; set; }
+
         /// <summary>1페이즈 처치 수. 결과 화면의 "몬스터 처치".</summary>
         public int NetworkKills { get; set; }
 
@@ -570,7 +578,7 @@ namespace Warriors
                 : $"처치 수   {score.Kills} / {score.TargetKills}");
             SetFill(phaseFill, progress);
             Set(scoreText, (net ? NetworkScore : score.Score).ToString("N0"));
-            Set(comboText, $"COMBO  {(combo != null ? combo.Combo : 0)}");
+            Set(comboText, $"COMBO  {(net ? NetworkCombo : combo != null ? combo.Combo : 0)}");
             int activePlayers = ResolveConnectedPlayers();
             // Health is one shared pool, so putting it on both rows drew the same bar twice
             // and said nothing about either player. What differs between them is what each

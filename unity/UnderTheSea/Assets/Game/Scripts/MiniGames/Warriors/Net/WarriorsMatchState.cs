@@ -137,7 +137,7 @@ namespace Warriors.Net
         [Tooltip("크라켄을 쓰러뜨린 뒤 결과 화면까지 천천히 어두워지는 시간(초). 라운드 사이보다 길다.")]
         [SerializeField, Min(0f)] private float finaleFadeSeconds = 1.6f;
 
-        [Header("점수 — 밸런스 미확정 (WARRIORS.md 4장)")]
+        [Header("점수 — 밸런스 미확정 (WARRIORS.md 3장)")]
         [Tooltip("1페이즈 몬스터 한 마리.")]
         [SerializeField, Min(0)] private int killScore = 100;
 
@@ -1197,6 +1197,16 @@ namespace Warriors.Net
             {
                 if (one == null || !one.IsLive || !one.IsDown) continue;
 
+                // ⚠ **쓰러진 사람의 화면에만 띄운다.**
+                //
+                //    예전에는 누가 쓰러지든 두 화면 모두에 떴다. 멀쩡히 싸우고 있는 사람에게
+                //    "플레이어가 쓰러졌습니다" 가 뜨면 **자기가 쓰러진 줄 안다.** 그렇다고
+                //    "1P 가" 처럼 번호를 붙이는 것도 안 된다 — 확정 문구에 P1/P2 표기는 없다.
+                //
+                //    남은 사람이 할 수 있는 일도 없다. 구조·부활은 규칙에서 빠졌다.
+                //    그러니 알릴 이유가 있는 것은 당사자뿐이다.
+                if (one.Object == null || !one.Object.HasInputAuthority) continue;
+
                 return "플레이어가 쓰러졌습니다.";
             }
 
@@ -1248,6 +1258,29 @@ namespace Warriors.Net
             }
 
             return -1f;
+        }
+
+        /// <summary>
+        /// **이 화면 주인의 콤보.** 서버가 센 값을 그대로 읽는다.
+        ///
+        /// 콤보는 판이 아니라 사람마다 다른 값이라 <see cref="WarriorsNetPlayerCombat"/> 에
+        /// 복제해 두었다. 여기서는 <b>내 캐릭터</b>의 것만 골라 HUD 에 넘긴다 —
+        /// 남의 콤보를 내 화면에 띄우면 안 된다.
+        ///
+        /// ⚠ 서버에서는 <c>HasInputAuthority</c> 인 캐릭터가 없어 0 이다. 서버에는 HUD 도 없다.
+        /// </summary>
+        private int LocalCombo()
+        {
+            foreach (WarriorsNetPlayerCombat one in FindObjectsByType<WarriorsNetPlayerCombat>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || one.Object == null || !one.Object.IsValid) continue;
+                if (!one.Object.HasInputAuthority) continue;
+
+                return one.Combo;
+            }
+
+            return 0;
         }
 
         /// <summary>쓰러진 레인을 비트로 모은다. 0번 자리가 1P.</summary>
@@ -1312,6 +1345,7 @@ namespace Warriors.Net
             hud.NetworkObjective = ObjectiveFor(Phase);
             hud.NetworkObjectiveProgress = ProgressFor(Phase);
             hud.NetworkScore = Score;
+            hud.NetworkCombo = LocalCombo();
             hud.NetworkKills = Phase1Kills;
             hud.NetworkElapsedSeconds = Elapsed;
             hud.NetworkFinal = Phase == WarriorsMatchPhase.Cleared ? 1 : Phase == WarriorsMatchPhase.Failed ? 2 : 0;
