@@ -78091,7 +78091,7 @@ MonoBehaviour:
   shapeTolerance: 2
   maxAlign: 0
   diagnosticAlign: 4
-  restoresPerPlayer: 1
+  restoreBlocks: 5
   hintSeconds: 3
   autoStart: 1
   boardSeed: 0

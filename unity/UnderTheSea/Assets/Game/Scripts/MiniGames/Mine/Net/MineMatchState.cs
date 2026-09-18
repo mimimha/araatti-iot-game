@@ -61,8 +61,8 @@ namespace Mine.Net
         [Tooltip("한 턴의 시간(초). MINE.md 2장 기준값은 30초다.")]
         [SerializeField, Min(1f)] private float turnSeconds = 30f;
 
-        [Tooltip("사람 한 명당 복구 블록 몇 개. 시작 인원 × 이 값이 팀 공용 총량이 된다.")]
-        [SerializeField, Min(0)] private int restoresPerPlayer = 1;
+        [Tooltip("이번 판에 주어지는 복구 블록 수. 인원과 무관한 고정값이며 팀 공용이다.")]
+        [SerializeField, Min(0)] private int restoreBlocks = 5;
 
         [Header("공개와 힌트 (MINE.md 2·3장)")]
         [Tooltip("목표 그림을 보여 주는 시간(초). 여기부터 기억으로 그린다.")]
@@ -327,8 +327,8 @@ namespace Mine.Net
 
             RosterSize = Mathf.Min(roster.Length, MineNet.MaxCrew);
 
-            // 복구 블록은 **시작 시점의 참가 인원 × 1회**다. 2명이면 2개다.
-            TotalRestores = RosterSize * restoresPerPlayer;
+            // 복구 블록은 **인원과 무관한 고정값**이다. 2명이든 4명이든 같다.
+            TotalRestores = restoreBlocks;
             RestoresLeft = TotalRestores;
 
             CurrentSlot = -1;

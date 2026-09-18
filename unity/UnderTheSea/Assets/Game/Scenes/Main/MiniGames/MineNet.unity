@@ -42603,7 +42603,7 @@ MonoBehaviour:
   crewToStart: 4
   countdownSeconds: 3
   turnSeconds: 30
-  restoresPerPlayer: 1
+  restoreBlocks: 5
   revealSeconds: 7
   hintSeconds: 3
   successThreshold: 60
@@ -78330,7 +78330,7 @@ MonoBehaviour:
   shapeTolerance: 2
   maxAlign: 0
   diagnosticAlign: 4
-  restoresPerPlayer: 1
+  restoreBlocks: 5
   hintSeconds: 3
   autoStart: 1
   boardSeed: 0

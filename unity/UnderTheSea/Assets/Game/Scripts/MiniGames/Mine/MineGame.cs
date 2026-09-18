@@ -107,9 +107,9 @@ public class MineGame : MonoBehaviour
     [SerializeField, Min(0)] private int diagnosticAlign = 4;
 
     [Header("복구와 힌트 (MINE.md 2·4장)")]
-    [Tooltip("사람 한 명당 복구 블록 몇 개. 1 이면 4명에 4개.\n" +
+    [Tooltip("이번 판에 주어지는 복구 블록 수. 인원과 무관한 고정값이다.\n" +
              "블록은 팀 공용이다. 7번 밸런싱에서 조정할 값이다.")]
-    [SerializeField, Min(0)] private int restoresPerPlayer = 1;
+    [SerializeField, Min(0)] private int restoreBlocks = 5;
 
     [Tooltip("힌트로 목표를 다시 보여주는 시간(초).\n" +
              "⚠ 보는 동안에도 턴 시간은 계속 흐른다. 그것이 힌트의 대가다.")]
@@ -155,8 +155,8 @@ public class MineGame : MonoBehaviour
     /// <summary>남은 복구 블록. **팀 공용이다.** (MINE.md 4장)</summary>
     public int RestoresLeft { get; private set; }
 
-    /// <summary>이번 판에 주어진 복구 블록 전체 수.</summary>
-    public int TotalRestores => playerCount * restoresPerPlayer;
+    /// <summary>이번 판에 주어진 복구 블록 전체 수. **인원과 무관한 고정값이다.**</summary>
+    public int TotalRestores => restoreBlocks;
 
     /// <summary>지금 힌트로 그림이 보이는 중인가.</summary>
     public bool HintShowing => _hintTimer > 0f;
