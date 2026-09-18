@@ -374,6 +374,27 @@ namespace UnderTheSea.Network.Editor
                 MineClientOutput, StandaloneBuildSubtarget.Player, MineScenes, ClientOptions));
         }
 
+        /// <summary>
+        /// <b>광산 한 쌍.</b> 서버 1 + 클라이언트 1 을 한 번의 Unity 실행으로 만든다.
+        ///
+        /// 광산 흐름을 붙이는 동안 둘을 계속 같이 다시 굽게 된다. 따로 부르면 Unity 기동
+        /// 비용(도메인 리로드 · 에셋 후처리)을 두 번 낸다. 실측으로 그 고정 비용이
+        /// 빌드 작업 자체보다 컸다.
+        /// </summary>
+        public static void BuildMinePairFromCommandLine()
+        {
+            if (!Ok("Mine DS", Build(
+                    MineServerOutput, StandaloneBuildSubtarget.Server,
+                    MineScenes, BuildOptions.None))) return;
+
+            if (!Ok("Mine 클라이언트", Build(
+                    MineClientOutput, StandaloneBuildSubtarget.Player,
+                    MineScenes, ClientOptions))) return;
+
+            Debug.Log("[FusionTestBuilds] 광산 한 쌍을 만들었습니다. (서버 1 · 클라이언트 1)");
+            EditorApplication.Exit(0);
+        }
+
         [MenuItem(MenuRoot + "정상 흐름 클라이언트 빌드 (Boot 부터)")]
         public static void BuildNormalFlowClient()
         {
