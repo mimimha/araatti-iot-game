@@ -2864,6 +2864,9 @@ GameObject:
   - component: {fileID: 7856585553687830260}
   - component: {fileID: 2327441312921421817}
   - component: {fileID: 722275418433031970}
+  - component: {fileID: 2374415249255082345}
+  - component: {fileID: 2401412249422510502}
+  - component: {fileID: 767444123376367489}
   m_Layer: 0
   m_Name: MineNetPlayer
   m_TagString: Untagged
@@ -3038,6 +3041,8 @@ MonoBehaviour:
   - {fileID: 1334800601220584296}
   - {fileID: 7856585553687830260}
   - {fileID: 2327441312921421817}
+  - {fileID: 2401412249422510502}
+  - {fileID: 767444123376367489}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &2702322525704471838
 MonoBehaviour:
@@ -3118,6 +3123,8 @@ MonoBehaviour:
   _AnimAxis: {x: 0, y: 0}
   _Running:
     RawValue: 0
+  _Airborne:
+    RawValue: 0
 --- !u!114 &7856585553687830260
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3130,6 +3137,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04103ec1f37e7e24fb5ef23152a79fb7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineLocalView
+  resultSwapSeconds: 1.5
+  hintSwapSeconds: 0.5
 --- !u!114 &2327441312921421817
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3155,6 +3164,81 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MineJump
   mover: {fileID: 0}
+--- !u!114 &2374415249255082345
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741856755184999703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8462df2f05a0ea44f989ff1416dcc35d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Character.CharacterAppearanceApplier
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  slotBindings:
+  - slot: 64
+    renderer: {fileID: 2135646327256898157}
+  - slot: 1
+    renderer: {fileID: 1467087000224362899}
+  - slot: 2
+    renderer: {fileID: 3825083442117078074}
+  - slot: 4
+    renderer: {fileID: 7276876750094454990}
+  - slot: 8
+    renderer: {fileID: 4997552634034575179}
+  - slot: 16
+    renderer: {fileID: 9152933130151036393}
+  - slot: 32
+    renderer: {fileID: 6514700550374066616}
+  - slot: 128
+    renderer: {fileID: 7499179063151834433}
+  - slot: 256
+    renderer: {fileID: 2341849800682724820}
+  - slot: 512
+    renderer: {fileID: 343276489224619887}
+  - slot: 1024
+    renderer: {fileID: 5703801660239004648}
+  - slot: 2048
+    renderer: {fileID: 8363411514550856236}
+  - slot: 4096
+    renderer: {fileID: 1446142438479215764}
+  skinRenderers:
+  - {fileID: 2135646327256898157}
+  - {fileID: 1467087000224362899}
+  - {fileID: 7499179063151834433}
+  skinSourceMaterial: {fileID: 2100000, guid: 6a4c0a5109ac9314e97b0138b1203c35, type: 2}
+--- !u!114 &2401412249422510502
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741856755184999703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ffdbe8fb8ab274a8a7995830fc20a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerAppearance
+  catalog: {fileID: 11400000, guid: eeac976a8829862419aa24ca11bcd60b, type: 2}
+  applier: {fileID: 2374415249255082345}
+  hiddenUntilReady: []
+  _AppearanceReady:
+    RawValue: 0
+--- !u!114 &767444123376367489
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741856755184999703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0c4d1c5b37b2614baed2be28462f2b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameDefaultAppearance
+  waitSeconds: 20
 --- !u!1 &6783612424117079814
 GameObject:
   m_ObjectHideFlags: 0

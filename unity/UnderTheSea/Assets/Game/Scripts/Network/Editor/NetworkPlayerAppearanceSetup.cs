@@ -56,6 +56,7 @@ namespace UnderTheSea.Network.Editor
 
         private const string ShipCoopPrefabPath = "Assets/Game/Prefabs/Characters/ShipCoopPlayer.prefab";
         private const string WarriorsPrefabPath = "Assets/Game/Prefabs/MiniGames/Warriors/Player/WarriorsNetPlayer.prefab";
+        private const string MinePrefabPath = "Assets/Game/Prefabs/MiniGames/Mine/MineNetPlayer.prefab";
 
         [MenuItem("Tools/아라아띠/캐릭터 외형/NetworkPlayer 외형 배선")]
         public static void Wire() => WirePrefab(PrefabPath);
@@ -67,6 +68,18 @@ namespace UnderTheSea.Network.Editor
         public static void WireWarriors() => WirePrefab(WarriorsPrefabPath);
 
         public static void WireWarriorsFromCommandLine() => WireWarriors();
+
+        /// <summary>
+        /// 광산도 같은 모델을 쓴다. 메시 이름 13개가 그대로 맞는다.
+        ///
+        /// 붙이기 전에는 로비에서 꾸민 얼굴과 옷이 광산에 들어가면 샘플 캐릭터로 바뀌었다.
+        /// 검 게임이 겪은 것과 같은 일이고, 원인도 같다 — 프리팹에 이 부품이 없으면
+        /// 외형이 전달될 통로 자체가 없다.
+        /// </summary>
+        [MenuItem("Tools/아라아띠/캐릭터 외형/MineNetPlayer 외형 배선")]
+        public static void WireMine() => WirePrefab(MinePrefabPath);
+
+        public static void WireMineFromCommandLine() => WireMine();
 
         private static void WirePrefab(string prefabPath)
         {
