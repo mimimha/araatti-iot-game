@@ -134,10 +134,10 @@ public class MineDebugHud : MonoBehaviour
         if (!showKeyGuide) return;
 
         _sb.AppendLine();
-        _sb.AppendLine("방향키    이동");
-        _sb.AppendLine("F         휘두르기 (발밑 한 칸)");
+        _sb.AppendLine("WASD      이동");
+        _sb.AppendLine("Space     휘두르기 (발밑 한 칸)");
         _sb.AppendLine("C         되메우기 (발밑 · 블록 1개)");
-        _sb.AppendLine("V         힌트 (목표 다시 보기 · 1회)");
+        _sb.AppendLine("J         힌트 (목표 다시 보기 · 1회)");
         _sb.AppendLine($"{toggleKey}        이 개발용 표시 끄기");
     }
 

@@ -30,9 +30,27 @@ namespace Mine.Net
         private MineVision _vision;
         private MineGridView _board;
         private MineCursor _cursor;
+        private MineHud _hud;
+
+        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.")]
+        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1.5f;
+
+        [Tooltip("힌트 볼 때 몇 초마다 바꿀 것인가. 힌트는 짧으므로 더 빠르게 넘긴다.")]
+        [SerializeField, Min(0.1f)] private float hintSwapSeconds = 0.5f;
 
         private int _shownSlot = int.MinValue;
         private bool? _shownTarget;
+
+        /// <summary>지금 정답을 보여주고 있는가. 같은 겹침을 매 프레임 다시 칠하지 않으려고 기억한다.</summary>
+        private bool? _shownAnswer;
+
+        /// <summary>
+        /// 교대를 세기 시작한 시각. 결과 화면이나 힌트가 열린 순간이다.
+        ///
+        /// 이것이 없으면 <c>SimulationTime</c> 의 절대값으로 홀짝을 따지게 되어
+        /// <b>화면이 정답부터 열릴 수 있다.</b> 내 그림을 먼저 봐야 한다.
+        /// </summary>
+        private double _toggleAnchor;
 
         public override void Spawned()
         {
@@ -44,6 +62,7 @@ namespace Mine.Net
             _vision = FindAnyObjectByType<MineVision>();
             _board = FindAnyObjectByType<MineGridView>();
             _cursor = FindAnyObjectByType<MineCursor>(FindObjectsInactive.Include);
+            _hud = FindAnyObjectByType<MineHud>(FindObjectsInactive.Include);
 
             if (_camera == null)
             {
@@ -103,14 +122,97 @@ namespace Mine.Net
         }
 
         /// <summary>
+        /// HUD 힌트 칸에 적을 글자. <c>MineHud.RefreshHint</c> 의 규칙 그대로다.
+        ///
+        /// ⚠ <b>쓸 수 없는 때</b>와 <b>써버린 때</b>를 가른다. 내 턴이 아니면 "대기" 다.
+        ///   그걸 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
+        ///
+        /// 키는 <b>J</b> 다. 솔로도 같다 — 솔로는 <c>KeyboardPlayerController</c> 의
+        /// button2 가 J 로 묶여 있고, 네트워크는 <c>MineInputProvider</c> 의 jKey 다.
+        /// </summary>
+        private string HintCell(MineMatchState match)
+        {
+            if (match == null || _who == null || _who.Slot < 0) return string.Empty;
+
+            if (IsWatchingMyHint(match)) return "보는 중";
+            if (!_who.IsMyTurn) return "대기";
+
+            return _who.HintUsed ? "사용함" : "J · 1회";
+        }
+
+        /// <summary>힌트가 아직 살아 있는가. 보는 중이거나 내 턴에 아직 안 썼으면 살아 있다.</summary>
+        private bool HintAlive(MineMatchState match)
+        {
+            if (match == null || _who == null || _who.Slot < 0) return false;
+
+            return IsWatchingMyHint(match) || (_who.IsMyTurn && !_who.HintUsed);
+        }
+
+        private bool IsWatchingMyHint(MineMatchState match)
+        {
+            return match.HintLeft > 0f && match.HintSlot == _who.Slot;
+        }
+
+        /// <summary>
+        /// 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 <c>MineAnswerView</c> 와 같은 일이다.
+        ///
+        /// ⚠ <b>각자 타이머를 돌리지 않고 복제되는 시간에서 뽑는다.</b> 로컬 타이머는
+        ///   들어온 시각이 사람마다 달라서 화면끼리 박자가 엇갈린다. 옆 사람 화면을
+        ///   같이 보며 "저기 봐" 하는 게임인데 서로 다른 것을 보고 있으면 안 된다.
+        ///   <c>SimulationTime</c> 은 모두가 같은 값을 본다.
+        ///
+        /// 결과 화면에서 캐릭터가 떠밀릴 걱정은 없다. 정답 보기가 파인 칸을 끌어올리지만
+        /// 그때는 <c>MineNetPlayer.CanMoveNow</c> 가 false 여서 <c>MineNetPlayerMover</c>
+        /// 가 이미 <c>CharacterMover</c> 를 꺼 둔다. 힌트 중에는 자기 턴이라 켜져 있어서
+        /// <c>MineNetPlayer.WatchingOwnHint</c> 로 따로 막는다.
+        /// </summary>
+        private void TickAnswerToggle(MineMatchState match, float period, bool startOnAnswer)
+        {
+            if (_board == null || period <= 0f) return;
+
+            // (long) 으로 받는다. 판이 길어져도 int 로는 넘칠 수 있다.
+            long step = (long)((match.Runner.SimulationTime - _toggleAnchor) / period);
+            bool answer = ((step & 1) == 1) != startOnAnswer;
+
+            if (_shownAnswer == answer) return;
+
+            _shownAnswer = answer;
+            _board.SetOverlay(answer ? MineOverlay.Answer : MineOverlay.Result);
+        }
+
+        /// <summary>
         /// 화면은 매 프레임 정한다. 틱보다 촘촘해야 시점이 끊기지 않는다.
         /// </summary>
         public override void Render()
         {
-            if (!Object.HasInputAuthority || _camera == null) return;
+            if (!Object.HasInputAuthority) return;
 
             MineMatchState match = MineMatchState.Current;
+
+            // 내가 몇 번인지는 판이 어떤 상태든 늘 표시해 둔다. HUD 가 그 줄의 테두리를
+            // 다르게 칠한다. 창이 뜬 순서로는 알 수 없다 — 창은 프로세스가 시작한 순서,
+            // 슬롯은 서버에 붙은 순서다. 접속이 늦으면 먼저 띄운 창이 P2 가 된다.
+            //
+            // 힌트 칸도 여기서 넣는다. 판 전체를 보는 MineMatchState 는 이 화면의
+            // 주인이 누구인지 모르는데, 힌트는 남의 것이 아니라 **내 것**을 적어야 한다.
+            if (_hud != null)
+            {
+                _hud.NetworkSelfSlot = _who != null ? _who.Slot : -1;
+
+                _hud.NetworkHintText = HintCell(match);
+                _hud.NetworkHintLit = HintAlive(match);
+            }
+
             if (match == null) return;
+
+            // 시작 카운트다운 동안에는 돌 종류를 감춘다. 아직 아무도 못 파는 시간인데
+            // 단단한 돌이 어두운 얼룩으로 먼저 드러나면 판이 지저분해 보이고
+            // 어디가 단단한지도 미리 알려준다. 솔로(MineGame.EnterCountdown)와 같다.
+            //
+            // ⚠ 카메라보다 먼저 본다. 카메라를 못 찾은 화면에서도 판은 그려진다.
+            if (_board != null) _board.SetUniformStone(match.Phase == MineMatchPhase.Countdown);
+
+            if (_camera == null) return;
 
             // 판이 끝났다. 완성된 그림을 위에서 보여 준다. (MINE.md 3장 7번)
             // 늦게 들어온 사람도 Phase 가 복제되므로 같은 화면을 받는다.
@@ -122,6 +224,8 @@ namespace Mine.Net
                 {
                     _shownTarget = null;
                     _shownSlot = int.MinValue;
+                    _shownAnswer = null;
+                    _toggleAnchor = match.Runner.SimulationTime;
 
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
 
@@ -132,12 +236,28 @@ namespace Mine.Net
                     _camera.ShowBoard(finale: true);
                 }
 
+                // 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
+                TickAnswerToggle(match, resultSwapSeconds, startOnAnswer: false);
                 return;
             }
 
-            bool showTarget = match.ShowingTarget;
+            // ⚠ 목표를 보여 주는 두 경우를 <b>갈라서</b> 다룬다.
+            //
+            //   공개(7초)  판이 시작하기 전이니 모두가 같이 본다.
+            //   힌트      그 사람이 자기 한 번을 쓴 것이다. <b>쓴 사람만 본다.</b>
+            //
+            //   예전에는 둘 다 <c>ShowingTarget</c> 하나로 묶어 모두에게 탑뷰를 보였다.
+            //   그러면 관전자가 남의 힌트를 공짜로 같이 본다.
+            bool showTarget = match.Phase == MineMatchPhase.Reveal
+                             || (match.HintLeft > 0f && _who != null && _who.Slot == match.HintSlot);
 
-            // ⚠ **목표를 보는 동안에는 모두가 같은 화면을 본다.** 공개 7초도, 힌트도 같다.
+            // 남이 힌트를 보는 동안에는 보던 시점 그대로 두고 글자만 알려 준다.
+            if (_hud != null)
+            {
+                _hud.NetworkCenterNotice = (match.HintLeft > 0f && !showTarget) ? "힌트타임" : string.Empty;
+            }
+
+            // ⚠ **목표를 보는 사람만** 탑뷰로 바뀐다. 공개 7초는 모두, 힌트는 쓴 사람만이다.
             //    탑뷰 + 밝히기 + 도안 켜기가 함께 움직여야 한다. 셋 중 하나라도 빠지면
             //    반쪽이 된다. (MINE.md 6장)
             if (showTarget)
@@ -150,10 +270,22 @@ namespace Mine.Net
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
                     _shownSlot = int.MinValue;   // 끝나면 다시 붙이도록 기억을 지운다
 
-                    if (_board != null) { _board.SetTargetOffset(Vector2Int.zero); _board.SetOverlay(MineOverlay.Drawing); }
+                    // ⚠ Drawing 이 아니라 Answer 다. 이 분기는 공개와 힌트를 같이
+                    //   다루는데, Drawing 은 이미 판 칸을 회색으로 빼므로 힌트에서
+                    //   정답 위에 내가 판 자리가 겹쳐 보인다. 공개 때는 아직 파인 칸이
+                    //   없어 둘이 똑같이 그려지므로, Answer 로 두면 힌트만 달라진다.
+                    if (_board != null) { _board.SetTargetOffset(Vector2Int.zero); _board.SetOverlay(MineOverlay.Answer); }
                     if (_vision != null) { _vision.SetLit(true); _vision.Follow(null); }
                     _camera.ShowBoard();
+
+                    _shownAnswer = true;   // 위에서 Answer 로 켰다
+                    _toggleAnchor = match.Runner.SimulationTime;
                 }
+
+                // ⚠ 힌트만 번갈아 보여준다. 공개 7초는 **외우는 시간**이라 그대로 둔다 —
+                //   거기서 내 그림으로 넘어가면 외울 대상이 사라진다. 어차피 공개 때는
+                //   파인 칸이 없어 내 그림이 빈 판이다.
+                if (match.HintLeft > 0f) TickAnswerToggle(match, hintSwapSeconds, startOnAnswer: true);
 
                 return;
             }

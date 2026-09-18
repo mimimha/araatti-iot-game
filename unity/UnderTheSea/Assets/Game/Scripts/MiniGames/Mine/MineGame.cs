@@ -107,9 +107,9 @@ public class MineGame : MonoBehaviour
     [SerializeField, Min(0)] private int diagnosticAlign = 4;
 
     [Header("복구와 힌트 (MINE.md 2·4장)")]
-    [Tooltip("사람 한 명당 복구 블록 몇 개. 1 이면 4명에 4개.\n" +
+    [Tooltip("이번 판에 주어지는 복구 블록 수. 인원과 무관한 고정값이다.\n" +
              "블록은 팀 공용이다. 7번 밸런싱에서 조정할 값이다.")]
-    [SerializeField, Min(0)] private int restoresPerPlayer = 1;
+    [SerializeField, Min(0)] private int restoreBlocks = 5;
 
     [Tooltip("힌트로 목표를 다시 보여주는 시간(초).\n" +
              "⚠ 보는 동안에도 턴 시간은 계속 흐른다. 그것이 힌트의 대가다.")]
@@ -137,6 +137,9 @@ public class MineGame : MonoBehaviour
     private float _timer;
     private float _hintTimer;
 
+    /// <summary>캐릭터를 멈춰 둔 상태인가. 매 프레임 컴포넌트를 뒤지지 않으려고 기억한다.</summary>
+    private bool _frozen;
+
     /// <summary>지금 어느 단계인가.</summary>
     public MineState State { get; private set; } = MineState.Ready;
 
@@ -155,8 +158,8 @@ public class MineGame : MonoBehaviour
     /// <summary>남은 복구 블록. **팀 공용이다.** (MINE.md 4장)</summary>
     public int RestoresLeft { get; private set; }
 
-    /// <summary>이번 판에 주어진 복구 블록 전체 수.</summary>
-    public int TotalRestores => playerCount * restoresPerPlayer;
+    /// <summary>이번 판에 주어진 복구 블록 전체 수. **인원과 무관한 고정값이다.**</summary>
+    public int TotalRestores => restoreBlocks;
 
     /// <summary>지금 힌트로 그림이 보이는 중인가.</summary>
     public bool HintShowing => _hintTimer > 0f;
@@ -246,6 +249,13 @@ public class MineGame : MonoBehaviour
 
     private void Update()
     {
+        // ⚠ 판이 움직이는 동안에는 캐릭터를 멈춘다. 정답 보기로 넘어갈 때 파인 칸이
+        //   0.25m 올라오면서 콜라이더가 캐릭터를 떠밀기 때문이다.
+        //
+        //   **상태에서 파생시킨다.** 켜는 곳과 끄는 곳을 따로 두면 새는 길이 생긴다 —
+        //   턴이 넘어가며 힌트가 끝나면 TickHint 가 조기 반환해서 얼어붙은 채로 남는다.
+        SyncFrozen();
+
         // Ready 와 Finished 는 시간이 흐르지 않는다.
         if (State == MineState.Ready || State == MineState.Finished) return;
 
@@ -352,7 +362,10 @@ public class MineGame : MonoBehaviour
         //   되메우기도 같은 이유로 막힌다. 그림을 보는 동안 판은 멈춰 있는다.
         //   입력은 MineDigger 가 계속 읽어서 버린다. TickHint 가 다시 켜준다.
         digger.DiggingAllowed = false;
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
+        // ⚠ Drawing 이 아니라 Answer 다. Drawing 은 이미 판 칸을 회색으로 빼서
+        //   정답 위에 내가 판 자리가 겹쳐 보인다. 힌트는 "목표를 다시 보는" 시간이므로
+        //   공개 7초와 똑같이 정답만 보여준다.
+        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Answer); }
 
         // 어두우면 색을 바꿔봐야 안 보인다. 힌트 동안에는 판을 밝힌다. (MINE.md 6장)
         if (vision != null) vision.SetLit(true);
@@ -417,7 +430,15 @@ public class MineGame : MonoBehaviour
         SetOnlyDiggerActive(-1);
 
         // 판은 보이되 도안은 없다. 0 이 되면 EnterReveal 이 Drawing 으로 바꾼다.
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.None); }
+        //
+        // 돌 종류는 감춘다. 아직 아무도 못 파는 시간인데 단단한 돌이 어두운 얼룩으로
+        // 먼저 드러나면 판이 지저분해 보이고 어디가 단단한지도 미리 알려준다.
+        if (view != null)
+        {
+            view.SetTargetOffset(Vector2Int.zero);
+            view.SetOverlay(MineOverlay.None);
+            view.SetUniformStone(true);
+        }
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
         if (cameraRig != null) cameraRig.ShowBoard();
 
@@ -432,7 +453,12 @@ public class MineGame : MonoBehaviour
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);          // 보는 시간이지 파는 시간이 아니다
-        if (view != null) { view.SetTargetOffset(Vector2Int.zero); view.SetOverlay(MineOverlay.Drawing); }
+        if (view != null)
+        {
+            view.SetTargetOffset(Vector2Int.zero);
+            view.SetOverlay(MineOverlay.Drawing);
+            view.SetUniformStone(false);   // 여기부터는 돌 종류를 다시 보여준다
+        }
         // 그림을 봐야 하는 시간이므로 밝게. 랜턴은 필요 없다.
         if (vision != null) { vision.SetLit(true); vision.Follow(null); }
 
@@ -515,6 +541,8 @@ public class MineGame : MonoBehaviour
 
         TurnNumber = 0;
         SetOnlyDiggerActive(-1);
+
+        // 캐릭터를 멈추는 것은 Update 의 SyncFrozen 이 상태를 보고 한다.
 
         // 결과는 맞은 칸과 틀린 칸을 색으로 구분해 보여준다. (MINE.md 7장)
         // 도안 보기와 다른 방식으로 칠한다.
@@ -659,6 +687,53 @@ public class MineGame : MonoBehaviour
     /// **꺼진 동안에도 입력을 계속 읽어서 버려야** 하기 때문이다.
     /// 자세한 것은 MineDigger 쪽 주석에 적어두었다.
     /// </summary>
+    /// <summary>판이 움직이는 동안(결과 화면 · 힌트)에만 캐릭터를 멈춘다.</summary>
+    private void SyncFrozen()
+    {
+        bool want = State == MineState.Finished || HintShowing;
+        if (want != _frozen) SetPlayersFrozen(want);
+    }
+
+    /// <summary>
+    /// 캐릭터의 움직임을 멈추거나 풀어준다.
+    ///
+    /// <see cref="CharacterController"/> 를 끈다. 끄면 밀림 해소(depenetration)와
+    /// <c>Move</c> 가 멈춰서, 밑에 있던 블록이 올라와도 캐릭터가 떠밀리지 않는다.
+    /// 입력만 막아서는 안 된다 — 중력은 입력과 무관하게 계속 돈다.
+    ///
+    /// 멈출 때 <b>파인 칸 위에 서 있었으면 블록이 올라온 만큼 같이 올려준다.</b>
+    /// 안 그러면 올라온 블록에 키의 20% 가 묻힌다.
+    ///
+    /// 풀어줄 때는 되내리지 않는다. 컨트롤러가 다시 켜지므로 중력이 알아서 내려준다.
+    /// </summary>
+    private void SetPlayersFrozen(bool frozen)
+    {
+        _frozen = frozen;
+        if (diggers == null) return;
+
+        float lift = view != null ? view.AnswerLift : 0f;
+
+        for (int i = 0; i < diggers.Length; i++)
+        {
+            if (diggers[i] == null) continue;
+
+            // 컨트롤러가 채굴 컴포넌트와 같은 오브젝트에 있는지 확신할 수 없어 둘 다 본다.
+            CharacterController body = diggers[i].GetComponentInParent<CharacterController>();
+            if (body == null) body = diggers[i].GetComponentInChildren<CharacterController>(true);
+            if (body == null) continue;
+
+            // ⚠ 올리는 것을 컨트롤러를 끄기 **전에** 하면 밀림 계산이 한 번 더 돈다.
+            //   끄고 나서 transform 을 직접 옮긴다.
+            body.enabled = !frozen;
+
+            if (!frozen || lift <= 0f || grid == null) continue;
+            if (!grid.WorldToCell(body.transform.position, out int cx, out int cy)) continue;
+            if (!grid.IsDug(cx, cy)) continue;
+
+            body.transform.position += Vector3.up * lift;
+        }
+    }
+
     private void SetOnlyDiggerActive(int index)
     {
         CurrentDigger = null;
