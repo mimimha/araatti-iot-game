@@ -108,6 +108,9 @@ namespace Mine.Net
         private Renderer[] _skins;
         private Collider[] _hitboxes;
         private CharacterController _capsule;
+
+        /// <summary>외형을 입히는 부품. 있으면 감추기도 이쪽에 맡긴다.</summary>
+        private UnderTheSea.Character.CharacterAppearanceApplier _applier;
         private bool? _shownVisible;
 
         public override void Spawned()
@@ -115,6 +118,7 @@ namespace Mine.Net
             _skins = GetComponentsInChildren<Renderer>(true);
             _hitboxes = GetComponentsInChildren<Collider>(true);
             _capsule = GetComponent<CharacterController>();
+            _applier = GetComponent<UnderTheSea.Character.CharacterAppearanceApplier>();
 
             if (!HasStateAuthority) return;
 
@@ -185,9 +189,25 @@ namespace Mine.Net
             if (_shownVisible == visible) return;
             _shownVisible = visible;
 
-            if (_skins != null)
+            // ⚠ **`enabled` 로 감추면 안 된다.** `PeerMode.Multiple` 에서 Fusion 의
+            //    `RunnerVisibilityLink` 가 그 값을 자기 것으로 여기고, 다른 NetworkObject 가
+            //    스폰될 때마다 **스폰 순간의 값(= 전부 켜짐)으로 되돌려 놓는다.**
+            //    그러면 대기 중인 사람이 도로 나타나는데, 이 함수는 `_shownVisible` 에
+            //    "이미 껐다" 고 적어 두었으므로 **다시 끄지 않는다.**
+            //    실제로 두 명이 들어가면 대기자가 판 위에 서 있었다.
+            //
+            //    `forceRenderingOff` 는 Fusion 이 건드리지 않는다. 그래서 외형 부품과 같은
+            //    스위치를 쓰되, 이유는 따로 들고 간다(`SetPresenceHidden`).
+            if (_applier != null)
+            {
+                _applier.SetPresenceHidden(!visible);
+            }
+            else if (_skins != null)
+            {
+                // 외형 부품이 없는 구성(단순 모델)에서는 예전 방식으로 감춘다.
                 foreach (Renderer skin in _skins)
-                    if (skin != null) skin.enabled = visible;
+                    if (skin != null) skin.forceRenderingOff = !visible;
+            }
 
             // 캡슐(CharacterController)은 건드리지 않는다. Mover 가 짝지어 관리한다.
             if (_hitboxes != null)
