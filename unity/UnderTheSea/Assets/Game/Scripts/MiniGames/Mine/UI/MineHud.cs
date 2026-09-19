@@ -111,11 +111,27 @@ public class MineHud : MonoBehaviour
              "⚠ 공용 결과 화면이 그 뒤에 또 열린다. 이것은 광산 전용 성적표다.")]
     [SerializeField] private GameObject resultPanel;
 
-    [Tooltip("\"실패 53.7%\" 처럼 크게 띄운다.")]
-    [SerializeField] private TMP_Text resultText;
+    [Tooltip("성적표 판 그림. 성공·실패에 따라 아래 두 그림으로 갈아끼운다.")]
+    [SerializeField] private Image resultPanelImage;
 
-    [Tooltip("결과 아래 한 줄. 목표와 판 것을 적는다.")]
-    [SerializeField] private TMP_Text resultDetailText;
+    [Tooltip("성공했을 때의 판. 제목 \"성공!\" 과 칸 이름이 그림에 박혀 있다.")]
+    [SerializeField] private Sprite resultSuccessSprite;
+
+    [Tooltip("실패했을 때의 판.\n" +
+             "⚠ 위 그림과 **크기가 같아야 한다.** 칸 자리가 겹쳐야 글자가 안 튄다.")]
+    [SerializeField] private Sprite resultFailSprite;
+
+    [Tooltip("① 큰 칸 — 최종 점수. 그림에 박힌 \"도안 유사도\" 라벨 위다.")]
+    [SerializeField] private TMP_Text resultScoreText;
+
+    [Tooltip("② 가로 칸 — 점수 구간별 한 줄 평.")]
+    [SerializeField] private TMP_Text resultCommentText;
+
+    [Tooltip("③ 왼쪽 — 도안 전체 칸 수. 그림에 박힌 \"목표\" 라벨 아래다.")]
+    [SerializeField] private TMP_Text resultTargetText;
+
+    [Tooltip("③ 오른쪽 — 실제로 판 전체 칸 수. 그림에 박힌 \"채굴\" 라벨 아래다.")]
+    [SerializeField] private TMP_Text resultDugText;
 
     [Header("색")]
     [SerializeField] private Color activeFrame = new Color(1f, 0.78f, 0.33f);
@@ -161,9 +177,6 @@ public class MineHud : MonoBehaviour
     private const float CenterNoticeFontSize = 90f;
     private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
     private static readonly Color CenterNoticeLabelColor = new Color(1f, 0.92f, 0.78f, 1f);
-
-    [SerializeField] private Color successColor = new Color(0.55f, 0.92f, 0.62f);
-    [SerializeField] private Color failColor = new Color(0.95f, 0.55f, 0.5f);
 
     /// <summary>
     /// 참가자 이름. 아직 로스터가 없어서 P1~P4 로 둔다.
@@ -266,11 +279,17 @@ public class MineHud : MonoBehaviour
     /// <summary>성적표를 띄울 것인가. "채굴 종료" 가 끝난 뒤다.</summary>
     public bool NetworkResultShow { get; set; }
 
-    /// <summary>"성공!" 또는 "실패".</summary>
-    public string NetworkResultText { get; set; }
+    /// <summary>성공인가. 성적표 판 그림과 점수 색을 가른다.</summary>
+    public bool NetworkResultSuccess { get; set; }
 
-    /// <summary>"82점 · 유사도 82.4%" 같은 두 줄.</summary>
-    public string NetworkResultDetail { get; set; }
+    /// <summary>최종 점수. 유사도와 **같은 값**이다 (MINE.md 2장).</summary>
+    public int NetworkResultScore { get; set; }
+
+    /// <summary>도안 전체 칸 수. 맞힌 칸 수가 아니다.</summary>
+    public int NetworkResultTargetCount { get; set; }
+
+    /// <summary>실제로 판 전체 칸 수. 맞힌 칸 수가 아니다.</summary>
+    public int NetworkResultDugCount { get; set; }
 
     /// <summary>
     /// 화면 한가운데에 띄울 한마디. 빈 문자열이면 안 띄운다.
@@ -557,8 +576,8 @@ public class MineHud : MonoBehaviour
 
         if (NetworkResultShow)
         {
-            if (resultText != null) resultText.text = NetworkResultText ?? string.Empty;
-            if (resultDetailText != null) resultDetailText.text = NetworkResultDetail ?? string.Empty;
+            DrawResultCard(NetworkResultSuccess, NetworkResultScore,
+                           NetworkResultTargetCount, NetworkResultDugCount);
         }
 
         if (phaseText != null) phaseText.text = NetworkPhaseText ?? string.Empty;
@@ -748,10 +767,11 @@ public class MineHud : MonoBehaviour
         }
     }
 
-    // 판이 끝났을 때만 가운데에 크게 띄운다.
+    // 판이 끝났을 때만 가운데에 크게 띄운다. 솔로 쪽 입구다.
     //
-    // ⚠ 이 칸은 임시다. 결과와 보상은 공통 매칭 흐름 몫이다 (MINE.md 13장).
-    //   그것이 붙기 전까지 끝났다는 표시가 아무 데도 안 남는 것을 막으려고 둔다.
+    // 점수는 MineGame.EnterFinished 와 **같은 식**으로 다시 낸다. MineGame 은 그 값을
+    // Finished 이벤트로만 흘려보내고 속성으로 들고 있지 않아서다. 식이 하나라도
+    // 어긋나면 같은 판이 솔로와 네트워크에서 다른 점수로 보인다.
     private void RefreshResult()
     {
         bool done = game.State == MineState.Finished;
@@ -759,18 +779,67 @@ public class MineHud : MonoBehaviour
         if (resultPanel != null) resultPanel.SetActive(done);
         if (!done) return;
 
-        if (resultText != null)
+        DrawResultCard(
+            game.Success,
+            Mathf.Clamp(Mathf.RoundToInt(game.Result.Percent), 0, 100),
+            game.Result.TargetCount,
+            game.Result.DugCount);
+    }
+
+    /// <summary>
+    /// 성적표 한 장을 채운다. <b>솔로와 네트워크가 같이 쓴다.</b>
+    ///
+    /// 안 바뀌는 글자는 전부 <b>그림에 박혀 있다</b> — 제목("성공!"/"실패!") ·
+    /// "도안 유사도" · "목표" · "채굴". 여기서 넣는 것은 바뀌는 값 넷뿐이다.
+    ///
+    /// ⚠ <b>점수와 유사도는 같은 값이다.</b> 반올림만 다르다 (MINE.md 2장).
+    ///   그래서 "87점 · 유사도 87.5%" 처럼 두 번 적지 않는다. 점수 하나만 크게 띄우고,
+    ///   그것이 무엇인지는 그림에 박힌 "도안 유사도" 가 말한다.
+    ///
+    /// ⚠ <b>목표·채굴은 맞힌 칸 수가 아니다.</b> 목표는 도안 전체 칸 수, 채굴은 실제로
+    ///   판 전체 칸 수다. 둘이 같아도 그림이 맞다는 뜻이 아니다.
+    /// </summary>
+    private void DrawResultCard(bool success, int score, int targetCount, int dugCount)
+    {
+        if (resultPanelImage != null)
         {
-            resultText.text = (game.Success ? "성공" : "실패")
-                              + "  " + game.Result.Percent.ToString("0.0") + "%";
-            resultText.color = game.Success ? successColor : failColor;
+            Sprite want = success ? resultSuccessSprite : resultFailSprite;
+
+            // 그림을 안 붙인 씬에서는 건드리지 않는다. 지우면 판이 통째로 사라진다.
+            if (want != null && resultPanelImage.sprite != want) resultPanelImage.sprite = want;
         }
 
-        if (resultDetailText != null)
-        {
-            resultDetailText.text = "목표 " + game.Result.TargetCount + "칸"
-                                    + "   ·   판 것 " + game.Result.DugCount + "칸";
-        }
+        // ⚠ 점수는 **언제나 흰색**이다. 성공·실패로 물들이지 않는다.
+        //   제목("성공!"/"실패!")이 이미 판 그림에 크게 박혀 있어서, 점수까지 색을 바꾸면
+        //   같은 말을 두 번 하는 셈이고 금속·주황 판 위에서 색만 겉돈다.
+        if (resultScoreText != null) resultScoreText.text = score + "점";
+
+        if (resultCommentText != null) resultCommentText.text = CommentFor(score);
+        if (resultTargetText != null) resultTargetText.text = targetCount + "칸";
+        if (resultDugText != null) resultDugText.text = dugCount + "칸";
+    }
+
+    /// <summary>
+    /// 점수 구간별 한 줄 평. <b>AI 가 아니라 표다.</b>
+    ///
+    /// MINE.md 7장은 한 줄 평을 AI 몫으로 뒀지만, 표로 둔 이유는 그 장이 판정과 AI 를
+    /// 가른 이유와 같다 — 같은 점수면 늘 같은 말이 나오고, 왕복을 기다리지 않고,
+    /// 오프라인에서도 된다. 승패도 점수도 AI 가 건드리지 않는 자리다.
+    ///
+    /// ⚠ <b>성공선이 70 이라는 것이 이 표에 박혀 있다.</b> 70 부터가 성공 말투이고
+    ///   60~69 는 아쉬워하는 말투다. 씬의 <c>successThreshold</c> 를 바꾸면
+    ///   <b>"실패!" 제목 밑에 성공 문구가 뜬다.</b> 둘은 같이 움직여야 한다.
+    ///   (MINE.md 12장)
+    /// </summary>
+    private static string CommentFor(int score)
+    {
+        if (score >= 90) return "광부들, 혹시 도안 몰래 보고 온 거 아니죠?";
+        if (score >= 80) return "손발이 척척! 이 정도면 거의 곡괭이 합주단!";
+        if (score >= 70) return "곡괭이가 살짝 자유로웠지만 팀워크로 성공!";
+        if (score >= 60) return "호흡은 나쁘지 않았지만 마무리가 아쉬웠어요!";
+        if (score >= 40) return "팀워크는 있었는데 정답이 눈치가 없었어요!";
+
+        return "팀워크보다 창의력이 너무 앞서갔습니다!";
     }
 
     private void RefreshPlayers()

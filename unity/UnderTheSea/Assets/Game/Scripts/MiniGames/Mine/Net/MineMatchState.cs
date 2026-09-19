@@ -991,10 +991,16 @@ namespace Mine.Net
 
             if (_hud.NetworkResultShow)
             {
-                _hud.NetworkResultText = ResultSuccess ? "성공!" : "실패";
-                _hud.NetworkResultDetail =
-                    $"{ResultScore}점 · 유사도 {ResultPercent:0.0}%" + System.Environment.NewLine +
-                    $"목표 {ResultTargetCount}칸 · 판 것 {ResultDugCount}칸";
+                // ⚠ 값만 넘긴다. 제목("성공!"/"실패!")도 칸 이름("도안 유사도" · "목표" ·
+                //   "채굴")도 **판 그림에 박혀 있다.** 여기서 글자를 만들면 그림 위에 겹친다.
+                //
+                // ⚠ ResultPercent 는 넘기지 않는다. ResultScore 가 그것을 반올림한
+                //   **같은 값**이라, 둘을 같이 적으면 한 정보를 두 번 적는 것이 된다.
+                //   (MINE.md 2장)
+                _hud.NetworkResultSuccess = ResultSuccess;
+                _hud.NetworkResultScore = ResultScore;
+                _hud.NetworkResultTargetCount = ResultTargetCount;
+                _hud.NetworkResultDugCount = ResultDugCount;
             }
             _hud.NetworkPhaseText = PhaseLine();
             _hud.NetworkTurnText = HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}" : string.Empty;
