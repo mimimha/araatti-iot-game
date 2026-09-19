@@ -57,51 +57,6 @@ public class ShipCoopHud : MonoBehaviour
         public TextMeshProUGUI title;
     }
 
-    /// <summary>
-    /// 팀원 초상화 한 칸. (SHIPCOOP.md 9장)
-    ///
-    /// ⚠ **층까지만 보여줍니다. 어느 자리에 붙었는지는 절대 보여주지 않습니다.**
-    ///
-    /// <code>
-    /// 층   "민화는 뒷갑판에 있다"   →  전략을 짤 재료
-    /// 자리 "돛이 비어 있다"         →  답을 그냥 준다
-    /// </code>
-    ///
-    /// 갑판이 3층이라 서로 안 보입니다. 누가 어디 있는지는 알아야 역할을 나눌 수 있지만,
-    /// **그 사람이 조타를 잡았는지 지나가는 중인지는 물어봐야** 합니다.
-    /// 자리까지 띄우면 "돛 비었어!" 라는 말이 통째로 사라집니다.
-    ///
-    /// 하트는 없습니다. 개인 HP 가 존재하지 않기 때문입니다. (2장)
-    /// </summary>
-    [System.Serializable]
-    public class PortraitSlot
-    {
-        public GameObject root;
-
-        [Tooltip("플레이어를 구분하는 색 테두리. 직업이 아니라 사람 구분용이다.")]
-        public Image frame;
-
-        [Tooltip("지금 있는 갑판 이름. 자리 이름을 넣지 않는다.")]
-        public TextMeshProUGUI deckLabel;
-
-        [Tooltip("🆘 를 눌렀을 때 켜진다. 초상화 아래쪽에 겹치는 빨간 글씨.")]
-        public GameObject helpBadge;
-
-        // ⚠ Image 가 아니라 RawImage 입니다. 사진이 스프라이트가 아니라
-        //    카메라가 찍은 RenderTexture 라서 그렇습니다. (`ShipCoopPortrait`)
-        [Tooltip("그 사람의 캐릭터를 찍은 사진. ShipCoopPortrait 가 채운다.")]
-        public RawImage face;
-
-        [Tooltip("그 사람의 이름. 원격 플레이어는 이름이 동기화되지 않아 '선원 N' 으로 적는다.")]
-        public TextMeshProUGUI nameLabel;
-
-        [Tooltip("사람이 있을 때 켜는 묶음 — 사진 · 이름 · 갑판.")]
-        public GameObject filled;
-
-        [Tooltip("아직 아무도 안 들어온 칸에 켜는 표시.")]
-        public GameObject empty;
-    }
-
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
     [SerializeField] private ShipCoopGame game;
     [SerializeField] private ShipHealth health;
@@ -203,13 +158,6 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("🪣 침수. 사건이 아니라 상태지만 같은 카드로 보여준다.")]
     [SerializeField] private Sprite eventIconFlood;
 
-    [Header("팀원 초상화 — 층과 🆘 만 보여준다")]
-    [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 '빈 자리' 로 남는다 — 누가 빠졌는지 보여야 한다.")]
-    [SerializeField] private PortraitSlot[] portraits;
-
-    [Tooltip("아직 어느 갑판인지 모를 때 (배 밖이거나 떨어지는 중)")]
-    [SerializeField] private string unknownDeckText = "—";
-
     [Header("상호작용")]
     [SerializeField] private GameObject interactPanel;
     [SerializeField] private TextMeshProUGUI interactLabel;
@@ -297,12 +245,7 @@ public class ShipCoopHud : MonoBehaviour
         if (health == null) health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         if (voyage == null) voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
         if (flooding == null) flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
-
-        _portrait = FindAnyObjectByType<ShipCoopPortrait>(FindObjectsInactive.Include);
     }
-
-    // 프로필 사진을 찍어 두는 쪽. 없으면 사진 없이 굴러간다.
-    private ShipCoopPortrait _portrait;
 
     private void Update()
     {
@@ -320,7 +263,6 @@ public class ShipCoopHud : MonoBehaviour
 
         UpdateCourseWarning();
         UpdateEvents();
-        UpdatePortraits();
         UpdateInteract();
     }
 
@@ -404,124 +346,6 @@ public class ShipCoopHud : MonoBehaviour
         phaseLabel.text = phase != null ? phase.name : string.Empty;
     }
 
-    /// <summary>
-    /// 팀원 초상화. **누가 어느 갑판에 있는지와 🆘 만** 보여준다.
-    ///
-    /// 갑판이 3층이 되면서 화면에 배 전체가 안 나옵니다. 그래서 여기가
-    /// "누가 어디 있나" 를 아는 **유일한 곳**이 됐습니다.
-    ///
-    /// 자리(조타 · 돛 · 대포)를 보여주지 않는 이유는 <see cref="PortraitSlot"/> 에 적어 두었습니다.
-    /// </summary>
-    private void UpdatePortraits()
-    {
-        if (portraits == null || portraits.Length == 0)
-        {
-            return;
-        }
-
-        // 사람 순서가 프레임마다 바뀌면 초상화가 자리를 바꿔 가며 깜빡인다.
-        // FindObjectsByType 의 순서는 보장되지 않으므로 고정된 키로 줄을 세운다.
-        //
-        // ⚠ **이름으로 정렬하면 안 된다.** 네트워크로 스폰된 플레이어는 이름이 전부
-        //    `ShipCoopPlayer(Clone)` 로 같아서, Array.Sort 가 같은 키끼리 순서를 보장하지 않는다.
-        //    그래서 칸이 매 프레임 뒤바뀌며 카드가 지직거렸다. 실측으로 확인했다.
-        //    ShipCoopPortrait 가 사진을 보관할 때 쓰는 키와 **같은 키**를 쓴다.
-        TaskWorker[] crew = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        System.Array.Sort(crew, (a, b) => string.CompareOrdinal(
-            ShipCoopPortrait.StableKeyOf(a), ShipCoopPortrait.StableKeyOf(b)));
-
-        // 패널 폭은 **늘 4칸 그대로**다. 이 게임은 4명 고정이라(2장) 빈 칸이 생기지 않는다.
-        // 테스트 씬에서만 사람이 모자라 비어 보인다. 그걸 맞추려고 폭을 줄이면,
-        // 정작 진짜 게임에서 누가 빠졌을 때 **빠진 것이 안 보이게** 된다.
-        for (int i = 0; i < portraits.Length; i++)
-        {
-            PortraitSlot slot = portraits[i];
-
-            if (slot == null)
-            {
-                continue;
-            }
-
-            bool has = i < crew.Length && crew[i] != null;
-
-            // ⚠ **빈 칸을 통째로 숨기지 않는다.** 예전에는 숨겼는데, 그러면 아직 안 들어온
-            //    사람이 있다는 사실이 화면에서 사라진다. 네 칸을 늘 보여주고 빈 칸은
-            //    비었다고 말해준다. 누가 빠졌는지가 보여야 기다릴지 말지를 정할 수 있다.
-            if (slot.root != null)
-            {
-                slot.root.SetActive(true);
-            }
-
-            if (slot.filled != null)
-            {
-                slot.filled.SetActive(has);
-            }
-
-            if (slot.empty != null)
-            {
-                slot.empty.SetActive(!has);
-            }
-
-            if (!has)
-            {
-                continue;
-            }
-
-            if (slot.nameLabel != null)
-            {
-                slot.nameLabel.text = NameOf(crew[i], i);
-            }
-
-            if (slot.deckLabel != null)
-            {
-                ShipDeck deck = ShipDeck.At(crew[i].transform.position);
-                slot.deckLabel.text = deck != null ? deck.DeckName : unknownDeckText;
-            }
-
-            if (slot.helpBadge != null)
-            {
-                ShipCoopHelp help = crew[i].GetComponent<ShipCoopHelp>();
-                slot.helpBadge.SetActive(help != null && help.IsCalling);
-            }
-
-            // ⚠ "없을 때만 넣기" 로 두면 안 됩니다. 다시 찍으면(`Retake`) 사진이
-            //    새로 만들어지는데, 옛 사진을 든 채로 있으면 **버려진 텍스처**를
-            //    그리게 됩니다. 달라졌을 때만 넣으면 비용도 없습니다.
-            if (slot.face != null && _portrait != null)
-            {
-                Texture shot = _portrait.Of(crew[i]);
-
-                if (shot != null && slot.face.texture != shot)
-                {
-                    slot.face.texture = shot;
-                    slot.face.color = Color.white;
-                }
-
-            }
-        }
-    }
-
-    /// <summary>
-    /// 칸에 적을 이름.
-    ///
-    /// ⚠ **원격 플레이어의 이름은 동기화되지 않습니다.** 네트워크로 스폰된 캐릭터는
-    ///    전부 <c>ShipCoopPlayer(Clone)</c> 라 이름이 없습니다. 내 이름만 로컬에
-    ///    저장돼 있어서, 내 칸은 그 이름을 쓰고 나머지는 번호로 적습니다.
-    ///    진짜 이름을 넷 다 띄우려면 네트워크 값이 하나 더 있어야 합니다.
-    /// </summary>
-    private string NameOf(TaskWorker who, int index)
-    {
-        if (who != null && who == LocalWorker)
-        {
-            string mine = SceneFlow.Nickname;
-            if (!string.IsNullOrWhiteSpace(mine))
-            {
-                return mine;
-            }
-        }
-
-        return $"선원 {index + 1}";
-    }
 
     private void UpdateHealth()
     {
