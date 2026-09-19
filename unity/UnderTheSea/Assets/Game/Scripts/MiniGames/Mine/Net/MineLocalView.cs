@@ -33,8 +33,9 @@ namespace Mine.Net
         private MineCursor _cursor;
         private MineHud _hud;
 
-        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.")]
-        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1.5f;
+        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.\n" +
+                 "⚠ MineMatchState 의 resultHoldSeconds(6초)로 나누어떨어지게 둔다. 안 그러면 마지막 장이 잘린다.")]
+        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1f;
 
         [Tooltip("힌트 볼 때 몇 초마다 바꿀 것인가. 힌트는 짧으므로 더 빠르게 넘긴다.")]
         [SerializeField, Min(0.1f)] private float hintSwapSeconds = 0.5f;
@@ -54,6 +55,9 @@ namespace Mine.Net
         // 지금 턴인 사람을 기억해 둔다. 조준 표시가 이 사람의 발밑만 가리킨다.
         private int _diggerSlot = int.MinValue;
         private MineNetPlayer _digger;
+
+        /// <summary>성적표가 열리며 교대를 시작했는가. 기준 시각을 한 번만 잡으려고 기억한다.</summary>
+        private bool _toggleStarted;
 
         /// <summary>지금 정답을 보여주고 있는가. 같은 겹침을 매 프레임 다시 칠하지 않으려고 기억한다.</summary>
         private bool? _shownAnswer;
@@ -295,7 +299,6 @@ namespace Mine.Net
                     _shownTarget = null;
                     _shownSlot = int.MinValue;
                     _shownAnswer = null;
-                    _toggleAnchor = match.Runner.SimulationTime;
 
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
 
@@ -306,10 +309,25 @@ namespace Mine.Net
                     _camera.ShowBoard(finale: true);
                 }
 
-                // 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
+                // ⚠ **채굴 종료 단계에는 토글을 돌리지 않는다.** 제목을 읽는 2초 동안
+                //   판이 정답으로 바뀌면 "우리가 이렇게 팠다" 를 볼 틈이 없다.
+                //   그동안 판은 ShowResult 가 켜 둔 우리 그림 그대로다.
+                if (!match.ShowingMineResult) return;
+
+                // ⚠ 교대의 기준 시각은 **성적표가 열리는 순간**이다. 판이 끝난 순간으로
+                //   잡으면 제목 2초가 교대 시간에 먹혀 첫 그림이 0.5초 만에 넘어간다.
+                if (!_toggleStarted)
+                {
+                    _toggleStarted = true;
+                    _toggleAnchor = match.Runner.SimulationTime;
+                }
+
+                // 우리가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
                 TickAnswerToggle(match, resultSwapSeconds, startOnAnswer: false);
                 return;
             }
+
+            _toggleStarted = false;
 
             // ⚠ 목표를 보여 주는 두 경우를 <b>갈라서</b> 다룬다.
             //

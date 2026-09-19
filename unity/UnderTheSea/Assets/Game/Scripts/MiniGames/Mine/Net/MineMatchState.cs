@@ -79,7 +79,12 @@ namespace Mine.Net
         [SerializeField, Min(0.5f)] private float hintSeconds = 3f;
 
         [Header("결과 화면")]
-        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 이 동안 정답과 내가 판 그림을 번갈아 보여 준다.")]
+        [Tooltip("판이 끝나고 \"채굴 종료\" 제목만 보여 주는 시간(초).\n" +
+                 "이 동안에는 네 캐릭터가 판 위에 서 있고, 판에는 우리가 판 그림만 보인다. 토글은 아직 안 돈다.")]
+        [SerializeField, Min(0f)] private float finishTitleSeconds = 2f;
+
+        [Tooltip("\"채굴 종료\" 가 끝난 뒤 공용 결과 판을 열기까지 기다리는 시간(초).\n" +
+                 "이 동안 캐릭터가 사라지고, 정답과 우리가 판 그림을 번갈아 보여 준다.")]
         [SerializeField, Min(0f)] private float resultHoldSeconds = 6f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
@@ -231,7 +236,46 @@ namespace Mine.Net
         /// </summary>
         public bool CrewOnBoard => Phase == MineMatchPhase.Countdown
                                 || Phase == MineMatchPhase.Reveal
-                                || Phase == MineMatchPhase.Turn;
+                                || Phase == MineMatchPhase.Turn
+                                || ShowingFinishTitle;
+
+        /// <summary>
+        /// 결과가 확정된 뒤 흐른 시간(초). 아직 안 끝났으면 -1.
+        ///
+        /// <b>틱으로 재는 이유.</b> <see cref="ResultTick"/> 은 복제되므로 네 화면이
+        /// 같은 값을 얻는다. 각자 코루틴이나 <c>Time.time</c> 으로 재면 들어온 시각이
+        /// 달라 화면끼리 박자가 어긋난다.
+        ///
+        /// ⚠ 판이 끝나면 <c>FixedUpdateNetwork</c> 가 <c>IsOver</c> 에서 바로 빠지므로
+        ///   여기서는 <b>깎아 내리는 네트워크 값을 쓸 수 없다.</b> (Countdown · RevealLeft
+        ///   와 다른 점이다) 그래서 지나간 틱 수로 거꾸로 센다.
+        /// </summary>
+        public float SinceResult
+        {
+            get
+            {
+                if (ResultTick <= 0 || Runner == null) return -1f;
+                return Mathf.Max(0f, ((int)Runner.Tick - ResultTick) * Runner.DeltaTime);
+            }
+        }
+
+        /// <summary>
+        /// <b>채굴 종료 — 판이 끝나고 제목만 보여 주는 첫 단계.</b>
+        ///
+        /// 네 캐릭터가 판 위에 그대로 서 있고(<see cref="CrewOnBoard"/>), 판에는
+        /// 우리가 판 그림만 보인다. 정답 토글은 다음 단계부터다.
+        /// </summary>
+        public bool ShowingFinishTitle =>
+            Phase == MineMatchPhase.Finished && SinceResult >= 0f && SinceResult < finishTitleSeconds;
+
+        /// <summary>
+        /// <b>채굴 결과 — 성공·실패와 점수를 보여 주는 두 번째 단계.</b>
+        ///
+        /// 캐릭터가 사라지고 판이 정답과 번갈아 돈다. 이 단계가 끝나면
+        /// 공용 결과 화면으로 넘어간다.
+        /// </summary>
+        public bool ShowingMineResult =>
+            Phase == MineMatchPhase.Finished && SinceResult >= finishTitleSeconds;
 
         /// <summary>
         /// **판이 들려 있는가.** 그동안에는 <b>아무도</b> 몸을 굴리지 않는다.
@@ -873,22 +917,26 @@ namespace Mine.Net
         /// ⚠ <b>기다리는 동안 보여 줄 것이 있을 때만 값을 준다.</b> 검 게임에서 3초를 뒀다가
         ///    그 동안 아무것도 없는 검은 화면만 남았다.
         ///
-        /// 광산은 판이 끝나면 <c>MineLocalView</c> 가 <b>정답과 내가 판 그림을 번갈아</b>
-        /// 보여 준다. 그 교대 주기가 1.5초(<c>resultSwapSeconds</c>)라서, 여기를 3초로 두면
-        /// <b>한 번 바뀌고 덮여</b> 비교할 시간이 안 된다. 6초면 네 번 바뀐다.
+        /// 광산은 판이 끝나고 <b>두 화면</b>을 거친 뒤에야 공용 결과로 넘어간다.
         ///
-        ///     0.0s  내가 판 그림
-        ///     1.5s  정답
-        ///     3.0s  내가 판 그림
-        ///     4.5s  정답
-        ///     6.0s  ← 결과 판이 열린다
+        ///     0.0s  채굴 종료 — 제목만. 네 캐릭터가 판 위에 서 있고 우리가 판 그림이 보인다
+        ///     2.0s  채굴 결과 — 캐릭터가 사라지고 성공·실패가 뜬다. 여기서 토글이 시작된다
+        ///           2.0s  우리가 판 그림      5.0s  우리가 판 그림
+        ///           3.0s  정답                6.0s  정답
+        ///           4.0s  우리가 판 그림      7.0s  우리가 판 그림
+        ///     8.0s  ← 공용 결과 판이 열린다
         ///
-        /// ⚠ 이 값은 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다. 한쪽만 바꾸면
+        /// 교대 주기가 1초(<c>resultSwapSeconds</c>)라서 결과 단계 6초 동안 여섯 번
+        /// 바뀐다. 결과 단계를 너무 짧게 두면 <b>몇 번 바뀌지도 못하고 덮인다.</b>
+        ///
+        /// ⚠ 이 값들은 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다. 한쪽만 바꾸면
         ///    엉뚱한 지점에서 잘린다.
         /// </summary>
         private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int dug, int crew)
         {
-            yield return new WaitForSeconds(resultHoldSeconds);
+            // 두 화면을 다 보여 준 뒤에 넘긴다. 제목 단계를 빼먹으면 공용 결과가
+            // 그만큼 일찍 덮어 버린다.
+            yield return new WaitForSeconds(finishTitleSeconds + resultHoldSeconds);
 
             MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
                 MiniGameId.Mining,
@@ -926,7 +974,20 @@ namespace Mine.Net
             }
 
             _hud.NetworkDriven = true;
-            _hud.NetworkResultShow = Phase == MineMatchPhase.Finished;
+
+            // 판이 끝났으면 참가자 줄이 전부 "채굴 완료" 가 된다. CurrentSlot 은 이미
+            // -1 로 돌아가 있어서 그것만으로는 가릴 수 없다. (MineHud.NetworkMatchOver)
+            _hud.NetworkMatchOver = Phase == MineMatchPhase.Finished;
+
+            // 목표를 보여 주는 7초 동안만 "도안을 기억하세요" 를 띄운다.
+            // 힌트로 다시 볼 때는 안 띄운다 — 그건 그 사람만의 화면이고,
+            // 이 값은 네 화면에 똑같이 나가기 때문이다.
+            _hud.NetworkMemorizeShow = Phase == MineMatchPhase.Reveal;
+
+            // ⚠ 판이 끝나면 화면이 **둘**이다. 제목 먼저, 성적표는 그 다음이다.
+            //   둘을 같이 켜면 "채굴 종료" 위에 점수가 겹친다.
+            _hud.NetworkFinishTitleShow = ShowingFinishTitle;
+            _hud.NetworkResultShow = ShowingMineResult;
 
             if (_hud.NetworkResultShow)
             {
@@ -945,6 +1006,9 @@ namespace Mine.Net
             _hud.NetworkRestoreText = TotalRestores > 0
                 ? $"{RestoresLeft} / {TotalRestores}"
                 : string.Empty;
+
+            // 다 쓰면 복구 판이 흑백이 된다. 힌트와 같은 규칙이다.
+            _hud.NetworkRestoreLit = RestoresLeft > 0;
 
             _hud.NetworkCountdown = Phase == MineMatchPhase.Countdown
                 ? Mathf.Max(1, Mathf.CeilToInt(Countdown))

@@ -3137,7 +3137,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04103ec1f37e7e24fb5ef23152a79fb7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineLocalView
-  resultSwapSeconds: 1.5
+  resultSwapSeconds: 1
   hintSwapSeconds: 0.5
 --- !u!114 &2327441312921421817
 MonoBehaviour:

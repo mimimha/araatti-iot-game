@@ -64,15 +64,51 @@ public class MineHud : MonoBehaviour
     [Tooltip("남은 복구 블록. 팀 공용이라 항상 보여야 한다. (MINE.md 4장)")]
     [SerializeField] private TMP_Text restoreText;
 
+    [Tooltip("복구 판 그림. 블록을 다 쓰면 아래 \"다 쓴 그림\" 으로 갈아끼운다.\n" +
+             "판 전체를 그리는 Image 를 넣는다.")]
+    [SerializeField] private Image restoreIcon;
+
+    [Tooltip("복구 블록이 남아 있을 때의 그림.")]
+    [SerializeField] private Sprite restoreReadySprite;
+
+    [Tooltip("다 써서 0 이 됐을 때의 그림. 흑백판이다.\n" +
+             "⚠ 위 그림과 **크기가 같아야 한다.** 다르면 갈아끼울 때 자리가 튄다.")]
+    [SerializeField] private Sprite restoreUsedSprite;
+
     [SerializeField] private TMP_Text hintText;
     [SerializeField] private Image hintIcon;
 
+    [Tooltip("힌트를 아직 쓸 수 있을 때의 그림. 아래 \"쓴 그림\" 과 짝으로 넣는다.\n" +
+             "둘 다 비어 있으면 예전처럼 색만 어둡게 바꾼다.")]
+    [SerializeField] private Sprite hintReadySprite;
+
+    [Tooltip("힌트를 쓴 뒤(또는 못 쓸 때)의 그림. 흑백판이다.\n" +
+             "⚠ 두 그림은 **크기가 같아야 한다.** 다르면 갈아끼울 때 자리가 튄다.")]
+    [SerializeField] private Sprite hintUsedSprite;
+
     [Header("카운트다운 — 시작 직전에만")]
-    [Tooltip("3 2 1 을 띄운다. 화면 가운데 크게.")]
+    [Tooltip("3 2 1 을 띄운다. 화면 가운데 크게.\n" +
+             "⚠ 아래 그림이 채워져 있으면 그쪽이 이긴다. 이 글자는 그림이 없을 때만 쓴다.")]
     [SerializeField] private TMP_Text countdownText;
 
-    [Header("결과 — 판이 끝났을 때만")]
-    [Tooltip("끝났을 때만 켠다. 공통 결과 화면이 붙으면 통째로 끈다.")]
+    [Tooltip("숫자 그림. **1부터 차례로** 넣는다 — [0]=1, [1]=2, [2]=3.\n" +
+             "비워 두면 위의 글자로 띄운다. 솔로 씬처럼 그림을 안 붙인 곳이 그대로 동작한다.")]
+    [SerializeField] private Image[] countdownImages;
+
+    [Header("도안 공개 — 공개 7초 동안만")]
+    [Tooltip("\"도안을 기억하세요\" 안내. 목표를 보여 주는 7초 동안 띄운다.\n" +
+             "타이머 바로 아래에 둔다. 남은 초는 위 타이머가 세므로 여기는 글자뿐이다.")]
+    [SerializeField] private GameObject memorizeTitlePanel;
+
+    [Header("채굴 종료 — 판이 끝난 직후 잠깐")]
+    [Tooltip("\"채굴 종료\" 제목. 판이 끝나고 이것부터 뜬다.\n" +
+             "이 동안에는 네 캐릭터가 판 위에 서 있고 성적표는 아직 안 나온다.\n" +
+             "(MineMatchState.finishTitleSeconds)")]
+    [SerializeField] private GameObject finishTitlePanel;
+
+    [Header("결과 — 채굴 종료 다음")]
+    [Tooltip("성공·실패와 점수. \"채굴 종료\" 가 끝나면 켠다.\n" +
+             "⚠ 공용 결과 화면이 그 뒤에 또 열린다. 이것은 광산 전용 성적표다.")]
     [SerializeField] private GameObject resultPanel;
 
     [Tooltip("\"실패 53.7%\" 처럼 크게 띄운다.")]
@@ -84,14 +120,37 @@ public class MineHud : MonoBehaviour
     [Header("색")]
     [SerializeField] private Color activeFrame = new Color(1f, 0.78f, 0.33f);
     [SerializeField] private Color idleFrame = new Color(1f, 1f, 1f, 0.15f);
+    [Tooltip("\"채굴 중\" — 지금 파는 사람. 이 줄만 눈에 띄어야 한다.")]
     [SerializeField] private Color activeLabel = new Color(1f, 0.85f, 0.5f);
-    [SerializeField] private Color doneLabel = new Color(0.55f, 0.75f, 0.55f);
+
+    // ⚠ "채굴 완료" 와 "대기 중" 은 **같은 회색**이다. 파는 사람 하나만 도드라지게
+    //   두려는 것이라, 끝난 사람과 기다리는 사람을 색으로 가르지 않는다.
+    //   둘을 다시 가르고 싶으면 여기만 다르게 두면 된다.
+    [SerializeField] private Color doneLabel = new Color(0.65f, 0.65f, 0.7f);
     [SerializeField] private Color waitLabel = new Color(0.65f, 0.65f, 0.7f);
     [SerializeField] private Color hintReady = new Color(1f, 0.82f, 0.35f);
     [SerializeField] private Color hintUsed = new Color(0.45f, 0.45f, 0.5f);
 
+    [Tooltip("복구 블록이 남아 있을 때의 숫자 색.")]
+    [SerializeField] private Color restoreReady = new Color(0.94f, 0.94f, 0.96f);
+
+    [Tooltip("다 썼을 때의 숫자 색. 판이 흑백이 되므로 글자도 같이 죽여야 어울린다.")]
+    [SerializeField] private Color restoreUsed = new Color(0.45f, 0.45f, 0.5f);
+
     [Tooltip("내 줄의 테두리. 채굴 중 테두리(금색)와 확실히 달라야 한다.")]
     [SerializeField] private Color selfFrame = new Color(0.45f, 0.8f, 1f, 0.55f);
+
+    [Header("참가자 줄 그림 — 비워 두면 위의 색으로 칠한다")]
+    [Tooltip("지금 채굴 중인 줄. 금색 테두리 그림이다.")]
+    [SerializeField] private Sprite rowDiggingSprite;
+
+    [Tooltip("대기·완료한 줄. 회색 그림이다.\n" +
+             "⚠ 위 그림과 **크기가 같아야 한다.** 다르면 턴이 넘어갈 때 줄이 튄다.")]
+    [SerializeField] private Sprite rowIdleSprite;
+
+    [Tooltip("그림을 쓸 때 **내 줄**에만 얹는 색. 흰색으로 두면 남의 줄과 구분이 안 된다.\n" +
+             "채굴 중인 줄은 그림 자체가 금색이라 여기서 건드리지 않는다.")]
+    [SerializeField] private Color selfTintOnArt = new Color(1f, 0.93f, 0.78f);
 
     // 남의 힌트 동안 화면을 덮는 한마디에 쓰는 값. 셋 다 코드에만 둔다.
     //
@@ -189,7 +248,22 @@ public class MineHud : MonoBehaviour
     /// <summary>카운트다운 숫자. 0 이면 안 띄운다.</summary>
     public int NetworkCountdown { get; set; }
 
-    /// <summary>결과 화면을 띄울 것인가.</summary>
+    /// <summary>
+    /// 판이 끝났는가. <b>참가자 줄을 전부 "채굴 완료" 로 만든다.</b>
+    ///
+    /// ⚠ 성적표가 떴는지(<see cref="NetworkResultShow"/>)로 가리면 안 된다. 그 값은
+    ///   "채굴 종료" 2초가 지나야 참이라, 그 2초 동안 다 판 사람들이 "대기 중" 으로
+    ///   되돌아가 보인다.
+    /// </summary>
+    public bool NetworkMatchOver { get; set; }
+
+    /// <summary>"도안을 기억하세요" 를 띄울 것인가. 공개 7초 동안만 참이다.</summary>
+    public bool NetworkMemorizeShow { get; set; }
+
+    /// <summary>"채굴 종료" 제목을 띄울 것인가. 판이 끝난 직후 잠깐이다.</summary>
+    public bool NetworkFinishTitleShow { get; set; }
+
+    /// <summary>성적표를 띄울 것인가. "채굴 종료" 가 끝난 뒤다.</summary>
     public bool NetworkResultShow { get; set; }
 
     /// <summary>"성공!" 또는 "실패".</summary>
@@ -227,6 +301,9 @@ public class MineHud : MonoBehaviour
 
     /// <summary>"4 / 4" 같은 팀 복구 수. 빈 문자열이면 감춘다.</summary>
     public string NetworkRestoreText { get; set; }
+
+    /// <summary>복구 블록이 아직 남았는가. 0 이 되면 판이 흑백으로 바뀐다.</summary>
+    public bool NetworkRestoreLit { get; set; } = true;
 
     /// <summary>
     /// 내 힌트 상태. "J · 1회" · "사용함" · "보는 중" · "대기" 중 하나다.
@@ -274,22 +351,25 @@ public class MineHud : MonoBehaviour
             if (row.nameText != null) row.nameText.text = NameOf(i);
             if (row.stateText == null) continue;
 
+            // 상태는 셋뿐이다.
+            //
+            //   대기 중    아직 자기 차례가 안 왔다. 공개 7초에는 넷 다 여기다
+            //   채굴 중    지금 그 사람 차례다. 한 번에 하나뿐
+            //   채굴 완료  자기 차례가 지났다
+            //
             // ⚠ 판이 끝나면 서버가 CurrentSlot 을 -1 로 되돌린다(EnterFinished).
-            //   그대로 두면 다 판 사람들이 "대기" 로 보인다. 끝났으면 전부 완료다.
+            //   그것만 보면 다 판 사람들이 "대기 중" 으로 보인다. 끝났으면 전부 완료다.
+            //   그래서 끝났는지를 따로 받는다 — 성적표가 떴는지(NetworkResultShow)로
+            //   가리면 안 된다. 그 값은 "채굴 종료" 2초가 지나야 참이 되기 때문이다.
             bool digging = NetworkCurrentSlot >= 0 && i == NetworkCurrentSlot;
-            bool done = NetworkResultShow || (NetworkCurrentSlot >= 0 && i < NetworkCurrentSlot);
+            bool done = NetworkMatchOver || (NetworkCurrentSlot >= 0 && i < NetworkCurrentSlot);
 
-            row.stateText.text = digging ? "채굴 중" : done ? "완료" : "대기";
+            row.stateText.text = digging ? "채굴 중" : done ? "채굴 완료" : "대기 중";
             row.stateText.color = digging ? activeLabel : done ? doneLabel : waitLabel;
 
             // ⚠ 채굴 중이 내 줄보다 우선이다. 둘을 한 테두리로 표시하므로 하나만 이긴다.
             //   내 턴에는 내 줄이 금색이 되는데, 그때는 내가 조작하고 있어 헷갈리지 않는다.
-            if (row.frame != null)
-            {
-                row.frame.color = digging ? activeFrame
-                    : i == NetworkSelfSlot ? selfFrame
-                    : idleFrame;
-            }
+            DrawRowFrame(row.frame, digging, i == NetworkSelfSlot);
         }
     }
 
@@ -305,9 +385,103 @@ public class MineHud : MonoBehaviour
         SetActive(restoreText, show);
 
         if (show && restoreText != null) restoreText.text = NetworkRestoreText;
+
+        DrawRestoreArt(NetworkRestoreLit);
     }
 
-    /// <summary>내 힌트 상태. 글자는 <c>MineLocalView</c> 가 정하고 색만 여기서 가른다.</summary>
+    /// <summary>
+    /// 복구 판을 남은 블록에 맞춰 그린다. <b>다 쓰면 흑백판으로 갈아끼운다.</b>
+    /// 힌트 판과 같은 방식이다. (<see cref="DrawHintArt"/>)
+    ///
+    /// 숫자는 그림이 아니라 TMP 라 색을 따로 죽여 준다. 판만 흑백이 되고 숫자가
+    /// 그대로면 거기만 살아 있는 것처럼 보인다.
+    /// </summary>
+    private void DrawRestoreArt(bool lit)
+    {
+        if (restoreText != null) restoreText.color = lit ? restoreReady : restoreUsed;
+
+        if (restoreIcon == null) return;
+        if (restoreReadySprite == null || restoreUsedSprite == null) return;
+
+        Sprite want = lit ? restoreReadySprite : restoreUsedSprite;
+        if (restoreIcon.sprite != want) restoreIcon.sprite = want;
+
+        // ⚠ 그림을 쓸 때는 색을 흰색으로 고정한다. 어두운 색이 남아 있으면
+        //   흑백판이 한 번 더 어두워져 거의 안 보인다.
+        if (restoreIcon.color != Color.white) restoreIcon.color = Color.white;
+    }
+
+    /// <summary>
+    /// 참가자 한 줄의 테두리. <b>그림이 붙어 있으면 그림, 없으면 색.</b>
+    ///
+    /// 그림은 두 장뿐이라(채굴 중 · 쉬는 중) <b>내 줄은 색을 살짝 얹어</b> 가른다.
+    /// 채굴 중인 줄이 내 줄이기도 하면 채굴 중이 이긴다 — 그때는 내가 조작하고
+    /// 있어서 어느 줄이 내 것인지 헷갈리지 않는다.
+    /// </summary>
+    private void DrawRowFrame(Image frame, bool digging, bool mine)
+    {
+        if (frame == null) return;
+
+        bool hasArt = rowDiggingSprite != null && rowIdleSprite != null;
+
+        if (!hasArt)
+        {
+            frame.color = digging ? activeFrame : mine ? selfFrame : idleFrame;
+            return;
+        }
+
+        Sprite want = digging ? rowDiggingSprite : rowIdleSprite;
+        if (frame.sprite != want) frame.sprite = want;
+
+        // ⚠ 그림을 쓸 때는 색이 곱해진다. 채굴 중인 줄에 색을 얹으면 금색이 물든다.
+        Color tint = !digging && mine ? selfTintOnArt : Color.white;
+        if (frame.color != tint) frame.color = tint;
+    }
+
+    /// <summary>
+    /// 카운트다운 숫자. <paramref name="number"/> 가 0 이면 아무것도 안 띄운다.
+    ///
+    /// <b>그림이 붙어 있으면 그림, 없으면 글자.</b> 솔로 씬처럼 그림을 안 붙인 곳도
+    /// 예전 그대로 동작한다. 네트워크와 솔로가 같은 함수를 쓴다 — 둘이 갈라져 있으면
+    /// 한쪽만 고치는 일이 생긴다.
+    ///
+    /// ⚠ 숫자가 그림 수를 넘으면(카운트다운을 5초로 늘린 경우 등) 그림을 못 고른다.
+    ///   그때는 글자로 떨어뜨린다. 조용히 아무것도 안 뜨는 것보다 낫다.
+    /// </summary>
+    private void DrawCountdown(int number)
+    {
+        bool counting = number > 0;
+        bool hasArt = countdownImages != null && countdownImages.Length > 0;
+        int index = number - 1;
+        bool useArt = hasArt && counting && index >= 0 && index < countdownImages.Length
+                      && countdownImages[index] != null;
+
+        if (hasArt)
+        {
+            for (int i = 0; i < countdownImages.Length; i++)
+            {
+                if (countdownImages[i] == null) continue;
+                SetActive(countdownImages[i], useArt && i == index);
+            }
+        }
+
+        if (countdownText == null) return;
+
+        // 그림으로 띄웠으면 글자는 끈다. 둘 다 켜지면 숫자가 겹쳐 보인다.
+        bool useText = counting && !useArt;
+        SetActive(countdownText, useText);
+
+        if (useText) countdownText.text = number.ToString();
+    }
+
+    /// <summary>
+    /// 내 힌트 상태. 글자는 <c>MineLocalView</c> 가 정하고 보이는 것만 여기서 가른다.
+    ///
+    /// <b>그림 두 장을 갈아끼운다.</b> 쓸 수 있으면 원래 그림, 쓰고 나면 흑백판이다.
+    /// 색만 어둡게 하면 주황빛이 그대로 남아 "못 쓴다" 로 안 읽힌다.
+    ///
+    /// 그림을 안 넣은 곳(솔로 씬)에서는 예전처럼 색으로만 가른다.
+    /// </summary>
     private void DrawNetworkHint()
     {
         bool show = !string.IsNullOrEmpty(NetworkHintText);
@@ -319,7 +493,31 @@ public class MineHud : MonoBehaviour
             hintText.color = NetworkHintLit ? hintReady : hintUsed;
         }
 
-        if (hintIcon != null) hintIcon.color = NetworkHintLit ? hintReady : hintUsed;
+        DrawHintArt(NetworkHintLit);
+    }
+
+    /// <summary>
+    /// 힌트 그림을 상태에 맞춰 바꾼다. 두 그림이 다 있으면 갈아끼우고,
+    /// 없으면 색만 바꾼다.
+    /// </summary>
+    private void DrawHintArt(bool lit)
+    {
+        if (hintIcon == null) return;
+
+        bool hasArt = hintReadySprite != null && hintUsedSprite != null;
+
+        if (!hasArt)
+        {
+            hintIcon.color = lit ? hintReady : hintUsed;
+            return;
+        }
+
+        Sprite want = lit ? hintReadySprite : hintUsedSprite;
+        if (hintIcon.sprite != want) hintIcon.sprite = want;
+
+        // ⚠ 그림을 쓸 때는 색을 흰색으로 고정한다. 어두운 색이 남아 있으면
+        //   흑백판이 한 번 더 어두워져 거의 안 보인다.
+        if (hintIcon.color != Color.white) hintIcon.color = Color.white;
     }
 
     private static void SetActive(Component target, bool on)
@@ -339,19 +537,22 @@ public class MineHud : MonoBehaviour
         DrawNetworkRestore();
         DrawNetworkHint();
 
-        if (countdownText != null)
-        {
-            bool counting = NetworkCountdown > 0;
-            SetActive(countdownText, counting);
-            if (counting) countdownText.text = NetworkCountdown.ToString();
-        }
+        DrawCountdown(NetworkCountdown);
 
         DrawCenterNotice();
 
-        // 결과는 끝났을 때만 띄운다. 그 전에는 빈 칸이 보이면 안 된다.
+        // 목표를 보여 주는 7초 동안만 뜨는 안내. 그 시간은 위 타이머가 센다.
+        SetActive(memorizeTitlePanel, NetworkMemorizeShow);
+
+        // 판이 끝나면 화면이 **둘**이다. 제목 먼저(2초), 그 다음 성적표(6초),
+        // 그러고 나서야 공용 결과 화면이 열린다. (MineMatchState.ShowResultAfterHold)
         //
-        // hideOnFinish 를 켜면 이 칸을 통째로 감춘다. 공용 결과 화면이 붙은 씬에서는
-        // 결과가 두 번 뜨기 때문이다. 배·검 게임과 마찬가지로 화면은 하나여야 한다.
+        // ⚠ 둘을 같이 켜면 "채굴 종료" 위에 점수가 겹친다. 서버가 한 번에 하나만
+        //   참으로 보내지만, 여기서도 서로 모르는 칸으로 나눠 둔다.
+        SetActive(finishTitlePanel, NetworkFinishTitleShow && !hideOnFinish);
+
+        // hideOnFinish 를 켜면 두 칸을 다 감춘다. 광산 전용 결과를 아예 건너뛰고
+        // 공용 결과 화면만 쓰는 씬을 위한 스위치다.
         SetActive(resultPanel, NetworkResultShow && !hideOnFinish);
 
         if (NetworkResultShow)
@@ -451,19 +652,9 @@ public class MineHud : MonoBehaviour
         //
         // 올림을 쓴다 — 3초가 남았으면 "3" 이고, 1초 아래로 내려가야 "1" 이 된다.
         // 내림을 쓰면 시작하자마자 "2" 가 뜨고 마지막 1초는 "0" 이 된다.
-        if (countdownText != null)
-        {
-            bool counting = game.State == MineState.Countdown;
-            if (countdownText.gameObject.activeSelf != counting)
-                countdownText.gameObject.SetActive(counting);
-
-            if (counting)
-            {
-                int n = Mathf.Max(1, Mathf.CeilToInt(game.TimeLeft));
-                string text = n.ToString();
-                if (countdownText.text != text) countdownText.text = text;
-            }
-        }
+        DrawCountdown(game.State == MineState.Countdown
+            ? Mathf.Max(1, Mathf.CeilToInt(game.TimeLeft))
+            : 0);
 
         if (timeText == null) return;
 
@@ -603,19 +794,26 @@ public class MineHud : MonoBehaviour
             // 턴 번호는 1부터, 줄 번호는 0부터다. 여기서 한 칸 어긋나기 쉽다.
             int turn = i + 1;
             bool digging = game.State == MineState.Turn && turn == game.TurnNumber;
-            bool done = turn < game.TurnNumber;
 
-            row.stateText.text = digging ? "채굴 중" : done ? "완료" : "대기";
+            // 네트워크와 같은 규칙이다 — 끝났으면 전부 완료. (DrawNetworkPlayers 주석)
+            bool done = game.State == MineState.Finished || turn < game.TurnNumber;
+
+            row.stateText.text = digging ? "채굴 중" : done ? "채굴 완료" : "대기 중";
             row.stateText.color = digging ? activeLabel : done ? doneLabel : waitLabel;
 
-            if (row.frame != null) row.frame.color = digging ? activeFrame : idleFrame;
+            // 솔로에는 "내 줄" 이 없다. 혼자 다 도는 씬이라 전부 내 줄이다.
+            DrawRowFrame(row.frame, digging, false);
         }
     }
 
     private void RefreshRestore()
     {
-        if (restoreText == null || game == null) return;
-        restoreText.text = game.RestoresLeft + " / " + game.TotalRestores;
+        if (game == null) return;
+
+        if (restoreText != null)
+            restoreText.text = game.RestoresLeft + " / " + game.TotalRestores;
+
+        DrawRestoreArt(game.RestoresLeft > 0);
     }
 
     private void RefreshHint()
@@ -637,7 +835,7 @@ public class MineHud : MonoBehaviour
             hintText.color = lit ? hintReady : hintUsed;
         }
 
-        if (hintIcon != null) hintIcon.color = lit ? hintReady : hintUsed;
+        DrawHintArt(lit);
     }
 
     private static GameObject RowObject(PlayerRow row)
