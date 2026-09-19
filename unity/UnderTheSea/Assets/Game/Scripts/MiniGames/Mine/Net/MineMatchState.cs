@@ -344,6 +344,21 @@ namespace Mine.Net
         /// <summary>실행 인자까지 반영한 실제 시작 인원.</summary>
         private int RequiredCrew => MineNet.ResolveCrewToStart(crewToStart);
 
+        /// <summary>
+        /// 동료를 기다리는 동안 화면 한가운데에 띄울 한마디.
+        ///
+        /// <b>이 단계에는 화면에 아무 말도 없었다.</b> 타이머는 <c>--:--</c>, 차례 칸은
+        /// 비어 있고, 복구 칸은 총량이 <see cref="BeginMatch"/> 에서야 정해져 감춰진다.
+        /// 랜턴 반경만 밝은 게임이라(MINE.md 6장) 사용자는 그 화면을 <b>멈춘 것</b>으로
+        /// 읽는다. 판이 끝났는데 표시가 없어 "힌트가 안 꺼진다" 고 읽었던 것과 같은 사고다.
+        ///
+        /// ⚠ 예전에는 <see cref="PhaseLine"/> 이 이 문구를 HUD 위쪽 칸에 넣었는데,
+        ///   그 칸(<c>Phase</c>)이 <b>HUD 에 그림을 입히면서 꺼졌다</b> (f2729f40).
+        ///   새 타이머 그림에 글자 줄이 들어갈 자리가 없었기 때문이다. 나머지 문구는
+        ///   그림이나 다른 칸이 대신 맡았지만 이것만 갈 데가 없었다.
+        /// </summary>
+        public string WaitingLine => $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+
         public override void Spawned()
         {
             Current = this;
@@ -1075,7 +1090,7 @@ namespace Mine.Net
             switch (Phase)
             {
                 case MineMatchPhase.Waiting:
-                    return $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+                    return WaitingLine;
 
                 case MineMatchPhase.Countdown:
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";

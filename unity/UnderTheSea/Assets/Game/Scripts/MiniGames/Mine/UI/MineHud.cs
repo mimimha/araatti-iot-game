@@ -649,9 +649,17 @@ public class MineHud : MonoBehaviour
 
         var label = labelGo.AddComponent<TextMeshProUGUI>();
         label.alignment = TextAlignmentOptions.Center;
-        label.fontSize = CenterNoticeFontSize;
         label.color = CenterNoticeLabelColor;
         label.raycastTarget = false;
+
+        // ⚠ **자동 크기로 둔다.** 한마디가 늘 짧지는 않다. "힌트타임" 은 90pt 로 크게
+        //   나오지만 "동료를 기다리는 중 (1 / 2)" 는 그 크기로 화면을 넘친다.
+        //   좌우 여백은 글자가 화면 끝에 닿지 않게 하려는 것이다.
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 32f;
+        label.fontSizeMax = CenterNoticeFontSize;
+        label.fontSize = CenterNoticeFontSize;
+        label.margin = new Vector4(80f, 0f, 80f, 0f);
 
         // 글꼴은 이미 쓰고 있는 것을 빌린다. 한글이 나와야 하므로 기본 글꼴로는 안 된다.
         TMP_Text donor = countdownText != null ? countdownText : timeText;
