@@ -7055,15 +7055,14 @@ MonoBehaviour:
   warnSeconds: 3
   duration: 12
   damageOnFail: 0
-  sailLossOnFail: 0.4
+  sailLossOnFail: 0
   chainOnFail:
   - {fileID: 562408157}
   health: {fileID: 0}
   game: {fileID: 0}
   voyage: {fileID: 0}
-  extraSlackPerSecond: 0.3
-  minSailPower: 0.3
-  allowedWeakTime: 3
+  gustFillPerSecond: 0.3
+  furledBelow: 0.3
 --- !u!1 &1872577300
 GameObject:
   m_ObjectHideFlags: 0
