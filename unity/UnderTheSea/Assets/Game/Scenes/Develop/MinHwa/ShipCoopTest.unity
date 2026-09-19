@@ -1232,7 +1232,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CannonTask
   displayName: "\uB300\uD3EC"
   capacity: 1
-  interactRange: 2
+  interactRange: 3
   maxAmmo: 3
   startingAmmo: 0
   fireInterval: 0.8
