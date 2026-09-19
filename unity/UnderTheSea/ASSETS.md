@@ -28,6 +28,7 @@
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/`, 셰이더는 `Art/Shaders/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 · 판 테두리 화로(`Mine_BridgeProp`) | 효진 | 2026-09-18 |
 | Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
+| 광산 HUD 그림 11종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 | 효진 | 2026-09-19 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
 > 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —
