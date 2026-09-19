@@ -123,7 +123,6 @@ public class ShipCoopNameplate : MonoBehaviour
     [Tooltip("위쪽 가장자리에서 이름이 잘리지 않게 비워 두는 높이. 화면 높이의 비율이다.")]
     [SerializeField, Range(0f, 0.3f)] private float edgeLabelHeadroom = 0.15f;
 
-
     private NetworkPlayerIdentity identity;
     private Transform root;
     private TMP_Text label;
@@ -134,26 +133,6 @@ public class ShipCoopNameplate : MonoBehaviour
 
     /// <summary>색을 이미 정했는가. 번호는 스폰 뒤에야 오므로 한 번만 정하고 만다.</summary>
     private bool colored;
-
-    private ShipCoopHud hud;
-
-    /// <summary>
-    /// 이 화면을 보고 있는 사람의 캐릭터. 화면 밖 방향을 잴 **기준점**이다.
-    ///
-    /// HUD 가 들고 있는 값을 빌려 쓴다. 아직 없으면 카메라로 대신한다.
-    /// </summary>
-    private Transform Me
-    {
-        get
-        {
-            if (hud == null)
-            {
-                hud = FindAnyObjectByType<ShipCoopHud>(FindObjectsInactive.Include);
-            }
-
-            return hud != null && hud.LocalWorker != null ? hud.LocalWorker.transform : null;
-        }
-    }
 
     /// <summary>
     /// 머리뼈. 이름표 **높이**만 여기서 가져온다.
@@ -561,34 +540,39 @@ public class ShipCoopNameplate : MonoBehaviour
             labelRect.localScale = Vector3.one;
             return;
         }
-
         // ── 화면 밖 ──
         //
         // ⚠ **자리를 투영으로 잡지 않는다.**
         //
         //    카메라가 갑판을 내려다보느라 아래로 꺾여 있어서, 카메라 기준 세로(`y`)가
-        //    실제 위아래와 다르다. 월드에서 뒤·아래인 사람이 카메라 기준으로는 `y` 가
-        //    양수로 나온다. 실측으로 세 번 다 그랬다 (`y +2.42`, `+2.87`, `+2.98`).
+        //    실제 위아래와 다르다. 뒷갑판(선미루)은 **높아서** 화면 위로 투영된다.
+        //    실측으로 상대가 카메라보다 +1.87 m, +2.70 m 위였다. 그런데 사람이 원하는 것은
+        //    "뒤에 있으면 아래" 다. 높이를 빼고 앞뒤만 봐야 한다.
         //    카메라 평면 근처에서는 투영 자체도 터진다 (`z 0.02` 에서 뷰포트 `-109, 141`).
         //
-        //    그래서 **나침반처럼** 잡는다. 카메라가 보는 쪽을 화면 위로 두고, 그 사람이
-        //    어느 방향에 있는지만 본다.
+        // ⚠ **기준점은 카메라 시선이 그 사람 높이의 수평면과 만나는 점이다.**
         //
-        //      가로 — 내 오른쪽으로 얼마나
-        //      세로 — 내 **앞뒤**로 얼마나.  앞이면 위, 뒤면 아래
+        //    카메라 자리를 기준으로 하면 안 된다 — 카메라가 배 뒤 높은 데 있어서 갑판 위
+        //    모두가 "앞" 이라 전부 위로 간다. 내 캐릭터를 기준으로 해도 안 된다 — 내가
+        //    움직이면 가만히 있는 사람의 화살표가 따라 움직이고, 화면 왼쏙에 서 있는
+        //    사람이 나보다 살짝 뒤라는 이유로 아래로 갔다. 실제로 둘 다 그랬다.
         //
-        //    높이(`world.y`)로 잡아 봤더니 안 됐다. **뒷갑판이 선미루라 오히려 높기**
-        //    때문이다 — 실측으로 상대가 카메라보다 +1.87 m, +2.70 m 위였다. 높이로는
-        //    "내 뒤" 를 표현할 수 없다. 사람이 원하는 것은 높이가 아니라 방향이다.
-        //
-        // ⚠ **기준은 카메라가 아니라 내 캐릭터다.** 카메라는 배 뒤쪽 높은 데서 앞을
-        //    보므로, 뒷갑판도 카메라 기준으로는 **살짝 앞**이다 (실측 `z +0.39`).
-        //    그래서 카메라 기준으로 재면 뒷갑판 사람이 화면 위로 갔다. 사람이 말하는
-        //    "내 뒤" 는 내 캐릭터 기준이다.
-        Vector3 from = Me != null ? Me.position : eye.transform.position;
-        Vector3 delta = anchor - from;
-
+        //    화면 한가운데 시선을 **그 사람 높이의 수평면**까지 쏘아 만나는 점을 잡으면,
+        //      - 카메라에서 나온 기준이라 내가 움직여도 흔들리지 않고
+        //      - 좌우는 화면 좌우와 같고
+        //      - 앞뒤는 높이가 빠진 채로 재어져 뒷갑판이 아래로 간다.
+        //    내 이름표도 같은 식이라 따로 처리할 것이 없다.
         Vector3 ahead = Vector3.ProjectOnPlane(eye.transform.forward, Vector3.up).normalized;
+
+        Ray centerRay = eye.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        var levelPlane = new Plane(Vector3.up, anchor);
+
+        // 시선이 그 높이와 안 만나면(위를 보는 카메라) 카메라 앞 적당한 거리로 대신한다.
+        Vector3 focus = levelPlane.Raycast(centerRay, out float hit) && hit > 0f
+            ? centerRay.GetPoint(hit)
+            : eye.transform.position + ahead * 10f;
+
+        Vector3 delta = anchor - focus;
 
         Vector2 toward = new Vector2(
             Vector3.Dot(delta, eye.transform.right),
@@ -606,7 +590,6 @@ public class ShipCoopNameplate : MonoBehaviour
         var clamped = new Vector2(
             Mathf.Clamp(0.5f + aim.x * 2f, lo, hi),
             Mathf.Clamp(0.5f + aim.y * 2f, lo, hiY));
-
 
         root.position = eye.ViewportToWorldPoint(new Vector3(clamped.x, clamped.y, edgeDistance));
         root.localScale = Vector3.one * scale * edgeScale;
