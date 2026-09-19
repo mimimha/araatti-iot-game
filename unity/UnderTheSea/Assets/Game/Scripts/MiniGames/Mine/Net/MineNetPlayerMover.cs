@@ -124,6 +124,12 @@ namespace Mine.Net
         /// <summary>지금 이 몸을 실제로 굴리고 있는가. 같은 값을 두 번 넣지 않으려고 기억한다.</summary>
         private bool? _simulated;
 
+        /// <summary>
+        /// 지금 사람끼리 부딪히게 해 두었는가. null 이면 <b>아직 안 정했다</b>는 뜻이라
+        /// 다음 틱에 짝을 다시 건다. 씬 전체를 훑는 일이라 바뀔 때만 한다.
+        /// </summary>
+        private bool? _crowdBump;
+
         public override void Spawned()
         {
             _mover = GetComponent<CharacterMover>();
@@ -152,14 +158,14 @@ namespace Mine.Net
                 return;
             }
 
-            // 나와 남을 서로 무시한다. 늦게 들어온 사람이 이미 있는 사람들과
-            // 짝을 지으므로, 새로 생길 때마다 모든 짝이 채워진다.
-            IgnoreOtherPlayers();
+            // 새 몸이 하나 늘었으니 **모두가 짝을 다시 맞춘다.** 실제로 켜고 끄는 것은
+            // 다음 틱의 ApplyCrowdCollision 이다. 여기서는 "다시 정해라" 고만 한다.
+            ForgetCrowdCollision();
 
             foreach (MineNetPlayerMover other in FindObjectsByType<MineNetPlayerMover>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (other != null && other != this) other.IgnoreOtherPlayers();
+                if (other != null && other != this) other.ForgetCrowdCollision();
             }
         }
 
@@ -201,11 +207,17 @@ namespace Mine.Net
         }
 
         /// <summary>
-        /// **사람끼리는 서로 막지 않는다.**
+        /// **사람끼리 부딪히게 할 것인가.** 몸이 보이는 동안만 참이다.
+        /// (<see cref="MineMatchState.CrewOnBoard"/> — 카운트다운 · 공개 · 턴)
         ///
-        /// 광산은 턴제라 한 번에 한 명만 걷는다. 나머지는 보이지도 않는 채 서 있을 뿐인데,
-        /// 그 캡슐이 물리적으로 남아 있어 <b>턴 주인이 보이지 않는 몸에 걸려 넘어간다.</b>
-        /// 실제로 "남의 머리 위를 밟고 지나가는" 모습으로 보였다.
+        /// <b>보이지 않는 몸은 길을 막으면 안 된다.</b> 대기와 결과 화면에는 몸이
+        /// 숨는데, 그 캡슐이 물리적으로 남아 있으면 <b>보이지 않는 벽에 걸려
+        /// 넘어간다.</b> 예전에 "남의 머리 위를 밟고 지나가는" 모습으로 드러났던 것이
+        /// 이것이다. 그때는 아예 영구히 꺼 두었지만, 이제 넷이 같이 서 있는 시간이
+        /// 생겨서 <b>보일 때만 켠다.</b>
+        ///
+        /// 굳어 있는 것과는 상관없다 — 공개 7초에 서 있는 셋은 움직이지 못해도
+        /// 보이므로, 첫 턴 예정자가 그 몸에 막히는 것이 맞다.
         ///
         /// <b>왜 <c>detectCollisions</c> 로는 안 되는가.</b> 그 값은 "다른 것이 나를
         /// <b>밀 수 있는가</b>" 를 정한다. <c>CharacterController.Move()</c> 가 스스로
@@ -214,15 +226,16 @@ namespace Mine.Net
         /// <b>왜 컨트롤러를 끄지 않는가.</b> 껐다 켜면 그 부품이 들고 있던 옛 자리로
         /// transform 을 되돌린다. 스폰 자리를 잃고 월드 원점으로 튀는 문제를 이미 겪었다.
         ///
-        /// 그래서 <b>짝을 지어 무시</b>한다. 한 번에 한 명만 걷는 게임이라
-        /// 사람끼리 부딪혀야 할 이유가 아예 없다 — 모든 짝을 영구히 무시해도 된다.
-        ///
-        /// ⚠ <c>Physics.IgnoreCollision</c> 은 콜라이더를 껐다 켜면 풀린다.
-        ///    <see cref="PlaceAt"/> 가 자리를 옮기며 껐다 켜므로 그 뒤에 다시 건다.
+        /// ⚠ <c>Physics.IgnoreCollision</c> 은 <b>짝마다</b> 걸리고, 콜라이더를 껐다 켜면
+        ///    풀린다. 그래서 새 몸이 생기면(<c>Spawned</c>) <see cref="ForgetCrowdCollision"/>
+        ///    로 기억을 지워 다음 틱에 전부 다시 걸게 한다.
         /// </summary>
-        public void IgnoreOtherPlayers()
+        private void ApplyCrowdCollision(bool bump)
         {
+            if (_crowdBump == bump) return;
             if (_capsule == null || !_capsule.enabled) return;
+
+            _crowdBump = bump;
 
             foreach (MineNetPlayerMover other in FindObjectsByType<MineNetPlayerMover>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -232,8 +245,19 @@ namespace Mine.Net
                 CharacterController partner = other.GetComponent<CharacterController>();
                 if (partner == null || !partner.enabled) continue;
 
-                Physics.IgnoreCollision(_capsule, partner, true);
+                Physics.IgnoreCollision(_capsule, partner, !bump);
             }
+        }
+
+        /// <summary>
+        /// 짝을 **다시 맞춰야 한다**고 알린다. 실제로 거는 것은 다음 틱이다.
+        ///
+        /// 새 사람이 들어왔을 때(짝이 하나 늘었다)와 자리를 옮긴 뒤(콜라이더를 껐다 켜
+        /// 짝이 풀렸다) 부른다.
+        /// </summary>
+        public void ForgetCrowdCollision()
+        {
+            _crowdBump = null;
         }
 
         /// <summary>
@@ -254,15 +278,27 @@ namespace Mine.Net
             // 실제로 얼마나 움직였는지는 입력과 상관없이 매 틱 잰다.
             MeasureMotion();
 
-            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 관전자는 여기서 걸러진다.
-            //   목표 공개(7초) 중에도 첫 턴을 받을 사람은 여기를 통과한다 —
-            //   미리 자리를 잡게 하려는 것이다. 파는 것은 MineNetPlayerActions 가 따로 막는다.
-            //   힌트를 보는 동안에는 굴리지 않는다. 판이 정답 보기로 올라오면서
-            //   콜라이더가 캐릭터를 떠밀기 때문이다. 표시는 그대로 둔다 —
-            //   MineNetPlayer.WatchingOwnHint 의 주석에 이유가 있다.
-            bool mine = _who != null && _who.CanMoveNow && !_who.WatchingOwnHint;
+            MineMatchState match = MineMatchState.Current;
+
+            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 카운트다운과 턴에는 넷 다 통과하고
+            //   (MineMatchState.FreeRoam), 목표 공개(7초)에는 첫 턴 예정자만 통과한다.
+            //   파는 것은 MineNetPlayerActions 가 IsMyTurn 으로 따로 막는다.
+            //
+            // ⚠ **판이 들려 있으면 아무도 안 움직인다.** 정답 보기가 파인 칸을 0.25m
+            //   끌어올려 캐릭터를 떠밀기 때문이다. 자기 힌트를 보는 사람만 멈추는 것으로는
+            //   부족하다 — 떠밀리는 것은 그 판 위를 걷는 <b>나머지 셋</b>이다.
+            //   (MineMatchState.BoardLifted 주석)
+            bool frozen = (_who != null && _who.WatchingOwnHint)
+                          || (match != null && match.BoardLifted);
+
+            bool mine = _who != null && _who.CanMoveNow && !frozen;
 
             SetSimulated(mine);
+
+            // ⚠ **부딪히는 것은 보이는 것을 따라간다.** 숨은 몸이 길을 막으면
+            //   보이지 않는 벽이 된다. 굳어 있어도 보이면 몸이다 — 공개 7초에
+            //   서 있는 셋은 첫 턴 예정자를 막아도 된다. (ApplyCrowdCollision 주석)
+            ApplyCrowdCollision(match != null && match.CrewOnBoard);
 
             float yaw = _who != null ? _who.CameraYaw : 0f;
 
@@ -416,7 +452,9 @@ namespace Mine.Net
         /// <summary>
         /// **서버가 이 사람을 정해진 자리로 옮긴다.**
         ///
-        /// 턴이 넘어갈 때 앞사람이 서 있던 자리로 다음 사람을 세우는 데 쓴다.
+        /// 카운트다운이 켜질 때 판 위에 흩뿌리는 데 쓴다.
+        /// (<c>MineMatchState.ScatterCrew</c>) <b>턴이 넘어갈 때는 부르지 않는다</b> —
+        /// 걷던 사람을 끌어오지 않고 서 있던 자리에서 바로 판다.
         ///
         /// ⚠ <c>CharacterController</c> 가 켜져 있으면 <c>transform.position</c> 대입을
         ///    되돌린다. 그 부품은 자기가 아는 자리를 따로 들고 있어서, 끄고 옮긴 뒤
@@ -435,25 +473,11 @@ namespace Mine.Net
             {
                 _capsule.enabled = true;
 
-                // ⚠ 껐다 켜면 짝지어 둔 무시가 풀린다. 다시 건다.
-                IgnoreOtherPlayers();
+                // ⚠ 껐다 켜면 짝지어 둔 것이 풀린다. 다음 틱에 다시 걸게 한다.
+                ForgetCrowdCollision();
             }
 
             MoveAxis = Vector2.zero;
-        }
-
-        /// <summary>
-        /// 자기 턴을 받는다. **컨트롤러를 먼저 켜고 그 다음에 옮긴다.**
-        ///
-        /// 순서를 뒤집으면 꺼진 컨트롤러 위에 자리를 써 넣게 되고, 켜지는 순간
-        /// <c>CharacterController</c> 가 자기가 기억하던 옛 자리로 되돌린다.
-        /// </summary>
-        public void TakeTurnAt(Vector3 position, Quaternion rotation)
-        {
-            if (!HasStateAuthority) return;
-
-            SetSimulated(true);
-            PlaceAt(position, rotation);
         }
     }
 }

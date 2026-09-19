@@ -57,9 +57,14 @@ namespace Mine.Net
         /// 자기 턴이거나, 목표를 보여 주는 동안 곳 첫 턴을 받을 사람이다.
         /// 공개 때 미리 자리를 잡을 수 있게 하려는 것이다.
         ///
+        /// <b>카운트다운과 턴에는 참가자 전원이 참이다.</b> (<see cref="MineMatchState.FreeRoam"/>)
+        /// 내 턴이 아니어도 걷고 달릴 수 있다. 그동안 넷이 다 보이고 서로 부딪힌다.
+        ///
         /// ⚠ <b>파는 것은 여기에 걸리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
         ///   <see cref="IsMyTurn"/> 과 <c>ShowingTarget</c> 으로 따로 막는다.
-        ///   공개 중에는 이동만 되고 채굴·복구·힐트는 안 된다.
+        ///   <b>움직이는 것과 파는 것은 다른 문이다</b> — 넷이 같이 걸어다녀도
+        ///   파는 것은 언제나 한 사람뿐이다. 카운트다운에는 <c>CurrentSlot</c> 이 -1 이라
+        ///   아무도 <see cref="IsMyTurn"/> 이 아니어서 한 명도 못 판다.
         /// </summary>
         public bool CanMoveNow
         {
@@ -68,7 +73,30 @@ namespace Mine.Net
                 if (IsMyTurn) return true;
 
                 MineMatchState match = MineMatchState.Current;
-                return match != null && Slot >= 0 && match.WarmupSlot == Slot;
+                if (match == null || Slot < 0) return false;
+
+                return match.FreeRoam || match.WarmupSlot == Slot;
+            }
+        }
+
+        /// <summary>
+        /// 지금 이 몸이 <b>격자 위에 보이는가.</b> <see cref="CanMoveNow"/> 와 <b>따로 논다.</b>
+        ///
+        /// 공개 7초가 그 둘이 갈라지는 자리다 — 넷이 다 서 있되 첫 턴 예정자만 걷는다.
+        /// 나머지 셋은 굳은 채로 같이 도안을 본다.
+        ///
+        /// ⚠ <b>움직임 판정을 여기에 섞으면 안 된다.</b> 힌트처럼 잠깐 멈추는 것까지
+        ///   보이기에 엮으면 그때마다 캐릭터가 사라진다. 실제로 겪은 문제다.
+        ///   (<see cref="WatchingOwnHint"/> 주석)
+        /// </summary>
+        public bool ShowBody
+        {
+            get
+            {
+                if (Slot < 0) return false;
+
+                MineMatchState match = MineMatchState.Current;
+                return match != null && match.CrewOnBoard;
             }
         }
 
@@ -158,13 +186,17 @@ namespace Mine.Net
         }
 
         /// <summary>
-        /// **움직일 수 있는 사람만 격자 위에 보인다.** (지금 턴 또는 공개 중 첫 턴 예정자)
+        /// **판이 도는 동안에는 참가자 넷이 다 보인다.** 카운트다운 · 공개 · 턴.
+        /// (<see cref="ShowBody"/>) 움직일 수 있는가는 여기서 보지 않는다 —
+        /// 공개 7초에는 넷이 다 서 있고 걷는 것은 첫 턴 예정자뿐이다.
         ///
-        /// 네 명이 다 서 있으면 서로의 몸이 도안을 가린다. 채굴 위치를 읽을 수 없게 되고,
-        /// 무엇보다 이 게임은 "지금 누가 파고 있는가" 가 화면의 전부다.
+        /// 숨기는 때는 둘이다. <b>대기</b>는 아직 스폰 높이에 떠 있어서(카운트다운에
+        /// 떨어진다), <b>결과</b>는 완성된 그림을 위에서 보여 주는 시간이라 몸이 가리면
+        /// 안 되어서다.
         ///
-        /// 콜라이더까지 끄는 이유는 가리는 것 말고도 하나 더 있다 — 관전자의 몸이
-        /// 남아 있으면 지금 턴인 사람이 거기에 걸려 못 지나간다.
+        /// 콜라이더까지 같이 끄는 이유 — <b>보이지 않는 몸이 길을 막으면 안 된다.</b>
+        /// 사람끼리의 충돌도 같은 값을 따라간다.
+        /// (<c>MineNetPlayerMover.ApplyCrowdCollision</c>)
         ///
         /// ⚠ 서버에서도 판단은 같다. 규칙(충돌)이 걸려 있어 표시만의 문제가 아니다.
         ///
@@ -176,12 +208,12 @@ namespace Mine.Net
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority) return;
-            ApplyPresence(CanMoveNow);
+            ApplyPresence(ShowBody);
         }
 
         public override void Render()
         {
-            ApplyPresence(CanMoveNow);
+            ApplyPresence(ShowBody);
         }
 
         private void ApplyPresence(bool visible)

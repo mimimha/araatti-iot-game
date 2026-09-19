@@ -49,7 +49,15 @@ namespace Mine.Net
 
             // 조준 칸은 입력과 상관없이 매 틱 갱신한다. **채굴이 쓰는 것과 같은 계산**이라
             // 표시된 칸과 실제로 파이는 칸이 어긋나지 않는다.
-            _who.RecordFocus(ResolveFocusCell());
+            //
+            // ⚠ **지금 턴인 사람만 기록한다.** 이제 넷이 다 걸어다니므로 모두가 적으면
+            //   화면에 표시가 넷이 되고, 팔 수 없는 사람의 발밑까지 "여기를 판다" 로
+            //   읽힌다. 턴이 아닌 사람은 -1(표시 없음)로 덮어써 둔다 — 그래야 턴이
+            //   넘어가는 순간 앞사람의 표시가 스스로 사라진다.
+            //
+            //   서버가 정하므로 네 화면이 같은 칸 하나를 본다. 카운트다운에는
+            //   CurrentSlot 이 -1 이라 아무도 해당되지 않아 표시가 아예 없다.
+            _who.RecordFocus(_who.IsMyTurn ? ResolveFocusCell() : -1);
 
             if (!GetInput(out MineInputData input)) return;
 
