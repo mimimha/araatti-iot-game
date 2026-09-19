@@ -198,8 +198,8 @@ namespace Mine.Net
         /// <summary>
         /// HUD 힌트 칸에 적을 글자. <c>MineHud.RefreshHint</c> 의 규칙 그대로다.
         ///
-        /// ⚠ <b>쓸 수 없는 때</b>와 <b>써버린 때</b>를 가른다. 내 턴이 아니면 "대기" 다.
-        ///   그걸 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
+        /// ⚠ <b>아직 못 쓰는 때</b>·<b>써버린 때</b>·<b>기회가 지나간 때</b>를 가른다.
+        ///   내 턴 전을 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
         ///
         /// 키는 <b>J</b> 다. 솔로도 같다 — 솔로는 <c>KeyboardPlayerController</c> 의
         /// button2 가 J 로 묶여 있고, 네트워크는 <c>MineInputProvider</c> 의 jKey 다.
@@ -209,17 +209,49 @@ namespace Mine.Net
             if (match == null || _who == null || _who.Slot < 0) return string.Empty;
 
             if (IsWatchingMyHint(match)) return "보는 중";
-            if (!_who.IsMyTurn) return "대기";
+            if (_who.HintUsed) return "사용함";
+            if (MyTurnGone(match)) return "지남";
 
-            return _who.HintUsed ? "사용함" : "J · 1회";
+            return _who.IsMyTurn ? "J · 1회" : "대기";
         }
 
-        /// <summary>힌트가 아직 살아 있는가. 보는 중이거나 내 턴에 아직 안 썼으면 살아 있다.</summary>
+        /// <summary>
+        /// 내 힌트가 아직 살아 있는가. HUD 는 이 값으로 힌트 그림을 컬러/흑백으로 바꾼다.
+        ///
+        /// 힌트는 <b>사람마다 하나</b>다 (MINE.md 2·4장). 그래서 남이 쓴 것은 내 칸을
+        /// 바꾸지 않는다 — P1 이 써도 흑백이 되는 것은 P1 의 화면뿐이다.
+        ///
+        /// ⚠ <b>내 턴인지는 묻지 않는다.</b> 전에는 물었는데, 그러면 차례를 기다리는
+        ///   동안 아직 멀쩡한 내 힌트가 흑백으로 보였다. 죽는 경우는 둘뿐이다 —
+        ///   내가 썼거나, 내 차례가 지나갔거나.
+        /// </summary>
         private bool HintAlive(MineMatchState match)
         {
             if (match == null || _who == null || _who.Slot < 0) return false;
 
-            return IsWatchingMyHint(match) || (_who.IsMyTurn && !_who.HintUsed);
+            // 보는 중에는 켜 둔다. 쓰는 순간 HintUsed 가 참이 되므로, 이 줄이 없으면
+            // 정작 힌트를 보고 있는 7초 동안 이미 흑백이다.
+            if (IsWatchingMyHint(match)) return true;
+
+            if (_who.HintUsed) return false;
+
+            return !MyTurnGone(match);
+        }
+
+        /// <summary>
+        /// 내 차례가 지나갔는가. 턴은 슬롯 오름차순으로 돌기 때문에
+        /// (<c>MineMatchState.OpenTurnFrom(CurrentSlot + 1)</c>) 지금 파는 사람보다
+        /// 내 번호가 작으면 지난 것이다. 판이 끝나면 전원이 지난 것이다.
+        ///
+        /// 참가자 줄이 "채굴 완료" 를 고르는 기준과 같다. (<c>MineHud.DrawNetworkPlayers</c>)
+        /// </summary>
+        private bool MyTurnGone(MineMatchState match)
+        {
+            if (match.Phase == MineMatchPhase.Finished) return true;
+
+            // 턴 사이에도 CurrentSlot 은 -1 로 돌아가지 않는다. -1 인 때는 카운트다운과
+            // 도안 공개뿐이고, 그때는 아무의 차례도 지나가지 않았다.
+            return match.CurrentSlot >= 0 && _who.Slot < match.CurrentSlot;
         }
 
         private bool IsWatchingMyHint(MineMatchState match)
