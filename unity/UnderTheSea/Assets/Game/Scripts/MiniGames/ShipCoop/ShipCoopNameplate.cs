@@ -197,7 +197,14 @@ public class ShipCoopNameplate : MonoBehaviour
                 return seeThroughUI;
             }
 
-            seeThroughUI = new Material(Shader.Find("UI/Default"))
+            Shader uiShader = Shader.Find("UI/Default");
+            if (uiShader == null)
+            {
+                // 셰이더가 빠진 빌드(서버). Awake 에서 이미 막지만 한 번 더 지킨다.
+                return null;
+            }
+
+            seeThroughUI = new Material(uiShader)
             {
                 name = "ShipCoopNameplateSeeThrough",
                 hideFlags = HideFlags.HideAndDontSave,
@@ -258,6 +265,15 @@ public class ShipCoopNameplate : MonoBehaviour
 
     private void Awake()
     {
+        // ⚠ **서버에서는 만들지 않는다.** Dedicated Server 빌드는 셰이더를 전부 빼서
+        //    `Shader.Find("UI/Default")` 가 null 이고 `new Material(null)` 이 터졌다.
+        //    이름표는 그림이라 서버가 할 일이 없다. 그래픽 장치가 없으면 그냥 빠진다.
+        if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+        {
+            enabled = false;
+            return;
+        }
+
         identity = GetComponent<NetworkPlayerIdentity>();
         head = FindHead();
         Build();
