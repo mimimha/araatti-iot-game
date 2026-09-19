@@ -119,32 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &45087132 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4155864645765361310, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
-  m_PrefabInstance: {fileID: 202652518}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &45087138
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 45087132}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 557b522671ec28445bccdb50a12adbfd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopPortrait
-  studioAt: {x: 0, y: -5000, z: 0}
-  apart: 20
-  size: 256
-  background: {r: 0, g: 0, b: 0, a: 0}
-  lookAtDrop: 0.3
-  distance: 0.55
-  turn: 20
-  frame: 0.36
-  pollSeconds: 0.5
 --- !u!1 &60280105
 GameObject:
   m_ObjectHideFlags: 0
@@ -970,10 +944,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4155864645765361310, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 45087138}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
 --- !u!1 &208956770
 GameObject:
@@ -1722,6 +1693,7 @@ MonoBehaviour:
   - {fileID: 1485332601}
   - {fileID: 1927483869}
   - {fileID: 338714899}
+  - {fileID: 1250022910}
   degreesPerSlideSpeed: 2.2
   mostDegrees: 14
   pivotZ: 8.633332
@@ -1979,6 +1951,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSeaFlow
   voyage: {fileID: 0}
+  game: {fileID: 0}
   water: []
   flowPerShipSpeed: 4
   leastFlow: 1.5
