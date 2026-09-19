@@ -1312,6 +1312,7 @@ GameObject:
   - component: {fileID: 1814289793467282175}
   - component: {fileID: 1257440104675357009}
   - component: {fileID: 1868765229182059995}
+  - component: {fileID: 5473567927952167293}
   - component: {fileID: 3062359811241228748}
   - component: {fileID: 2555361678685936136}
   - component: {fileID: 4436310353124722661}
@@ -1414,6 +1415,7 @@ MonoBehaviour:
   NetworkedBehaviours:
   - {fileID: 1814289793467282175}
   - {fileID: 1868765229182059995}
+  - {fileID: 5473567927952167293}
   - {fileID: 3062359811241228748}
   - {fileID: 2555361678685936136}
   - {fileID: 7438512644253571555}
@@ -1523,6 +1525,22 @@ MonoBehaviour:
   hiddenUntilReady: []
   _AppearanceReady:
     RawValue: 0
+--- !u!114 &5473567927952167293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 --- !u!114 &3062359811241228748
 MonoBehaviour:
   m_ObjectHideFlags: 0
