@@ -1324,6 +1324,7 @@ GameObject:
   - component: {fileID: 2061641660322509996}
   - component: {fileID: 5731928460017753412}
   - component: {fileID: 7276708486594036018}
+  - component: {fileID: 8740589765523071439}
   m_Layer: 0
   m_Name: ShipCoopPlayer
   m_TagString: Untagged
@@ -1725,6 +1726,38 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopDefaultAppearance
   waitSeconds: 20
+--- !u!114 &8740589765523071439
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a71914f1cdf03c74fb3316650b1fb632, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopNameplate
+  height: 1.45
+  scale: 0.006
+  fontSize: 34
+  playerColors:
+  - {r: 1, g: 0.33, b: 0.33, a: 1}
+  - {r: 0.36, g: 0.68, b: 1, a: 1}
+  - {r: 0.78, g: 0.51, b: 1, a: 1}
+  - {r: 1, g: 0.83, b: 0.3, a: 1}
+  fallbackColor: {r: 1, g: 0.96, b: 0.86, a: 1}
+  outline: 0.3
+  arrowSize: {x: 30, y: 22}
+  hideBeyond: 0
+  pointFromEdge: 1
+  edgeMargin: 0.045
+  edgeDistance: 0.8
+  edgeScale: 0.144
+  edgeArrowScale: 1.6
+  edgeLabelScale: 1
+  edgeLabelGap: 40
+  edgeLabelHeadroom: 0.15
 --- !u!1 &2877561824165893445
 GameObject:
   m_ObjectHideFlags: 0
