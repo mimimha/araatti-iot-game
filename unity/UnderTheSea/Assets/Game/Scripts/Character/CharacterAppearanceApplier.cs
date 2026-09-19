@@ -407,7 +407,7 @@ namespace UnderTheSea.Character
         ///   모델 전체가 감춰져 있으면   관련 렌더러 전부 감춘다. 자리별 규칙은 보지 않는다
         ///   모델 전체가 보이면
         ///       기본 슬롯 렌더러         그 자리를 덮는 파츠를 입었으면 감춘다
-        ///       빈 기본 슬롯 렌더러      몸·얼굴·머리·귀·상의·하의·신발만 보인다. 나머지는 감춘다
+        ///       빈 기본 슬롯 렌더러      프리팹 기본 메시가 그대로 보인다
         ///       런타임 Equipped 파츠     보인다
         /// </code>
         ///
@@ -450,22 +450,15 @@ namespace UnderTheSea.Character
                     continue;
                 }
 
-                // ⚠ **머리카락과 귀도 여기 들어간다.** 둘 다 프리팹 기본 메시가 실제로 있고
-                //    (`Hairstyle` · `Ears`), 몸의 일부지 갈아입는 옷이 아니다. 빠져 있으면
-                //    **파츠를 안 입은 사람이 민머리에 귀 없는 채로** 돌아다닌다.
-                //    로그인을 안 거치는 미니게임 직접 진입이 정확히 그 경우다.
+                // ⚠ **허용 목록을 두지 않는다.** 예전에는 몸·얼굴·상의·하의·신발만
+                //    보이게 했는데, 세 캐릭터 프리팹(ShipCoopPlayer · NetworkPlayer ·
+                //    P_JaeYoung) 모두 **머리카락 · 귀 · 안경 · 얼굴장식까지 아홉 개**에
+                //    기본 메시가 들어 있다. 목록에 없던 넷은 파츠를 입었든 말든 늘 꺼져서,
+                //    커마를 안 거친 사람이 민머리에 귀도 안경도 없는 채로 나왔다.
                 //
-                //    덮이는 경우는 아래 `occupied` 가 알아서 처리한다 — 머리 파츠를 입거나
-                //    모자가 머리를 덮으면(`covers`) 그때 꺼진다.
-                bool core = binding.slot == WearSlot.Body
-                    || binding.slot == WearSlot.Face
-                    || binding.slot == WearSlot.Hair
-                    || binding.slot == WearSlot.Ears
-                    || binding.slot == WearSlot.Top
-                    || binding.slot == WearSlot.Bottom
-                    || binding.slot == WearSlot.Shoes;
-
-                binding.renderer.forceRenderingOff = !(core && (occupied & binding.slot) == 0);
+                //    규칙은 원래 이 한 줄이면 된다 — **그 자리를 파츠가 차지했을 때만 감춘다.**
+                //    메시가 없는 슬롯(모자 · 장갑 · 양말 등)은 켜 둬도 그릴 것이 없다.
+                binding.renderer.forceRenderingOff = (occupied & binding.slot) != 0;
             }
         }
 
