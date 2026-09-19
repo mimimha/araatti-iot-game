@@ -81,11 +81,16 @@ namespace Mine.Net
         [Header("결과 화면")]
         [Tooltip("판이 끝나고 \"채굴 종료\" 제목만 보여 주는 시간(초).\n" +
                  "이 동안에는 네 캐릭터가 판 위에 서 있고, 판에는 우리가 판 그림만 보인다. 토글은 아직 안 돈다.")]
-        [SerializeField, Min(0f)] private float finishTitleSeconds = 2f;
+        [SerializeField, Min(0f)] private float finishTitleSeconds = 1.5f;
 
-        [Tooltip("\"채굴 종료\" 가 끝난 뒤 공용 결과 판을 열기까지 기다리는 시간(초).\n" +
-                 "이 동안 캐릭터가 사라지고, 정답과 우리가 판 그림을 번갈아 보여 준다.")]
-        [SerializeField, Min(0f)] private float resultHoldSeconds = 6f;
+        [Tooltip("정답과 우리가 판 그림을 번갈아 보여 주는 시간(초).\n" +
+                 "이 동안에는 성적표를 띄우지 않는다 — 성적표가 판을 덮어서 토글이 안 보인다.\n" +
+                 "⚠ MineLocalView 의 Result Swap Seconds(0.5초)로 나누어떨어지게 둔다.")]
+        [SerializeField, Min(0f)] private float answerToggleSeconds = 2f;
+
+        [Tooltip("성적표를 보여 주는 시간(초). 이것이 끝나면 공용 결과 판이 열린다.\n" +
+                 "이 동안 판은 우리가 판 그림에 멈춰 있다. 토글은 앞 단계에서 끝났다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds = 3.5f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
         [Tooltip("이 값 이상이면 성공.")]
@@ -269,13 +274,34 @@ namespace Mine.Net
             Phase == MineMatchPhase.Finished && SinceResult >= 0f && SinceResult < finishTitleSeconds;
 
         /// <summary>
-        /// <b>채굴 결과 — 성공·실패와 점수를 보여 주는 두 번째 단계.</b>
+        /// <b>정답 맞춰 보기 — 우리 그림과 목표 도안을 번갈아 보여 주는 두 번째 단계.</b>
         ///
-        /// 캐릭터가 사라지고 판이 정답과 번갈아 돈다. 이 단계가 끝나면
-        /// 공용 결과 화면으로 넘어간다.
+        /// 캐릭터가 사라지고 판만 남는다. <b>성적표는 아직 안 띄운다</b> — 성적표가
+        /// 판 한가운데를 덮어서, 같이 띄우면 정작 번갈아 보여 주는 판이 안 보인다.
+        /// 그래서 토글과 성적표를 시간으로 갈랐다.
+        /// </summary>
+        public bool ShowingAnswerToggle =>
+            Phase == MineMatchPhase.Finished
+            && SinceResult >= finishTitleSeconds
+            && SinceResult < finishTitleSeconds + answerToggleSeconds;
+
+        /// <summary>
+        /// <b>채굴 결과 — 성공·실패와 점수를 보여 주는 세 번째 단계.</b>
+        ///
+        /// 토글이 멈추고 판은 우리가 판 그림에 선다. 그 위에 성적표가 뜬다.
+        ///
+        /// ⚠ <b>끝이 있다.</b> 이 단계가 지나면 스스로 걷힌다 — 그래야 공용 결과 판이
+        ///   열릴 때 성적표가 그 밑에 남아 있지 않다. 예전에는 위쪽 경계가 없어서
+        ///   판이 끝난 뒤 <b>영영 떠 있었다.</b>
+        ///
+        /// 걷히는 시각과 공용 결과를 여는 시각은 같은 값으로 계산하지만 재는 방법이
+        /// 다르다 — 이쪽은 복제되는 틱, 저쪽은 서버의 <c>WaitForSeconds</c> 다.
+        /// 한두 프레임 어긋날 수 있고, 그 정도는 눈에 안 띈다.
         /// </summary>
         public bool ShowingMineResult =>
-            Phase == MineMatchPhase.Finished && SinceResult >= finishTitleSeconds;
+            Phase == MineMatchPhase.Finished
+            && SinceResult >= finishTitleSeconds + answerToggleSeconds
+            && SinceResult < finishTitleSeconds + answerToggleSeconds + resultHoldSeconds;
 
         /// <summary>
         /// **판이 들려 있는가.** 그동안에는 <b>아무도</b> 몸을 굴리지 않는다.
@@ -917,26 +943,28 @@ namespace Mine.Net
         /// ⚠ <b>기다리는 동안 보여 줄 것이 있을 때만 값을 준다.</b> 검 게임에서 3초를 뒀다가
         ///    그 동안 아무것도 없는 검은 화면만 남았다.
         ///
-        /// 광산은 판이 끝나고 <b>두 화면</b>을 거친 뒤에야 공용 결과로 넘어간다.
+        /// 광산은 판이 끝나고 <b>세 화면</b>을 거친 뒤에야 공용 결과로 넘어간다.
         ///
-        ///     0.0s  채굴 종료 — 제목만. 네 캐릭터가 판 위에 서 있고 우리가 판 그림이 보인다
-        ///     2.0s  채굴 결과 — 캐릭터가 사라지고 성공·실패가 뜬다. 여기서 토글이 시작된다
-        ///           2.0s  우리가 판 그림      5.0s  우리가 판 그림
-        ///           3.0s  정답                6.0s  정답
-        ///           4.0s  우리가 판 그림      7.0s  우리가 판 그림
-        ///     8.0s  ← 공용 결과 판이 열린다
+        ///     0.0s  ① 채굴 종료   제목만. 네 캐릭터가 판 위에 서 있다
+        ///     1.5s  ② 정답 맞춰 보기  캐릭터가 사라지고 판이 0.5초마다 번갈아 돈다
+        ///           1.5 우리 그림  2.0 정답  2.5 우리 그림  3.0 정답
+        ///     3.5s  ③ 채굴 결과   토글이 멈추고 우리 그림에 선다. 그 위에 성적표가 뜬다
+        ///     7.0s  ④ 성적표가 걷히고 ← 공용 결과 판이 열린다
         ///
-        /// 교대 주기가 1초(<c>resultSwapSeconds</c>)라서 결과 단계 6초 동안 여섯 번
-        /// 바뀐다. 결과 단계를 너무 짧게 두면 <b>몇 번 바뀌지도 못하고 덮인다.</b>
+        /// ⚠ <b>②와 ③을 시간으로 갈라 둔 이유가 있다.</b> 성적표가 판 한가운데를 덮어서,
+        ///    같이 띄우면 정작 번갈아 보여 주는 판이 가려 안 보인다. 실제로 겪었다.
         ///
-        /// ⚠ 이 값들은 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다. 한쪽만 바꾸면
-        ///    엉뚱한 지점에서 잘린다.
+        /// 교대 주기가 0.5초(<c>MineLocalView.resultSwapSeconds</c>)라서 ② 2초 동안
+        /// 네 번 바뀐다. ②를 너무 짧게 두면 <b>몇 번 바뀌지도 못하고 넘어간다.</b>
+        ///
+        /// ⚠ <c>answerToggleSeconds</c> 는 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다.
+        ///    나누어떨어지지 않으면 마지막 장이 잘린다.
         /// </summary>
         private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int dug, int crew)
         {
-            // 두 화면을 다 보여 준 뒤에 넘긴다. 제목 단계를 빼먹으면 공용 결과가
+            // 세 화면을 다 보여 준 뒤에 넘긴다. 한 단계라도 빼먹으면 공용 결과가
             // 그만큼 일찍 덮어 버린다.
-            yield return new WaitForSeconds(finishTitleSeconds + resultHoldSeconds);
+            yield return new WaitForSeconds(finishTitleSeconds + answerToggleSeconds + resultHoldSeconds);
 
             MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
                 MiniGameId.Mining,
@@ -984,8 +1012,10 @@ namespace Mine.Net
             // 이 값은 네 화면에 똑같이 나가기 때문이다.
             _hud.NetworkMemorizeShow = Phase == MineMatchPhase.Reveal;
 
-            // ⚠ 판이 끝나면 화면이 **둘**이다. 제목 먼저, 성적표는 그 다음이다.
-            //   둘을 같이 켜면 "채굴 종료" 위에 점수가 겹친다.
+            // ⚠ 판이 끝나면 HUD 가 **세 번** 바뀐다. 제목(①) → 아무것도 안 띄움(②) →
+            //   성적표(③). ②는 판이 정답과 번갈아 도는 시간이라 **일부러 비워 둔다** —
+            //   성적표를 같이 켜면 판 한가운데를 덮어 토글이 안 보인다.
+            //   ①과 ③을 같이 켜면 "채굴 종료" 위에 점수가 겹친다.
             _hud.NetworkFinishTitleShow = ShowingFinishTitle;
             _hud.NetworkResultShow = ShowingMineResult;
 

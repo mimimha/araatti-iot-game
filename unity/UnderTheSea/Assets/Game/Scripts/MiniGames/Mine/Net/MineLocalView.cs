@@ -33,9 +33,9 @@ namespace Mine.Net
         private MineCursor _cursor;
         private MineHud _hud;
 
-        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.\n" +
-                 "⚠ MineMatchState 의 resultHoldSeconds(6초)로 나누어떨어지게 둔다. 안 그러면 마지막 장이 잘린다.")]
-        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1f;
+        [Tooltip("정답 맞춰 보기(결과 2단계)에서 몇 초마다 정답과 우리 그림을 바꿀 것인가.\n" +
+                 "⚠ MineMatchState 의 answerToggleSeconds(2초)로 나누어떨어지게 둔다. 안 그러면 마지막 장이 잘린다.")]
+        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 0.5f;
 
         [Tooltip("힌트 볼 때 몇 초마다 바꿀 것인가. 힌트는 짧으므로 더 빠르게 넘긴다.")]
         [SerializeField, Min(0.1f)] private float hintSwapSeconds = 0.5f;
@@ -341,13 +341,28 @@ namespace Mine.Net
                     _camera.ShowBoard(finale: true);
                 }
 
-                // ⚠ **채굴 종료 단계에는 토글을 돌리지 않는다.** 제목을 읽는 2초 동안
-                //   판이 정답으로 바뀌면 "우리가 이렇게 팠다" 를 볼 틈이 없다.
-                //   그동안 판은 ShowResult 가 켜 둔 우리 그림 그대로다.
-                if (!match.ShowingMineResult) return;
+                // ⚠ **3단계(성적표)에는 토글을 멈춘다.** 성적표가 판 한가운데를 덮어서
+                //   같이 돌리면 정작 바뀌는 판이 안 보인다. 멈추는 자리는 **우리가 판
+                //   그림**이다 — 토글이 어디서 끝났든 상관없이 늘 같은 그림에 선다.
+                //   (MINE.md 7장: 결과 화면에서는 우리가 판 그림만 보여준다)
+                if (match.ShowingMineResult)
+                {
+                    if (_board != null && _shownAnswer != false)
+                    {
+                        _shownAnswer = false;
+                        _board.SetOverlay(MineOverlay.Result);
+                    }
 
-                // ⚠ 교대의 기준 시각은 **성적표가 열리는 순간**이다. 판이 끝난 순간으로
-                //   잡으면 제목 2초가 교대 시간에 먹혀 첫 그림이 0.5초 만에 넘어간다.
+                    return;
+                }
+
+                // ⚠ **1단계(채굴 종료)에도 안 돌린다.** 제목을 읽는 2초 동안 판이 정답으로
+                //   바뀌면 "우리가 이렇게 팠다" 를 볼 틈이 없다. 그동안 판은 ShowResult 가
+                //   켜 둔 우리 그림 그대로다. 채점 전(SinceResult < 0)도 여기서 걸러진다.
+                if (!match.ShowingAnswerToggle) return;
+
+                // ⚠ 교대의 기준 시각은 **2단계가 열리는 순간**이다. 판이 끝난 순간으로
+                //   잡으면 제목 2초가 교대 시간에 먹혀 첫 그림이 곧바로 넘어간다.
                 if (!_toggleStarted)
                 {
                     _toggleStarted = true;

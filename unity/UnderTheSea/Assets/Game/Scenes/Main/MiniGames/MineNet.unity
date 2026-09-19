@@ -42450,8 +42450,9 @@ MonoBehaviour:
   restoreBlocks: 5
   revealSeconds: 7
   hintSeconds: 3
-  finishTitleSeconds: 2
-  resultHoldSeconds: 6
+  finishTitleSeconds: 1.5
+  answerToggleSeconds: 2
+  resultHoldSeconds: 3.5
   successThreshold: 70
   _Phase: 0
   _Countdown: 0
