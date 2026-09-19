@@ -89,7 +89,7 @@ public class MineGame : MonoBehaviour
     [SerializeField, Min(0f)] private float turnGapSeconds = 0f;
 
     [Tooltip("이 값 이상이면 성공. (MINE.md 7장)")]
-    [SerializeField, Range(0f, 100f)] private float successThreshold = 60f;
+    [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
     [Header("판정 (MINE.md 7장)")]
     [Tooltip("모양 — 위치를 맞춘 뒤 얼마나 닮았는지 잰다. 기본값.\n" +

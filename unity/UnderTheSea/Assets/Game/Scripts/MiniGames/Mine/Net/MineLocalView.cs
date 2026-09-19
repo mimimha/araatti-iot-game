@@ -33,8 +33,9 @@ namespace Mine.Net
         private MineCursor _cursor;
         private MineHud _hud;
 
-        [Tooltip("결과 화면에서 몇 초마다 정답과 내 그림을 바꿀 것인가. 솔로(MineAnswerView 의 Swap Seconds)와 같게 둔다.")]
-        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 1.5f;
+        [Tooltip("정답 맞춰 보기(결과 2단계)에서 몇 초마다 정답과 우리 그림을 바꿀 것인가.\n" +
+                 "⚠ MineMatchState 의 answerToggleSeconds(2초)로 나누어떨어지게 둔다. 안 그러면 마지막 장이 잘린다.")]
+        [SerializeField, Min(0.3f)] private float resultSwapSeconds = 0.5f;
 
         [Tooltip("힌트 볼 때 몇 초마다 바꿀 것인가. 힌트는 짧으므로 더 빠르게 넘긴다.")]
         [SerializeField, Min(0.1f)] private float hintSwapSeconds = 0.5f;
@@ -54,6 +55,9 @@ namespace Mine.Net
         // 지금 턴인 사람을 기억해 둔다. 조준 표시가 이 사람의 발밑만 가리킨다.
         private int _diggerSlot = int.MinValue;
         private MineNetPlayer _digger;
+
+        /// <summary>성적표가 열리며 교대를 시작했는가. 기준 시각을 한 번만 잡으려고 기억한다.</summary>
+        private bool _toggleStarted;
 
         /// <summary>지금 정답을 보여주고 있는가. 같은 겹침을 매 프레임 다시 칠하지 않으려고 기억한다.</summary>
         private bool? _shownAnswer;
@@ -194,8 +198,8 @@ namespace Mine.Net
         /// <summary>
         /// HUD 힌트 칸에 적을 글자. <c>MineHud.RefreshHint</c> 의 규칙 그대로다.
         ///
-        /// ⚠ <b>쓸 수 없는 때</b>와 <b>써버린 때</b>를 가른다. 내 턴이 아니면 "대기" 다.
-        ///   그걸 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
+        /// ⚠ <b>아직 못 쓰는 때</b>·<b>써버린 때</b>·<b>기회가 지나간 때</b>를 가른다.
+        ///   내 턴 전을 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
         ///
         /// 키는 <b>J</b> 다. 솔로도 같다 — 솔로는 <c>KeyboardPlayerController</c> 의
         /// button2 가 J 로 묶여 있고, 네트워크는 <c>MineInputProvider</c> 의 jKey 다.
@@ -205,17 +209,49 @@ namespace Mine.Net
             if (match == null || _who == null || _who.Slot < 0) return string.Empty;
 
             if (IsWatchingMyHint(match)) return "보는 중";
-            if (!_who.IsMyTurn) return "대기";
+            if (_who.HintUsed) return "사용함";
+            if (MyTurnGone(match)) return "지남";
 
-            return _who.HintUsed ? "사용함" : "J · 1회";
+            return _who.IsMyTurn ? "J · 1회" : "대기";
         }
 
-        /// <summary>힌트가 아직 살아 있는가. 보는 중이거나 내 턴에 아직 안 썼으면 살아 있다.</summary>
+        /// <summary>
+        /// 내 힌트가 아직 살아 있는가. HUD 는 이 값으로 힌트 그림을 컬러/흑백으로 바꾼다.
+        ///
+        /// 힌트는 <b>사람마다 하나</b>다 (MINE.md 2·4장). 그래서 남이 쓴 것은 내 칸을
+        /// 바꾸지 않는다 — P1 이 써도 흑백이 되는 것은 P1 의 화면뿐이다.
+        ///
+        /// ⚠ <b>내 턴인지는 묻지 않는다.</b> 전에는 물었는데, 그러면 차례를 기다리는
+        ///   동안 아직 멀쩡한 내 힌트가 흑백으로 보였다. 죽는 경우는 둘뿐이다 —
+        ///   내가 썼거나, 내 차례가 지나갔거나.
+        /// </summary>
         private bool HintAlive(MineMatchState match)
         {
             if (match == null || _who == null || _who.Slot < 0) return false;
 
-            return IsWatchingMyHint(match) || (_who.IsMyTurn && !_who.HintUsed);
+            // 보는 중에는 켜 둔다. 쓰는 순간 HintUsed 가 참이 되므로, 이 줄이 없으면
+            // 정작 힌트를 보고 있는 7초 동안 이미 흑백이다.
+            if (IsWatchingMyHint(match)) return true;
+
+            if (_who.HintUsed) return false;
+
+            return !MyTurnGone(match);
+        }
+
+        /// <summary>
+        /// 내 차례가 지나갔는가. 턴은 슬롯 오름차순으로 돌기 때문에
+        /// (<c>MineMatchState.OpenTurnFrom(CurrentSlot + 1)</c>) 지금 파는 사람보다
+        /// 내 번호가 작으면 지난 것이다. 판이 끝나면 전원이 지난 것이다.
+        ///
+        /// 참가자 줄이 "채굴 완료" 를 고르는 기준과 같다. (<c>MineHud.DrawNetworkPlayers</c>)
+        /// </summary>
+        private bool MyTurnGone(MineMatchState match)
+        {
+            if (match.Phase == MineMatchPhase.Finished) return true;
+
+            // 턴 사이에도 CurrentSlot 은 -1 로 돌아가지 않는다. -1 인 때는 카운트다운과
+            // 도안 공개뿐이고, 그때는 아무의 차례도 지나가지 않았다.
+            return match.CurrentSlot >= 0 && _who.Slot < match.CurrentSlot;
         }
 
         private bool IsWatchingMyHint(MineMatchState match)
@@ -295,7 +331,6 @@ namespace Mine.Net
                     _shownTarget = null;
                     _shownSlot = int.MinValue;
                     _shownAnswer = null;
-                    _toggleAnchor = match.Runner.SimulationTime;
 
                     if (_cursor != null) _cursor.ShowCell(-1, -1);
 
@@ -306,10 +341,40 @@ namespace Mine.Net
                     _camera.ShowBoard(finale: true);
                 }
 
-                // 내가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
+                // ⚠ **3단계(성적표)에는 토글을 멈춘다.** 성적표가 판 한가운데를 덮어서
+                //   같이 돌리면 정작 바뀌는 판이 안 보인다. 멈추는 자리는 **우리가 판
+                //   그림**이다 — 토글이 어디서 끝났든 상관없이 늘 같은 그림에 선다.
+                //   (MINE.md 7장: 결과 화면에서는 우리가 판 그림만 보여준다)
+                if (match.ShowingMineResult)
+                {
+                    if (_board != null && _shownAnswer != false)
+                    {
+                        _shownAnswer = false;
+                        _board.SetOverlay(MineOverlay.Result);
+                    }
+
+                    return;
+                }
+
+                // ⚠ **1단계(채굴 종료)에도 안 돌린다.** 제목을 읽는 2초 동안 판이 정답으로
+                //   바뀌면 "우리가 이렇게 팠다" 를 볼 틈이 없다. 그동안 판은 ShowResult 가
+                //   켜 둔 우리 그림 그대로다. 채점 전(SinceResult < 0)도 여기서 걸러진다.
+                if (!match.ShowingAnswerToggle) return;
+
+                // ⚠ 교대의 기준 시각은 **2단계가 열리는 순간**이다. 판이 끝난 순간으로
+                //   잡으면 제목 2초가 교대 시간에 먹혀 첫 그림이 곧바로 넘어간다.
+                if (!_toggleStarted)
+                {
+                    _toggleStarted = true;
+                    _toggleAnchor = match.Runner.SimulationTime;
+                }
+
+                // 우리가 판 그림과 정답을 번갈아 보여준다. 솔로의 MineAnswerView 와 같다.
                 TickAnswerToggle(match, resultSwapSeconds, startOnAnswer: false);
                 return;
             }
+
+            _toggleStarted = false;
 
             // ⚠ 목표를 보여 주는 두 경우를 <b>갈라서</b> 다룬다.
             //
@@ -321,10 +386,19 @@ namespace Mine.Net
             bool showTarget = match.Phase == MineMatchPhase.Reveal
                              || (match.HintLeft > 0f && _who != null && _who.Slot == match.HintSlot);
 
-            // 남이 힌트를 보는 동안에는 보던 시점 그대로 두고 글자만 알려 준다.
+            // 화면 한가운데 덮개에 띄울 한마디. **이 칸을 쓰는 곳이 둘이다.**
+            //
+            //   동료 기다리는 중  이 단계에는 화면에 아무 말도 없어서 멈춘 것처럼 보인다
+            //   힌트타임          남이 힌트를 보는 동안 관전자에게. 시점은 그대로 둔다
+            //
+            // ⚠ 둘을 **한 자리에서** 정한다. 여기서 매 프레임 덮어쓰기 때문에, 다른 데서
+            //   따로 넣으면 어느 쪽이 이길지 실행 순서에 달리게 된다.
             if (_hud != null)
             {
-                _hud.NetworkCenterNotice = (match.HintLeft > 0f && !showTarget) ? "힌트타임" : string.Empty;
+                _hud.NetworkCenterNotice =
+                    match.Phase == MineMatchPhase.Waiting ? match.WaitingLine
+                    : match.HintLeft > 0f && !showTarget ? "힌트타임"
+                    : string.Empty;
             }
 
             // ⚠ **목표를 보는 사람만** 탑뷰로 바뀐다. 공개 7초는 모두, 힌트는 쓴 사람만이다.
