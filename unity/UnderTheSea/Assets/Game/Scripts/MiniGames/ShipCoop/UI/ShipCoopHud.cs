@@ -174,28 +174,6 @@ public class ShipCoopHud : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float courseAlphaMax = 0.52f;
 
-    [Header("침수")]
-    [Tooltip("물이 찼을 때만 켜진다. 물이 0 이면 아무것도 안 보여야 한다.\n" +
-             "빈 게이지가 늘 떠 있으면 '물이 처음부터 있다' 로 읽힌다.")]
-    [SerializeField] private GameObject floodRoot;
-
-    [Tooltip("찬 물의 양. Image Type 을 Filled 로 둔다.")]
-    [SerializeField] private Image floodFill;
-
-    [Tooltip("찬 정도와 그것 때문에 초당 깎이는 HP.")]
-    [SerializeField] private TextMeshProUGUI floodLabel;
-
-    [Tooltip("조금 찼을 때의 색")]
-    [SerializeField] private Color floodShallow = new Color(0.35f, 0.62f, 0.90f, 0.95f);
-
-    [Tooltip("가득 찼을 때의 색. 깎이는 속도를 색으로도 읽게 한다.")]
-    [SerializeField] private Color floodDeep = new Color(0.90f, 0.30f, 0.30f, 0.95f);
-
-    [Tooltip("얕음과 깊음 사이를 지나가는 색.\n\n" +
-             "하늘색에서 빨강으로 곧장 섞으면 **중간이 보라색**이 된다.\n" +
-             "위험해 보이지도 않고 물 같지도 않다. 주황을 한 번 거치면 그 구간이 사라진다.")]
-    [SerializeField] private Color floodMid = new Color(1f, 0.74f, 0.33f, 0.95f);
-
     [Header("사건 알림 (왼쪽)")]
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
     [SerializeField] private EventRow[] eventRows;
@@ -221,6 +199,9 @@ public class ShipCoopHud : MonoBehaviour
 
     [Tooltip("🏴‍☠️ 적선. 없으면 대포 아이콘을 쓴다.")]
     [SerializeField] private Sprite eventIconEnemy;
+
+    [Tooltip("🪣 침수. 사건이 아니라 상태지만 같은 카드로 보여준다.")]
+    [SerializeField] private Sprite eventIconFlood;
 
     [Header("팀원 초상화 — 층과 🆘 만 보여준다")]
     [Tooltip("왼쪽 아래 4칸. 사람이 없는 칸은 '빈 자리' 로 남는다 — 누가 빠졌는지 보여야 한다.")]
@@ -336,7 +317,7 @@ public class ShipCoopHud : MonoBehaviour
         UpdateTime();
         UpdatePhase();
         UpdateProgress();
-        UpdateFlooding();
+
         UpdateCourseWarning();
         UpdateEvents();
         UpdatePortraits();
@@ -542,61 +523,6 @@ public class ShipCoopHud : MonoBehaviour
         return $"선원 {index + 1}";
     }
 
-    /// <summary>
-    /// 침수. **물이 있을 때만 뜬다.**
-    ///
-    /// 침수는 **물이 남아 있는 동안 초당 HP 를 깎습니다.** 그래서 화면에 안 띄우면
-    /// **HP 가 왜 줄어드는지 알 방법이 아무 데도 없습니다.** 사건도 안 떠 있는데
-    /// HP 만 깎이면 버그로 읽힙니다. (2장 · 4장)
-    ///
-    /// 물이 0 일 때 빈 게이지를 띄우지 않는 것도 같은 이유입니다.
-    /// 늘 떠 있으면 "물은 원래 있는 것" 이 되고, 퍼내야 한다는 신호가 죽습니다.
-    /// </summary>
-    private void UpdateFlooding()
-    {
-        if (floodRoot == null)
-        {
-            return;
-        }
-
-        bool has = flooding != null && flooding.HasWater;
-        floodRoot.SetActive(has);
-
-        if (!has)
-        {
-            return;
-        }
-
-        if (floodFill != null)
-        {
-            floodFill.fillAmount = flooding.Level01;
-
-            // 많이 찰수록 붉어진다. 깎이는 속도를 색으로도 읽게 한다.
-            // 하늘색 → 주황 → 빨강. 곧장 섞으면 중간이 보라색이 된다.
-            float level = flooding.Level01;
-            floodFill.color = level < 0.5f
-                ? Color.Lerp(floodShallow, floodMid, level * 2f)
-                : Color.Lerp(floodMid, floodDeep, (level - 0.5f) * 2f);
-        }
-
-        if (floodLabel != null)
-        {
-            // 속도가 아니라 **초당 깎이는 HP** 를 띄운다.
-            // 속도가 주는 것은 아무도 못 느낀다. 진행도 바를 계속 봐야 알 수 있는데
-            // 물이 찼을 때는 그럴 여유가 없다.
-            //
-            // 구멍이 열려 있으면 **퍼내지 말라고 말해준다.**
-            // 구멍 하나가 초당 2.5% 를 붓고 양동이 왕복이 4초라, 막기 전에 퍼내면
-            // 물이 0 으로 안 내려가고 제자리를 돈다. 게이지만 보면 양동이로 손이 가는데
-            // 그게 바로 함정이다.
-            floodLabel.text = WithHint(
-                $"침수 {flooding.Level01:P0}  ·  초당 -{flooding.DamagePerSecond:F1} HP",
-                flooding.LeakingPoints > 0
-                    ? $"구멍 {flooding.LeakingPoints}개가 새는 중 — 수리가 먼저다"
-                    : "양동이로 퍼내라");
-        }
-    }
-
     private void UpdateHealth()
     {
         if (health == null)
@@ -702,6 +628,18 @@ public class ShipCoopHud : MonoBehaviour
         fill.anchoredPosition = new Vector2(0f, fill.anchoredPosition.y);
     }
 
+    /// <summary>
+    /// 왼쪽 사건 카드.
+    ///
+    /// **맨 윗줄은 침수가 먼저 쓴다.** 침수는 사건이 아니라 상태지만
+    /// (<see cref="VoyageEvent.Active"/> 에 안 들어온다) 플레이어 입장에서는
+    /// "지금 벌어지고 있어서 누군가 가야 하는 일" 이라 같은 카드로 보여준다.
+    ///
+    /// ⚠ **침수는 구멍을 막아도 안 끝난다.** 선체 파손 사건은 수리하는 순간
+    ///    <c>Succeed</c> 로 목록에서 빠지는데, 들어온 물은 그대로 남아 계속 HP 를 깎는다.
+    ///    그래서 물이 남아 있는 동안 이 카드가 대신 떠 있어야 한다. 안 그러면
+    ///    **HP 가 왜 줄어드는지 화면 어디에도 없다.** (2장 · 4장)
+    /// </summary>
     private void UpdateEvents()
     {
         if (eventRows == null)
@@ -711,6 +649,9 @@ public class ShipCoopHud : MonoBehaviour
 
         var active = VoyageEvent.Active;
 
+        bool flood = flooding != null && flooding.HasWater;
+        int offset = flood ? 1 : 0;
+
         for (int i = 0; i < eventRows.Length; i++)
         {
             EventRow row = eventRows[i];
@@ -719,7 +660,14 @@ public class ShipCoopHud : MonoBehaviour
                 continue;
             }
 
-            bool used = i < active.Count;
+            if (flood && i == 0)
+            {
+                row.root.SetActive(true);
+                FillFloodRow(row);
+                continue;
+            }
+
+            bool used = i - offset < active.Count;
             row.root.SetActive(used);
 
             if (!used)
@@ -727,7 +675,7 @@ public class ShipCoopHud : MonoBehaviour
                 continue;
             }
 
-            VoyageEvent e = active[i];
+            VoyageEvent e = active[i - offset];
 
             if (row.label != null)
             {
@@ -830,6 +778,70 @@ public class ShipCoopHud : MonoBehaviour
                     row.seconds.color = stage;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 침수 카드 한 장을 채운다.
+    ///
+    /// 게이지를 안 띄운다. 양이 40% 든 45% 든 할 일이 안 바뀐다 — 퍼내러 가거나,
+    /// 구멍이 열려 있으면 먼저 막거나 둘 중 하나다. 그래서 **무엇을 해야 하는지만** 적는다.
+    ///
+    /// ⚠ 구멍이 열려 있으면 **퍼내지 말라고 말해준다.** 구멍 하나가 초당 2.5% 를 붓고
+    ///    양동이 왕복이 4초라, 막기 전에 퍼내면 물이 0 으로 안 내려가고 제자리를 돈다.
+    /// </summary>
+    private void FillFloodRow(EventRow row)
+    {
+        bool leaking = flooding.LeakingPoints > 0;
+
+        if (row.title != null)
+        {
+            row.title.text = "침수";
+        }
+
+        if (row.label != null)
+        {
+            row.label.text = leaking
+                ? $"구멍 {flooding.LeakingPoints}개가 새는 중 — 수리가 먼저다"
+                : "양동이로 퍼내라";
+        }
+
+        if (row.icon != null)
+        {
+            row.icon.sprite = eventIconFlood;
+            row.icon.enabled = eventIconFlood != null;
+        }
+
+        // 침수는 예고 없이 이미 벌어진 일이다. 늘 '발생' 쪽 색을 쓴다.
+        if (row.accent != null)
+        {
+            row.accent.color = eventRunning;
+        }
+
+        if (row.badge != null)
+        {
+            row.badge.color = eventRunning;
+        }
+
+        if (row.badgeLabel != null)
+        {
+            row.badgeLabel.text = "발생";
+        }
+
+        // 셀 것이 없다. 물은 시간이 아니라 양동이로만 줄어든다.
+        if (row.timer != null)
+        {
+            row.timer.gameObject.SetActive(false);
+        }
+
+        if (row.timerTrack != null)
+        {
+            row.timerTrack.SetActive(false);
+        }
+
+        if (row.seconds != null)
+        {
+            row.seconds.gameObject.SetActive(false);
         }
     }
 
@@ -1082,6 +1094,9 @@ public class ShipCoopHud : MonoBehaviour
             //    이미 자재를 받은 지점 앞에서 손을 떼면 건네기가 안 되고 갑판에 떨어진다.
             //    그냥 "빨간 지점으로" 라고 하면 이미 그 앞에 서 있는 사람에게
             //    거기로 가라고 말하는 셈이라 고장 난 줄 안다.
+            //
+            //    이 문구만 두 줄이 된다. `<nobr>` 로 묶지 않으면 한글은 아무 데서나
+            //    잘려서 "빨간 지점으 / 로" 가 된다. 묶어 두면 띄어쓴 자리에서 끊긴다.
             case Cargo.Ammo:
                 return carry.FindLoadableCannon() != null
                     ? "손 떼서 싣기"
@@ -1090,7 +1105,7 @@ public class ShipCoopHud : MonoBehaviour
             case Cargo.Plank:
                 return carry.FindPointWantingPlank() != null
                     ? "손 떼서 건네기"
-                    : "꾹 누른 채로 · 자재가 필요한 빨간 지점으로";
+                    : "꾹 누른 채로 · <nobr>자재가 필요한</nobr> <nobr>빨간 지점으로</nobr>";
 
             case Cargo.Water:
                 return carry.FindReachableDump() != null

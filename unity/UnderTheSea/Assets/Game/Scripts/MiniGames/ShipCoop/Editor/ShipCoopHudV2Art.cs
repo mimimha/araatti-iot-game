@@ -14,18 +14,18 @@ using UnityEngine.UI;
 /// 늘리면 그 아이콘이 뭉개지니 9-slice 대신 **비율을 지켜** 놓습니다.
 ///
 /// <code>
-/// 단계        좌상       320×86     phase-panel
 /// 배 HP       우하(상호작용 위) 세로 620 · 두께 86   hp-panel-noheart 을 90° 돌림 + hp-heart
-/// 시간        우상단     301×86     timer-panel (단계 패널과 높이를 맞춤)
+/// 시간        우상단     301×86     timer-panel
 /// 항해        상단중앙   620×85     voyage-panel  + voyage-fill-cyan
 /// 지연 경고   (지금은 안 띄웁니다. 항해 바 안의 붉은 구간이 대신 말해줍니다)
 /// 사건 목록   좌상       480×126 씩, 간격 10   event-card-background + 픽토그램 5종
 /// 팀원 4명    좌하       600×200    crew-panel + 4색 테두리 (세로만 1.1 배)
-/// 침수        하단중앙   560×94     (옛 에셋 그대로)
+/// 침수        (바를 뺐습니다. 사건 카드 맨 윗줄로 갑니다)
 /// 상호작용    하단우측   424×150    panel-action-plaque + 원형 링 (도넛)
 /// </code>
 ///
-/// 침수만 새 에셋에 없어서 옛 에셋을 그대로 씁니다. 지우지 않았습니다.
+/// 침수 바는 뺐습니다. 게이지 대신 사건 카드 한 장으로 "퍼내라" 만 말합니다.
+/// 단계(출항) 패널은 뺐습니다. phase-panel.png 는 지우지 않고 남겨 뒀습니다.
 ///
 /// ⚠ **자식을 전부 새로 만듭니다.** 그래서 씬에 놓인 HUD 인스턴스의 override 가 끊어집니다.
 ///    확인해보니 지금 override 는 TMP 가 스스로 찍는 값(m_TextStyleHashCode)과
@@ -63,8 +63,6 @@ public static class ShipCoopHudV2Art
 
     private static readonly Color HpGreen = Hex(0x48D889);
     private static readonly Color VoyageBlue = Hex(0x64C9F1);
-    private static readonly Color FloodShallow = Hex(0x53BAED);
-    private static readonly Color FloodDeep = Hex(0xFF5864);
     private static readonly Color WarnOrange = Hex(0xFFBC55);
     private static readonly Color DangerRed = Hex(0xFF5864);
     private static readonly Color RingGold = Hex(0xFFD05D);
@@ -76,9 +74,6 @@ public static class ShipCoopHudV2Art
     // 사건 카드 글자색. `event-ui-assets/manifest.json` 이 지정한 값.
     private static readonly Color EventTitle = Hex(0xFFF0D0);
     private static readonly Color EventSecondary = Hex(0xB8D8E8);
-
-    /// <summary>침수가 중간쯤 찼을 때. 하늘색에서 빨강으로 곧장 가면 보라가 된다.</summary>
-    private static readonly Color FloodMid = Hex(0xFFBC55);
 
     /// <summary>
     /// 링 안쪽 바탕. 원본 그대로 깔면 **포탄이 안 보인다.**
@@ -97,14 +92,12 @@ public static class ShipCoopHudV2Art
     private const float Margin = 28f;
     private const float TopMargin = 24f;
 
-    private const float PhaseWidth = 320f;      // 512 × 138
     // 체력은 **거리(항해) 바와 크기를 맞춘다.** 두 그림이 1024 × 142 와 1024 × 140 으로
     // 사실상 같은 비율이라, 길이만 같게 두면 두께도 따라서 같아진다.
     private const float HpWidth = VoyageWidth;  // 1024 × 142 — 세로로 세우므로 이건 "길이" 다
-    // 시계는 **출항 패널과 높이를 맞춘다.** 두 그림의 비율이 달라서(3.71 대 3.49)
-    // 가로세로를 둘 다 같게는 못 하고, 나란히 놓였을 때 눈에 걸리는 건 높이다.
-    // 320 × 138/512 = 86.25 가 출항 높이고, 그 높이를 내려면 시계는 301.1 이 된다.
-    private const float TimerWidth = PhaseWidth * (138f / 512f) * (384f / 110f);  // 384 × 110
+    // 시계 폭. 왼쪽 위에 있던 출항 패널(320 × 86.25)과 **높이를 맞춰** 정한 값이다.
+    // 출항 패널은 뺐지만 이 높이가 거리 바 · 체력과도 맞아 그대로 둔다.
+    private const float TimerWidth = 301.09f;   // 384 × 110 → 높이 86.25
     private const float VoyageWidth = 620f;     // 1024 × 140
     private const float WarningWidth = 400f;    // 768 × 123
     private const float CrewWidth = 600f;       // 1024 × 310
@@ -116,8 +109,8 @@ public static class ShipCoopHudV2Art
     private const float EventCardHeight = 126f;
     private const float EventCardGap = 10f;
 
-    /// <summary>첫 카드가 시작하는 높이. 단계 패널(86) 아래로 내려온다.</summary>
-    private const float EventListTop = 122f;
+    /// <summary>첫 카드가 시작하는 높이. 출항 패널을 뺐으므로 다른 위 칸과 같은 선에서 시작한다.</summary>
+    private const float EventListTop = TopMargin;
 
     /// <summary>
     /// 상호작용 패널을 그림 원본(424 × 150) 의 몇 배로 띄우는가.
@@ -170,10 +163,8 @@ public static class ShipCoopHudV2Art
             //    형제 순서상 위로 올라와 HUD 를 붉게 덮습니다.
             BuildCourseWarning(canvas, wired);
 
-            BuildPhase(canvas, wired);
             BuildTopBars(canvas, wired);
             BuildEventList(canvas, wired);
-            BuildFlood(canvas, wired);
             BuildAction(canvas, wired);
             BuildTeam(canvas, wired);
 
@@ -205,7 +196,6 @@ public static class ShipCoopHudV2Art
     /// <summary>만들면서 모아둔 연결 대상. 마지막에 한 번에 꽂는다.</summary>
     private class Wiring
     {
-        public TextMeshProUGUI PhaseLabel;
         public Image HpFill;
         public TextMeshProUGUI HpLabel;
         public TextMeshProUGUI TimeLabel;
@@ -216,9 +206,6 @@ public static class ShipCoopHudV2Art
         public GameObject CourseWarningRoot;
         public Image CourseWarningVignette;
         public TextMeshProUGUI CourseWarningLabel;
-        public GameObject FloodRoot;
-        public Image FloodFill;
-        public TextMeshProUGUI FloodLabel;
         public GameObject InteractPanel;
         public TextMeshProUGUI InteractLabel;
         public Image InteractGauge;
@@ -260,36 +247,6 @@ public static class ShipCoopHudV2Art
 
         group.gameObject.SetActive(false);
         wired.CourseWarningRoot = group.gameObject;
-    }
-
-    // ------------------------------------------------------------------ 페이즈
-
-    /// <summary>
-    /// 좌상단. 패널 원본 512 × 138 을 0.625 로 줄인 320 × 86.25.
-    ///
-    /// 조타륜이 왼쪽에 박혀 있으므로 **글자는 그 오른쪽 남색 판 안에서만** 쓴다.
-    /// 남색 판에서 조타륜을 뺀 빈 칸은 원본 x 124~476 이라 그 한가운데는 +44 인데,
-    /// 그렇게 두면 **패널 전체로 볼 때 오른쪽으로 쏠려** 보인다. 눈이 조타륜을 글이
-    /// 아니라 테두리 장식으로 읽기 때문이다. 그래서 +20 까지 당기고, 대신 상자 왼쪽
-    /// 끝이 조타륜(x 124) 을 넘지 않게 폭을 272 로 줄였다.
-    /// </summary>
-    private static void BuildPhase(RectTransform canvas, Wiring wired)
-    {
-        const float Scale = PhaseWidth / 512f;
-
-        RectTransform group = Rect("Phase", canvas);
-        Place(group, TopLeft,
-              new Vector2(Margin + PhaseWidth * 0.5f, -(TopMargin + PhaseWidth * 138f / 512f * 0.5f)),
-              new Vector2(PhaseWidth, PhaseWidth * 138f / 512f));
-        Panel(group, "phase-panel");
-
-        wired.PhaseLabel = Text("Label", group, "출항", 24f, TextAlignmentOptions.Center);
-        Place((RectTransform)wired.PhaseLabel.transform, Half,
-              new Vector2(20f * Scale, 0f), new Vector2(272f * Scale, 56f * Scale));
-
-        // ⚠ `플레이어 입장중...` 처럼 긴 문구가 조타륜을 덮거나 패널을 넘지 않게
-        //    **글자가 스스로 줄어들게** 둔다. 고정 크기로 두면 둘 중 하나가 난다.
-        Shrink(wired.PhaseLabel, 13f, 24f);
     }
 
     // ------------------------------------------------------------------ 상단 바
@@ -546,33 +503,8 @@ public static class ShipCoopHudV2Art
         };
     }
 
-    // ------------------------------------------------------------------ 침수
-
-    private static void BuildFlood(RectTransform canvas, Wiring wired)
-    {
-        RectTransform group = Rect("Flood", canvas);
-        Place(group, BottomCenter, new Vector2(0f, Margin + 47f), new Vector2(560f, 94f));
-        Img(group, Sprite("panel-flood-background"), new Color(1f, 1f, 1f, 0.9f));
-
-        RectTransform frame = Rect("Frame", group);
-        Stretch(frame, 0f, 0f, 0f, 0f);
-        Img(frame, Sprite("panel-flood-frame"), Color.white);
-
-        Icon(group, "Icon", Sprite("icon-water"), new Vector2(-244f, 0f), 34f);
-
-        RectTransform bar = Bar(group, "Bar", new Vector2(18f, 14f), new Vector2(460f, 24f),
-                                FloodShallow, out Image fill);
-        wired.FloodFill = fill;
-
-        wired.FloodLabel = Text("Label", group, "침수 0%", 20f, TextAlignmentOptions.Center);
-        Place((RectTransform)wired.FloodLabel.transform, Half, new Vector2(18f, -20f), new Vector2(480f, 30f));
-
-        // 물이 0 이면 통째로 숨긴다. 늘 떠 있으면 "물은 원래 있는 것" 이 된다. (9장)
-        group.gameObject.SetActive(false);
-        wired.FloodRoot = group.gameObject;
-    }
-
     // ------------------------------------------------------------------ 현재 작업
+
     /// <summary>
     /// 오른쪽 아래. **원형 진행 링**과 키 표시.
     ///
@@ -626,16 +558,28 @@ public static class ShipCoopHudV2Art
 
         // ── 안내 문구와 키 ────────────────────
         //
-        // 링 오른쪽 끝이 -68 이고 금테 안쪽 오른쪽 끝이 192 다. 그 사이 260 폭을
-        // 글자와 키가 나눠 쓴다. 글자는 위, 키는 아래.
-        wired.InteractLabel = Text("Label", group, "", 21f * ActionScale, TextAlignmentOptions.TopLeft);
+        // 링 오른쪽 끝이 -68 이고 금테 안쪽 오른쪽 끝이 192 다. 위아래로도 금테를 빼면
+        // -52 ~ +52 다. 그 칸을 글자(위)와 키캡(아래)이 나눠 쓴다.
+        //
+        // ⚠ **둘의 왼쪽 선을 맞춘다.** 예전에는 키캡만 52 오른쪽에 떠 있어서 글자에도
+        //    링에도 안 붙은 채로 혼자 놓인 것처럼 보였다.
+        const float TextLeft = -40f;
+        const float TextWidth = 216f;
+        const float KeyWidth = 72f;
+
+        // ⚠ 세로는 **TopLeft 가 아니라 Left** 다. 안내 문구는 한 줄일 때도 두 줄일 때도
+        //    있는데, 위로 붙여 두면 한 줄일 때 아래에 빈 띠가 크게 남는다.
+        //    가운데 정렬로 두면 줄 수가 바뀌어도 덩어리가 제자리에 있다.
+        wired.InteractLabel = Text("Label", group, "", 21f * ActionScale, TextAlignmentOptions.Left);
         Place((RectTransform)wired.InteractLabel.transform, Half,
-              new Vector2(58f, 22f) * ActionScale, new Vector2(196f, 60f) * ActionScale);
+              new Vector2(TextLeft + TextWidth * 0.5f, 19f) * ActionScale,
+              new Vector2(TextWidth, 66f) * ActionScale);
 
         // 키캡은 311 × 141 이라 비율이 72 × 34 와 거의 같아 그대로 들어간다.
         // 9-slice 로 늘리지 않으므로 비율을 지키게 해둔다.
         RectTransform key = Rect("Keycap", group);
-        Place(key, Half, new Vector2(48f, -34f) * ActionScale, new Vector2(72f, 34f) * ActionScale);
+        Place(key, Half, new Vector2(TextLeft + KeyWidth * 0.5f, -33f) * ActionScale,
+              new Vector2(KeyWidth, 34f) * ActionScale);
         Img(key, Sprite("keycap-plain"), Color.white).preserveAspect = true;
 
         // ⚠ **키캡 글자를 반드시 연결한다.** 여기서 자식을 새로 만들기 때문에
@@ -814,7 +758,8 @@ public static class ShipCoopHudV2Art
     {
         var so = new SerializedObject(hud);
 
-        Set(so, "phaseLabel", w.PhaseLabel);
+        // 출항 패널을 뺐으므로 **비워 둔다.** 런타임에 null 가드가 있다.
+        Set(so, "phaseLabel", null);
         Set(so, "hpFill", w.HpFill);
         Set(so, "hpLabel", w.HpLabel);
         Set(so, "timeLabel", w.TimeLabel);
@@ -822,9 +767,6 @@ public static class ShipCoopHudV2Art
         Set(so, "expectedMarker", w.ExpectedMarker);
         Set(so, "delayFill", w.DelayFill);
         Set(so, "behindWarning", w.BehindWarning);
-        Set(so, "floodRoot", w.FloodRoot);
-        Set(so, "floodFill", w.FloodFill);
-        Set(so, "floodLabel", w.FloodLabel);
         Set(so, "interactPanel", w.InteractPanel);
         Set(so, "interactLabel", w.InteractLabel);
         Set(so, "interactGauge", w.InteractGauge);
@@ -847,6 +789,7 @@ public static class ShipCoopHudV2Art
         Set(so, "eventIconReef", Sprite4("event-reef"));
         Set(so, "eventIconWave", Sprite4("event-big-wave"));
         Set(so, "eventIconEnemy", Sprite4("event-enemy-ship"));
+        Set(so, "eventIconFlood", Sprite("icon-water"));
 
         Set(so, "taskIconHelm", Sprite("icon-helm"));
         Set(so, "taskIconSails", Sprite("icon-sails"));
@@ -858,8 +801,6 @@ public static class ShipCoopHudV2Art
         Set(so, "taskIconPlank", Sprite("icon-plank"));
         Set(so, "taskIconWater", Sprite("icon-bucket"));
 
-        so.FindProperty("floodShallow").colorValue = FloodShallow;
-        so.FindProperty("floodDeep").colorValue = FloodDeep;
         so.FindProperty("eventWarning").colorValue = WarnOrange;
         so.FindProperty("eventRunning").colorValue = DangerRed;
         so.FindProperty("hpHealthy").colorValue = HpGreen;
