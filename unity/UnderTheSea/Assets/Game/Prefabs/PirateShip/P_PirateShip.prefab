@@ -507,6 +507,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3439928479352633853}
+    - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7245739346762732199}
+    - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2892758700845870231}
   m_SourcePrefab: {fileID: 100100000, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
 --- !u!4 &6208141969911704542 stripped
 Transform:
@@ -534,6 +540,51 @@ MonoBehaviour:
   furledHeight: 0.12
   furledWidth: 0.9
   followPerSecond: 3
+--- !u!114 &7245739346762732199
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6731773780071788900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4ff5d72e23c4764faab2d43cadbfc36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopCannonRecoil
+  cannon: {fileID: 0}
+  task: {fileID: 0}
+  kickDistance: 0.28
+  kickTilt: 5
+  kickSeconds: 0.06
+  returnSeconds: 0.45
+  muzzleLocal: {x: 0, y: 0, z: 0}
+  smokePrefab: {fileID: 3442817712699613745, guid: c5d84bb5cd4148b78a9c805f51d3f6ea, type: 3}
+  smokeSeconds: 0.35
+  ballMaterial: {fileID: 2100000, guid: 88e2da6f08e43ce45bc99c617bd2718c, type: 2}
+  ballDiameter: 0.5
+  ballSpeed: 30
+  ballLoft: 3
+  ballGravity: 14
+  ballLife: 2.5
+  ballDropBelowMuzzle: 6
+--- !u!114 &2892758700845870231
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6731773780071788900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b61e733b00b94f04a8ce679fc12a897f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSailRope
+  sail: {fileID: 0}
+  ropeMaterial: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+  thickness: 0.045
+  anchorOut: 0.45
+  idleTailLift: 0.9
 --- !u!1001 &5278085161591403746
 PrefabInstance:
   m_ObjectHideFlags: 0

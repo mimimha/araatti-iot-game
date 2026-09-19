@@ -103,6 +103,15 @@ public class ShipCoopCharacter : MonoBehaviour
     /// <summary>지금 내려가 있는 깊이. 목표를 향해 천천히 간다.</summary>
     private float _sink;
 
+    /// <summary>보이는 몸. 자리 자세(<c>ShipCoopStationPose</c>)가 몸만 돌려 대포 · 조타륜을 보게 할 때 쓴다.</summary>
+    public Transform Model => model;
+
+    /// <summary>
+    /// 보이는 몸을 잠깐 밀어 두는 양 (로컬). 대포가 튈 때 몸이 같이 덜컹하는 데 쓴다.
+    /// 몸의 로컬 위치는 매 프레임 여기(SinkModel)서 덮어쓰므로, 밖에서 직접 옮기면 지워진다 — 이 값으로 넣는다.
+    /// </summary>
+    public Vector3 ModelJolt { get; set; }
+
     [Header("발밑 그림자")]
     [Tooltip("발밑에 깔 둥근 판. 비워두면 이 기능을 쓰지 않는다.")]
     [SerializeField] private Transform footShadow;
@@ -239,7 +248,7 @@ public class ShipCoopCharacter : MonoBehaviour
         // 갑판이 갑자기 바뀌어도 몸이 순간이동하지 않게 천천히 따라간다.
         _sink = Mathf.MoveTowards(_sink, want, sinkSpeed * Time.deltaTime);
 
-        model.localPosition = new Vector3(0f, -_sink, 0f);
+        model.localPosition = new Vector3(0f, -_sink, 0f) + ModelJolt;
     }
 
     /// <summary>발밑에서 배의 갑판을 찾는다. 걷는 큐브와 내 몸은 빼고 본다.</summary>

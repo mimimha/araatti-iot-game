@@ -150,6 +150,10 @@ public class ShipCoopCarryPose : MonoBehaviour
     private string _branch = "(아직)";
 
     private Animator _animator;
+
+    /// <summary>자리 자세. 빈손이라도 이쪽이 손을 뻗고 있으면 IK 를 풀지 않는다.</summary>
+    private ShipCoopStationPose _station;
+
     private Transform _chest;
     private Transform _leftHand;
     private Transform _rightHand;
@@ -171,6 +175,7 @@ public class ShipCoopCarryPose : MonoBehaviour
     private void Awake()
     {
         _animator = GetComponent<Animator>();
+        _station = GetComponent<ShipCoopStationPose>();
 
         if (carry == null)
         {
@@ -324,8 +329,13 @@ public class ShipCoopCarryPose : MonoBehaviour
         if (!Carrying)
         {
             // 안 들고 있으면 IK 를 풀어야 한다. 안 풀면 빈손으로도 팔이 모인 채 남는다.
-            Release(AvatarIKGoal.LeftHand);
-            Release(AvatarIKGoal.RightHand);
+            // 단, 자리 자세(대포 잡기 등)가 손을 뻗고 있으면 그쪽에 맡긴다.
+            if (_station == null || !_station.IsPosing)
+            {
+                Release(AvatarIKGoal.LeftHand);
+                Release(AvatarIKGoal.RightHand);
+            }
+
             return;
         }
 

@@ -1325,6 +1325,7 @@ GameObject:
   - component: {fileID: 5731928460017753412}
   - component: {fileID: 7276708486594036018}
   - component: {fileID: 8740589765523071439}
+  - component: {fileID: 5301727229569671815}
   m_Layer: 0
   m_Name: ShipCoopPlayer
   m_TagString: Untagged
@@ -1563,6 +1564,9 @@ MonoBehaviour:
   bodyHeight: 2.8575
   bodyRadius: 0.5
   _Motion: {x: 0, y: 0, z: 0}
+  snapSpeed: 9
+  snapTurnSpeed: 1080
+  snapTimeout: 0.6
 --- !u!114 &2555361678685936136
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1758,6 +1762,42 @@ MonoBehaviour:
   edgeLabelScale: 1
   edgeLabelGap: 40
   edgeLabelHeadroom: 0.15
+--- !u!114 &5301727229569671815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83a67d98a563c5b4f8677a9bd462c63c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopStationPose
+  worker: {fileID: 0}
+  character: {fileID: 0}
+  strength: 0.9
+  reachLimit: 1.4
+  turnSpeed: 540
+  cannonGripAlong: 0.06
+  cannonGripApart: 0.42
+  cannonGripLift: 0.05
+  ropeReach: 0.38
+  ropeHandsApart: 0.34
+  ropeStroke: 0.28
+  ropeStrokesPerSecond: 1.6
+  ropeSlipRate: 0.6
+  wheelGripAngle: 50
+  wheelFollowLimit: 70
+  wheelGripOut: 0.06
+  wheelGripRadius: 0.95
+  joltDelay: 0.07
+  joltDistance: 0.09
+  joltLift: 0.03
+  joltSeconds: 0.55
+  leftHandFixEuler: {x: 0, y: -90, z: -90}
+  rightHandFixEuler: {x: 0, y: 90, z: 90}
+  logHands: 0
 --- !u!1 &2877561824165893445
 GameObject:
   m_ObjectHideFlags: 0
