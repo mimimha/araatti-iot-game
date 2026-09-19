@@ -2086,7 +2086,7 @@ MonoBehaviour:
   warnSeconds: 3
   duration: 20
   damageOnFail: 15
-  sailLossOnFail: 0.3
+  sailLossOnFail: 0
   chainOnFail:
   - {fileID: 924620907}
   - {fileID: 1861713332}
@@ -4258,7 +4258,7 @@ MonoBehaviour:
   warnSeconds: 5
   duration: 7
   damageOnFail: 0
-  sailLossOnFail: 0.4
+  sailLossOnFail: 0
   chainOnFail: []
   health: {fileID: 0}
   game: {fileID: 0}
@@ -6487,7 +6487,7 @@ MonoBehaviour:
   warnSeconds: 3
   duration: 10.5
   damageOnFail: 10
-  sailLossOnFail: 0.8
+  sailLossOnFail: 0
   chainOnFail:
   - {fileID: 924620907}
   health: {fileID: 0}
