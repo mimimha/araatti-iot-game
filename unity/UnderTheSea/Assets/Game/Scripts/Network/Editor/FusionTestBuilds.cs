@@ -304,6 +304,36 @@ namespace UnderTheSea.Network.Editor
             return Build(ShowcaseOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.None);
         }
 
+        /// <summary>
+        /// 빌드하느라 돌려놓은 서브타깃을 제자리로 되돌린다.
+        ///
+        /// ⚠ <b>배치 모드에서는 되돌리지 않는다.</b> 서브타깃을 바꾸면 스크립팅 정의가 달라져
+        ///    재컴파일이 필요한데, <c>-executeMethod</c> 가 도는 도중에 도메인 리로드가 끼어들면
+        ///    <b>남은 빌드가 끊긴다.</b> QA 한 벌처럼 한 실행에서 여럿을 굽는 경우가 특히 그렇다.
+        ///    배치는 어차피 끝나고 프로세스가 죽으므로 에디터에 남는 피해가 없다.
+        ///
+        ///    <b>되돌리는 것이 필요한 쪽은 에디터 메뉴로 부른 경우다.</b> 사람이 그 에디터로
+        ///    이어서 Play 하기 때문이다.
+        /// </summary>
+        private static void RestoreSubtarget(StandaloneBuildSubtarget before)
+        {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+
+            if (EditorUserBuildSettings.standaloneBuildSubtarget == before)
+            {
+                return;
+            }
+
+            EditorUserBuildSettings.standaloneBuildSubtarget = before;
+
+            Debug.Log(
+                $"[FusionTestBuilds] 빌드 대상을 {before} 로 되돌렸습니다. " +
+                "이걸 안 하면 에디터가 자기를 서버로 여겨 Play 할 때 로비에 접속하지 못합니다.");
+        }
+
         /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
         private static bool Ok(string name, BuildReport report)
         {
@@ -455,6 +485,20 @@ namespace UnderTheSea.Network.Editor
 
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 
+            // ⚠ **빌드가 끝나면 이 스위치를 되돌려야 한다.** 아래 finally 에서 한다.
+            //
+            //    서브타깃은 프로젝트 전체 설정이고, 한 번 Server 로 돌려 두면 그대로 남는다.
+            //    그러면 Unity 가 UNITY_SERVER 를 붙인 채로 에디터가 돌고,
+            //    FusionLaunchArguments.IsDedicatedServerProcess() 가 **에디터에서도 true** 가 된다.
+            //    그 상태로 Play 하면 NetworkServiceBootstrap 이 "서버는 서비스가 필요 없다" 며
+            //    통째로 건너뛰어, 채널 선택 화면이 조용히 예시 목록을 띄우고 접속이 안 된다.
+            //
+            //        [ChannelSelect] 네트워크 서비스가 없어 예시 채널 목록을 표시합니다.
+            //
+            //    증상이 원인을 전혀 가리키지 않는다. "어제 서버를 빌드했기 때문" 이라고
+            //    아무도 떠올리지 못한다. 실제로 한 번 겪었다.
+            StandaloneBuildSubtarget before = EditorUserBuildSettings.standaloneBuildSubtarget;
+
             // 에디터 메뉴로 부른 경우를 위해 여기서도 맞춰 준다.
             // 커맨드라인은 -standaloneBuildSubtarget 으로 이미 맞춰져 있어 이 줄이 무해하게 넘어간다.
             EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
@@ -476,15 +520,24 @@ namespace UnderTheSea.Network.Editor
             //    빌드하는 그 세션에서 직접 지정해야 확실히 들어간다.
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
-            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            BuildReport report;
+
+            try
             {
-                scenes = scenes,
-                locationPathName = output,
-                target = BuildTarget.StandaloneWindows64,
-                targetGroup = BuildTargetGroup.Standalone,
-                subtarget = (int)subtarget,
-                options = options
-            });
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = output,
+                    target = BuildTarget.StandaloneWindows64,
+                    targetGroup = BuildTargetGroup.Standalone,
+                    subtarget = (int)subtarget,
+                    options = options
+                });
+            }
+            finally
+            {
+                RestoreSubtarget(before);
+            }
 
             BuildSummary summary = report.summary;
 
