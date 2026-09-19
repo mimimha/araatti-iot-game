@@ -449,7 +449,7 @@ public class ShipCoopCarryPose : MonoBehaviour
     {
         _animator.SetIKPositionWeight(goal, strength);
         _animator.SetIKRotationWeight(goal, 0f);
-        _animator.SetIKPosition(goal, at);
+        _animator.SetIKPosition(goal, ToSolver(at));
     }
 
     /// <summary>
@@ -524,14 +524,82 @@ public class ShipCoopCarryPose : MonoBehaviour
     {
         _animator.SetIKPositionWeight(goal, strength);
         _animator.SetIKRotationWeight(goal, strength);
-        _animator.SetIKPosition(goal, at);
+        _animator.SetIKPosition(goal, ToSolver(at));
 
         // ⚠ 두 손에 같은 회전을 주면 손바닥이 둘 다 위를 봐서 쟁반처럼 받치는 모양이 된다.
         //    손가락은 앞으로, 손바닥은 가운데(서로)를 향하게 손마다 따로 돌린다.
         // ⚠ 뒤에 boneFix 를 곱한다. LookRotation 은 "+Z 가 손가락, +Y 가 손바닥" 인 뼈에만 맞는 회전이라,
         //    이 리그의 뼈 축을 그 기준으로 먼저 돌려 놓아야 목표한 방향이 실제 손가락 · 손바닥에 걸린다.
         //    (회전 목표 = 세상 기준 방향 × 뼈 축 보정. 순서를 바꾸면 보정이 세상 축으로 걸려 틀어진다)
-        _animator.SetIKRotation(goal, Quaternion.LookRotation(transform.forward, palmToward) * boneFix);
+        Quaternion worldRot = Quaternion.LookRotation(transform.forward, palmToward) * boneFix;
+        _animator.SetIKRotation(goal, Quaternion.Inverse(ModelSpin) * worldRot);
+    }
+
+    // ------------------------------------------------------------
+    // ⚠ **휴머노이드 IK 는 아바타 원본 크기 · 원본 자세의 골격으로 푼다.**
+    //
+    //    이 캐릭터는 스킨이 Visual 아래에서 2.25배로 키워져 있다. 솔버는 그걸 모르고 루트 기준
+    //    1배 골격으로 목표를 해석해서, 어깨가 절반 높이에 있다고 보고 목표를 머리 위로 여겨
+    //    **팔을 하늘로 뻗었다.** 자리 자세(ShipCoopStationPose)에서 계측으로 잡은 것이다 —
+    //    실제 팔 방향 (0.53, 0.85, 0.10) = 목표 − 어깨/2.25 방향 (0.52, 0.85, 0.09).
+    //    드는 자세도 같은 IK 라 같은 오차를 안고 있었다. 그동안 "팔을 쭉 뻗은" 모양으로 보였던
+    //    것의 일부는 이 오차였다. 루트 기준으로 되돌리고(Visual 이 돌아가 있으면 그 회전도 역으로)
+    //    배율로 나눠 넘기면, 결과 손 자리는 다시 2.25배 · 회전되어 원래 목표에 닿는다.
+    // ------------------------------------------------------------
+
+    private Transform _visual;
+    private Quaternion _visualRestLocalRotation = Quaternion.identity;
+    private bool _visualLooked;
+
+    /// <summary>보이는 몸(Visual). 배율 · 회전을 여기서 읽는다. ShipCoopCharacter 가 들고 있다.</summary>
+    private Transform Visual
+    {
+        get
+        {
+            if (!_visualLooked)
+            {
+                _visualLooked = true;
+                var character = GetComponent<ShipCoopCharacter>();
+                _visual = character != null ? character.Model : null;
+
+                if (_visual != null)
+                {
+                    _visualRestLocalRotation = _visual.localRotation;
+                }
+            }
+
+            return _visual;
+        }
+    }
+
+    /// <summary>스킨이 루트보다 몇 배 큰가. Visual 2.25.</summary>
+    private float RigScale
+    {
+        get
+        {
+            Transform v = Visual;
+            if (v == null) return 1f;
+            return Mathf.Max(v.lossyScale.y / Mathf.Max(transform.lossyScale.y, 1e-4f), 1e-4f);
+        }
+    }
+
+    /// <summary>Visual 이 쉴 때보다 얼마나 더 돌아가 있나 (월드). 자리 자세가 몸을 돌린 만큼이다.</summary>
+    private Quaternion ModelSpin
+    {
+        get
+        {
+            Transform v = Visual;
+            if (v == null) return Quaternion.identity;
+            Quaternion restWorld = transform.rotation * _visualRestLocalRotation;
+            return v.rotation * Quaternion.Inverse(restWorld);
+        }
+    }
+
+    /// <summary>월드 목표를 IK 솔버가 보는 자리로.</summary>
+    private Vector3 ToSolver(Vector3 worldAt)
+    {
+        Vector3 fromRoot = worldAt - transform.position;
+        return transform.position + Quaternion.Inverse(ModelSpin) * fromRoot / RigScale;
     }
 
     /// <summary>보정값을 잴 때 손뼈 축을 눈으로 본다. 빨강 X · 초록 Y · 파랑 Z. 손가락이 파랑, 손바닥이 초록이면 맞다.</summary>
