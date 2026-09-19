@@ -284,7 +284,16 @@ namespace Mine.Net.Editor
                 spot.transform.SetParent(root.transform, false);
 
                 // 가운데를 중심으로 좌우로 1.5m 씩 벌려 세운다.
-                spot.transform.localPosition = new Vector3((i - (MineNet.MaxCrew - 1) * 0.5f) * 1.5f, 0.5f, 0f);
+                //
+                // ⚠ 높이 2m 는 **일부러 띄운 것이다.** 사람이 다 모일 때까지는 몸이
+                //   숨은 채 중력도 멈춰 있다가(MineNetPlayer.ShowBody), 카운트다운 "3" 과
+                //   함께 넷이 한꺼번에 떨어진다. 그 낙하가 판이 열렸다는 신호다.
+                //   0.5m 로는 0.32초라 카메라가 탑뷰에서 내려오는 사이에 끝나 안 보였다.
+                //
+                //   ⚠ **씬의 값과 같이 움직여야 한다.** 이 도구는 MineSpawnPoints 를
+                //     통째로 지우고 다시 만들므로, 씬에서 손으로 옮겨 둔 높이는 여기서
+                //     덮인다. 한쪽만 고치면 다음 재생성 때 조용히 되돌아간다.
+                spot.transform.localPosition = new Vector3((i - (MineNet.MaxCrew - 1) * 0.5f) * 1.5f, 2f, 0f);
                 spot.transform.localRotation = Quaternion.identity;
 
                 spot.AddComponent<MineSpawnPoint>();

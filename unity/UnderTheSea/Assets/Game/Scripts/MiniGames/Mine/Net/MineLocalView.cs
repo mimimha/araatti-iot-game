@@ -42,6 +42,19 @@ namespace Mine.Net
         private int _shownSlot = int.MinValue;
         private bool? _shownTarget;
 
+        /// <summary>
+        /// 지금 밝혀 둔 채로 따라가고 있는가. <c>SetLit</c> 은 <c>RenderSettings</c> 를
+        /// 통째로 다시 쓰므로 매 프레임 부르지 않으려고 기억한다.
+        ///
+        /// 따라가는 사람이 그대로여도 밝기는 바뀐다 — 카운트다운(밝게)에서
+        /// 내 턴(어둡게)으로 넘어갈 때가 그렇다.
+        /// </summary>
+        private bool _shownLit;
+
+        // 지금 턴인 사람을 기억해 둔다. 조준 표시가 이 사람의 발밑만 가리킨다.
+        private int _diggerSlot = int.MinValue;
+        private MineNetPlayer _digger;
+
         /// <summary>지금 정답을 보여주고 있는가. 같은 겹침을 매 프레임 다시 칠하지 않으려고 기억한다.</summary>
         private bool? _shownAnswer;
 
@@ -355,19 +368,31 @@ namespace Mine.Net
                 if (_board != null) _board.SetOverlay(MineOverlay.None);
             }
 
-            bool mine = _who != null && _who.IsMyTurn;
+            // ⚠ **카운트다운과 턴은 관전이 아니다.** 넷이 다 제 몸을 쥐고 있으므로
+            //    각자 자기 캐릭터를 따라가고 시점도 각자 돌린다. 내 턴이 아니어도
+            //    내 화면은 내 캐릭터를 본다. (MineMatchState.FreeRoam)
+            bool roaming = match.FreeRoam && _who != null && _who.Slot >= 0;
 
-            // 마우스는 내 턴에만 받는다. 관전 중에는 시점이 복제로 들어온다.
+            bool mine = _who != null && (_who.IsMyTurn || roaming);
+
+            // ⚠ 밝기는 **누구를 따라가는가와 별개다.** 카운트다운만 밝고 턴은 어둡다.
+            //    랜턴 반경만 보이는 것이 이 게임의 규칙인데(MINE.md 6장), 넷이 다
+            //    걸어다닌다고 판을 밝히면 그 규칙이 사라진다. 카운트다운은 아직
+            //    판이 시작되기 전이라 예외다 — 넷이 모인 것을 보여 주는 시간이다.
+            bool lit = match.Phase == MineMatchPhase.Countdown;
+
+            // 마우스는 내 몸을 쥐고 있을 때만 받는다. 관전 중에는 시점이 복제로 들어온다.
             _camera.AcceptsMouse = mine;
 
             MineNetPlayer subject = mine ? _who : match.FindBySlot(match.CurrentSlot);
 
             if (subject == null)
             {
-                // 아직 아무 턴도 아니다(대기 · 카운트다운 · 종료). 판 전체를 보여 준다.
+                // 아직 아무 턴도 아니다(대기 · 종료, 그리고 자리를 못 받은 관전자). 판 전체를 보여 준다.
                 if (_shownSlot != -999)
                 {
                     _shownSlot = -999;
+                    _shownLit = true;
                     _camera.ShowBoard();
                     if (_vision != null) { _vision.SetLit(true); _vision.Follow(null); }
                 }
@@ -375,18 +400,20 @@ namespace Mine.Net
                 return;
             }
 
-            // 보는 대상이 바뀌었을 때만 카메라를 다시 붙인다.
+            // 보는 대상이나 밝기가 바뀌었을 때만 카메라를 다시 붙인다.
             // 매 프레임 부르면 FollowPlayer 가 전환 연출을 계속 처음부터 재생한다.
-            if (_shownSlot != subject.Slot)
+            if (_shownSlot != subject.Slot || _shownLit != lit)
             {
                 _shownSlot = subject.Slot;
+                _shownLit = lit;
 
                 _camera.FollowPlayer(subject.transform);
 
-                // 랜턴은 지금 턴인 사람을 따라간다. (MINE.md 6장 — 관전은 시야 제한)
+                // 랜턴은 지금 보는 사람 — 이제는 **내 캐릭터** — 를 따라간다.
+                // 네 명이 각자 자기 랜턴을 들고 다니는 셈이다. (MINE.md 6장)
                 if (_vision != null)
                 {
-                    _vision.SetLit(false);
+                    _vision.SetLit(lit);
                     _vision.Follow(subject.transform);
                 }
             }
@@ -396,17 +423,47 @@ namespace Mine.Net
             //    MineCamera.LateUpdate 가 이 값을 읽어 실제 화면을 만든다.
             if (!mine) _camera.ApplyOrbit(subject.CameraYaw, subject.CameraPitch);
 
-            // ⚠ 조준 표시는 **서버가 고른 칸**을 그대로 가리킨다. 각자 자기 화면의
-            //    캐릭터 자리로 계산하면 보간 때문에 칸 경계에서 한 칸씩 어긋나,
-            //    표시된 칸과 실제로 파이는 칸이 달라진다. 관전자도 같은 칸을 본다.
+            // ⚠ 조준 표시는 **지금 턴인 사람의 발밑 하나뿐이다.** 내가 따라가는 사람이
+            //    아니라 파는 사람을 가리킨다 — 이제 넷이 다 걸어다니므로 자기 발밑을
+            //    그리면 화면마다 다른 칸이 켜지고, 팔 수 없는 사람의 자리가 "여기를
+            //    판다" 로 읽힌다.
+            //
+            //    칸은 **서버가 고른 값**을 그대로 쓴다. 각자 자기 화면의 캐릭터 자리로
+            //    계산하면 보간 때문에 칸 경계에서 한 칸씩 어긋나, 표시된 칸과 실제로
+            //    파이는 칸이 달라진다. 네 화면이 같은 칸 하나를 본다.
+            //
+            //    턴이 아닌 사람의 FocusCell 은 서버가 -1 로 덮어쓰므로
+            //    (MineNetPlayerActions), 턴이 넘어가면 앞사람의 표시가 스스로 꺼진다.
+            //    카운트다운에는 CurrentSlot 이 -1 이라 가리킬 사람 자체가 없다.
             if (_cursor != null)
             {
-                int cell = subject.FocusCell;
+                MineNetPlayer digger = ResolveDigger(match);
+
+                int cell = digger != null ? digger.FocusCell : -1;
                 MineGrid grid = MineGridSync.Current != null ? MineGridSync.Current.Grid : null;
 
                 if (cell < 0 || grid == null) _cursor.ShowCell(-1, -1);
                 else _cursor.ShowCell(cell % grid.Size, cell / grid.Size);
             }
+        }
+
+        /// <summary>
+        /// 지금 턴인 사람. **턴이 바뀔 때만 씬을 훑는다.**
+        ///
+        /// <c>FindBySlot</c> 은 씬 전체를 훑으므로 매 프레임 부르면 안 된다.
+        /// <c>MineMatchState.Current</c> 를 정적으로 들고 있는 것과 같은 이유다.
+        ///
+        /// 턴이 아닐 때(<c>CurrentSlot</c> 이 -1)는 훑지 않고 바로 null 이 나온다.
+        /// </summary>
+        private MineNetPlayer ResolveDigger(MineMatchState match)
+        {
+            if (_diggerSlot != match.CurrentSlot || _digger == null)
+            {
+                _diggerSlot = match.CurrentSlot;
+                _digger = match.FindBySlot(match.CurrentSlot);
+            }
+
+            return _digger;
         }
     }
 }
