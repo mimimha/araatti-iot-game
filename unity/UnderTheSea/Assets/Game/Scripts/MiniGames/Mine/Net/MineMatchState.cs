@@ -1003,7 +1003,14 @@ namespace Mine.Net
                 _hud.NetworkResultDugCount = ResultDugCount;
             }
             _hud.NetworkPhaseText = PhaseLine();
-            _hud.NetworkTurnText = HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}" : string.Empty;
+
+            // 차례 칸. 판이 끝나면 CurrentSlot 이 -1 이라 적을 번호가 없는데, 그렇다고
+            // 비워 두면 그림틀만 남아 빈 칸처럼 보인다. 그래서 "- / 4" 로 적는다.
+            // (채굴 종료 · 채굴 결과 두 화면 내내 이 글자다)
+            _hud.NetworkTurnText =
+                Phase == MineMatchPhase.Finished && RosterSize > 0 ? $"- / {RosterSize}"
+                : HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}"
+                : string.Empty;
 
             _hud.NetworkRosterSize = RosterSize;
             _hud.NetworkCurrentSlot = CurrentSlot;
