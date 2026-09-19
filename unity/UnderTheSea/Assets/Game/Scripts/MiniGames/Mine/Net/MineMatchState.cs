@@ -89,7 +89,7 @@ namespace Mine.Net
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
         [Tooltip("이 값 이상이면 성공.")]
-        [SerializeField, Range(0f, 100f)] private float successThreshold = 60f;
+        [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
         // ------------------------------------------------------------
         // 복제되는 것

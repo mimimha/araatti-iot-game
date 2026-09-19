@@ -42452,7 +42452,7 @@ MonoBehaviour:
   hintSeconds: 3
   finishTitleSeconds: 2
   resultHoldSeconds: 6
-  successThreshold: 60
+  successThreshold: 70
   _Phase: 0
   _Countdown: 0
   _TurnTimeLeft: 0
@@ -78153,7 +78153,7 @@ MonoBehaviour:
   revealSeconds: 7
   turnSeconds: 30
   turnGapSeconds: 0
-  successThreshold: 60
+  successThreshold: 70
   judge: 0
   shapeTolerance: 2
   maxAlign: 0
