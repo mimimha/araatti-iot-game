@@ -70,7 +70,7 @@ P_HeartAltar
 ├─ Pedestal
 ├─ Stairway              BoxCollider
 ├─ HeartCrystal
-├─ AltarBeam             ← 파란 기둥 연출에 쓸 자리가 이미 있다
+├─ AltarBeam             ← 평소의 파란 기둥 연출. 항상 켜져 있다
 ├─ Light_Crystal
 └─ Light_Monolith
 ```
@@ -78,7 +78,8 @@ P_HeartAltar
 머티리얼도 이미 있습니다 — `M_Altar_Beam_01.mat`, `M_Altar_Crystal_01.mat`.
 
 **MonoBehaviour 는 0개입니다.** Trigger Collider 도 없습니다(BoxCollider 3개 모두 일반 충돌체).
-그래서 12장의 VFX 설계는 "새로 만든다" 가 아니라 **"이미 있는 `AltarBeam` 을 껐다 켠다"** 가 됩니다.
+12장의 VFX 는 이 평소 연출을 **끄거나 켜는 것이 아니라**, 봉헌이 성공할 때마다
+**그 위에 일회성 펄스를 한 번 얹는 것**입니다 (결정 #9).
 
 ---
 
@@ -734,13 +735,13 @@ HeartAltar                          ← Lobby.unity 의 기존 PrefabInstance (�
    ├─ Pedestal                      기존
    ├─ Stairway       BoxCollider    기존
    ├─ HeartCrystal                  기존
-   ├─ AltarBeam                     기존 ← 12장에서 이걸 껐다 켠다
+   ├─ AltarBeam                     기존 ← 평소 연출. 그대로 둔다
    ├─ Light_Crystal                 기존
    ├─ Light_Monolith                기존
    │
    └─ AltarInteraction              ★ 신규 (빈 GameObject 1개)
       ├─ AltarInteraction.cs        ★ 신규 — 거리 판정 + 키 입력 + 안내 토글
-      └─ AltarVfxController.cs      ★ 신규 — AltarBeam / Light_Monolith 를 켜고 끈다
+      └─ AltarVfxController.cs      ★ 신규 — 봉헌 성공 event 마다 Blue VFX 1회 재생
 ```
 
 ⚠ **프리팹 수정은 사용자가 Unity Editor 에서 합니다.** `CLAUDE.local.md` §1 에 따라
@@ -1176,12 +1177,24 @@ if (LobbyTutorial.IsRunning) Hide();
                                             ⚠ 자동으로 다시 봉헌하지 않는다.
                                                사용자가 [봉헌] 을 다시 누른다
 
-              ↓ totalOffered == targetOffering 이면
+              ↓ 봉헌이 성공했으므로 (amount 와 무관하게)
 
-⑥ 돌기둥 각성 연출 활성화
-   · 내 화면: 응답의 altarActivated 를 보고 즉시
-   · 남의 화면: Fusion RPC 로 "제단 상태가 바뀌었다" 를 받고 다시 조회 → 12.5
+⑥ 봉헌 성공 Blue VFX 1회
+   · 이 논리적 봉헌(requestId) 하나에 대해 정확히 한 번 재생한다
+   · 내 화면도 남의 화면도 같은 경로를 쓴다 —
+     성공 응답 → Fusion 으로 "이 requestId 봉헌이 성공했다" 알림 → 모두 pulse 1회 (12.4)
+   · 50개를 봉헌해도 1회다. 조각 수와 VFX 횟수는 무관하다
+
+              ↓ 그 결과 totalOffered == targetOffering 이 되었다면
+
+⑦ 회복 완료 상태로 들어간다
+   · altarActivated = true, recoveryPercent = 100, 봉헌 버튼 잠금 (11.3절)
+   · ⚠ 완료 전용 VFX 는 없다. ⑥ 의 일반 pulse 1회로 끝이다
 ```
+
+⚠ **실패 흐름에는 Blue VFX 가 없습니다.** `NOT_ENOUGH_FRAGMENTS` ·
+`OFFERING_AMOUNT_CHANGED` · `OFFERING_CLOSED` 어느 쪽이든 pulse 0회입니다.
+VFX 의 원인은 "상태가 바뀐 것" 이 아니라 **"봉헌이 성공한 사건"** 이기 때문입니다.
 
 **원칙 1 — 클라이언트가 빼고 더하지 않습니다.**
 ⑤에서 `remainingFragments` · `totalOffered` · `maxOfferAmount` 는 **서버 응답값을 그대로
@@ -1228,16 +1241,23 @@ AraAtti.Api              ─  DB 와 신원을 아는데, 게임 플레이에 �
     │   totalOffered: 730,         │                          │
     │   altarActivated: false }    │                          │
     │                              │                          │
-    │ Rpc_NotifyAltarChanged()     │                          │
+    │ Rpc_NotifyOfferingSucceeded  │                          │
+    │   (requestId)                │                          │
     ├──────────────────────────────┼─────────────────────────▶│
     │                              │                          │ 같은 채널 모두에게
-    │◀─────────────────────────────┼──────────────────────────┤ Rpc_AltarChanged()
-    │                              │                          │
-    │ 각 클라이언트가 GET /api/altar/state 로 최신값을 받아간다  │
+    │◀─────────────────────────────┼──────────────────────────┤ Rpc_OfferingSucceeded
+    │                              │                          │   (requestId)
+    │ 각 클라이언트가 ① GET /api/altar/state 로 최신값을 받고    │
+    │                ② 그 requestId 가 처음이면 Blue VFX 1회    │
 ```
 
-**Fusion RPC 는 "숫자" 를 나르지 않습니다. "바뀌었으니 다시 물어봐라" 만 나릅니다.**
-그래야 클라이언트가 RPC 인자에 거짓 숫자를 넣어도 아무 의미가 없습니다.
+**Fusion RPC 는 권위 상태 "숫자" 를 나르지 않습니다.**
+`totalOffered` · `recoveryPercent` · `myFragments` 같은 값은 실리지 않습니다.
+클라이언트가 RPC 인자에 거짓 숫자를 넣어도 아무 의미가 없어야 하기 때문입니다.
+
+⚠ **`requestId` 는 예외이고, 예외인 이유가 분명합니다.** 그것은 권위 상태 숫자가 아니라
+**일회성 event 식별자**입니다. 같은 봉헌 알림이 두 번 와도 pulse 가 두 번 나가지 않게
+하는 용도로만 쓰입니다 (9.3절 · 12.4절).
 
 | | |
 |---|---|
@@ -1617,36 +1637,77 @@ string text = error.Code == "OFFERING_AMOUNT_CHANGED"
 
 최종 사용자에게 보이는 문구는 11.3절의 세 가지로 통일합니다.
 
-### 9.3 Fusion RPC — 알림 하나
+### 9.3 Fusion RPC — 봉헌 성공 알림
+
+이 RPC 는 **두 가지 일**을 합니다. 같은 알림에서 출발하지만 **의미가 다른 두 가지**입니다.
+
+```text
+봉헌 성공 알림 하나
+├─ ① 상태가 바뀌었다는 사실        → AltarState.RequestRefresh()  (지속 상태)
+│                                     각자 GET /api/altar/state 로 권위 값을 다시 읽는다
+└─ ② 봉헌이 성공했다는 사건        → Blue VFX 1회                 (일회성 event)
+                                      requestId 로 중복을 거른다
+```
+
+⚠ **둘을 한 덩어리로 다루지 마세요.** ①은 "지금 값이 무엇인가" 이고, ②는 "방금 무슨 일이
+일어났는가" 입니다. ①은 몇 번을 합쳐도 결과가 같지만, ②는 **합치면 사건이 사라집니다.**
 
 ```csharp
 // Assets/Game/Scripts/Lobby/AltarOfferingRelay.cs  (신규)
 // 플레이어 프리팹에 붙는다. LobbyChatRelay 와 같은 자리, 같은 모양.
 
 [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-private void Rpc_NotifyOffered(RpcInfo info = default)
+private void Rpc_NotifyOfferingSucceeded(string requestId, RpcInfo info = default)
 {
     if (info.Source != Object.InputAuthority) return;   // LobbyChatRelay.cs:118 과 같은 방어
-    // 도배 방지: 같은 플레이어가 0.5초 안에 두 번 보내면 무시 (LobbyChatRelay.cs:124 패턴)
-    Rpc_AltarChanged();
+    Rpc_OfferingSucceeded(requestId);
 }
 
 [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-private void Rpc_AltarChanged()
+private void Rpc_OfferingSucceeded(string requestId)
 {
-    AltarState.RequestRefresh();   // 받은 쪽이 GET /api/altar/state 를 다시 부른다
+    AltarState.RequestRefresh();   // ① 상태: 받은 쪽이 GET /api/altar/state 를 다시 부른다
+    // ② 사건: 이 (플레이어, requestId) 가 처음이면 Blue VFX 를 1회 재생한다 (12.4절)
 }
 ```
 
-**인자가 없다는 것이 핵심입니다.** 숫자를 실어 나르면 그 숫자를 믿게 되고, 믿는 순간
-클라이언트가 조작할 수 있습니다. "바뀌었다" 는 사실만 나르면 조작할 게 없습니다.
+**권위 상태 숫자는 여전히 싣지 않습니다.** `totalOffered` · `recoveryPercent` ·
+`myFragments` · 봉헌량을 RPC 로 나르면 클라이언트가 그 숫자를 조작할 수 있습니다.
+상태는 각 클라이언트가 REST API 에서 다시 읽습니다.
 
-⚠ `LobbyChatRelay.cs:124-137` 의 **레이트 리밋**을 반드시 베끼세요.
-누가 봉헌 버튼을 연타하면 모든 클라이언트가 API 를 연타하게 됩니다.
-서버에서 `Time.time` 으로 재면 클라이언트가 못 속입니다.
+⚠ **`requestId` 는 권위 상태 숫자가 아니라 event 식별자입니다.** 같은 봉헌의 알림이
+두 번 도착해도 pulse 가 두 번 나가지 않게 하는 용도뿐이고, 이 값으로 바뀌는 DB 상태는
+하나도 없습니다 (12.4절).
 
-⚠ `Rpc_AltarChanged` 를 받은 클라이언트는 **바로 조회하지 말고 0~1초 랜덤 지연 후** 조회합니다.
-100명이 동시에 같은 API 를 때리면 그 순간이 가장 위험합니다.
+#### 레이트 리밋을 그대로 베끼면 안 됩니다
+
+`LobbyChatRelay.cs:124-137` 은 **같은 플레이어가 0.5초 안에 두 번 보내면 무시**합니다.
+채팅에는 맞지만 **여기서는 정상적인 봉헌 성공 사건을 지웁니다.**
+
+```text
+requestId = A 성공        ┐ 0.3초 간격
+requestId = B 성공        ┘
+
+→ 실제 정상 봉헌 성공 2건이다.  VFX 도 2회여야 한다.
+→ 시간만 보고 두 번째를 버리면 사건 하나가 사라진다.
+```
+
+그래서 **시간이 아니라 `requestId` 로 거릅니다.**
+
+```text
+같은 requestId 재알림        → 버린다 (dedupe)
+서로 다른 성공 requestId     → 아무리 가까워도 버리지 않는다
+```
+
+⚠ 악성 클라이언트가 이 RPC 를 도배할 수 있다는 한계는 남습니다. 다만 **그 RPC 로는
+DB 상태를 하나도 바꾸지 못합니다** — 보이는 것은 잘못된 순간의 연출뿐입니다 (12.4절 끝).
+필요하면 "서로 다른 requestId 라도 초당 N건" 같은 상한을 별도로 두되,
+**시간 기반 단일 조건으로 정상 사건을 지우지 않게** 합니다.
+
+⚠ `Rpc_OfferingSucceeded` 를 받은 클라이언트는 **상태 조회를 바로 하지 말고 0~1초 랜덤
+지연 후** 합니다. 100명이 동시에 같은 API 를 때리면 그 순간이 가장 위험합니다.
+**VFX pulse 는 지연하지 않습니다** — 그것은 API 호출이 아니라 화면 연출이고,
+봉헌한 순간에 보여야 의미가 있습니다.
 
 ### 9.4 Unity 클라이언트 쪽 배선
 
@@ -1891,6 +1952,41 @@ uk_contributions_user_request   UNIQUE (user_id, request_id)
 
 이 방식의 이름은 **멱등성 키(idempotency key)** 이고, 결제 API 들이 쓰는 표준 방식입니다.
 
+#### `requestId` 는 Blue VFX 의 중복 제거에도 그대로 쓰입니다 (결정 #9)
+
+DB 쪽 계약과 화면 쪽 계약이 **같은 키 하나**를 공유합니다.
+
+```text
+같은 논리적 requestId
+  → DB 봉헌 1회
+  → Blue VFX 도 최대 1회
+```
+
+⚠ **"`duplicate == true` 면 VFX 없음" 이라고 정의하면 안 됩니다.** 첫 응답이 유실된
+재시도를 놓칩니다.
+
+```text
+A 가 requestId = X 로 봉헌
+  → 서버 Commit 성공 (실제 봉헌은 일어났다)
+  → HTTP 응답이 유실 → 클라이언트는 결과를 모른다 → VFX 아직 없음
+
+A 가 같은 X 로 재시도
+  → 200  success: true,  duplicate: true
+  → 이 논리적 봉헌에 대한 VFX 가 아직 한 번도 안 나갔다
+  → 여기서 1회 재생한다
+```
+
+정확한 기준은 `duplicate` 플래그가 아니라 **"이 논리적 `requestId` 에 대한 VFX 가 이미
+발생했는가"** 입니다.
+
+```text
+X 에 대한 VFX 를 아직 발생시키지 않았다   → 이번 응답에서 1회 발생
+X 에 대한 VFX 를 이미 발생시켰다          → 추가 발생 없음
+```
+
+서로 다른 `requestId` 는 서로 다른 사건이므로 **합치지 않습니다.** `A`(성공)와
+`B`(성공)는 pulse 2회이고, 여러 플레이어가 동시에 성공하면 성공한 요청 수만큼입니다.
+
 ### 10.5 클라이언트 쪽 중복 방지 (보조)
 
 서버가 막아 주지만, 클라이언트도 막습니다. **서버 방어가 있어도 UI 는 응답해야 합니다.**
@@ -2096,9 +2192,14 @@ altarActivated == true 인 동안
   · 제단에 다가가도 [E] 조각 봉헌 안내를 띄우지 않는다
     (또는 "섬이 모두 회복되었습니다" 로 문구를 바꾼다 — 연출 선택)
   · 섬 회복도 HUD 는 100% 고정
-  · 달성 연출(AltarBeam_Awakened)은 켜진 상태 유지
   · 혹시 UI 가 열려 있었다면 maxOfferAmount = 0 이므로 봉헌 버튼이 잠긴다
 ```
+
+⚠ **완료 상태에 묶인 Blue VFX 는 없습니다** (결정 #9). 마지막 1개를 봉헌한 그 순간에
+**그 봉헌이 성공했기 때문에** 일반 pulse 가 1회 나갈 뿐이고, 완료 전용 연출이 따로
+켜지지도, 완료 동안 무엇이 계속 켜져 있지도 않습니다.
+`altarActivated` 는 봉헌 종료·버튼 잠금·회복도 100%·보상 중단을 판정하는 데 쓰이고,
+**VFX 트리거로는 쓰이지 않습니다** (12.3절).
 
 ⚠ **클라이언트가 `altarActivated` 를 보고 UI 를 막아도 서버 검증은 그대로 둡니다.**
 UI 를 안 거치고 API 를 직접 부를 수 있습니다 (6.4.2절의 2단계 검증 원칙).
@@ -2519,7 +2620,7 @@ if (AltarState.Activated) { 보상 줄을 숨긴다; }
 이유:
 
 ```text
-· 미니게임 씬에서는 로비의 주기 폴링(12.5절)이 돌지 않는다
+· 미니게임 씬에서는 로비의 주기 폴링(12.7절)이 돌지 않는다
 · 캐시가 오래됐을 수 있다
 · 다른 채널에서 마지막 봉헌이 일어났을 수 있다
 · 클라이언트가 "아직 회복 중" 이라고 생각해도 서버는 이미 완료됐을 수 있다
@@ -2562,11 +2663,15 @@ if (AltarState.Activated) { 보상 줄을 숨긴다; }
   1. 미니게임 플레이
   2. 조각 획득
   3. 제단 봉헌
-  4. 섬 회복도 상승
-  5. 시연 마지막 구간에서 목표 달성
-  6. 돌기둥 각성 연출
-  7. 섬 회복 완료
+  4. 봉헌이 성공할 때마다 Blue VFX 가 1회씩 터진다   ← 첫 봉헌부터 보인다
+  5. 섬 회복도 상승
+  6. 시연 마지막 구간에서 목표 달성
+  7. 섬 회복 완료 상태 진입 (봉헌 종료 · 회복도 100%)
 ```
+
+⚠ **"마지막에 목표를 달성해야 비로소 빛이 난다" 가 아닙니다.** Blue VFX 는 완료 연출이
+아니라 봉헌 성공 연출이므로 **시연 내내 봉헌할 때마다** 보입니다 (결정 #9).
+마지막 봉헌도 그 pulse 1회로 끝이고, 완료 전용 연출이 추가로 붙지 않습니다.
 
 회복 완료를 **시연 초반에** 만들면 남은 시간 대부분 동안 조각 보상이 중단된 채로
 흘러갑니다. 결정 #8 은 그 상태를 정직하게 만들어 줄 뿐, 재미있게 만들어 주지는 않습니다.
@@ -2978,95 +3083,259 @@ bool altarActivated = state.ActivatedAt != null
 
 ## 12. 돌기둥 Blue VFX 동기화
 
-### 12.1 이미 있는 것을 씁니다
+> **[결정 #9 — Blue VFX 는 상태가 아니라 사건입니다]** (2026-09-20 확정)
+>
+> ```text
+> 성공한 논리적 봉헌 1건  →  파란 세로 VFX 정확히 1회
+> ```
+>
+> 봉헌한 **조각 수와 VFX 횟수는 무관**합니다. 1개를 봉헌해도 1회, 50개를 봉헌해도 1회입니다.
+> 기존의 "1000 달성 시 켜서 계속 유지" 정책은 **폐기되었습니다.**
+
+### 12.1 이미 있는 제단 연출 자산
 
 3장에서 확인했듯 `P_HeartAltar` 안에 **`AltarBeam`** 오브젝트와
 **`M_Altar_Beam_01.mat`** 머티리얼, **`Light_Monolith`** / **`Light_Crystal`** 라이트가
 이미 있고 전부 켜져 있습니다.
 
-그래서 **새 VFX 를 만들지 않습니다.** 기존 연출을 "약함 ↔ 강함" 으로 바꾸는 것이 가장 자연스럽습니다.
+```text
+AltarBeam        기존. 항상 켜져 있다. 평소의 은은한 빛      ← 그대로 둔다
+Light_Monolith   기존. 평소 밝기 그대로                      ← 그대로 둔다
+Light_Crystal    기존                                        ← 그대로 둔다
+```
 
-### 12.2 URP 에서 가능한 방법과 선택
+⚠ **이 평소 연출을 껐다 켜지 않습니다.** 새 정책에서 VFX 는 상태 표시가 아니라
+봉헌이 성공한 순간에 한 번 터지는 펄스이므로, 평소 연출과 **겹쳐서 얹습니다.**
+
+컨셉 아트(`island-restoration-gameplay-v3.png`)도 회복도 68% 시점에 이미 제단에서
+파란 빛기둥이 올라가는 그림입니다. 평소에 어둡다가 완료에서 처음 빛나는 그림이 아닙니다.
 
 | 방법 | 이 프로젝트에서 | 판단 |
 |---|---|---|
 | VFX Graph | **패키지가 없다** (`manifest.json` 에 `visualeffectgraph` 없음) | ✗ 패키지를 추가하면 빌드·팀 설정에 영향 |
-| Particle System | 모듈 있음. `ARPG Effects` 에셋에 즉시 쓸 프리팹 다수 | ○ |
-| Emission Material | `M_Altar_Beam_01` 이 이미 있다 | **◎** |
-| Point Light | `Light_Monolith` 가 이미 있다 | **◎** |
+| Particle System | 모듈 있음. `ARPG Effects` 에셋에 즉시 쓸 프리팹 다수 | **◎** one-shot 펄스에 가장 잘 맞는다 |
+| Emission Material | `M_Altar_Beam_01` 이 이미 있다 | ○ 펄스 동안 잠깐 밝히는 보조용 |
+| Point Light | `Light_Monolith` 가 이미 있다 | ○ 같음 |
 | Shader | `Assets/Game/Art/Shaders/` 에 우리 셰이더가 있다 | △ 필요해지면 |
-
-**권장: 기존 `AltarBeam` 은 그대로 두고, 달성 전용 연출 오브젝트를 따로 둡니다.**
-
-```text
-AltarBeam          기존. 항상 켜져 있다. 평소의 은은한 빛
-AltarBeam_Awakened ★ 신규 자식. 프리팹에 꺼진 채로 저장한다. 1000 달성 시에만 켠다
-Light_Monolith     기존. intensity 만 올린다 (2 → 8)
-```
-
-⚠ **`AltarBeam` 자체를 껐다 켜는 방식은 권하지 않습니다.** 두 가지 이유입니다.
-
-1. **초기 한 프레임 문제.** 프리팹에서 `AltarBeam` 은 **켜진 채로 저장되어 있습니다**
-   (0장에서 확인 — `m_IsActive: 1`). 로비에 들어가면 서버 응답이 오기 전까지 켜져 보이고,
-   응답이 도착하는 순간 꺼집니다. **"파란 빛이 번쩍했다가 사라지는"** 화면이 됩니다.
-   달성 전용 오브젝트를 **꺼진 채로 저장**해 두면 이 경로가 아예 없습니다.
-
-2. **컨셉 아트와 맞습니다.** `island-restoration-gameplay-v3.png` 를 보면 회복도 68%
-   시점에도 제단에서 이미 파란 빛기둥이 올라갑니다. 평소에 아무것도 없다가 1000 에서
-   처음 빛나는 그림이 아닙니다. **평소 빛(기존) + 각성 연출(신규)** 이 아트와 일치합니다.
-
-> 만약 "1000 전에는 제단이 완전히 어두워야 한다" 가 기획이라면, 그때는 `AltarBeam` 을
-> **프리팹에서 꺼진 상태로 저장**한 뒤 켜는 방식으로 갑니다. 어느 쪽이든 **"프리팹에
-> 저장된 상태 = 서버 응답 전에 보여야 할 상태"** 를 맞추는 것이 핵심입니다.
-(연출을 더 키우고 싶으면 `ARPG Effects` 의 기둥 계열 프리팹을 `AltarBeam` 자리에 얹습니다.
-`ProximityPortal.cs:59-77` 이 이미 그 에셋의 프리팹을 코드로 스폰하는 본보기입니다.)
 
 ⚠ `Assets/ARPG Effects` 는 **외부 에셋**입니다. `CLAUDE.local.md` §4 에 따라
 원본을 고치지 않고, 우리 프리팹에서 **참조만** 합니다.
 
-### 12.3 네트워크 로직과 연출의 분리 (요청서 9장 요구)
+### 12.2 Blue VFX 의 새 의미 — 성공 봉헌당 one-shot
 
 ```text
-AltarState  (static)              서버가 준 숫자만 안다. Unity 를 모른다
-    │  event Changed
-    ▼
-AltarVfxController  (MonoBehaviour, 제단에 붙는다)
-    │  AltarState.Activated 를 읽어
-    ▼
-AltarBeam.SetActive(on)  /  Light_Monolith.intensity = on ? 8 : 2
+amount = 1  성공   →  pulse 1회
+amount = 2  성공   →  pulse 1회        ⚠ 2회가 아니다
+amount = 50 성공   →  pulse 1회        ⚠ 50회가 아니다
+
+봉헌 실패          →  pulse 0회
 ```
 
-`AltarVfxController` 는 **`NetworkBehaviour` 가 아닙니다.** 네트워크를 전혀 모릅니다.
-각 클라이언트가 자기 `AltarState` 를 보고 자기 화면을 칠합니다.
+세는 단위는 **조각 개수가 아니라 성공한 논리적 봉헌 요청 수**입니다.
 
-### 12.4 Late Join / 씬 재진입 / 재로그인
+#### 어떤 오브젝트로 재생하는가
 
-요청서 9장의 네 조건을 어떻게 만족하는지:
-
-| 조건 | 어떻게 |
-|---|---|
-| 기존 접속 플레이어 모두에게 활성화 | `Rpc_AltarChanged` → 각자 `GET /api/altar/state` (9.3절) |
-| 늦게 접속한 플레이어에게도 복원 | **접속 시 무조건 한 번 조회한다.** `LocalPlayer.Registered` 에서 |
-| Scene 재진입 후에도 복원 | 같음. 미니게임 다녀와도 로비 재진입 시 다시 조회 |
-| 호스트가 아니라 서버 상태 기준 | 값의 출처가 MySQL 하나뿐이다. Fusion 서버도 안 들고 있다 |
+일회성 펄스 전용 오브젝트를 **프리팹에 꺼진 채로 저장**해 두고, event 마다 한 번 재생합니다.
+평소 연출(`AltarBeam`)은 손대지 않으므로 **로비 진입 직후 "번쩍했다 사라지는" 한 프레임이
+아예 생기지 않습니다.**
 
 ```csharp
-// AltarVfxController 또는 AltarStateInstaller
-private void OnEnable()
-{
-    AltarState.Changed += Apply;
-    AltarState.RequestRefresh();   // ← 늦게 들어왔든 돌아왔든, 켜지는 순간 한 번 묻는다
-    Apply();                       // ← 캐시가 있으면 즉시 반영 (한 프레임 깜빡임 방지)
-}
+// AltarVfxController 의 직렬화 필드 (이름은 구현 시 프로젝트 관례에 맞춘다)
+[SerializeField] private GameObject offeringPulseEffect;   // 사용자가 Editor 에서 연결한다
+[SerializeField] private float      pulseDuration;         // 한 번 재생 길이. Inspector 에서 조정
 ```
 
-**이 한 줄(`RequestRefresh`)이 Late Join 문제 전체를 해결합니다.**
-Fusion 의 `[Networked]` 를 쓰지 않아도 되는 이유이기도 합니다 — 상태가 DB 에 있으니까요.
+⚠ **실제 프리팹에 아직 없는 오브젝트 이름을 확정된 사실처럼 적지 않습니다.**
+파란 세로 이펙트를 어떤 오브젝트/파티클로 만들지는 사용자가 Unity Editor 에서 정하고
+위 슬롯에 연결합니다. 설계가 고정하는 것은 **"one-shot 으로 재생한다"** 는 것뿐입니다.
 
-⚠ 조회가 실패하면(서버 꺼짐 등) **연출을 끄지 말고 마지막 상태를 유지**합니다.
-꺼 버리면 잠깐 네트워크가 끊긴 것 때문에 "1000개를 모았는데 빛이 사라지는" 화면이 됩니다.
+⚠ **재생 시간(0.5초 · 1초 · 2초 …)을 설계에서 확정하지 않습니다.** 아직 정해지지
+않았습니다. `[SerializeField]` 로 조정 가능한 one-shot duration 으로 둡니다.
 
-### 12.5 `AltarState` 동기화 규칙 — RPC 만으로는 부족합니다
+#### `Light_Monolith` 는 완료 상태에 묶지 않습니다
+
+기존의 `altarActivated == true` → `intensity` 를 2 에서 8 로 올려 **영구 유지**하는
+설계는 폐기합니다. 펄스와 함께 라이트를 잠깐 강조할지는 **추후 연출 선택**이고,
+완료 상태에 종속시키지 않습니다.
+
+### 12.3 상태와 event 를 분리합니다
+
+이 장에서 가장 중요한 구분입니다.
+
+```text
+AltarState                          Offering 성공 event
+─────────────────────────           ─────────────────────────
+현재 서버 상태                       실제로 일어난 사건
+지속되는 값                          순간적인 one-shot
+언제든 다시 조회할 수 있다            과거를 GET 으로 복원하지 않는다
+GET /api/altar/state 로 읽는다        POST /api/altar/offer 성공에서만 생긴다
+합쳐도(coalescing) 결과가 같다        합치면 사건이 사라진다
+```
+
+```text
+AltarState.Changed
+  → IslandRecoveryView (회복도 HUD)
+  → AltarOfferingUIController (버튼 · 최대 수량 · 완료 잠금)
+  → 완료 상태 표현
+
+봉헌 성공 event
+  → AltarVfxController
+  → one-shot pulse 1회
+```
+
+⚠ **`AltarVfxController` 는 `AltarState.Changed` 를 VFX 트리거로 쓰지 않습니다.**
+`AltarState.Activated` 도 읽지 않습니다. 기존의
+
+```text
+AltarState.Changed → AltarVfxController → Activated 확인 → Blue VFX ON
+```
+
+구조는 **제거되었습니다.** 상태가 999 에서 1000 으로 보였다는 사실만으로는 pulse 를
+재생하지 않습니다. 원인은 언제나 **성공한 봉헌 사건**이어야 합니다.
+
+`AltarVfxController` 는 여전히 **`NetworkBehaviour` 가 아닙니다.** 네트워크를 모릅니다.
+`AltarOfferingRelay`(`NetworkBehaviour`)가 event 를 받아 넘겨 주고, 컨트롤러는 그것을
+화면으로만 바꿉니다.
+
+의미상 API 는 one-shot 동작 하나입니다.
+
+```text
+PlayOnce()  /  EnqueuePulse()      ← 정확한 이름은 프로젝트 naming 관례에 맞춘다
+```
+
+⚠ **`amount` 를 받지 않습니다.** 이펙트의 세기나 횟수를 봉헌량과 연결하지 않습니다.
+
+### 12.4 Fusion 전달과 `requestId` 중복 방지
+
+한 번의 봉헌 성공으로 **로컬 화면에서 pulse 가 두 번 나오면 실패**입니다.
+
+```text
+✗ HTTP 성공 응답 → 로컬에서 PlayOnce()
+  그리고 Fusion broadcast 수신 → 다시 PlayOnce()
+  → 로컬만 2회
+```
+
+그래서 **모든 클라이언트가 같은 한 경로**를 씁니다.
+
+```text
+POST /api/altar/offer 성공 응답
+  → Rpc_NotifyOfferingSucceeded(requestId)      (나 → Fusion 서버)
+  → Rpc_OfferingSucceeded(requestId)            (Fusion 서버 → 세션 전체)
+  → 받은 모든 클라이언트가 같은 판단으로 pulse 1회
+```
+
+⚠ **로컬 플레이어가 broadcast 대상에 포함되는지 실제 구현 단계에서 기존 RPC 패턴을
+확인하세요** (`LobbyChatRelay`). 포함된다면 로컬에서 별도로 재생하지 않고 broadcast 만
+기다리면 되고, 포함되지 않는다면 로컬 한 번 + 원격 broadcast 로 맞춥니다.
+어느 쪽이든 **한 봉헌당 각 화면에서 정확히 1회** 가 기준입니다.
+
+#### event 식별자
+
+같은 논리적 봉헌의 알림이 두 번 도착해도 pulse 가 두 번 나가면 안 됩니다.
+
+```text
+서버 멱등성 키          (user_id, requestId)          ← MySQL. STEP 1 · 10.4
+Fusion 쪽 event identity (Fusion player identity, requestId)
+```
+
+Fusion Dedicated Server 는 DB 의 `user_id` 를 모릅니다. 그래서 Fusion 쪽에서는
+**보낸 플레이어의 Fusion 신원 + `requestId`** 조합으로 구분합니다.
+
+⚠ **실제 Fusion 타입(`PlayerRef` 인지 다른 것인지)은 구현 전에 현재 프로젝트의
+기존 RPC 코드를 다시 확인하세요.** 설계가 고정하는 것은 "보낸 사람 + requestId 로
+구분한다" 는 의미까지입니다.
+
+`requestId` 를 RPC 에 싣는 것은 조각 수 · `totalOffered` · `recoveryPercent` 같은
+**권위 상태 숫자를 보내는 것이 아닙니다.** 그것들은 계속 REST API / MySQL 이 권위입니다.
+
+#### 보안 경계
+
+```text
+가짜 VFX RPC 를 보낼 수 있는가        → 가능하다
+그것으로 무엇을 바꿀 수 있는가         → 잘못된 순간에 연출이 한 번 터지는 것뿐이다
+
+inventory            바뀌지 않는다
+totalOffered         바뀌지 않는다
+targetOffering       바뀌지 않는다
+altarActivated       바뀌지 않는다
+altar_contributions  바뀌지 않는다
+```
+
+봉헌 성공 여부와 데이터 변경의 권위는 계속 **`AraAtti.Api` + MySQL** 입니다.
+이 RPC 는 **cosmetic event** 입니다.
+
+### 12.5 Late Join / 씬 재진입 — 과거 pulse 는 복원하지 않습니다
+
+기존 완료 연출은 "상태" 였기 때문에 늦게 들어와도 켜 줄 수 있었습니다.
+새 VFX 는 **일회성 사건**이므로 지나간 것을 되살리지 않습니다.
+
+| 상황 | 상태 복원 | 과거 pulse |
+|---|---|---|
+| Late Join (늦게 접속) | ○ 회복도 · 완료 여부 전부 복원 | **✗ 재생하지 않음** |
+| Scene 재진입 (미니게임 다녀옴) | ○ | **✗** |
+| 재로그인 | ○ | **✗** |
+| 30초 주기 폴링 | ○ | **✗** |
+| `GET /api/altar/state` | ○ | **✗** |
+| `RequestRefresh()` | ○ | **✗** |
+| `AltarState.Changed` 발생 | ○ | **✗** |
+| `altarActivated = true` 를 조회 | ○ | **✗** |
+
+⚠ **위 어느 것도 Blue VFX 를 발생시키지 않습니다.** 조회만으로 pulse 가 나가면
+로비에 들어갈 때마다, 30초마다 제단이 번쩍이게 됩니다.
+
+실시간 전달 범위는 Fusion 세션 단위입니다.
+
+```text
+같은 Fusion 세션에 그 시점에 접속해 있는 플레이어   → pulse 를 받는다
+다른 lobby channel (ch2)                          → 받지 못한다
+그 봉헌 이전에 있었고 지금은 나간 플레이어           → 받지 못한다
+```
+
+다른 채널은 **전역 수치만** 30초 폴링으로 따라잡습니다(12.7절). 과거 pulse 는 재생하지
+않습니다 — 현재 cross-channel event bus 가 없기 때문입니다.
+
+> **out of scope** — "다른 채널에서도 모든 봉헌 pulse 를 실시간으로 본다" 가 필요해지면
+> 별도의 cross-channel event distribution 이 필요합니다. **이번 설계에서는 하지 않고,
+> 그것을 위해 새 DB event 테이블을 만들지도 않습니다.** 전역 상태는 DB 로 충분하고,
+> 사건 전파는 Fusion 세션 안에서만 보장합니다.
+
+### 12.6 연속 봉헌 event 처리 — 사건을 잃지 않습니다
+
+여러 성공 봉헌이 아주 가까운 시간에 들어와도, **`requestId` 가 다르면 전부 살립니다.**
+
+```text
+requestId = A 성공
+0.3초 뒤 requestId = B 성공
+→ 정상 봉헌 성공 2건 → pulse 2회
+```
+
+```text
+플레이어 A · B · C 가 각각 성공
+→ 성공한 논리적 봉헌 3건 → pulse 3건
+→ 하나로 합치지 않는다
+```
+
+⚠ **상태 조회의 coalescing 과 VFX event 의 coalescing 을 혼동하지 마세요.**
+
+```text
+GET / RequestRefresh         → 합쳐도 된다 (결과가 같다)
+서로 다른 성공 봉헌 pulse     → 합치면 안 된다 (사건이 사라진다)
+```
+
+원칙은 하나입니다.
+
+```text
+성공 봉헌 event 수  =  실제로 처리해야 할 pulse 수
+```
+
+펄스가 시간적으로 겹칠 때는 **큐에 쌓아 순차 재생**하거나, 이펙트 자산이 겹쳐 재생해도
+자연스럽다면 동시 재생합니다. 어느 쪽이든 **이벤트를 버리지 않는 것**이 기준입니다.
+정확한 방식은 사용자가 연결할 이펙트 자산의 특성을 보고 구현 단계에서 정합니다.
+
+### 12.7 `AltarState` 동기화 규칙 — RPC 만으로는 부족합니다
+
+⚠ 이 절은 **지속 상태 전용**입니다. 아래 규칙(coalescing · 폴링 · 순번 가드)을
+일회성 VFX event 에 적용하면 사건이 사라집니다 (12.3 · 12.6절).
 
 RPC 알림(9.3절)에는 **구멍이 세 개** 있습니다. 전부 `AltarState` 한 곳에서 막습니다.
 
@@ -3074,7 +3343,7 @@ RPC 알림(9.3절)에는 **구멍이 세 개** 있습니다. 전부 `AltarState`
 
 ```text
 altar_state 는 DB 하나다          → lobby-ch1 과 lobby-ch2 가 같은 값을 공유한다 (결정 #5)
-Rpc_AltarChanged 는 세션 단위다   → ch1 에서 봉헌해도 ch2 는 모른다
+Rpc_OfferingSucceeded 는 세션 단위다 → ch1 에서 봉헌해도 ch2 는 모른다
 ```
 
 **ch2 화면은 DB 가 730 인데 729 를 계속 보여줍니다.** 문서가 "전 서버 공통 목표" 라고
@@ -3094,9 +3363,12 @@ Rpc_AltarChanged 는 세션 단위다   → ch1 에서 봉헌해도 ch2 는 모�
 
 #### 구멍 2 — `RequestRefresh()` 가 여러 곳에서 동시에 불립니다
 
-부르는 곳이 이미 다섯입니다 — `AltarVfxController.OnEnable`, `IslandRecoveryView.OnEnable`,
-`LocalPlayer.Registered`(Late Join), `Rpc_AltarChanged` 수신, 주기 폴링.
-로비에 들어가는 순간 이 중 셋이 거의 같은 프레임에 겹칩니다.
+부르는 곳이 넷입니다 — `IslandRecoveryView.OnEnable`, `AltarOfferingUIController`(UI 를 열 때),
+`LocalPlayer.Registered`(Late Join), `Rpc_OfferingSucceeded` 수신, 주기 폴링.
+로비에 들어가는 순간 이 중 둘 이상이 거의 같은 프레임에 겹칩니다.
+
+⚠ **`AltarVfxController` 는 이 목록에 없습니다.** 그것은 상태를 읽어 화면을 칠하는
+컴포넌트가 아니라 봉헌 성공 event 를 받아 pulse 를 재생하는 컴포넌트입니다 (12.3절).
 
 → **진행 중인 요청이 있으면 합칩니다 (coalescing).**
 
@@ -3149,8 +3421,11 @@ AltarState
   Changed 이벤트         화면은 이것만 듣는다
 ```
 
-**화면(`AltarVfxController` · `IslandRecoveryView` · `AltarOfferingUIController`)은
-이 규칙을 하나도 모릅니다.** `RequestRefresh()` 를 아무 때나 불러도 안전합니다.
+**상태를 보는 화면(`IslandRecoveryView` · `AltarOfferingUIController`)은 이 규칙을
+하나도 모릅니다.** `RequestRefresh()` 를 아무 때나 불러도 안전합니다.
+
+`AltarVfxController` 는 여기에 들어가지 않습니다. 그것이 듣는 것은 `Changed` 가 아니라
+봉헌 성공 event 입니다 (12.3절).
 
 ---
 
@@ -3307,7 +3582,7 @@ Fusion      아무 상태도 보관하지 않는다   ← "바뀌었다" 알림�
 ```
 
 ⚠ 이 결정으로 **Fusion 쪽에 저장 상태가 하나도 없습니다.** 그래서 Late Join 복원이
-`[Networked]` 가 아니라 `AltarState.RequestRefresh()` 한 번으로 해결됩니다 (12.4절).
+`[Networked]` 가 아니라 `AltarState.RequestRefresh()` 한 번으로 해결됩니다 (12.5절).
 Fusion 프리팹·리베이크를 건드릴 일이 그만큼 줄어듭니다.
 
 ---
@@ -3359,7 +3634,7 @@ Fusion 프리팹·리베이크를 건드릴 일이 그만큼 줄어듭니다.
 | **UI 를 연 뒤 남은 칸이 줄었다** | 서버가 최신 값으로 재검증해 전체 실패. UI 가 응답값으로 스스로를 맞춘다 (6.4.2) |
 | `total > target` 인 비정상 데이터 | 방어적 `>=` 판정으로 연출은 켜 둔다 (10.7) |
 | **마지막 봉헌과 미니게임 보상이 동시** | 같은 `altar_state` 행을 잠금 기준으로 삼아 Commit 순서를 따른다. 완료 Commit 이후 지급 없음 (11.4.5) |
-| 늦게 들어온 플레이어 | `LocalPlayer.Registered` → `AltarState.RequestRefresh()` (12.4) |
+| 늦게 들어온 플레이어 | `LocalPlayer.Registered` → `AltarState.RequestRefresh()` (12.5) |
 | Scene 재접속 | 같음 |
 | 플레이어 재로그인 | JWT 가 새로 발급되고, 인벤토리는 `users.id` 에 매달려 있으므로 그대로 |
 | 다른 채널로 이동 | DB 가 하나라 값이 같다 (14.4) |
@@ -3495,17 +3770,21 @@ Assets/Game/Scripts/Network/LocalPlayer.cs       그대로 쓴다
 | `IInventoryService.cs` | `Inventory/` | 조회 인터페이스 | `IAuthService` 와 같은 경계 |
 | `HttpInventoryService.cs` | `Inventory/` | `UnityWebRequest` 구현 | `HttpCharacterService` 를 본보기로 |
 | `FakeInventoryService.cs` | `Inventory/` | 서버 없이 화면 확인 | `FakeCharacterService` 와 같은 이유 |
-| `AltarState.cs` | `Lobby/` | 전역 봉헌 상태 캐시 + `Changed` + `RequestRefresh()` | 12.4 의 Late Join 해결 지점 |
+| `AltarState.cs` | `Lobby/` | 전역 봉헌 상태 캐시 + `Changed` + `RequestRefresh()` | 12.5 의 Late Join 해결 지점. ⚠ VFX event 는 여기를 지나지 않는다 (12.3) |
 | `IAltarService.cs` | `Lobby/` | 조회·봉헌 인터페이스 | |
 | `HttpAltarService.cs` | `Lobby/` | HTTP 구현 | |
 | `FakeAltarService.cs` | `Lobby/` | 가짜 구현 | |
 | `AltarInteraction.cs` | `Lobby/` | 거리 판정 + 키 입력 + 안내 토글 | `MiniGamePortal` 패턴. **재사용 가능한 기존 클래스 없음** (5.1) |
 | `AltarOfferingUIController.cs` | `Lobby/` | 봉헌 UI 흐름 (수량 · 버튼 · 오류) | |
 | `AltarOfferingInstaller.cs` | `Lobby/` | UI 프리팹 설치 | `LobbyChatInstaller` 패턴 (6.2) |
-| `AltarOfferingRelay.cs` | `Lobby/` | Fusion RPC 알림 (`NetworkBehaviour`) | `LobbyChatRelay` 패턴 (9.3) |
-| `AltarVfxController.cs` | `Lobby/` | `AltarBeam` / 라이트 토글 | 네트워크와 연출 분리 (12.3) |
+| `AltarOfferingRelay.cs` | `Lobby/` | 봉헌 성공 event 전달 + 상태 refresh 신호 (`NetworkBehaviour`) | `LobbyChatRelay` 패턴 (9.3). 받은 event 를 `AltarVfxController` 에 넘긴다 |
+| `AltarVfxController.cs` | `Lobby/` | 봉헌 성공 event 마다 Blue VFX one-shot 재생 | 네트워크와 연출 분리 (12.3). `AltarState.Changed` 를 트리거로 쓰지 않는다 |
 | `IslandRecoveryView.cs` | `Lobby/` | 상단 회복도 HUD | 13.4 |
 | `IslandRecoveryInstaller.cs` | `Lobby/` | HUD 프리팹 설치 | |
+
+⚠ **결정 #9(Blue VFX 정책 변경)만으로 새 파일이 늘지 않습니다.** `AltarOfferingRelay` 가
+받은 봉헌 성공 event 를 `AltarVfxController` 에 넘기는 **작은 로컬 연결**이면 충분합니다.
+이것 때문에 event-bus 프레임워크를 새로 설계하지 마세요.
 
 ### Unity 에셋 (사용자가 Editor 에서 생성)
 
@@ -3548,16 +3827,17 @@ Assets/Game/Art/UI/Altar/                          HUD 이미지 (사용자 제�
 
 ### STEP 0. 결정 사항 확정 (코드 없음)
 
-**목표** — 21장의 결정 #0~#8 을 확인한다.
+**목표** — 21장의 결정 #0~#9 를 확인한다.
 
 ```text
 #0  키 = Key.E                          #1  갈래 1, 클리어 1회 = 조각 1개
 #2  1000 달성 후 추가 봉헌 금지           #3  회복도 100% 고정
 #4  회복도 = 봉헌량 기준                  #5  DB 영구 저장
-#6  인벤토리는 users 에 매단다
+#6  인벤토리는 users 에 매단다            #7  targetOffering 은 상한
+#8  회복 완료 후 조각 지급 중단           #9  Blue VFX 는 봉헌 성공 1건당 1회
 ```
 
-**완료 — 2026-09-20 기준 결정 #0~#8 이 모두 확정되었습니다. STEP 1 로 바로 갑니다.**
+**완료 — 2026-09-20 기준 결정 #0~#9 가 모두 확정되었습니다. STEP 1 로 바로 갑니다.**
 
 ---
 
@@ -3792,8 +4072,15 @@ Console 에 서버 값이 찍힌다. **컴파일 에러 0, 새 Console Error 0.*
 **신규 파일** `Lobby/AltarOfferingRelay.cs`
 **⚠ 사용자 작업** 플레이어 프리팹에 `AltarOfferingRelay` 추가 (`LobbyChatRelay` 옆)
 
-**완료 조건** 클라이언트 2개 중 A 가 봉헌 → B 의 전체 봉헌량이 1~2초 안에 갱신.
-**테스트** A 가 봉헌 버튼을 10번 연타 → B 가 API 를 10번 때리지 않는다 (레이트 리밋 확인).
+**완료 조건**
+- 클라이언트 2개 중 A 가 봉헌 → B 의 전체 봉헌량이 1~2초 안에 갱신
+- **A 의 봉헌 성공 event 가 B 에게 전달된다 → B 화면에서도 Blue VFX 1회** (결정 #9)
+
+**테스트**
+- A 가 서로 다른 `requestId` 로 빠르게 2번 봉헌 성공 → **B 화면에서 pulse 2회**
+  ⚠ 0.5초 단순 시간 기반으로 두 번째를 버리면 실패다 (9.3절)
+- 같은 봉헌 알림이 두 번 도착해도 B 화면의 pulse 는 **총 1회** (`requestId` dedupe)
+- 상태 갱신(`RequestRefresh`)은 합쳐도 되지만, **서로 다른 성공 event 는 버리지 않는다**
 
 ---
 
@@ -3805,20 +4092,36 @@ Console 에 서버 값이 찍힌다. **컴파일 에러 0, 새 Console Error 0.*
 
 ---
 
-### STEP 10. Unity — 1000 달성 VFX
+### STEP 10. Unity — 봉헌 성공 Blue VFX
 
-**목표** `totalOffered == targetOffering` 이 되면 달성 연출이 켜진다. 늦게 들어와도 켜져 있다.
-**확인할 파일** `P_HeartAltar.prefab` 의 `AltarBeam` / `Light_Monolith`
+**목표** 봉헌이 성공할 때마다 **`amount` 와 무관하게** 파란 세로 VFX 가 one-shot 으로 1회 재생된다.
+**확인할 파일** `P_HeartAltar.prefab` (평소 연출 `AltarBeam` 은 그대로 둔다), `Lobby/AltarOfferingRelay.cs`
 **신규 파일** `Lobby/AltarVfxController.cs`
-**⚠ 사용자 작업** 프리팹에 컴포넌트 추가 + 슬롯 연결
+**⚠ 사용자 작업** 프리팹에 컴포넌트 추가 + 파란 세로 이펙트 오브젝트를 `offeringPulseEffect` 슬롯에 연결
 
 **완료 조건**
-- `target_offering` 을 DB 에서 5 로 낮추고 5개 봉헌 → 5 / 5 에서 켜진다
-- **`total_offered` 가 `target_offering` 을 넘는 상태를 손으로 만들어도 켜져 있다**
-  ← 10.7 의 방어적 `>=` 확인. `target_offering` 을 낮췄을 때 실제로 생기는 상태다
-- 켜진 뒤 새 클라이언트 접속 → **처음부터 켜져 있다** ← Late Join
-- 서버를 껐다 켜도 켜져 있다 ← DB 영속
-- 켜진 뒤 제단에 다가가면 봉헌 안내가 뜨지 않거나, UI 를 열어도 봉헌 버튼이 잠겨 있다
+
+```text
+amount = 1  봉헌 성공        → pulse 1회
+amount = 2  봉헌 성공        → pulse 1회        ⚠ 2회면 실패
+amount = 10 봉헌 성공        → pulse 1회        ⚠ 10회면 실패
+
+봉헌 실패 (세 코드 전부)      → pulse 0회
+  NOT_ENOUGH_FRAGMENTS · OFFERING_AMOUNT_CHANGED · OFFERING_CLOSED
+
+서로 다른 requestId 2건 성공  → pulse 2회
+같은 requestId 재시도         → 총 pulse 1회
+
+마지막 1000번째 봉헌          → 일반 pulse 1회. 완료 전용 추가 VFX 없음
+GET /api/altar/state          → pulse 0회
+30초 주기 폴링                → pulse 0회
+Late Join · Scene 재진입      → 과거 pulse 재생 없음 (상태만 복원)
+```
+
+- `AltarVfxController` 가 `AltarState.Changed` 를 **VFX 트리거로 쓰지 않는다** (12.3절)
+- `altarActivated` 를 VFX 조건으로 읽지 않는다
+- 펄스 재생 길이는 `[SerializeField]` 로 조정 가능하게 둔다 (값은 아직 미확정)
+- 로비 진입 직후 "번쩍했다 사라지는" 한 프레임이 없다 — 평소 연출을 껐다 켜지 않으므로
 
 ---
 
@@ -4401,7 +4704,8 @@ A 가 1개 봉헌
 → 전체 1000 / 1000
 → A 보유 4
 → altarActivated = true,  recoveryPercent = 100.0
-→ 달성 연출 ON
+→ 봉헌 성공 Blue VFX 1회       ← 일반 봉헌 pulse 다. 완료 전용 연출이 아니다
+→ ⚠ 이후 지속 ON 이 아니다. 완료 VFX 가 추가로 붙지도 않는다 (결정 #9)
 ```
 
 #### 테스트 C — 마지막 한 칸을 두고 동시 요청
@@ -4428,6 +4732,90 @@ A 가 1개, B 가 1개를 거의 동시에 요청
 
 ⚠ 두 요청의 `requestId` 가 **서로 다른** 경우입니다. 같은 `(user_id, requestId)` 가
 동시에 두 번 오면 재전송이므로 `200` + `duplicate: true` 입니다 (10.4).
+
+#### 테스트 C-VFX — Blue VFX 전용 케이스 (결정 #9)
+
+> 연출 테스트라 자동화가 어렵습니다. **클라이언트 2개를 띄우고 눈으로 셉니다.**
+> `target_offering` 을 10 정도로 낮추면 빨리 돌릴 수 있습니다 (11.2절).
+
+**Case 1 — `amount` 와 무관하다**
+
+```text
+amount = 1  봉헌 성공   → pulse 1회
+amount = 2  봉헌 성공   → pulse 1회      ⚠ 2회면 실패
+amount = 50 봉헌 성공   → pulse 1회      ⚠ 50회면 실패
+```
+
+**Case 2 — 실패에는 pulse 가 없다**
+
+```text
+409 NOT_ENOUGH_FRAGMENTS     → pulse 0회
+409 OFFERING_AMOUNT_CHANGED  → pulse 0회
+409 OFFERING_CLOSED          → pulse 0회
+```
+
+**Case 3 — 같은 `requestId` 재시도 (응답을 정상 수신한 경우)**
+
+```text
+첫 요청 성공, 응답 정상 수신    → pulse 1회
+같은 requestId 로 재시도        → 200 duplicate: true
+                                → 총 pulse 여전히 1회
+```
+
+**Case 4 — 첫 응답이 유실된 재시도** ⚠ 놓치기 쉽다
+
+```text
+DB Commit 성공
+HTTP 응답 유실 → 클라이언트는 결과를 모른다 → 아직 pulse 0회
+같은 requestId 로 재시도        → 200 duplicate: true
+                                → 여기서 pulse 1회를 재생한다
+```
+
+`duplicate == true` 만 보고 건너뛰면 이 케이스에서 **봉헌은 됐는데 연출이 없습니다.**
+기준은 "이 논리적 `requestId` 에 대한 pulse 가 이미 나갔는가" 입니다 (10.4절).
+
+**Case 5 — 서로 다른 `requestId`**
+
+```text
+requestId = A 성공
+requestId = B 성공 (0.3초 뒤)
+→ pulse 2회      ⚠ 시간 기반으로 두 번째를 버리면 실패
+```
+
+**Case 6 — 여러 플레이어 동시 성공**
+
+```text
+플레이어 A · B · C 가 각각 별도 요청으로 성공
+→ 성공한 요청 수만큼 pulse (3회)
+→ 하나로 합치지 않는다
+```
+
+**Case 7 — 상태 복원으로는 pulse 가 나오지 않는다**
+
+```text
+Late Join               → 회복도·완료 상태 복원 O,  과거 pulse 0회
+Scene 재진입            → 같음
+재로그인                → 같음
+30초 주기 폴링          → pulse 0회
+GET /api/altar/state    → pulse 0회
+```
+
+**Case 8 — 마지막 봉헌**
+
+```text
+999 / 1000 에서 1개 봉헌 성공
+→ 1000 / 1000, altarActivated = true, recoveryPercent = 100
+→ 일반 봉헌 pulse 1회
+→ ⚠ 완료 전용 추가 pulse 없음. 이후 지속 ON 도 없음
+```
+
+**Case 9 — 마지막 칸 경쟁 (테스트 C 와 같은 상황)**
+
+```text
+A 성공 / B 실패(409)
+→ 성공한 A 의 봉헌 때문에 pulse 1회
+→ 실패한 B 때문에 추가 pulse 0회
+```
 
 #### 테스트 D — UI 를 연 뒤 상태가 바뀜 (이번 정책의 대표 시나리오)
 
@@ -4504,11 +4892,15 @@ API 를 직접 호출해 amount = 5 요청
 ### 19.5 Late Join
 
 ```text
-이미 전체 1000 / 1000 (VFX ON)
+이미 전체 1000 / 1000
 새 클라이언트 접속
-→ 로비 로드 직후 VFX 가 이미 켜져 있다
-→ "꺼졌다가 1초 뒤 켜지는" 것도 실패다 (12.4 의 Apply() 즉시 호출)
-→ 섬 회복도도 처음부터 100%
+→ 섬 회복도 HUD 가 처음부터 100%
+→ 봉헌 안내가 뜨지 않거나 봉헌 버튼이 잠겨 있다 (altarActivated = true)
+→ "0% 였다가 1초 뒤 100% 가 되는" 것도 실패다 (12.5 의 Apply() 즉시 호출)
+
+→ ⚠ Blue VFX 는 재생되지 않는다 (결정 #9)
+   과거의 봉헌은 지나간 사건이고, 일회성 VFX 는 조회로 복원하지 않는다.
+   접속하자마자 제단이 번쩍이면 실패다.
 ```
 
 ### 19.6 중복 요청
@@ -4536,7 +4928,7 @@ UI 를 연 채 미니게임 진입 → 돌아왔을 때 움직일 수 있다  �
 튜토리얼 도는 중 제단 접근 → 안내가 안 뜬다
 ```
 
-### 19.8 멀티 채널 (12.5절)
+### 19.8 멀티 채널 (12.7절)
 
 ```text
 클라이언트 A 를 lobby-ch1 에, 클라이언트 B 를 lobby-ch2 에 접속시킨다
@@ -4577,7 +4969,8 @@ A 가 봉헌한다
 ```text
 API 를 끈 상태로 제단 상호작용
 → "서버에 연결할 수 없습니다" 표시
-→ 마지막으로 알던 VFX 상태가 유지된다 (꺼지지 않는다)
+→ 회복도 HUD 는 마지막으로 알던 값을 그대로 유지한다 (0% 로 떨어지지 않는다)
+→ Blue VFX 는 애초에 발생하지 않는다. 봉헌이 성공한 적이 없기 때문이다 (결정 #9)
 → Unity 가 멈추거나 예외를 뱉지 않는다
 ```
 
@@ -5247,28 +5640,41 @@ UI 요소는 설계 문서 6.1절 표를 따른다.
 아라아띠 로비에서 누가 봉헌하면 다른 플레이어 화면도 갱신되게 해줘.
 
 먼저 읽을 것
-  docs/prd/lobby_altar_inventory_system_design.md  9.3, 12.4절
-  unity/UnderTheSea/Assets/Game/Scripts/Network/LobbyChatRelay.cs  ← 이 구조를 그대로 따른다
+  docs/prd/lobby_altar_inventory_system_design.md  9.3, 12.4, 12.6, 12.7절
+  unity/UnderTheSea/Assets/Game/Scripts/Network/LobbyChatRelay.cs  ← 구조를 따르되 레이트 리밋은 다르다
   unity/UnderTheSea/Assets/Game/Scripts/Network/NetworkPlayerIdentity.cs
 
 만들 것
   Assets/Game/Scripts/Lobby/AltarOfferingRelay.cs   (NetworkBehaviour)
 
+이 RPC 는 두 가지를 나른다. 섞지 마라. (9.3절)
+  ① 상태가 바뀌었다는 사실  → AltarState.RequestRefresh()
+  ② 봉헌이 성공했다는 사건  → Blue VFX 1회 (AltarVfxController 로 넘긴다)
+
 반드시 지킬 것
-  · RPC 에 숫자를 싣지 않는다. "바뀌었다" 는 사실만 보낸다.
+  · RPC 에 권위 상태 숫자를 싣지 않는다.
+    totalOffered · recoveryPercent · myFragments · 봉헌량 전부 보내지 않는다.
     받은 쪽이 GET /api/altar/state 로 스스로 확인한다.
     이유: 숫자를 실으면 클라이언트가 조작할 수 있다.
-  · Rpc_Send 는 [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    Rpc_Receive 는 [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+  · 단, requestId 는 싣는다. 그것은 권위 상태 숫자가 아니라 event 식별자다.
+    같은 봉헌 알림이 두 번 와도 VFX 가 두 번 나가지 않게 하는 용도뿐이고,
+    이 값으로 바뀌는 DB 상태는 하나도 없다.
+  · Rpc_NotifyOfferingSucceeded 는 [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    Rpc_OfferingSucceeded 는 [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     LobbyChatRelay 와 같은 모양이다.
   · info.Source != Object.InputAuthority 방어를 넣는다 (LobbyChatRelay.cs:118).
-  · 서버에서 Time.time 으로 레이트 리밋을 건다 (LobbyChatRelay.cs:124 패턴).
-    연타하면 모두가 API 를 연타하게 된다.
-  · 받은 쪽은 0~1초 랜덤 지연 후에 조회한다.
+  · ⚠ LobbyChatRelay.cs:124 의 "0.5초 안에 두 번이면 무시" 를 그대로 베끼지 마라.
+    서로 다른 requestId 의 봉헌 성공 2건은 정상이고, 시간으로 버리면 사건이 사라진다.
+    거르는 기준은 시간이 아니라 (보낸 사람, requestId) 다.
+      같은 requestId 재알림     → 버린다
+      서로 다른 성공 requestId  → 아무리 가까워도 버리지 않는다
+  · 받은 쪽은 상태 조회를 0~1초 랜덤 지연 후에 한다.
     100명이 동시에 같은 API 를 때리지 않게 한다.
+    ⚠ VFX pulse 는 지연하지 않는다. 그것은 API 호출이 아니라 화면 연출이다.
   · ⚠ RPC 는 같은 채널에만 간다. lobby-ch2 는 이 알림을 못 받는다.
     그래서 AltarState 에 30초 주기 폴링 + coalescing + 순번 가드를 함께 넣는다.
-    설계 문서 12.5절이 그 규칙 전부를 적어 두었다. RPC 만 만들고 끝내지 마라.
+    설계 문서 12.7절이 그 규칙 전부를 적어 두었다. RPC 만 만들고 끝내지 마라.
+    ⚠ 그 규칙은 지속 상태 전용이다. VFX event 에 coalescing 을 적용하지 마라.
 
 하지 말 것
   · 프리팹을 직접 고치지 않는다.
@@ -5282,15 +5688,18 @@ UI 요소는 설계 문서 6.1절 표를 따른다.
 
 ---
 
-### STEP 9~10 — 회복도 HUD 와 VFX
+### STEP 9~10 — 회복도 HUD 와 봉헌 성공 Blue VFX
 
 ```text
-아라아띠 로비에 섬 회복도 HUD 와 제단 달성 연출을 붙여줘.
+아라아띠 로비에 섬 회복도 HUD 와 봉헌 성공 Blue VFX 를 붙여줘.
 
 먼저 읽을 것
   docs/prd/lobby_altar_inventory_system_design.md  11장, 12장, 13장
+    ⚠ 12장의 결정 #9 를 반드시 먼저 읽어라.
+      Blue VFX 는 "1000 달성 상태" 가 아니라 "성공한 봉헌 1건당 1회" 다.
   unity/UnderTheSea/Assets/Game/Prefabs/HeartAltar/P_HeartAltar.prefab
     (AltarBeam, Light_Monolith, Light_Crystal, HeartCrystal 이 이미 있다)
+  unity/UnderTheSea/Assets/Game/Scripts/Lobby/AltarOfferingRelay.cs  (STEP 8 산출물)
   unity/UnderTheSea/Assets/Game/Scripts/UI/LobbyChatInstaller.cs
 
 만들 것
@@ -5298,28 +5707,48 @@ UI 요소는 설계 문서 6.1절 표를 따른다.
   Assets/Game/Scripts/Lobby/IslandRecoveryView.cs
   Assets/Game/Scripts/Lobby/IslandRecoveryInstaller.cs
 
-반드시 지킬 것
-  · AltarVfxController 는 NetworkBehaviour 가 아니다. 네트워크를 전혀 모른다.
-    AltarState.Changed 만 듣고 자기 화면을 칠한다.
-  · 기존 AltarBeam 은 그대로 두고, 달성 전용 자식 오브젝트를 새로 둔다 (12.2절).
-    AltarBeam 은 프리팹에 켜진 채 저장되어 있어서, 그것을 껐다 켜면 로비 진입 직후
-    "파란 빛이 번쩍했다 사라지는" 한 프레임이 생긴다.
-    달성 전용 오브젝트는 프리팹에 꺼진 채로 저장한다.
-    VFX Graph 패키지는 이 프로젝트에 없다. 추가하지 마라.
-  · OnEnable 에서 AltarState.RequestRefresh() 를 부르고, 캐시가 있으면 즉시 Apply().
-    "꺼졌다가 1초 뒤 켜지는" 것도 실패다.
-  · 조회가 실패하면 연출을 끄지 말고 마지막 상태를 유지한다.
-  · 켜짐 판정은 반드시 totalOffered >= targetOffering.  == 을 쓰지 않는다.
-  · 회복도 숫자는 보간해서 올린다 (68 → 73 이 한 프레임에 점프하지 않게).
-  · HUD 는 위쪽 중앙. 채팅(왼쪽 아래)·튜토리얼(왼쪽 아래)과 겹치지 않게 한다.
+둘의 성격이 다르다. 섞지 마라.
+  HUD (IslandRecoveryView)
+    · 지속 상태다. AltarState.Changed 를 듣는다.
+    · OnEnable 에서 AltarState.RequestRefresh() 를 부르고, 캐시가 있으면 즉시 Apply().
+    · 회복도 숫자는 보간해서 올린다 (68 → 73 이 한 프레임에 점프하지 않게).
+    · HUD 는 위쪽 중앙. 채팅(왼쪽 아래)·튜토리얼(왼쪽 아래)과 겹치지 않게 한다.
+    · 조회가 실패하면 화면을 비우지 말고 마지막 상태를 유지한다.
+
+  Blue VFX (AltarVfxController)
+    · 일회성 사건이다. 봉헌 성공 event 를 받아 one-shot 으로 1회 재생한다.
+    · ⚠ AltarState.Changed 를 VFX 트리거로 쓰지 마라.
+    · ⚠ altarActivated / totalOffered >= targetOffering 을 VFX 조건으로 읽지 마라.
+      완료 여부와 VFX 는 아무 관계가 없다.
+    · amount 를 받지 않는다. 1개를 봉헌하든 50개를 봉헌하든 1회다.
+    · NetworkBehaviour 가 아니다. AltarOfferingRelay 가 받은 event 를 넘겨 준다.
+    · 같은 (보낸 사람, requestId) 알림이 두 번 와도 총 1회만 재생한다.
+    · 서로 다른 requestId 의 성공 event 는 아무리 가까워도 버리지 않는다.
+      겹치면 큐에 쌓아 순차 재생하거나, 자산이 허용하면 겹쳐 재생한다.
+    · 재생 길이는 [SerializeField] 로 조정 가능하게 둔다. 값은 아직 미확정이니
+      0.5초 · 1초 같은 숫자를 설계된 사실처럼 박지 마라.
+    · 파란 세로 이펙트 오브젝트는 [SerializeField] 슬롯으로 받는다.
+      사용자가 Unity Editor 에서 연결한다. 프리팹에 없는 이름을 지어내지 마라.
+    · 기존 AltarBeam / Light_Monolith 는 그대로 둔다. 껐다 켜지 않는다.
+      VFX Graph 패키지는 이 프로젝트에 없다. 추가하지 마라.
 
 하지 말 것
   · Assets/ARPG Effects 등 외부 에셋의 원본을 고치지 않는다 (CLAUDE.local.md §4).
     참조만 한다.
   · 프리팹을 직접 고치지 않는다.
+  · event-bus 프레임워크를 새로 만들지 않는다.
+    AltarOfferingRelay → AltarVfxController 의 작은 로컬 연결이면 충분하다.
 
 완료 조건
-  컴파일 통과. 사용자에게 프리팹 배선 목록을 알려주고,
+  컴파일 통과. 그리고 19장 "테스트 C-VFX" 의 Case 1~9 를 눈으로 확인할 수 있어야 한다.
+    amount 1 / 2 / 50 성공   → 각각 pulse 1회
+    실패 세 코드             → pulse 0회
+    서로 다른 requestId 2건  → pulse 2회
+    같은 requestId 재시도    → 총 1회
+    999 → 1000 마지막 봉헌   → 일반 pulse 1회, 완료 전용 추가 없음
+    GET state / 30초 폴링    → pulse 0회
+    Late Join                → 상태만 복원, 과거 pulse 0회
+  사용자에게 프리팹 배선 목록을 알려주고,
   테스트를 쉽게 하려면 DB 의 altar_state.target_offering 을 잠깐 10 정도로
   낮추라고 안내한다.
 ```
@@ -5467,9 +5896,26 @@ abuse 완화 (11.4.15)
 | **6** | 인벤토리를 **`users`** 에 매단다 | 요청 본문이 영원히 id 를 안 나른다 | 15.4절 |
 | **7** | **`targetOffering` 은 임계값이 아니라 상한.** `totalOffered <= targetOffering` | 초과 봉헌·부분 수락을 모두 배제. 동시 경쟁 시 한 명만 성공 | 11.1절 |
 | **8** | **회복 완료 후 조각 지급 중단.** 잔여 조각은 보존 | `clear-reward` 가 제단 상태를 확인. `200 OK` + `granted:false` | 11.4절 |
+| **9** | **Blue VFX 는 상태가 아니라 사건.** 성공한 논리적 봉헌 1건당 1회 | 완료 상태와 VFX 트리거를 완전히 분리. `requestId` 로 중복 제거 | 12장 |
 
 > **[확정] 보상 abuse 완화** (2026-09-20) — 결정 번호를 붙이지 않은 부속 정책입니다.
 > 동일 사용자의 성공 지급 후 **60초 쿨다운**만 적용하고, **일일 지급 상한은 쓰지 않습니다** (11.4.15).
+
+> **[결정 #9 — Blue VFX 정책]** (2026-09-20 확정. 기존 "1000 달성 시 지속 활성화" 를 폐기합니다)
+>
+> ```text
+> · 성공한 논리적 봉헌 1건당 Blue VFX 1회
+> · amount 와 VFX 횟수는 무관 (1개든 50개든 1회)
+> · requestId 를 논리적 봉헌 event 의 식별 기준으로 사용한다
+> · 같은 requestId 재시도로 VFX 가 두 번 재생되지 않는다
+> · 실패 · GET · 30초 폴링 · Late Join 은 VFX 를 발생시키지 않는다
+> · 마지막 1000번째 봉헌도 일반 봉헌 pulse 1회만 발생한다 (완료 전용 연출 없음)
+> · 완료 상태(altarActivated)와 VFX 트리거를 분리한다
+> ```
+>
+> ⚠ **`altarActivated` 는 그대로 남습니다.** 봉헌 종료 · UI 잠금 · 회복도 100% ·
+> 미니게임 보상 중단 판정에 계속 쓰입니다. 폐기된 것은 `altarActivated → VFX ON`
+> 이라는 **연결 하나**뿐입니다 (12.3절).
 
 두 결정은 **함께** 읽어야 합니다.
 
@@ -5530,12 +5976,12 @@ abuse 완화 (11.4.15)
 | **4인 파티에서 한 명만 보상받는 버그** | `UNIQUE (match_key)` 로 읽힐 수 있었음 | `UNIQUE (user_id, match_key)` 로 명시 |
 | **멱등 응답을 구현할 수 없었다** | "그때 저장해 둔 결과를 돌려준다" | 지금 상태를 다시 조회해 `duplicate:true` 로 반환 |
 | **다른 사용자의 requestId 에 걸릴 수 있었다** | `UNIQUE (request_id)` | `UNIQUE (user_id, request_id)` |
-| **다른 채널이 영영 갱신 안 됨** | RPC 알림만 | + 30초 폴링 (12.5절) |
-| **동시 `RequestRefresh` 와 응답 역전** | 언급 없음 | coalescing + 순번 가드 (12.5절) |
+| **다른 채널이 영영 갱신 안 됨** | RPC 알림만 | + 30초 폴링 (12.7절) |
+| **동시 `RequestRefresh` 와 응답 역전** | 언급 없음 | coalescing + 순번 가드 (12.7절) |
 | **`ChatFocus` 재사용 시 이동 잠금이 풀림** | 그대로 쓰라고 적음 | 보유자 집합으로 교체 (6.4.1절) |
 | **제단 UI 의 Esc 가 영영 안 먹힘** | `Typing == false` 조건 | `HeldByOther(this)` |
 | **`target_offering = 0` 방어 없음** | 없음 | `CHECK (target_offering > 0)` + 서버 방어 |
-| **VFX 진입 시 한 프레임 번쩍임** | 기존 `AltarBeam` 을 껐다 켬 | 달성 전용 오브젝트를 꺼진 채 저장 (12.2절) |
+| **VFX 진입 시 한 프레임 번쩍임** | 기존 `AltarBeam` 을 껐다 켬 | 평소 연출을 건드리지 않고 일회성 펄스를 얹는다 (12.2절, 결정 #9) |
 | **신규 유저의 첫 지급이 조용히 실패** | `UPDATE ... quantity + 1` (행이 있다고 가정) | 원자적 UPSERT (11.4.12절) |
 | **배의 판 식별자를 추측으로 적음** | `BoardSeed` · `RunSeed` 만 적고 배는 공백 | 실제 조사 → **없음** 확인, 신규 설계 필요 명시 (STEP 11) |
 | **교착 가능성을 0 으로 단정** | "교착이 생기지 않습니다" | 가능성을 낮출 뿐. 새 트랜잭션 재시도 정책 추가 (11.4.13절) |
