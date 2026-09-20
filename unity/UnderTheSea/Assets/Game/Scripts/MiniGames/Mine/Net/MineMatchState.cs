@@ -59,6 +59,10 @@ namespace Mine.Net
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 3f;
 
+        [Tooltip("카운트다운이 켜질 때 판 위에 흩뿌릴 자리를 고르면서, 가장자리 몇 칸을 비울 것인가.\n" +
+                 "0 이면 판 끝 칸까지 나온다. 테두리에 바짝 붙어 떨어지는 것을 막는 값이다.")]
+        [SerializeField, Min(0)] private int spawnEdgeMargin = 2;
+
         [Header("턴")]
         [Tooltip("한 턴의 시간(초). MINE.md 2장 기준값은 30초다.")]
         [SerializeField, Min(1f)] private float turnSeconds = 30f;
@@ -75,12 +79,22 @@ namespace Mine.Net
         [SerializeField, Min(0.5f)] private float hintSeconds = 3f;
 
         [Header("결과 화면")]
-        [Tooltip("공용 결과 판을 열기 전에 이만큼 기다린다. 이 동안 정답과 내가 판 그림을 번갈아 보여 준다.")]
-        [SerializeField, Min(0f)] private float resultHoldSeconds = 6f;
+        [Tooltip("판이 끝나고 \"채굴 종료\" 제목만 보여 주는 시간(초).\n" +
+                 "이 동안에는 네 캐릭터가 판 위에 서 있고, 판에는 우리가 판 그림만 보인다. 토글은 아직 안 돈다.")]
+        [SerializeField, Min(0f)] private float finishTitleSeconds = 1.5f;
+
+        [Tooltip("정답과 우리가 판 그림을 번갈아 보여 주는 시간(초).\n" +
+                 "이 동안에는 성적표를 띄우지 않는다 — 성적표가 판을 덮어서 토글이 안 보인다.\n" +
+                 "⚠ MineLocalView 의 Result Swap Seconds(0.5초)로 나누어떨어지게 둔다.")]
+        [SerializeField, Min(0f)] private float answerToggleSeconds = 2f;
+
+        [Tooltip("성적표를 보여 주는 시간(초). 이것이 끝나면 공용 결과 판이 열린다.\n" +
+                 "이 동안 판은 우리가 판 그림에 멈춰 있다. 토글은 앞 단계에서 끝났다.")]
+        [SerializeField, Min(0f)] private float resultHoldSeconds = 3.5f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
         [Tooltip("이 값 이상이면 성공.")]
-        [SerializeField, Range(0f, 100f)] private float successThreshold = 60f;
+        [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
         // ------------------------------------------------------------
         // 복제되는 것
@@ -170,13 +184,148 @@ namespace Mine.Net
         ///
         /// 공개가 끝나면 <see cref="DriveReveal"/> 가 <c>OpenTurnFrom(0)</c> 로
         /// 첫 턴을 여므로, 미리 움직일 수 있는 사람도 그 0번이다.
-        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 첫 턴은
-        /// 앞사람이 없어 <c>TakeTurnAt</c> 으로 옥기지 않기 때문이다.
+        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 턴이 열릴 때
+        /// 아무도 자리를 옮기지 않는다.
         ///
         /// ⚠ <b>힐트는 여기 해당하지 않는다.</b> 힐트 중에도 <c>ShowingTarget</c> 은
         ///   참이지만 그때는 <c>Phase</c> 가 <c>Turn</c> 이라 본인은 이미 움직일 수 있다.
         /// </summary>
         public int WarmupSlot => Phase == MineMatchPhase.Reveal ? 0 : -1;
+
+        /// <summary>
+        /// <b>참가자 전원이 제 몸을 쥐는 시간.</b> 카운트다운 3초와 턴 내내다.
+        ///
+        /// <code>
+        ///   카운트다운  넷이 다 움직인다. 아무도 못 판다 (CurrentSlot 이 -1)
+        ///   공개 7초    첫 턴 예정자만 움직인다. 나머지 셋은 보이되 그 자리에 굳는다
+        ///   턴          넷이 다 움직인다. 파는 것은 턴 주인만
+        /// </code>
+        ///
+        /// <b>넷이 다 걸어다니게 두는 이유.</b> 관전이 "가만히 보고만 있기" 가 되면
+        /// 자기 턴 말고는 할 일이 없다. 옆에서 같이 걸어다니며 훈수를 두는 편이
+        /// 릴레이와 어울린다. 그래서 <b>이동은 열고 채굴만 잠근다.</b>
+        ///
+        /// 이 값은 셋을 한꺼번에 정한다 — 누가 보이는가(<c>MineNetPlayer.ApplyPresence</c>),
+        /// 누구의 몸을 굴리는가(<c>MineNetPlayerMover.SetSimulated</c>),
+        /// 사람끼리 부딪히는가(<c>MineNetPlayerMover.ApplyCrowdCollision</c>).
+        /// 셋이 같이 움직여야 한다 — 안 보이는 몸이 길을 막는 것이 제일 나쁘다.
+        ///
+        /// ⚠ <b>파는 것은 여기서 열리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
+        ///   <c>IsMyTurn</c> 으로 따로 막는다. 카운트다운에는 <see cref="CurrentSlot"/> 이
+        ///   -1 이라 아무도 해당되지 않고, 턴에는 그 한 사람만 해당된다.
+        ///
+        /// ⚠ 공개(<see cref="MineMatchPhase.Reveal"/>)는 <b>일부러 뺐다.</b> 그 7초는
+        ///   도안을 외우는 시간이라 <see cref="WarmupSlot"/> 한 명만 미리 자리를 잡는다.
+        ///   <b>움직이지 못할 뿐 넷 다 보인다</b> — 보이는 것은 <see cref="CrewOnBoard"/>
+        ///   가 따로 정한다.
+        ///
+        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는
+        ///   멈춰 있다가 "3" 과 함께 한꺼번에 풀리는 편이 신호로 읽힌다.
+        /// </summary>
+        public bool FreeRoam => Phase == MineMatchPhase.Countdown || Phase == MineMatchPhase.Turn;
+
+        /// <summary>
+        /// <b>참가자의 몸이 격자 위에 보이는 시간.</b> 카운트다운 · 공개 · 턴.
+        ///
+        /// <b>보이는 것과 움직이는 것은 다른 문이다.</b> 공개 7초에는 넷이 다 서 있되
+        /// <see cref="WarmupSlot"/> 한 명만 걷는다 — 나머지 셋은 그 자리에 굳어 있다.
+        /// 넷이 같이 도안을 올려다보는 그림이 되고, 누가 첫 턴인지도 그 한 명이
+        /// 움직이는 것으로 드러난다.
+        ///
+        /// <b>부딪히는 것도 이 값을 따른다.</b> (<c>MineNetPlayerMover.ApplyCrowdCollision</c>)
+        /// 굳어 있어도 보이면 몸이고, 보이는 몸은 길을 막아도 된다. 막으면 안 되는 것은
+        /// <b>보이지 않는 몸</b>이다.
+        ///
+        /// ⚠ 대기와 결과는 뺐다. 대기 중에는 스폰 높이에 떠 있고(카운트다운에 떨어진다),
+        ///   결과 화면은 완성된 그림을 위에서 보여 주는 시간이라 몸이 가리면 안 된다.
+        /// </summary>
+        public bool CrewOnBoard => Phase == MineMatchPhase.Countdown
+                                || Phase == MineMatchPhase.Reveal
+                                || Phase == MineMatchPhase.Turn
+                                || ShowingFinishTitle;
+
+        /// <summary>
+        /// 결과가 확정된 뒤 흐른 시간(초). 아직 안 끝났으면 -1.
+        ///
+        /// <b>틱으로 재는 이유.</b> <see cref="ResultTick"/> 은 복제되므로 네 화면이
+        /// 같은 값을 얻는다. 각자 코루틴이나 <c>Time.time</c> 으로 재면 들어온 시각이
+        /// 달라 화면끼리 박자가 어긋난다.
+        ///
+        /// ⚠ 판이 끝나면 <c>FixedUpdateNetwork</c> 가 <c>IsOver</c> 에서 바로 빠지므로
+        ///   여기서는 <b>깎아 내리는 네트워크 값을 쓸 수 없다.</b> (Countdown · RevealLeft
+        ///   와 다른 점이다) 그래서 지나간 틱 수로 거꾸로 센다.
+        /// </summary>
+        public float SinceResult
+        {
+            get
+            {
+                if (ResultTick <= 0 || Runner == null) return -1f;
+                return Mathf.Max(0f, ((int)Runner.Tick - ResultTick) * Runner.DeltaTime);
+            }
+        }
+
+        /// <summary>
+        /// <b>채굴 종료 — 판이 끝나고 제목만 보여 주는 첫 단계.</b>
+        ///
+        /// 네 캐릭터가 판 위에 그대로 서 있고(<see cref="CrewOnBoard"/>), 판에는
+        /// 우리가 판 그림만 보인다. 정답 토글은 다음 단계부터다.
+        /// </summary>
+        public bool ShowingFinishTitle =>
+            Phase == MineMatchPhase.Finished && SinceResult >= 0f && SinceResult < finishTitleSeconds;
+
+        /// <summary>
+        /// <b>정답 맞춰 보기 — 우리 그림과 목표 도안을 번갈아 보여 주는 두 번째 단계.</b>
+        ///
+        /// 캐릭터가 사라지고 판만 남는다. <b>성적표는 아직 안 띄운다</b> — 성적표가
+        /// 판 한가운데를 덮어서, 같이 띄우면 정작 번갈아 보여 주는 판이 안 보인다.
+        /// 그래서 토글과 성적표를 시간으로 갈랐다.
+        /// </summary>
+        public bool ShowingAnswerToggle =>
+            Phase == MineMatchPhase.Finished
+            && SinceResult >= finishTitleSeconds
+            && SinceResult < finishTitleSeconds + answerToggleSeconds;
+
+        /// <summary>
+        /// <b>채굴 결과 — 성공·실패와 점수를 보여 주는 세 번째 단계.</b>
+        ///
+        /// 토글이 멈추고 판은 우리가 판 그림에 선다. 그 위에 성적표가 뜬다.
+        ///
+        /// ⚠ <b>끝이 있다.</b> 이 단계가 지나면 스스로 걷힌다 — 그래야 공용 결과 판이
+        ///   열릴 때 성적표가 그 밑에 남아 있지 않다. 예전에는 위쪽 경계가 없어서
+        ///   판이 끝난 뒤 <b>영영 떠 있었다.</b>
+        ///
+        /// 걷히는 시각과 공용 결과를 여는 시각은 같은 값으로 계산하지만 재는 방법이
+        /// 다르다 — 이쪽은 복제되는 틱, 저쪽은 서버의 <c>WaitForSeconds</c> 다.
+        /// 한두 프레임 어긋날 수 있고, 그 정도는 눈에 안 띈다.
+        /// </summary>
+        public bool ShowingMineResult =>
+            Phase == MineMatchPhase.Finished
+            && SinceResult >= finishTitleSeconds + answerToggleSeconds
+            && SinceResult < finishTitleSeconds + answerToggleSeconds + resultHoldSeconds;
+
+        /// <summary>
+        /// **판이 들려 있는가.** 그동안에는 <b>아무도</b> 몸을 굴리지 않는다.
+        ///
+        /// 정답 보기는 파인 칸을 <c>digDepth</c>(0.25m)만큼 끌어올린다. 그런데 그 판은
+        /// <b>화면마다 따로</b> 그려지고, <b>몸을 굴리는 것은 서버 한 곳</b>이다.
+        /// 그래서 서버 화면에 정답이 떠 있는 동안 남들이 그 위를 걸으면
+        /// <b>올라온 블록이 캐릭터를 떠민다.</b> 솔로에서 토글마다 점프하던 것과 같다.
+        /// (<c>MineGame.SyncFrozen</c>)
+        ///
+        /// 서버 화면에 정답이 뜨는 경우는 하나다 — <b>호스트를 맡은 사람이 자기 힌트를
+        /// 볼 때.</b> <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
+        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다. 남이 힌트를 보는 것은
+        /// 그 사람 화면에서만 일어나므로 서버 물리와 상관이 없다.
+        /// (전용 서버로 돌리면 화면 자체가 없어 언제나 거짓이다)
+        ///
+        /// ⚠ <b><see cref="HintLeft"/> 에서 파생시킨다.</b> 켜는 곳과 끄는 곳을 따로 두면
+        ///   턴이 넘어가며 힌트가 걷힐 때 켜진 채로 남아 판이 영영 멈춘다.
+        ///   힌트를 0 으로 만드는 곳이 네 군데라 더욱 그렇다.
+        /// </summary>
+        public bool BoardLifted => HintLeft > 0f && _hintIsOnServerScreen;
+
+        /// <summary>이번 힌트가 서버 화면에 뜨는 것인가. <see cref="ServerShowHint"/> 가 한 번만 정한다.</summary>
+        private bool _hintIsOnServerScreen;
 
         /// <summary>이미 시작했는가. 늦게 들어온 사람이 다시 시작시키면 안 된다.</summary>
         public bool HasStarted => Phase >= MineMatchPhase.Reveal;
@@ -194,6 +343,21 @@ namespace Mine.Net
 
         /// <summary>실행 인자까지 반영한 실제 시작 인원.</summary>
         private int RequiredCrew => MineNet.ResolveCrewToStart(crewToStart);
+
+        /// <summary>
+        /// 동료를 기다리는 동안 화면 한가운데에 띄울 한마디.
+        ///
+        /// <b>이 단계에는 화면에 아무 말도 없었다.</b> 타이머는 <c>--:--</c>, 차례 칸은
+        /// 비어 있고, 복구 칸은 총량이 <see cref="BeginMatch"/> 에서야 정해져 감춰진다.
+        /// 랜턴 반경만 밝은 게임이라(MINE.md 6장) 사용자는 그 화면을 <b>멈춘 것</b>으로
+        /// 읽는다. 판이 끝났는데 표시가 없어 "힌트가 안 꺼진다" 고 읽었던 것과 같은 사고다.
+        ///
+        /// ⚠ 예전에는 <see cref="PhaseLine"/> 이 이 문구를 HUD 위쪽 칸에 넣었는데,
+        ///   그 칸(<c>Phase</c>)이 <b>HUD 에 그림을 입히면서 꺼졌다</b> (f2729f40).
+        ///   새 타이머 그림에 글자 줄이 들어갈 자리가 없었기 때문이다. 나머지 문구는
+        ///   그림이나 다른 칸이 대신 맡았지만 이것만 갈 데가 없었다.
+        /// </summary>
+        public string WaitingLine => $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
 
         public override void Spawned()
         {
@@ -277,6 +441,12 @@ namespace Mine.Net
             {
                 Phase = MineMatchPhase.Countdown;
                 Countdown = countdownSeconds;
+
+                // ⚠ **Phase 를 바꾼 뒤에 흩뿌린다.** 순서를 뒤집으면 아직 Waiting 이라
+                //   몸이 숨어 있는 동안 옮기게 되고, 켜지는 순간 이미 흩어져 있는
+                //   그림이 된다. 나타나면서 흩어지는 것이 보여야 한다.
+                ScatterCrew();
+
                 Debug.Log($"[MineMatch] {Crew}명이 모였습니다. {countdownSeconds:F0}초 뒤 시작합니다.");
                 return;
             }
@@ -286,6 +456,92 @@ namespace Mine.Net
 
             Countdown = 0f;
             BeginMatch();
+        }
+
+        /// <summary>
+        /// 카운트다운이 켜지는 순간 **참가자를 판 위에 흩뿌린다.**
+        ///
+        /// 자리 표식(<c>MineSpawnPoint</c>) 넷은 판 한가운데 일렬로 서 있어서 매 판 같은
+        /// 그림이 나온다. 여기서 <b>칸을 무작위로 골라</b> 흩어 놓으면 판마다 다르게
+        /// 시작하고, 넷이 서로를 찾아 움직이는 3초가 된다.
+        ///
+        /// <b>높이는 건드리지 않는다.</b> 자리 표식이 정한 높이(2m)를 그대로 쓴다 —
+        /// x·z 만 바꾸므로 넷이 같은 높이에서 같이 떨어진다.
+        ///
+        /// <b>칸 단위로 고르는 이유.</b> 칸은 1m 이고 사람의 반지름은 0.35m 라,
+        /// <b>서로 다른 칸이면 절대 겹치지 않는다.</b> 거리 계산이 필요 없다.
+        /// 이제 사람끼리 부딪히므로 겹쳐 놓으면 그 순간 서로 밀어낸다.
+        ///
+        /// ⚠ 서버만 뽑는다. 클라이언트는 <c>NetworkTransform</c> 으로 결과만 받으므로
+        ///   같은 씨앗을 나눠 가질 필요가 없다. (판의 돌 배치와 다른 점이다)
+        /// </summary>
+        private void ScatterCrew()
+        {
+            MineGrid grid = MineGridSync.Current != null ? MineGridSync.Current.Grid : null;
+
+            // 판이 아직 안 깔렸으면 자리 표식 그대로 둔다. 일렬로 서서 시작할 뿐이다.
+            if (grid == null)
+            {
+                Debug.LogWarning("[MineMatch] 판이 없어 흩뿌리지 못했습니다. 자리 표식 그대로 시작합니다.");
+                return;
+            }
+
+            int low = Mathf.Clamp(spawnEdgeMargin, 0, (grid.Size - 1) / 2);
+            int high = grid.Size - 1 - low;
+
+            MineNetPlayer[] crew = FindObjectsByType<MineNetPlayer>(
+                    FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .Where(one => one != null && one.Object != null && one.Object.IsValid && one.Slot >= 0)
+                .OrderBy(one => one.Slot)
+                .ToArray();
+
+            int[] taken = new int[crew.Length];
+            int count = 0;
+
+            foreach (MineNetPlayer one in crew)
+            {
+                MineNetPlayerMover mover = one.GetComponent<MineNetPlayerMover>();
+                if (mover == null) continue;
+
+                int cell = PickFreeCell(grid, low, high, taken, count);
+
+                // 스무 번 뽑고도 남의 칸만 나왔으면 그냥 있던 자리에 둔다.
+                // 판이 20×20 이고 사람이 넷이라 실제로는 일어나지 않는다.
+                if (cell < 0) continue;
+
+                taken[count++] = cell;
+
+                Vector3 top = grid.CellToWorld(cell % grid.Size, cell / grid.Size);
+                Vector3 here = one.transform.position;
+
+                mover.PlaceAt(new Vector3(top.x, here.y, top.z), one.transform.rotation);
+            }
+
+            Debug.Log($"[MineMatch] 참가자 {count}명을 판 위에 흩뿌렸습니다. " +
+                      $"(가장자리 {low}칸은 비운다)");
+        }
+
+        /// <summary>아직 아무도 안 쓴 칸을 하나 고른다. 못 고르면 -1.</summary>
+        private int PickFreeCell(MineGrid grid, int low, int high, int[] taken, int count)
+        {
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                int x = UnityEngine.Random.Range(low, high + 1);
+                int y = UnityEngine.Random.Range(low, high + 1);
+                int candidate = y * grid.Size + x;
+
+                bool used = false;
+                for (int i = 0; i < count; i++)
+                {
+                    if (taken[i] != candidate) continue;
+                    used = true;
+                    break;
+                }
+
+                if (!used) return candidate;
+            }
+
+            return -1;
         }
 
         /// <summary>
@@ -433,7 +689,13 @@ namespace Mine.Net
             HintSlot = slot;
             HintLeft = hintSeconds;
 
-            Debug.Log($"[MineMatch] P{slot + 1} 힌트 — {hintSeconds:0}초 동안 보여 줍니다.");
+            // 이 힌트가 **서버 화면**에 뜨는 것인지 여기서 한 번만 가린다.
+            // 매 틱 다시 찾으면 3초 동안 씬을 수백 번 훑게 된다.
+            MineNetPlayer viewer = FindBySlot(slot);
+            _hintIsOnServerScreen = viewer != null && viewer.Object != null && viewer.Object.HasInputAuthority;
+
+            Debug.Log($"[MineMatch] P{slot + 1} 힌트 — {hintSeconds:0}초 동안 보여 줍니다." +
+                      (BoardLifted ? " (서버 화면이라 그동안 모두 멈춥니다)" : string.Empty));
         }
 
         private void DriveTurns()
@@ -471,33 +733,23 @@ namespace Mine.Net
                 MineNetPlayer next = FindBySlot(slot);
                 if (next == null) continue;
 
-                // 다음 사람은 **앞사람이 서 있던 자리에서** 이어서 판다.
-                // 릴레이라 파던 자리가 곧 이어 그릴 자리다. (MINE.md 3장)
-                MineNetPlayer previous = CurrentSlot >= 0 ? FindBySlot(CurrentSlot) : null;
-
+                // ⚠ **자리를 옮기지 않는다.** 예전에는 앞사람이 서 있던 자리로 순간이동
+                //   시켰지만(릴레이라 파던 자리가 곧 이어 그릴 자리였다), 이제는 넷이
+                //   턴 내내 같이 걸어다니므로 <b>서 있던 그 자리에서 바로 판다.</b>
+                //   걷고 있던 사람을 끌어오면 그 순간 조작이 끊기고, 앞사람 몸과 겹쳐
+                //   서로 밀어낸다. 자기 턴이 된 것은 발밑에 뜨는 조준 표시로 안다.
+                //
+                //   몸은 이미 굴러가고 있다(FreeRoam 이 턴을 포함한다). 여기서 한 번 더
+                //   켜 두는 것은 Phase 가 막 Turn 으로 바뀐 첫 틱의 빈틈을 없애기 위해서다.
+                //
+                // ⚠ **앞사람의 시야 각도도 물려주지 않는다.** 자리를 물려주던 때에는
+                //   "같은 자리에서 시점만 홱 도는" 것을 막으려고 넘겼지만(c1b7d037),
+                //   자리 인계가 없어져 카메라가 어차피 판 저쪽으로 크게 움직인다.
+                //   게다가 복제된 각도는 입력이 빠진 틱의 대비책으로도 쓰여서
+                //   (MineNetPlayerMover), 남겨 두면 다음 턴 주인의 몸이 그 한 틱 동안
+                //   앞사람이 보던 쪽을 향한다. 건희님과 빼기로 정했다.
                 MineNetPlayerMover mover = next.GetComponent<MineNetPlayerMover>();
-
-                if (mover != null)
-                {
-                    // ⚠ 컨트롤러를 **먼저 켜고** 옮긴다. 순서를 뒤집으면 켜지는 순간
-                    //    CharacterController 가 기억하던 옛 자리로 되돌린다.
-                    if (previous != null && previous != next)
-                    {
-                        mover.TakeTurnAt(previous.transform.position, previous.transform.rotation);
-
-                        // ⚠ **시야 각도까지 이어받는다.** 자리만 물려주면 카메라가 홱 돈다.
-                        //
-                        //    관전자는 지금 턴인 사람의 CameraYaw/Pitch 로 화면을 만든다
-                        //    (MineLocalView.ApplyOrbit). 다음 사람이 자기 각도를 들고 있으면,
-                        //    턴이 넘어가는 프레임에 **같은 자리에서 시점만 홱 돌아간다.**
-                        //    앞사람이 보던 각도를 그대로 넘기면 자리도 각도도 같아 이어진다.
-                        next.RecordLook(previous.CameraYaw, previous.CameraPitch);
-                    }
-                    else
-                    {
-                        mover.SetSimulated(true);
-                    }
-                }
+                if (mover != null) mover.SetSimulated(true);
 
                 CurrentSlot = slot;
                 TurnTimeLeft = turnSeconds;
@@ -706,22 +958,28 @@ namespace Mine.Net
         /// ⚠ <b>기다리는 동안 보여 줄 것이 있을 때만 값을 준다.</b> 검 게임에서 3초를 뒀다가
         ///    그 동안 아무것도 없는 검은 화면만 남았다.
         ///
-        /// 광산은 판이 끝나면 <c>MineLocalView</c> 가 <b>정답과 내가 판 그림을 번갈아</b>
-        /// 보여 준다. 그 교대 주기가 1.5초(<c>resultSwapSeconds</c>)라서, 여기를 3초로 두면
-        /// <b>한 번 바뀌고 덮여</b> 비교할 시간이 안 된다. 6초면 네 번 바뀐다.
+        /// 광산은 판이 끝나고 <b>세 화면</b>을 거친 뒤에야 공용 결과로 넘어간다.
         ///
-        ///     0.0s  내가 판 그림
-        ///     1.5s  정답
-        ///     3.0s  내가 판 그림
-        ///     4.5s  정답
-        ///     6.0s  ← 결과 판이 열린다
+        ///     0.0s  ① 채굴 종료   제목만. 네 캐릭터가 판 위에 서 있다
+        ///     1.5s  ② 정답 맞춰 보기  캐릭터가 사라지고 판이 0.5초마다 번갈아 돈다
+        ///           1.5 우리 그림  2.0 정답  2.5 우리 그림  3.0 정답
+        ///     3.5s  ③ 채굴 결과   토글이 멈추고 우리 그림에 선다. 그 위에 성적표가 뜬다
+        ///     7.0s  ④ 성적표가 걷히고 ← 공용 결과 판이 열린다
         ///
-        /// ⚠ 이 값은 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다. 한쪽만 바꾸면
-        ///    엉뚱한 지점에서 잘린다.
+        /// ⚠ <b>②와 ③을 시간으로 갈라 둔 이유가 있다.</b> 성적표가 판 한가운데를 덮어서,
+        ///    같이 띄우면 정작 번갈아 보여 주는 판이 가려 안 보인다. 실제로 겪었다.
+        ///
+        /// 교대 주기가 0.5초(<c>MineLocalView.resultSwapSeconds</c>)라서 ② 2초 동안
+        /// 네 번 바뀐다. ②를 너무 짧게 두면 <b>몇 번 바뀌지도 못하고 넘어간다.</b>
+        ///
+        /// ⚠ <c>answerToggleSeconds</c> 는 <c>MineLocalView.resultSwapSeconds</c> 와 짝이다.
+        ///    나누어떨어지지 않으면 마지막 장이 잘린다.
         /// </summary>
         private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int dug, int crew)
         {
-            yield return new WaitForSeconds(resultHoldSeconds);
+            // 세 화면을 다 보여 준 뒤에 넘긴다. 한 단계라도 빼먹으면 공용 결과가
+            // 그만큼 일찍 덮어 버린다.
+            yield return new WaitForSeconds(finishTitleSeconds + answerToggleSeconds + resultHoldSeconds);
 
             MiniGameResultGateway.SubmitAuthoritative(new MiniGameResult(
                 MiniGameId.Mining,
@@ -759,17 +1017,45 @@ namespace Mine.Net
             }
 
             _hud.NetworkDriven = true;
-            _hud.NetworkResultShow = Phase == MineMatchPhase.Finished;
+
+            // 판이 끝났으면 참가자 줄이 전부 "채굴 완료" 가 된다. CurrentSlot 은 이미
+            // -1 로 돌아가 있어서 그것만으로는 가릴 수 없다. (MineHud.NetworkMatchOver)
+            _hud.NetworkMatchOver = Phase == MineMatchPhase.Finished;
+
+            // 목표를 보여 주는 7초 동안만 "도안을 기억하세요" 를 띄운다.
+            // 힌트로 다시 볼 때는 안 띄운다 — 그건 그 사람만의 화면이고,
+            // 이 값은 네 화면에 똑같이 나가기 때문이다.
+            _hud.NetworkMemorizeShow = Phase == MineMatchPhase.Reveal;
+
+            // ⚠ 판이 끝나면 HUD 가 **세 번** 바뀐다. 제목(①) → 아무것도 안 띄움(②) →
+            //   성적표(③). ②는 판이 정답과 번갈아 도는 시간이라 **일부러 비워 둔다** —
+            //   성적표를 같이 켜면 판 한가운데를 덮어 토글이 안 보인다.
+            //   ①과 ③을 같이 켜면 "채굴 종료" 위에 점수가 겹친다.
+            _hud.NetworkFinishTitleShow = ShowingFinishTitle;
+            _hud.NetworkResultShow = ShowingMineResult;
 
             if (_hud.NetworkResultShow)
             {
-                _hud.NetworkResultText = ResultSuccess ? "성공!" : "실패";
-                _hud.NetworkResultDetail =
-                    $"{ResultScore}점 · 유사도 {ResultPercent:0.0}%" + System.Environment.NewLine +
-                    $"목표 {ResultTargetCount}칸 · 판 것 {ResultDugCount}칸";
+                // ⚠ 값만 넘긴다. 제목("성공!"/"실패!")도 칸 이름("도안 유사도" · "목표" ·
+                //   "채굴")도 **판 그림에 박혀 있다.** 여기서 글자를 만들면 그림 위에 겹친다.
+                //
+                // ⚠ ResultPercent 는 넘기지 않는다. ResultScore 가 그것을 반올림한
+                //   **같은 값**이라, 둘을 같이 적으면 한 정보를 두 번 적는 것이 된다.
+                //   (MINE.md 2장)
+                _hud.NetworkResultSuccess = ResultSuccess;
+                _hud.NetworkResultScore = ResultScore;
+                _hud.NetworkResultTargetCount = ResultTargetCount;
+                _hud.NetworkResultDugCount = ResultDugCount;
             }
             _hud.NetworkPhaseText = PhaseLine();
-            _hud.NetworkTurnText = HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}" : string.Empty;
+
+            // 차례 칸. 판이 끝나면 CurrentSlot 이 -1 이라 적을 번호가 없는데, 그렇다고
+            // 비워 두면 그림틀만 남아 빈 칸처럼 보인다. 그래서 "- / 4" 로 적는다.
+            // (채굴 종료 · 채굴 결과 두 화면 내내 이 글자다)
+            _hud.NetworkTurnText =
+                Phase == MineMatchPhase.Finished && RosterSize > 0 ? $"- / {RosterSize}"
+                : HasStarted && CurrentSlot >= 0 ? $"{CurrentSlot + 1} / {RosterSize}"
+                : string.Empty;
 
             _hud.NetworkRosterSize = RosterSize;
             _hud.NetworkCurrentSlot = CurrentSlot;
@@ -778,6 +1064,9 @@ namespace Mine.Net
             _hud.NetworkRestoreText = TotalRestores > 0
                 ? $"{RestoresLeft} / {TotalRestores}"
                 : string.Empty;
+
+            // 다 쓰면 복구 판이 흑백이 된다. 힌트와 같은 규칙이다.
+            _hud.NetworkRestoreLit = RestoresLeft > 0;
 
             _hud.NetworkCountdown = Phase == MineMatchPhase.Countdown
                 ? Mathf.Max(1, Mathf.CeilToInt(Countdown))
@@ -801,7 +1090,7 @@ namespace Mine.Net
             switch (Phase)
             {
                 case MineMatchPhase.Waiting:
-                    return $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+                    return WaitingLine;
 
                 case MineMatchPhase.Countdown:
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";

@@ -1,6 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>시점을 돌릴 때 누르고 있어야 하는 마우스 버튼.</summary>
+public enum MouseDragButton
+{
+    Left,
+    Right,
+    Middle,
+}
+
 /// <summary>
 /// 광산의 카메라. 시점이 셋이다. (MINE.md 6장 · 3장 7번)
 ///
@@ -72,9 +80,8 @@ public class MineCamera : MonoBehaviour
     [Tooltip("휠 한 칸에 움직이는 거리(m). 0 이면 줌을 안 쓴다.")]
     [SerializeField, Min(0f)] private float zoomStep = 12f;
 
-    [Tooltip("시점을 도는 동안 커서를 잠그고 숨긴다.\n" +
-             "ESC 로 풀고 화면을 한 번 누르면 다시 잠긴다. 탑뷰에서는 항상 풀린다.")]
-    [SerializeField] private bool lockCursor = true;
+    [Tooltip("시점을 돌리려면 누르고 있어야 하는 마우스 버튼. 오른쪽이 기본이다. 왼쪽은 채팅창·버튼 같은 화면 요소가 쓴다.")]
+    [SerializeField] private MouseDragButton dragButton = MouseDragButton.Right;
 
     [Header("탑뷰 (공개 · 힌트 · 결과)")]
     [Tooltip("판 바깥으로 남길 여유. 1.15 면 판보다 15% 넓게 잡는다.")]
@@ -210,32 +217,38 @@ public class MineCamera : MonoBehaviour
     private void Update()
     {
         EnsureOrbit();
-        UpdateCursor();
 
         // AcceptsMouse 가 꺼져 있으면 관전 중이다. 시점은 복제로 들어온다.
         if (!mouseLook || !AcceptsMouse || _boardView || _follow == null) return;
-
-        // 커서가 풀려 있으면(ESC) 화면 밖 작업 중이다. 그때는 안 돈다.
-        if (lockCursor && Cursor.lockState != CursorLockMode.Locked) return;
 
         // ⚠ 마우스도 새 Input System 으로 읽는다. 레거시 축은 같은 프로젝트 안에서도
         //   빌드에 따라 조용히 0 이 나오는 일이 있어, 화면이 안 돌아가는 원인이 된다.
         //   장치가 없으면(서버 · 창 없는 실행) 예전 경로로 떨어진다. (광산 서버화)
         Mouse mouse = Mouse.current;
 
-        float mx, my;
+        float mx = 0f, my = 0f;
 
-        if (mouse != null)
+        // ⚠ **버튼을 누르고 있는 동안에만 돈다.** (IOT_INPUT.md 1장 — 네 게임 공통)
+        //
+        //   예전에는 커서를 화면에 가두고 마우스를 움직이기만 해도 돌았다. 그러면
+        //   채팅창이나 버튼을 누르려고 커서를 옮기는 동안에도 화면이 돌아간다.
+        //   좌클릭은 그 화면 요소들이 써야 하므로 기본은 우클릭이다.
+        //
+        //   줌(휠)은 버튼과 무관하다. 로비(LocalPlayerView)와 같은 규칙이다.
+        if (IsDragging(mouse))
         {
-            // 레거시 Mouse X/Y 는 픽셀의 0.1 배로 들어온다. 감도 값을 그대로 쓰려면 맞춰준다.
-            Vector2 delta = mouse.delta.ReadValue() * 0.1f;
-            mx = delta.x;
-            my = delta.y;
-        }
-        else
-        {
-            mx = Input.GetAxis("Mouse X");
-            my = Input.GetAxis("Mouse Y");
+            if (mouse != null)
+            {
+                // 레거시 Mouse X/Y 는 픽셀의 0.1 배로 들어온다. 감도 값을 그대로 쓰려면 맞춰준다.
+                Vector2 delta = mouse.delta.ReadValue() * 0.1f;
+                mx = delta.x;
+                my = delta.y;
+            }
+            else
+            {
+                mx = Input.GetAxis("Mouse X");
+                my = Input.GetAxis("Mouse Y");
+            }
         }
 
         _yaw += mx * sensitivityX;
@@ -256,51 +269,36 @@ public class MineCamera : MonoBehaviour
     }
 
     /// <summary>
-    /// 커서를 잠그고 푼다.
+    /// 시점을 돌리는 버튼을 누르고 있는가.
     ///
-    /// 탑뷰에서는 푼다 — 공개와 결과는 보는 시간이라 마우스를 뺏을 이유가 없다.
-    /// 에디터에서는 ESC 를 누르면 Unity 가 알아서 풀어주므로, 다시 잠그는 길만
-    /// 열어두면 된다.
+    /// 장치가 없으면(서버 · 창 없는 실행) 레거시 경로로 떨어진다.
     /// </summary>
-    private void UpdateCursor()
+    private bool IsDragging(Mouse mouse)
     {
-        if (!mouseLook || !lockCursor) return;
-
-        bool wantLock = !_boardView && _follow != null && AcceptsMouse;
-
-        if (!wantLock)
+        if (mouse == null)
         {
-            if (Cursor.lockState == CursorLockMode.Locked)
-            {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }
-            return;
+            return Input.GetMouseButton(dragButton == MouseDragButton.Left ? 0
+                                      : dragButton == MouseDragButton.Right ? 1 : 2);
         }
 
-        Keyboard keys = Keyboard.current;
-
-        if (keys != null ? keys.escapeKey.wasPressedThisFrame : Input.GetKeyDown(KeyCode.Escape))
+        switch (dragButton)
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-            return;
-        }
-
-        // 풀려 있을 때 화면을 누르면 다시 잠근다.
-        bool clicked = Mouse.current != null
-            ? Mouse.current.leftButton.wasPressedThisFrame
-            : Input.GetMouseButtonDown(0);
-
-        if (Cursor.lockState != CursorLockMode.Locked && clicked)
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            case MouseDragButton.Left: return mouse.leftButton.isPressed;
+            case MouseDragButton.Middle: return mouse.middleButton.isPressed;
+            default: return mouse.rightButton.isPressed;
         }
     }
 
     private void Awake()
     {
+        // ⚠ 커서를 잠그지 않는다. 드래그로 도므로 커서가 자유로워야 채팅창·버튼을 누른다.
+        //   (IOT_INPUT.md 1장 — "ESC 로 커서를 푸는 장치도 필요 없어집니다")
+        //
+        //   여기서 한 번 풀어주는 이유는 커서 상태가 **전역**이기 때문이다. 커서를
+        //   잠그는 다른 씬에서 넘어오면 잠긴 채로 들어와 광산에서 커서가 안 보인다.
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         if (cam == null) cam = GetComponent<Camera>();
         if (cam == null) cam = Camera.main;
         if (grid == null) grid = FindAnyObjectByType<MineGrid>();

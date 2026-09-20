@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -520,6 +521,7 @@ namespace UnderTheSea.Network.Editor
         private static BuildReport Build(
             string relativeOutput, StandaloneBuildSubtarget subtarget, string[] scenes, BuildOptions options)
         {
+            System.DateTime buildMethodEnteredUtc = System.DateTime.UtcNow;
             // 프로젝트 폴더 기준 상대 경로를 절대 경로로 바꾼다.
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
             string output = Path.Combine(projectRoot, relativeOutput);
@@ -561,6 +563,9 @@ namespace UnderTheSea.Network.Editor
             //    빌드하는 그 세션에서 직접 지정해야 확실히 들어간다.
             PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
+            System.DateTime buildPlayerCallStartedUtc =
+                System.DateTime.UtcNow;
+
             BuildReport report;
 
             try
@@ -580,7 +585,21 @@ namespace UnderTheSea.Network.Editor
                 RestoreSubtarget(before);
             }
 
+            System.DateTime buildPlayerCallEndedUtc =
+                System.DateTime.UtcNow;
+
             BuildSummary summary = report.summary;
+
+
+            WriteBuildReportSummary(
+                projectRoot,
+                subtarget,
+                output,
+                scenes,
+                report,
+                buildMethodEnteredUtc,
+                buildPlayerCallStartedUtc,
+                buildPlayerCallEndedUtc);
 
             if (summary.result == BuildResult.Succeeded)
             {
@@ -596,6 +615,91 @@ namespace UnderTheSea.Network.Editor
             }
 
             return report;
+        }
+
+        private static void WriteBuildReportSummary(
+            string projectRoot,
+            StandaloneBuildSubtarget subtarget,
+            string output,
+            string[] scenes,
+            BuildReport report,
+            System.DateTime buildMethodEnteredUtc,
+            System.DateTime buildPlayerCallStartedUtc,
+            System.DateTime buildPlayerCallEndedUtc)
+        {
+            try
+            {
+                BuildSummary summary = report.summary;
+
+                string logDirectory = Path.Combine(
+                    projectRoot,
+                    "Builds",
+                    "_logs");
+
+                Directory.CreateDirectory(logDirectory);
+
+                string summaryPath = Path.Combine(
+                    logDirectory,
+                    $"latest-build-{subtarget}-summary.txt");
+
+                StringBuilder text = new StringBuilder();
+
+                text.AppendLine("[Build Summary]");
+                text.AppendLine($"Subtarget: {subtarget}");
+                text.AppendLine($"Output: {output}");
+
+                text.AppendLine($"BuildMethodEnteredUtc: {buildMethodEnteredUtc:O}");
+                text.AppendLine($"BuildPlayerCallStartedUtc: {buildPlayerCallStartedUtc:O}");
+                text.AppendLine($"BuildPlayerCallEndedUtc: {buildPlayerCallEndedUtc:O}");
+                
+                text.AppendLine($"StartedAt: {summary.buildStartedAt:O}");
+                text.AppendLine($"EndedAt: {summary.buildEndedAt:O}");
+                text.AppendLine(
+                    $"TotalTimeSec: {summary.totalTime.TotalSeconds:F3}");
+                text.AppendLine($"BuildSizeBytes: {summary.totalSize}");
+                text.AppendLine($"Warnings: {summary.totalWarnings}");
+                text.AppendLine($"Errors: {summary.totalErrors}");
+                text.AppendLine($"Result: {summary.result}");
+
+                text.AppendLine();
+                text.AppendLine("[Scenes]");
+
+                foreach (string scene in scenes)
+                {
+                    text.AppendLine(scene);
+                }
+
+                text.AppendLine();
+                text.AppendLine("[Build Steps - Slowest First]");
+
+                int rank = 1;
+
+                foreach (BuildStep step in report.steps
+                            .OrderByDescending(item => item.duration))
+                {
+                    text.AppendLine(
+                        $"{rank}. {step.duration.TotalSeconds:F3} sec | " +
+                        step.name);
+
+                    rank++;
+                }
+
+                File.WriteAllText(
+                    summaryPath,
+                    text.ToString(),
+                    Encoding.UTF8);
+
+                Debug.Log(
+                    $"[FusionTestBuilds] 상세 빌드 기록 저장: " +
+                    summaryPath);
+            }
+            catch (System.Exception exception)
+            {
+                // 측정 파일 저장 실패 때문에 정상 빌드까지 실패 처리하지 않는다.
+                Debug.LogWarning(
+                    "[FusionTestBuilds] 상세 빌드 기록 저장 실패: " +
+                    exception);
+            }
         }
 
         /// <summary>메뉴에서 부른 경우에는 에디터를 닫지 않는다.</summary>
