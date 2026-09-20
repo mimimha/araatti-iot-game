@@ -138,12 +138,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         {
             if (task == null || !ShipCoopStationStand.TryGet(task, worker, transform.position.y, out snapTo, out snapFacing))
             {
-                snapping = false;
+                EndSnap();
                 return;
             }
 
             snapping = true;
             snapDeadline = Time.time + snapTimeout;
+
+            // 정위치가 이상하면 여기부터 본다 — 어디서 어디로 가려 했나.
+            Debug.Log($"[ShipCoopMover] {task.name} 에 붙음 → 정위치 {snapTo} (지금 {transform.position}) 바라볼 곳 {snapFacing}", this);
         }
 
         /// <summary>
@@ -170,7 +173,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         public override void FixedUpdateNetwork()
         {
             // 서버만 위치를 확정한다. 클라이언트는 NetworkTransform 으로 결과만 받는다.
-            if (!HasStateAuthority || body == null || !body.enabled)
+            // 정위치로 미끄러지는 동안은 컨트롤러를 꺼 두므로(SnapStep), 그때는 통과시킨다.
+            if (!HasStateAuthority || body == null || (!body.enabled && !snapping))
             {
                 return;
             }
@@ -270,8 +274,20 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         {
             if (worker == null || worker.Current == null || Time.time > snapDeadline)
             {
-                snapping = false;
+                Debug.Log($"[ShipCoopMover] 정위치 미끄러짐 중단 — 자리 {(worker != null && worker.Current != null ? worker.Current.name : "없음")} · 시간 초과 {Time.time > snapDeadline} · 지금 {transform.position}", this);
+                EndSnap();
                 return false;
+            }
+
+            // ⚠ **미끄러지는 동안 CharacterController 를 끝까지 꺼 둔다.**
+            //    1) 켜 둔 채 transform 만 옮기면 컨트롤러가 자기 위치로 되돌려 쓴다.
+            //    2) 옮긴 뒤 켜서 Move(중력)를 부르면, 캡슐이 대포 콜라이더와 겹친 순간 컨트롤러가 겹침을 풀며
+            //       도로 밀어낸다 — 서버 로그: 0.6초에 0.3m 만 가고 시간 초과, 포구 앞에 그대로.
+            //    정위치는 늘 갑판 위 빈 자리고 높이는 지금 높이 그대로 두므로, 꺼 둔 채 옮겨도 파묻힐 곳이 없다.
+            //    도착하거나 그만둘 때 EndSnap 이 다시 켠다.
+            if (body.enabled)
+            {
+                body.enabled = false;
             }
 
             Vector3 to = snapTo - transform.position;
@@ -279,43 +295,44 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             float distance = to.magnitude;
 
             // 몸을 정위치 방향으로 돌린다. 자리에 도착해도 방향은 끝까지 맞춘다.
+            bool facingDone = true;
+
             if (snapFacing.sqrMagnitude > 0.0001f)
             {
                 Quaternion want = Quaternion.LookRotation(snapFacing, Vector3.up);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, want, snapTurnSpeed * deltaTime);
-
-                if (distance < 0.03f && Quaternion.Angle(transform.rotation, want) < 1f)
-                {
-                    snapping = false;
-                    Fall(Vector3.zero, deltaTime);
-                    Motion = Vector3.zero;
-                    return true;
-                }
+                facingDone = Quaternion.Angle(transform.rotation, want) < 1f;
             }
-            else if (distance < 0.03f)
+
+            if (distance < 0.03f && facingDone)
             {
-                snapping = false;
+                transform.position = new Vector3(snapTo.x, transform.position.y, snapTo.z);
+                EndSnap();
+                Motion = Vector3.zero;
+                Debug.Log($"[ShipCoopMover] 정위치 도착 {transform.position}", this);
+                return true;
             }
 
             // 남은 거리를 한 번에 넘지 않게. 마지막 걸음은 딱 맞춰 선다.
             float step = Mathf.Min(snapSpeed, distance / Mathf.Max(deltaTime, 0.0001f));
             Vector3 velocity = distance > 0.0001f ? to / distance * step : Vector3.zero;
 
-            // ⚠ **충돌 없이 옮긴다.** CharacterController.Move 로 갔더니 포구 쪽에서 붙은 사람이
-            //    대포 콜라이더에 막혀 뒤로 못 넘어가고, 0.6초 뒤 포기해 포구 앞에 그대로 서 있었다.
-            //    정위치는 늘 갑판 위 빈 자리라 그냥 옮겨도 파묻힐 곳이 없다. 높이는 중력이 맡는다.
-            //
-            // ⚠ **컨트롤러를 잠깐 끄고 옮긴다.** CharacterController 는 자기 위치를 따로 들고 있어서,
-            //    transform 만 옮기면 다음 Move 가 예전 자리로 되돌려 쓴다. 그래서 매 틱 옮기고 도로
-            //    돌아와 제자리였다 — 대포 앞에 그대로 서 있던 두 번째 이유다. 끄고 켜면 동기화된다.
-            body.enabled = false;
             transform.position += velocity * deltaTime;
-            body.enabled = true;
-            Fall(Vector3.zero, deltaTime);
 
             // 미끄러지는 걸음도 애니메이션이 따라오게 속도를 보낸다.
             Motion = velocity;
             return true;
+        }
+
+        /// <summary>미끄러지기를 끝낸다. 컨트롤러를 다시 켠다 — 켜지는 순간 transform 위치를 자기 위치로 받아들인다.</summary>
+        private void EndSnap()
+        {
+            snapping = false;
+
+            if (body != null && HasStateAuthority && !body.enabled)
+            {
+                body.enabled = true;
+            }
         }
 
         /// <summary>수평 이동과 중력을 한 번에 적용한다.</summary>

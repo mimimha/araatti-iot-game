@@ -67,9 +67,14 @@ public static class ShipCoopStationStand
         {
             case CannonTask _:
             {
-                // 포신 축 — 반동 연출이 재 둔 것. 없으면 우현 바깥(+x)으로 본다.
-                var recoil = Object.FindAnyObjectByType<ShipCoopCannonRecoil>(FindObjectsInactive.Include);
-                Vector3 muzzle = recoil != null ? Flat(recoil.MuzzleWorldDirection, shipRight) : shipRight;
+                // 포구는 **뱃전 바깥**이다. 자리가 배 가운데에서 어느 쪽에 있는지(배-로컬 x 부호)로 정한다.
+                //
+                // ⚠ 반동 연출(ShipCoopCannonRecoil)이 렌더러로 잰 포신 축을 빌려 썼는데, 이 계산은 **서버**에서
+                //    도는데 Dedicated Server 는 렌더러가 꺼져 있어 측정이 되지 않고 월드 +x 로 떨어졌다.
+                //    배가 조타로 돌아가 있으면 월드 +x 는 배 기준 옆이나 앞이라, 헤딩에 따라 "어떨 땐 뒤, 어떨 땐 앞"
+                //    에 섰다. 배 축으로 정하면 측정도 헤딩도 상관없다.
+                Vector3 local = station.parent != null ? station.parent.InverseTransformPoint(at) : at;
+                Vector3 muzzle = local.x >= 0f ? shipRight : -shipRight;
 
                 stand = at - muzzle * CannonBack;
                 facing = muzzle;
