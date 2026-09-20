@@ -1951,3 +1951,387 @@ M  ProjectSettings/UnityConnectSettings.asset       m_Enabled: 0 → 1
   되돌릴지는 사용자 판단입니다.
 
 STEP 5 완료. (컴파일 · 1인 런타임 · 2인 런타임 · Dedicated Server 전부 PASS)
+
+---
+
+## STEP 6. 정식 제단 봉헌 UI
+
+STEP 5 의 런타임 placeholder 를 지우고, 사용자가 만든 HUD 이미지로 실제 봉헌 창을
+만들었습니다. 열기 · 수량 조절 · 봉헌 · 닫기 · 상태 메시지까지 전부 STEP 4 의 서비스
+계층에 붙어 있습니다.
+
+### 구현 파일
+
+```text
+신규  Assets/Game/Art/UI/Altar/                     PNG 16개 + .meta 16개
+신규  Assets/Game/Resources/AltarOfferingUI.prefab  정식 봉헌 창
+신규  Assets/Game/Scripts/Lobby/AltarOfferingUIController.cs
+수정  Assets/Game/Scripts/Lobby/AltarOfferingInstaller.cs   placeholder 조립 코드 → 프리팹 로드
+수정  Assets/Game/Scripts/UI/ChatFocus.cs                   bool → 보유자 집합 (설계 6.4.1)
+수정  Assets/Game/Scripts/UI/LobbyChatView.cs               ChatFocus 호출부 4곳에 owner 전달
+```
+
+`AltarInteraction.cs` (STEP 5) 와 STEP 4 의 서비스 계층 파일은 **한 줄도 고치지
+않았습니다.** 서버도 무변경입니다.
+
+### 선행 조건 — WebP 를 PNG 로 변환 (사용자 승인)
+
+전달받은 18장 중 7장이 실제 WebP 였습니다 (RIFF 시그니처로 확인). Unity 는 WebP 를
+기본 임포트하지 못하고, 그 7장에 메인 패널과 바다의 심장 조각이 들어 있어
+**구현 전에 멈추고 보고했습니다.** 사용자가 "무손실 PNG 변환" 을 택해 진행했습니다.
+
+RGBA 픽셀을 그대로 두고 컨테이너만 바꿨습니다. 리사이즈 · 크롭 · 색보정 · 합성은
+하지 않았습니다.
+
+### 이미지 매핑 (사용자가 번호로 직접 지정)
+
+| 원본 | 프로젝트 파일 | 크기 | 쓰임 |
+|---|---|---|---|
+| 11.webp | `altar_panel_bg.png` | 1200x900 | 창 배경 |
+| 4.png | `altar_stat_row_bg.png` | 1500x320 | 누적 봉헌량 · 보유 조각 행 (2회 재사용) |
+| 14.webp | `altar_amount_value_bg.png` | 1090x555 | 선택 수량 숫자 배경 |
+| 16.webp | `altar_message_bg.png` | 1983x793 | 상태 메시지 배경 |
+| 15.webp | `altar_btn_small_bg.png` | 1024x1024 | `-` · `+` 공통 배경 |
+| 13.webp | `altar_btn_action_bg.png` | 1983x793 | 봉헌 · 닫기 · MAX 공통 배경 (3회 재사용) |
+| 8.png | `altar_btn_minus.png` | 110x51 | `-` 기호 |
+| 12.png | `altar_btn_plus.png` | 109x114 | `+` 기호 |
+| 7.png | `altar_btn_max.png` | 263x116 | MAX 글자 |
+| 9.png | `altar_btn_offer.png` | 234x144 | 봉헌 글자 |
+| 3.png | `altar_btn_close.png` | 228x143 | 닫기 글자 |
+| 17.png | `altar_title.png` | 884x152 | 바다의 심장 봉헌 |
+| 18.png | `altar_label_total.png` | 526x131 | 누적 봉헌량 |
+| 10.png | `altar_label_owned.png` | 431x131 | 보유 조각 |
+| 2.png | `altar_label_amount.png` | 431x131 | 봉헌 수량 |
+| 1.webp | `altar_heart_fragment.png` | 1254x1254 | 배경 장식 |
+
+`5.png` (STEP 5 안내용) 과 `6.webp` 는 이번 STEP 에서 쓰지 않았습니다.
+
+**새 HUD 이미지를 하나도 만들지 않았습니다.** 봉헌 · 닫기 · MAX 는 사용자가 만든 글자
+이미지를 기존 프레임(13) 위에 올려 버튼으로 조립했습니다.
+
+### 9-slice 를 스프라이트마다 다르게 준 이유
+
+처음에 6장 모두에 사방 9-slice 를 넣었더니 **버튼과 메시지 막대의 금색 프레임이 통째로
+사라졌습니다.** 테두리 합이 대상 크기보다 커서 Unity 가 테두리를 비례 축소하고 가운데를
+0px 으로 만들기 때문입니다. 예를 들어 `altar_btn_small_bg` 는 테두리 130 인데 버튼은
+86px 이라 130+130 이 이미 대상보다 큽니다.
+
+원본의 실제 내용 영역을 재서 (alpha > 200 기준) 세 가지로 나눴습니다.
+
+| 스프라이트 | 방식 | 테두리 | 왜 |
+|---|---|---|---|
+| `altar_panel_bg` | Sliced | 80,80,80,80 | 가로세로 모두 늘어난다 |
+| `altar_stat_row_bg` | Sliced | 120,0,120,0 | 가로 막대. 세로는 눌리고 가로만 늘어난다 |
+| `altar_message_bg` | Sliced | 430,0,430,0 | 같은 이유. 좌우 투명 여백이 333px 씩이라 테두리가 크다 |
+| `altar_amount_value_bg` | Simple + Preserve Aspect | 0 | 원본 1.96:1, 대상 1.96:1 |
+| `altar_btn_small_bg` | Simple + Preserve Aspect | 0 | 원본 1:1, 대상 1:1 |
+| `altar_btn_action_bg` | Simple + Preserve Aspect | 0 | 원본 2.50:1, 대상 2.50:1 |
+
+9-slice 테두리는 **임포트 설정**입니다. 이미지 파일 자체는 건드리지 않았습니다.
+
+⚠ `MessageArea/Background` 의 rect 가 **1389** 로 패널(1120)보다 넓습니다. 원본 좌우에
+투명 여백이 333px 씩 있어 테두리(430)를 원본 크기 그대로 두려면 이만큼 잡아야 합니다.
+실제로 보이는 막대는 가운데 720px 뿐이라 패널 밖으로 삐져나오지 않습니다.
+**줄이면 양 끝 장식이 뭉개집니다.**
+
+### 프리팹 구조
+
+`Assets/Game/Resources/AltarOfferingUI.prefab` — Unity MCP 로 만들었습니다.
+YAML 을 직접 쓰지 않았고 `.meta` 는 Unity 가 생성했습니다.
+
+```text
+AltarOfferingUI            Canvas(Overlay, order 50) + CanvasScaler(1920x1080) + GraphicRaycaster
+  Prompt                   "[E] 조각 봉헌" — 안내 한 줄
+  Panel                    1120x880, AltarOfferingUIController 가 여기 붙는다
+    PanelBackground        Sliced. raycastTarget=true (뒤로 클릭이 새지 않게)
+    HeartFragmentDecoration  배경 장식. alpha 0.14, raycastTarget=false
+    Title
+    TotalOfferedRow        { Background, Label, ValueText }
+    OwnedFragmentsRow      { Background, Label, ValueText }
+    AmountSection
+      Label
+      Controls             { MinusButton, AmountValue{Background,ValueText}, PlusButton, MaxButton }
+    ActionArea             { OfferButton, CloseButton }
+    MessageArea            { Background, MessageText }
+```
+
+**EventSystem 은 프리팹 안에 넣지 않았습니다.** 기존 것을 쓰고, 새로 만들지도 지우지도
+않았습니다. `LobbyChatInstaller` 가 EventSystem 을 직접 만들었다가 로비를 멈춘 적이
+있다고 그 파일이 적어 두었습니다. `GraphicRaycaster` 만 Canvas 에 답니다.
+
+패널 1120x880 안에서 실제로 쓸 수 있는 속은 **약 925 x 604** 입니다. 금색 파이프 두께와
+원본 투명 여백을 빼고 잰 값입니다. 모든 요소를 이 안에 넣었습니다.
+
+배경 장식은 `PanelBackground` 바로 위, 나머지 전부의 아래(자식 index 1)에 둡니다.
+**패널 배경에 합성하지 않고 별도 `Image` 로 두었습니다.**
+
+### `AltarOfferingUIController`
+
+| 인스펙터 필드 | 대상 |
+|---|---|
+| `panelRoot` | Panel |
+| `totalOfferedValueText` | TotalOfferedRow/ValueText |
+| `ownedFragmentsValueText` | OwnedFragmentsRow/ValueText |
+| `selectedAmountText` | AmountValue/ValueText |
+| `messageText` | MessageArea/MessageText |
+| `minusButton` `plusButton` `maxButton` `offerButton` `closeButton` | 각 Button |
+| `heartFragmentDecoration` | HeartFragmentDecoration |
+| `decorationAlpha` | 0.14 (0~1, 글자가 읽기 어려우면 낮춘다) |
+
+동작
+
+```text
+Open()      패널 켬 → 메시지 비움 → 수량 1 → AltarState/PlayerInventory RequestRefresh → 잠금 획득
+- / +       1 .. AltarState.MaxOfferAmount 안에서만 움직인다
+MAX         MaxOfferAmount 로
+봉헌        requestId = Guid.NewGuid() 를 이쪽에서 만들어 IAltarService.Offer(amount, requestId)
+결과        성공/중복/실패 문구 표시 → 캐시를 다시 읽어 Render()
+Close()     잠금 반납 → 메시지 비움 → 패널 끔 → Closed 이벤트
+```
+
+숫자는 전부 STEP 4 의 정적 캐시에서 읽습니다. 컨트롤러가 자체 상태를 들고 있지 않습니다.
+`AltarState.Changed` · `PlayerInventory.Changed` 를 구독해 서버 응답이 오면 바로 다시
+그립니다. 컨트롤러의 `Render()` 자체는 추가 GET 을 호출하지 않습니다.
+409 응답 직후의 실제 추가 GET 여부는 아래 STEP 7 에서 별도로 구분합니다.
+
+⚠ `Render()` 는 매번 `selectedAmount` 를 `MaxOfferAmount` 안으로 끌어내립니다. 창을 열어
+둔 사이에 남은 칸이 줄 수 있기 때문입니다 (설계의 조각 수 교차 경쟁 정책).
+
+### 닫는 길은 셋, 코드는 하나
+
+```text
+[닫기] 버튼   → Close()
+Esc           → CloseFromEscape() → 채팅이 잡고 있지 않으면 Close()
+범위 이탈     → AltarOfferingInstaller.OnNearChanged(false) → Close()
+로비 이탈     → ShowOnlyInLobby() → Close()
+OnDisable / OnDestroy → ReleaseFocus()  (창은 이미 꺼진 뒤이므로 잠금만 반납)
+```
+
+전부 같은 `Close()` 와 같은 `ReleaseFocus()` 를 지납니다.
+
+### `ChatFocus` — bool 에서 보유자 집합으로 (설계 6.4.1)
+
+설계 6.4.1 은 `Begin(owner)` · `End(owner)` · `HeldByOther(me)` 를 전제하는데 실제 코드는
+인자 없는 bool 판이었습니다. **구현 전에 멈추고 보고했고**, 사용자가 "설계에 적힌 범위만
+최소 수정" 으로 승인했습니다.
+
+먼저 프로젝트 전체에서 호출부를 찾았습니다.
+
+```text
+Begin / End   LobbyChatView.cs  4곳   (91 · 92 · 144 · 263행)
+Typing 읽기   PlayerInputProvider.cs:25,  LobbyChatView.cs:150
+```
+
+설계가 적어 둔 목록과 정확히 같고 **예상 밖 호출자는 없었습니다.**
+`PlayerInputProvider` 는 `Typing` 만 읽으므로 손대지 않았습니다.
+
+bool 이 깨지는 지점
+
+```text
+제단 UI 열림    Begin()  → true
+채팅칸 클릭     Begin()  → true
+채팅 바깥 클릭  End()    → false   ⚠ 제단 UI 는 아직 열려 있는데 걸어가진다
+```
+
+참조 계수(int)도 답이 아닙니다. `LobbyChatView` 의 `End()` 넷 중 둘은 짝이 되는 `Begin()`
+이 없어(`OnDisable` · `Unfocus`) 계수가 음수로 내려가면 제단의 잠금까지 풀립니다.
+`HashSet` 의 `Add`/`Remove` 는 몇 번을 불러도 결과가 같아 **짝이 안 맞는 기존 호출이
+저절로 안전해집니다.** 그래서 `LobbyChatView` 는 `this` 를 넘기는 것 외에 고칠 게 없었습니다.
+
+`HeldByOther(me)` 가 따로 필요한 이유 — 제단 UI 가 열려 있으면 자기 자신이 보유자라
+`Typing` 은 언제나 참입니다. 그 값으로 Esc 를 거르면 **제단 UI 가 Esc 로 영영 닫히지
+않습니다.**
+
+이름은 그대로 뒀습니다. 바꾸면 `PlayerInputProvider` 까지 건드려야 합니다.
+
+### 이번 STEP 에서 하지 않은 것
+
+VFX · Fusion 봉헌 성공 RPC · 보상 · 인벤토리 전체 화면 · 새 HUD 이미지 · EventSystem 생성
+· 씬 수정 · 외부 에셋 수정 · DB 수정. 결정 #9 는 그대로입니다 — Blue VFX 는 성공 1건당
+pulse 1회이고 STEP 8 · 10 의 몫입니다.
+
+### 검증 — 에이전트가 직접 확인한 것
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| Unity 컴파일 | **PASS** | MCP 스크립트가 컴파일·실행됨 |
+| STEP 6 신규 compile error | **0** | 콘솔 `errorCount: 0` |
+| STEP 6 신규 warning | **0** | 콘솔 경고 49개는 전부 기존 `ShipCoop/Editor` CS0618/CS0162 와 Unity AI 계정 경고 |
+| `Resources.Load<GameObject>("AltarOfferingUI")` | **PASS** | 에디터에서 직접 호출해 프리팹을 받음 |
+| 인스펙터 참조 11개 | **PASS** | `SerializedObject` 순회 결과 빈 참조 0 |
+| TMP 폰트 | **PASS** | 텍스트 5개 전부 `NotoSansKR-Bold SDF` |
+| 스프라이트 | **PASS** | `Image` 20개 전부 스프라이트가 붙어 있음 |
+| 버튼 클릭 영역 겹침 | **PASS** | 5개 rect 를 패널 기준으로 계산 — 겹치는 쌍 0 |
+| 폰트 asset 무변경 | **PASS** | `NotoSansKR-Bold SDF.asset` md5 변경 전후 동일, `git status` 무변경 |
+| `.meta` | **PASS** | 17개 전부 Unity 가 생성. 손으로 만들지 않음 |
+| 변경 범위 | **PASS** | `git status -uall` 이 위 "구현 파일" 목록과 정확히 일치. 씬 · STEP 4/5 코드 · 외부 에셋 · server · `UnityConnectSettings` 무변경 |
+| 공백 오류 | **PASS** | `git diff --check` 무출력 |
+
+배치는 **프리팹의 실제 rect 값과 스프라이트를 Unity 의 Sliced / Preserve Aspect 규칙대로
+합성해** 1920x1080 으로 눈으로 확인했습니다. 금색 프레임이 사라진 문제도 이 과정에서
+발견해 고쳤습니다.
+
+⚠ 이것은 Unity 렌더가 아니라 근사입니다. URP 에서는 preview scene 을 `Camera.Render()` 로
+찍을 수 없어 에디터 안에서 실제 화면을 뽑지 못했습니다. TMP 글자의 정확한 자리·크기도
+근사입니다.
+
+### 검증 — 사용자 런타임 확인 (2026-09-21)
+
+아래는 에이전트의 프리팹·코드 확인과 별개로, **사용자가 Play 모드에서 직접 확인해
+전달한 결과**입니다.
+
+#### Fake 기본 테스트 — PASS
+
+초기 상태 `0 / 1000`, 보유 조각 `100`, 선택 수량 `1` 을 확인했습니다.
+`-` 는 1 아래로 내려가지 않고, `+` 는 정상 증가하며, `MAX` 는 100 이었습니다.
+봉헌 후 Fake 서비스 응답에 따라 누적 봉헌량과 보유 조각이 갱신됐습니다.
+닫기·Esc, 재오픈 시 선택 수량 초기화도 정상이며 신규 Console Error 는 없었습니다.
+
+#### Fake 999 / 1000 경계 — PASS
+
+시작 상태는 누적 봉헌량 `999 / 1000`, 보유 조각 `5`, 선택 수량 `1` 이었습니다.
+`+` 와 `MAX` 는 1 을 초과하지 않고 `-` 는 0 으로 내려가지 않았습니다.
+1개 봉헌 뒤 `1000 / 1000`, 보유 조각 `4`, 선택 수량 `0`, `MaxOfferAmount = 0` 이 됐고
+봉헌 버튼이 비활성화됐습니다. 재오픈 뒤에도 완료 상태가 유지됐으며
+`1001 / 1000` 상태와 신규 Console Error 는 없었습니다.
+
+#### ChatFocus 동시 owner — PASS
+
+제단 UI 를 열면 이동이 차단되고, 그 상태에서 채팅 입력창에 focus 를 추가할 수 있었습니다.
+채팅 focus 를 해제한 뒤에도 제단 UI 가 열려 있으면 이동 차단이 유지됐습니다.
+제단을 닫으면 이동이 복구됐고, 반복 개폐·focus 전환 후에도 focus leak 이 없었습니다.
+Esc 닫기와 신규 Console Error 없음도 확인했습니다.
+
+#### 남은 확인·조정
+
+- HUD 의 세부 `RectTransform` 배치는 사용자가 수동 조정할 예정입니다.
+- 정식 봉헌 UI 가 다른 클라이언트 화면에 열리지 않는지에 대한 2인 확인은 아직 기록되지 않았습니다.
+
+### 보완 — 상태 메시지 수명 (Fake 1차 검증 뒤)
+
+사용자 Fake 런타임 1차 검증에서 "상태 메시지가 너무 짧다" 는 지적이 나와 보완했습니다.
+수정 파일은 `AltarOfferingUIController.cs` **하나**입니다.
+
+⚠ **코드를 읽어 보니 원인은 "짧다" 가 아니었습니다.** `Render()` 는 `messageText` 를
+건드리지 않고, 문구를 지우는 곳은 `Open()` 과 `Close()` 둘뿐이었습니다. 즉 **수명이
+아예 없어 창을 닫을 때까지 남는** 상태였습니다. 그래서 이번 변경은 "짧은 시간을 늘린 것"
+이 아니라 **없던 수명을 3초로 정해 준 것**입니다.
+
+| 항목 | 내용 |
+|---|---|
+| `messageDisplaySeconds` | `[SerializeField, Min(0.5f)]`, 기본 3초. 인스펙터에서 조절 |
+| `SetMessage(text, autoClear = true)` | 문구를 넣는 유일한 통로. 기존 이름을 그대로 두고 수명만 얹었다 |
+| `messageClearRoutine` | 지우기 예약 하나. 새 문구가 들어오면 **먼저 취소하고** 다시 건다 |
+| `CancelMessageClear()` | 예약 취소. `SetMessage` 와 `OnDisable` 이 쓴다 |
+
+새 문구가 앞 문구의 타이머에 끌려가지 않게 하는 것이 핵심입니다. 취소를 빼면 연달아
+봉헌했을 때 두 번째 문구가 1초 만에 사라집니다.
+
+`"봉헌하는 중..."` 만 `autoClear: false` 입니다. **상태 표시이지 알림이 아니기 때문입니다.**
+요청이 3초보다 오래 걸리면 문구가 먼저 사라져 버튼은 잠겨 있는데 이유가 화면에 없게 됩니다.
+결과 문구가 어차피 덮어씁니다.
+
+```text
+성공 / 중복 / 실패 / 409   3초 뒤 자동 삭제
+봉헌하는 중...             결과가 덮을 때까지 유지
+AltarState.Changed         문구 안 건드림 (원래도 안 건드렸다)
+PlayerInventory.Changed    문구 안 건드림
+Open()                     SetMessage(string.Empty) 이 예약까지 취소 → 이전 문구 없음
+Close()                    같은 경로
+OnDisable                  CancelMessageClear() 추가
+```
+
+창이 닫힌 뒤 늦게 도착한 응답을 대비해 `isActiveAndEnabled` 일 때만 예약을 겁니다.
+꺼진 오브젝트에서 `StartCoroutine` 을 부르면 예외가 납니다.
+
+**HUD 배치는 한 픽셀도 건드리지 않았습니다.** 프리팹 파일도 변경되지 않았습니다
+(`messageDisplaySeconds` 가 YAML 에 없어 코드 기본값 3 을 씁니다. 사용자가 인스펙터에서
+값을 바꾸면 그때 프리팹에 기록됩니다).
+
+#### 검증 — 에이전트가 직접 확인한 것
+
+| 항목 | 결과 |
+|---|---|
+| Unity 컴파일 | **PASS** |
+| 신규 compile error | **0** (콘솔 `errorCount: 0`) |
+| 신규 warning | **0** — 경고 50개는 전부 기존 `ShipCoop/Editor` 와 Unity AI 계정 경고 |
+| `messageDisplaySeconds` 직렬화 | **PASS** — 프리팹에서 3 으로 읽힘 |
+| 인스펙터 참조 11개 | **PASS** — 변동 없음 |
+| 프리팹 · 폰트 · PNG · ProjectSettings | **무변경** — `git status` 기준 |
+
+#### 검증 — 사용자 런타임 확인 (2026-09-21)
+
+사용자가 Play 모드에서 다음을 확인했습니다.
+
+```text
+"봉헌하는 중..."       응답 전까지 유지
+결과 메시지            약 3초 유지 후 삭제
+3초 안에 연속 메시지   새 메시지 기준으로 clear timer 재시작
+상태 갱신 중           메시지 조기 삭제 없음
+Close 후 재오픈        이전 메시지 없음
+신규 Console Error     없음
+```
+
+결과: **PASS**
+
+### 커밋
+
+이번 STEP 에서는 commit · push 를 하지 않았습니다.
+
+
+---
+
+## STEP 7. HTTP 실제 봉헌 · 결과 반영 · DB 영속성
+
+아래는 **사용자가 Unity, ASP.NET API, MySQL 환경에서 직접 확인해 전달한 결과**입니다.
+STEP 4 의 HTTP 응답 파싱 검증과 구분해, 실제 UI 봉헌부터 DB 결과와 재접속까지 기록합니다.
+`AccountServiceBootstrap.Active` 는 `Implementation.Http` 로 두고 테스트했습니다.
+
+### 409 실패 경로 — stale snapshot (PASS)
+
+개발 계정의 `sea_heart_fragment` 수량을 DB 에서 1로 만든 뒤 제단 UI 를 열어
+보유 조각 1, 선택 수량 1, 봉헌 버튼 활성 상태를 확인했습니다.
+UI 를 열어 둔 채 DB 수량만 0으로 바꿔 Unity snapshot 1 / 실제 DB 0 상태를 만들었습니다.
+
+1개 봉헌 요청의 결과는 `HTTP 409`, `NOT_ENOUGH_FRAGMENTS` 였습니다.
+서버 오류 메시지가 표시됐고, 실패 응답의 최신 snapshot 에 따라 UI 보유 조각은
+`1 → 0`, 선택 수량은 `1 → 0` 으로 바뀌며 봉헌 버튼이 비활성화됐습니다.
+
+DB 확인 결과 `altar_state.total_offered` 는 `0 / 1000` 그대로였고,
+`player_inventories.quantity` 는 0에서 추가 차감되지 않았으며,
+해당 실패 요청으로 `altar_contributions` 신규 행이 생성되지 않았습니다.
+
+결과: **PASS**
+
+#### 409 직후 추가 GET 여부 — 미확인 / 정적 확인 필요
+
+API PowerShell 콘솔에 요청 경로가 출력되지 않아 409 직후
+`GET /api/altar/state` 가 없었는지는 **런타임 로그로 확인하지 못했습니다.**
+UI 가 최신 값으로 바뀐 사실만으로 추가 GET 이 없었다고 단정하지 않습니다.
+필요 시 `HttpAltarService` 의 실패 경로에서 `RequestRefresh()` 또는 GET 호출 여부를
+코드로 별도 확인합니다.
+
+### HTTP 성공 경로 — PASS
+
+DB 보유 조각을 2로 설정하고 UI 를 다시 열어 `0 / 1000`, 보유 조각 2,
+선택 수량 1을 확인했습니다. 1개 봉헌 뒤 UI 는 `1 / 1000`, 보유 조각 1로 갱신됐습니다.
+
+DB 에서 `altar_state.total_offered = 1`, `target_offering = 1000`,
+`player_inventories.quantity = 1` 을 확인했습니다. `altar_contributions` 에는
+`amount = 1` 신규 행 1건과 정상적인 `request_id` 가 기록됐습니다.
+
+결과: **PASS**
+
+### DB 영속성 — PASS
+
+성공 봉헌 뒤 Unity Play 를 완전히 종료하고 다시 로그인 → Lobby → 제단 → `E` 순서로
+진입했습니다. 재접속 후 UI 에 누적 봉헌량 `1 / 1000`, 보유 조각 `1` 이 복원됐고,
+DB 값과 일치했습니다. 신규 Console Error 는 없었습니다.
+
+결과: **PASS**
+
+### 후속 확인
+
+- 동일 채널 2인 간 실시간 봉헌 상태 전파는 STEP 8 구현 후 검증 예정입니다.
+- `AltarOfferingRelay` 와 RPC 레이트 리밋은 STEP 8 범위입니다.
+- 이번 STEP 6/7 변경사항의 최종 commit 여부는 이 문서에서 확인하지 않았습니다.

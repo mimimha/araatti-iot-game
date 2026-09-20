@@ -4,7 +4,6 @@ using UnderTheSea.Network;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace UnderTheSea.Lobby
 {
@@ -18,35 +17,35 @@ namespace UnderTheSea.Lobby
     /// 그래서 <see cref="Object.DontDestroyOnLoad"/> 로 올려 두고, <b>로비를 벗어나면 숨긴다.</b>
     /// 숨기기만 하고 지우지 않는 것도 채팅과 같다 — 다시 만들 일이 없다.
     ///
-    /// ────────────────────────────────────────────────────────────────
-    /// ⚠ <b>여기서 만드는 화면은 STEP 5 검증용 임시 placeholder 다.</b>
-    ///
-    /// 정식 봉헌 UI 는 STEP 6 에서 <c>Assets/Game/Resources/AltarOfferingUI.prefab</c> 으로
-    /// 만들고, 그 프리팹은 사용자가 주실 HUD 이미지를 전제로 한다. 아직 그 이미지가 없다.
-    /// 그래서 이 파일은 <b>새 에셋을 하나도 만들지 않고</b> 코드로만 최소 화면을 세운다.
+    /// <b>화면은 프리팹 하나에 다 들어 있다.</b> 이 파일은 코드로 Canvas 나 Text 를 조립하지 않는다.
     ///
     /// <code>
-    ///   지금 (STEP 5)   코드로 만든 안내 한 줄 + 빈 패널.  기능 없음
-    ///   STEP 6          Resources/AltarOfferingUI.prefab 을 불러 쓴다.
-    ///                   그때 이 placeholder 코드는 지운다
+    ///   Assets/Game/Resources/AltarOfferingUI.prefab
+    ///     Prompt   "[E] 조각 봉헌" 안내 한 줄
+    ///     Panel    정식 봉헌 UI  (AltarOfferingUIController 가 붙어 있다)
     /// </code>
     ///
-    /// 교체 지점은 <see cref="BuildPlaceholder"/> 하나뿐이다. STEP 6 에서 그 메서드를
-    /// <c>Resources.Load&lt;GameObject&gt;("AltarOfferingUI")</c> 로 바꾸면 끝난다.
-    /// 수량 조절 · 봉헌 버튼 · 보유량 표시 · 서버 호출 · ChatFocus 는 전부 STEP 6 몫이다.
-    /// ────────────────────────────────────────────────────────────────
+    /// 이 설치기가 정하는 것은 <b>언제 무엇을 보이느냐</b>뿐이고, 창 안에서 벌어지는 일은
+    /// <see cref="AltarOfferingUIController"/> 가 맡는다.
     ///
     /// 문서: docs/prd/lobby_altar_inventory_system_design.md 5.5 · 6.2절
     /// </summary>
     public static class AltarOfferingInstaller
     {
+        /// <summary>
+        /// 불러올 프리팹. <c>Resources</c> 아래에 있어야 코드가 찾을 수 있다.
+        ///
+        /// 없으면 조용히 아무것도 하지 않는다. 제단 UI 가 없다고 게임이 멈추면 안 된다.
+        /// (<c>LobbyChatInstaller</c> 가 같은 규칙을 쓴다)
+        /// </summary>
+        private const string PrefabPath = "AltarOfferingUI";
+
         private static GameObject root;
         private static GameObject promptRoot;
-        private static GameObject panelRoot;
         private static TextMeshProUGUI promptLabel;
+        private static AltarOfferingUIController controller;
 
         private static bool playerIsNear;
-        private static bool panelOpen;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Install()
@@ -85,7 +84,6 @@ namespace UnderTheSea.Lobby
         ///    (<c>LobbyChatInstaller.CreateWhenNeeded</c> 와 같은 이유, 같은 모양)
         ///
         ///    삼키는 것이 아니라 <b>분명히 남기고</b> 상위 흐름을 깨지 않는 것이다.
-        ///    제단 안내가 안 뜨는 것과 로비에 못 들어가는 것 중에는 앞이 훨씬 낫다.
         /// </summary>
         private static void CreateWhenNeeded(NetworkObject player)
         {
@@ -108,9 +106,45 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
-            BuildPlaceholder();
+            GameObject prefab = Resources.Load<GameObject>(PrefabPath);
 
+            if (prefab == null)
+            {
+                Debug.LogWarning(
+                    $"[AltarOfferingInstaller] Resources/{PrefabPath} 를 찾지 못해 제단 UI 를 띄우지 않습니다.");
+                return;
+            }
+
+            root = Object.Instantiate(prefab);
+            root.name = prefab.name;
             Object.DontDestroyOnLoad(root);
+
+            Transform prompt = root.transform.Find("Prompt");
+            promptRoot = prompt != null ? prompt.gameObject : null;
+            promptLabel = promptRoot != null
+                ? promptRoot.GetComponentInChildren<TextMeshProUGUI>(true)
+                : null;
+
+            controller = root.GetComponentInChildren<AltarOfferingUIController>(true);
+
+            if (controller == null)
+            {
+                Debug.LogWarning(
+                    $"[AltarOfferingInstaller] Resources/{PrefabPath} 에 " +
+                    $"{nameof(AltarOfferingUIController)} 가 없습니다. 봉헌 창이 열리지 않습니다.");
+            }
+            else
+            {
+                // 창이 스스로 닫혔을 때(버튼 · Esc) 안내를 다시 띄울지 다시 판단한다.
+                controller.Closed += Apply;
+            }
+
+            if (promptRoot == null)
+            {
+                Debug.LogWarning(
+                    $"[AltarOfferingInstaller] Resources/{PrefabPath} 에 \"Prompt\" 자식이 없습니다. " +
+                    "제단에 다가가도 안내가 뜨지 않습니다.");
+            }
         }
 
         // ------------------------------------------------------------
@@ -122,9 +156,9 @@ namespace UnderTheSea.Lobby
             playerIsNear = near;
 
             // 범위를 벗어나면 열려 있던 창도 닫는다. (설계 5.5절)
-            if (!near)
+            if (!near && controller != null)
             {
-                panelOpen = false;
+                controller.Close();
             }
 
             Apply();
@@ -132,23 +166,29 @@ namespace UnderTheSea.Lobby
 
         private static void OnInteractPressed()
         {
-            if (!InLobby())
+            if (!InLobby() || controller == null)
             {
                 return;
             }
 
-            panelOpen = true;
+            controller.Open();
             Apply();
         }
 
+        /// <summary>
+        /// Esc 를 눌렀다.
+        ///
+        /// ⚠ 닫을지 말지는 창이 정한다. 채팅칸이 켜져 있으면 그 Esc 는 채팅 몫이다.
+        ///    (<see cref="AltarOfferingUIController.CloseFromEscape"/> 가 판단한다)
+        /// </summary>
         private static void OnClosePressed()
         {
-            if (!panelOpen)
+            if (controller == null)
             {
                 return;
             }
 
-            panelOpen = false;
+            controller.CloseFromEscape();
             Apply();
         }
 
@@ -170,17 +210,12 @@ namespace UnderTheSea.Lobby
             }
 
             bool lobby = InLobby();
-            bool showPanel = lobby && panelOpen;
+            bool panelOpen = controller != null && controller.IsOpen;
             bool showPrompt = lobby && playerIsNear && !panelOpen;
 
             if (promptRoot != null && promptRoot.activeSelf != showPrompt)
             {
                 promptRoot.SetActive(showPrompt);
-            }
-
-            if (panelRoot != null && panelRoot.activeSelf != showPanel)
-            {
-                panelRoot.SetActive(showPanel);
             }
 
             // 안내 문구는 인스펙터의 키 설정을 따라간다.
@@ -203,9 +238,13 @@ namespace UnderTheSea.Lobby
 
             if (!lobby)
             {
-                // 로비를 떠나면 열려 있던 창 상태도 접는다. 돌아왔을 때 창이 떠 있으면 안 된다.
-                panelOpen = false;
+                // 로비를 떠나면 열려 있던 창도 접는다. 창이 닫히면서 입력 잠금도 함께 풀린다.
                 playerIsNear = false;
+
+                if (controller != null)
+                {
+                    controller.Close();
+                }
             }
 
             if (root.activeSelf != lobby)
@@ -254,100 +293,6 @@ namespace UnderTheSea.Lobby
             }
 
             return false;
-        }
-
-        // ------------------------------------------------------------
-        // STEP 5 검증용 placeholder
-        //
-        // ⚠ 여기 있는 것은 전부 임시다. STEP 6 에서 이 메서드 하나를
-        //    Resources.Load<GameObject>("AltarOfferingUI") 로 바꾸고 아래 코드를 지운다.
-        //
-        // ⚠ 새 Sprite · Texture · 프리팹 · 폰트 에셋을 만들지 않는다.
-        //    Image 는 스프라이트 없이도 단색 사각형을 그리고,
-        //    한글은 TMP 설정의 fallback(NotoSansKR)이 이미 받아 준다.
-        //
-        // ⚠ 클릭을 받지 않으므로 GraphicRaycaster 와 EventSystem 이 필요 없다.
-        //    (LobbyChatInstaller 가 EventSystem 을 직접 만들었다가 로비를 멈춘 적이 있다)
-        // ------------------------------------------------------------
-
-        private static void BuildPlaceholder()
-        {
-            root = new GameObject("AltarOfferingUI (STEP 5 Placeholder)");
-
-            Canvas canvas = root.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-
-            // 채팅·튜토리얼보다 뒤에 그려 가리지 않게 낮게 둔다.
-            canvas.sortingOrder = 50;
-
-            CanvasScaler scaler = root.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            promptRoot = BuildPrompt(root.transform);
-            panelRoot = BuildPanel(root.transform);
-
-            promptRoot.SetActive(false);
-            panelRoot.SetActive(false);
-        }
-
-        /// <summary>화면 아래쪽 가운데의 "[E] 조각 봉헌" 한 줄.</summary>
-        private static GameObject BuildPrompt(Transform parent)
-        {
-            GameObject go = new GameObject("Prompt", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-
-            RectTransform rect = (RectTransform)go.transform;
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.anchoredPosition = new Vector2(0f, 180f);
-            rect.sizeDelta = new Vector2(600f, 60f);
-
-            promptLabel = go.AddComponent<TextMeshProUGUI>();
-            promptLabel.text = "[E] 조각 봉헌";
-            promptLabel.fontSize = 36f;
-            promptLabel.alignment = TextAlignmentOptions.Center;
-            promptLabel.raycastTarget = false;
-
-            return go;
-        }
-
-        /// <summary>화면 가운데의 빈 패널. 기능은 없고 "열렸다" 는 것만 보여 준다.</summary>
-        private static GameObject BuildPanel(Transform parent)
-        {
-            GameObject go = new GameObject("Panel", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-
-            RectTransform rect = (RectTransform)go.transform;
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
-            rect.sizeDelta = new Vector2(520f, 280f);
-
-            // 스프라이트 없이 단색만 그린다. 새 에셋이 필요 없다.
-            Image background = go.AddComponent<Image>();
-            background.color = new Color(0f, 0f, 0f, 0.72f);
-            background.raycastTarget = false;
-
-            GameObject textGo = new GameObject("Label", typeof(RectTransform));
-            textGo.transform.SetParent(go.transform, false);
-
-            RectTransform textRect = (RectTransform)textGo.transform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(24f, 24f);
-            textRect.offsetMax = new Vector2(-24f, -24f);
-
-            TextMeshProUGUI label = textGo.AddComponent<TextMeshProUGUI>();
-            label.text = "바다의 심장 봉헌\n\nSTEP 5 Placeholder\n\nEsc 로 닫습니다";
-            label.fontSize = 32f;
-            label.alignment = TextAlignmentOptions.Center;
-            label.raycastTarget = false;
-
-            return go;
         }
     }
 }
