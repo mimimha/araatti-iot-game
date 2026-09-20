@@ -26,7 +26,9 @@
 | Meshy Warriors 몬스터/보스 5종 | Meshy에서 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/MiniGames/Warriors/Models/` | Warriors의 Crab, Fish, Jellyfish, Kraken Phase 2/Final 모델 | 서연 | 2026-09-12 |
 | Toony Tiny People RTS 검 리소스 | 출처 확인 필요 | 라이선스 확인 전 업로드 보류 | `Assets/ToonyTinyPeople/` | Warriors 테스트용 검 메시와 재질 | 서연 | 2026-09-12 |
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
-| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 | 효진 | 2026-09-15 |
+| Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/`, 셰이더는 `Art/Shaders/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 · 판 테두리 화로(`Mine_BridgeProp`) | 효진 | 2026-09-18 |
+| Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
+| 광산 HUD 그림 12종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 · 채굴 결과 판(성공·실패) | 효진 | 2026-09-20 |
 | Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
 | 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
@@ -35,6 +37,19 @@
 | Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 30~40초마다 돌아가며 | 민화 | 2026-09-20 |
 | Short Alarm | opengameart.org/content/short-alarm | CC0 | `Assets/Game/Audio/ShipCoop/warnChime.ogg` | 배 협동 — 사건 예고 종 | 민화 | 2026-09-20 |
 | Exploration Fantasy Free Pack | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | `Assets/Game/Audio/ShipCoop/` (쓰는 2곡만 이름 바꿔 옮김. 원본은 `Assets/Audio/Music/` 에 있음, 저장소에는 안 올림) | 배 협동 배경음악 — 대기(Ocean Soul) · 항해(The Blacksmith) | 민화 | 2026-09-20 |
+
+> ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
+> 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —
+> 팩 원본은 4096(장당 25MB 안팎)이라 그대로 넣으면 판 테두리 화로 하나에 160MB 가 들어갑니다.
+> 줄여서 14MB 가 되었습니다.
+>
+> 화로(`Mine_BridgeProp`)는 불꽃에 팩 셰이더(`Torch Flame`)가 필요해 그것도 함께 옮겼습니다.
+> URP 패키지만 참조하므로 파일 하나로 동작합니다.
+
+> ⚠ Yughues Free Rock Materials 는 **213MB** 입니다. 20종 중 실제로 쓰는 것은 하나(`M_YFRM_16`)뿐이고,
+> 같이 들어온 `Preview/`(데모 씬·fbx)와 `*_HDRP.unitypackage` 는 이 프로젝트에서 안 씁니다.
+> 용량을 줄이려면 지워도 됩니다. URP 용 머티리얼은 `*_URP.unitypackage` 를 임포트해서 만든 것이라,
+> 그 파일도 한 번 푼 뒤에는 필요 없습니다.
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.

@@ -6,19 +6,19 @@ namespace Mine.Net
     /// <summary>광산에서 누르는 것들. 비트 번호는 바꾸지 않는다 — 통신 규격이다.</summary>
     public enum MineButton
     {
-        /// <summary>달리기. LeftShift.</summary>
+        /// <summary>달리기. Shift.</summary>
         Run = 0,
 
-        /// <summary>점프. Space.</summary>
+        /// <summary>점프. <b>현재 키가 없다.</b> Space 는 채굴이 쓴다.</summary>
         Jump = 1,
 
-        /// <summary>휘두르기. F. (2단계에서 격자에 닿는다)</summary>
+        /// <summary>휘두르기(채굴). Space.</summary>
         Swing = 2,
 
         /// <summary>되메우기. C. (2단계)</summary>
         Restore = 3,
 
-        /// <summary>힌트. V. (2단계)</summary>
+        /// <summary>힌트. J.</summary>
         Hint = 4,
     }
 

@@ -16,3 +16,8 @@ Thumbs.db
 
 # 이미지 생성 산출물 (재생성 가능, 100MB)
 output/
+
+# 개발용 테스트 계정표 — **평문 비밀번호가 들어간다.**
+# Multiplayer Play Mode 의 가상 플레이어별 자동 로그인(DevAutoLogin)이 읽는 파일이고,
+# 사람마다 자기 계정을 쓰므로 저장소에 올리지 않는다. 만드는 법은 DevAutoLogin.cs 주석 참고.
+DevAccounts.local.json

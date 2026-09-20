@@ -25,9 +25,23 @@ using UnityEngine;
 /// MovePlayerInput 의 순서는 그 스크립트의 .meta 에 적어두었다. 남의 에셋이지만
 /// 입력을 먼저 모으는 것뿐이라 다른 씬에 해가 없다.
 ///
-/// ⚠ 점프 높이는 <c>CharacterMover</c> 의 <c>m_JumpHeight</c> 인데
-///   **실제 정점은 그 3배**다 (v² = h·6·g 이므로 정점 = v²/2g = 3h).
-///   기본값 5 는 15m 를 뛴다. 광산에서는 씬에서 0.2(=0.6m)로 낮춰 두었다.
+/// ⚠ <b>폴짝은 사실 <u>애니메이션</u>이다.</b> 몸은 거의 안 뜬다.
+///
+///   <c>CharacterMover.CaculateGravity</c> 는 이렇게 동작한다.
+/// <code>
+///   땅에 붙어 있을 때   m_GravityAcelleration = Physics.gravity      (-9.81)
+///   뛰라고 하면       m_GravityAcelleration += sqrt(h * 6 * 9.81)
+///                       isAir = true                                (값과 무관하게)
+/// </code>
+///   즉 실제 초기 속도는 <b>sqrt(h*6*g) - g</b> 이라, <b>h 가 1.64 를 넘어야</b>
+///   몸이 비로소 뜨기 시작한다. 광산은 <b>0.2</b> 를 쓰므로 몸은 안 뜨고,
+///   <c>isAir</c> 가 Animator 의 "IsJump" 를 켜서 <b>점프 동작만 나온다.</b>
+///   눈에 보이는 "폴짝" 은 그것이고, 실제 내려감은 파인 칸이
+///   <c>digDepth</c> 만큼 내려앉기 때문이다.
+///
+/// ⚠ 네트워크에서는 이 컴포넌트가 <b>서버에서만</b> 돌고 서버에는 화면이 없다.
+///   그래서 <c>MineNetPlayerMover.Airborne</c> 으로 공중 상태를 복제해
+///   클라이언트가 같은 동작을 재생하게 해두었다.
 /// </summary>
 [DefaultExecutionOrder(-50)]
 public class MineJump : MonoBehaviour

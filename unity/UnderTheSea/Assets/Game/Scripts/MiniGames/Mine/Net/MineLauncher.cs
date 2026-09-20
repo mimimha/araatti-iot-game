@@ -1,5 +1,6 @@
 using Fusion;
 using Fusion.Sockets;
+using MiniGames.Common;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -28,6 +29,10 @@ namespace Mine.Net
                  + "Lobby(27015) · Warriors(27031) 와 겹치지 않게 광산은 27032 를 쓴다. "
                  + "한 PC 에서 여러 미니게임 서버를 같이 띄울 수 있어야 한다.")]
         [SerializeField] private ushort serverPort = MineNet.DefaultPort;
+
+        [Tooltip("정원과 표시 이름이 들어 있는 설정 에셋. MiniGame_Mining 을 꽂는다. "
+                 + "비워 두면 입장 관문이 상태만 보고 정원은 못 막는다.")]
+        [SerializeField] private MiniGameConfig config;
 
         /// <summary>이 프로세스에서 세션을 시작한 인스턴스. 씬 재로드로 생긴 복사본을 막는다.</summary>
         private static MineLauncher active;
@@ -77,6 +82,23 @@ namespace Mine.Net
             // 서버에는 조작하는 사람이 없다. 입력을 만들지 않는다.
             runner.ProvideInput = !isServer;
 
+            if (isServer)
+            {
+                // ⚠ **콜백 등록은 서버 분기 안에 둔다.**
+                //    입력 제공자는 아래 if (!isServer) 안에서 등록된다. 거기에 입장 판정을 같이
+                //    넣으면 서버에서는 OnConnectRequest 가 **아예 불리지 않는다.**
+                //    배 게임에서 실측으로 겪은 사고라 검 게임과 같은 자리에 같은 주석을 남긴다.
+                MiniGameAdmission admission = GetComponent<MiniGameAdmission>();
+
+                if (admission == null)
+                {
+                    admission = gameObject.AddComponent<MiniGameAdmission>();
+                }
+
+                admission.Configure(config);
+                runner.AddCallbacks(admission);
+            }
+
             if (!isServer)
             {
                 MineInputProvider provider = GetComponent<MineInputProvider>();
@@ -105,7 +127,24 @@ namespace Mine.Net
                 CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
             };
 
-            if (isServer) args.Address = NetAddress.Any(port);
+            if (isServer)
+            {
+                args.Address = NetAddress.Any(port);
+
+                // 정원을 Photon 에게도 알린다. **동시에 두드리는 경쟁은 여기서만 막을 수 있다.**
+                // 우리 쪽 OnConnectRequest 는 승인됐지만 아직 합류하지 않은 사람을 세지 못한다.
+                if (config != null)
+                {
+                    args.PlayerCount = config.MaxPlayers;
+                    Debug.Log($"[Mine] 세션 정원을 {config.MaxPlayers}명으로 엽니다. ({config.DisplayName})");
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        "[Mine] 설정 에셋이 비어 있어 정원을 정하지 못했습니다. " +
+                        "MineBoot 씬의 MineLauncher 에 MiniGame_Mining 을 연결해 주세요.");
+                }
+            }
 
             startedRunner = runner;
 

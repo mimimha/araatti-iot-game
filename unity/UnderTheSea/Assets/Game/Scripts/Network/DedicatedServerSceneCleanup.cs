@@ -62,11 +62,15 @@ public class DedicatedServerSceneCleanup : MonoBehaviour
             disabled++;
         }
 
+        int particles = DedicatedServerParticles.DisableAll();
+
         // 화면이 없으니 vSync 는 의미가 없다. 끄고 프레임률을 직접 잡는다.
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = serverFrameRate;
 
         Debug.Log($"[DedicatedServerSceneCleanup] 서버이므로 '{name}' 의 렌더링·오디오 컴포넌트 " +
-                  $"{disabled}개를 껐습니다. 프레임률을 {serverFrameRate}로 맞췄습니다.");
+                  $"{disabled}개와 파티클 {particles}개를 껐습니다. 프레임률을 {serverFrameRate}로 맞췄습니다.");
     }
+
+
 }

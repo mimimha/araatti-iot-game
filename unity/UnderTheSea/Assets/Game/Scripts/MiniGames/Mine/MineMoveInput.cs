@@ -52,6 +52,8 @@ public class MineMoveInput : MonoBehaviour
     [Header("입력 이름 (MovePlayerInput 과 같게 둔다)")]
     [SerializeField] private string horizontalAxis = "Horizontal";
     [SerializeField] private string verticalAxis = "Vertical";
+    [Tooltip("비워두면 점프를 받지 않는다. 광산은 Space 를 채굴에 쓰므로 비워 둔다 — " +
+             "네트워크(MineInputProvider)에도 점프가 없다.")]
     [SerializeField] private string jumpButton = "Jump";
     [SerializeField] private KeyCode runKey = KeyCode.LeftShift;
 
@@ -85,7 +87,8 @@ public class MineMoveInput : MonoBehaviour
 
         Vector2 axis = new Vector2(Input.GetAxis(horizontalAxis), Input.GetAxis(verticalAxis));
         bool run = Input.GetKey(runKey);
-        bool jump = Input.GetButton(jumpButton);
+        // ⚠ 빈 이름으로 GetButton 을 부르면 Unity 가 예외를 던진다. 먼저 걸러야 한다.
+        bool jump = !string.IsNullOrEmpty(jumpButton) && Input.GetButton(jumpButton);
 
         mover.SetInput(axis, LookTarget(), run, jump);
     }
