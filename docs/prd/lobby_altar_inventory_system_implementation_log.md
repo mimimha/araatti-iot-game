@@ -1565,3 +1565,389 @@ STEP 4 완료.
 
 > 설계 문서는 이 STEP 중 확정된 두 정책(non-2xx raw body 보존, 조각 수 교차 race)을
 > 반영하기 위해 별도 턴에서 갱신했습니다. 구현과 문서가 일치합니다.
+
+---
+
+## STEP 5. Unity 제단 상호작용 + 안내 HUD
+
+구현일: 2026-09-20
+기준 커밋: `3004d3eb [feat] 인벤토리 및 제단 Unity 서비스 계층 구현`
+
+출처 구분은 STEP 4 와 같습니다.
+
+```text
+에이전트 직접 관측   저장소 파일 읽기 · unity-mcp 컴파일 확인 · git status
+사용자 확인 대기     플레이 모드에서의 실제 상호작용 (아래 "런타임 검증" 참고)
+```
+
+### 조사한 기존 패턴
+
+| 파일 | 따른 것 |
+|---|---|
+| `Lobby/MiniGamePortal.cs` | `LocalPlayer.Transform` 거리 판정 · `ignoreHeight = true` · `[SerializeField] Key interactKey` · `Keyboard.current[key].wasPressedThisFrame` · `OnDrawGizmosSelected` 와이어 구 |
+| `Lobby/ProximityPortal.cs` | 히스테리시스 관례 — `openDistance 6` / `closeDistance 8` (**+2m 간격**) |
+| `Network/LocalPlayer.cs` | `public static Transform Transform` · `public static event Action<NetworkObject> Registered` |
+| `UI/LobbyChatInstaller.cs` | `static class` + `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` · `graphicsDeviceType == Null` 차단 · `Registered` 콜백 try/catch · `sceneLoaded`/`sceneUnloaded` · `DontDestroyOnLoad` · `InLobby()` |
+
+⚠ `MiniGamePortal` 은 **namespace 가 없습니다**(global). 하지만 STEP 4 에서 `Lobby/` 에 넣은
+코드가 전부 `UnderTheSea.Lobby` 이므로 STEP 5 도 거기에 맞췄습니다.
+
+### 구현 파일
+
+신규 2개 — **수정한 기존 파일은 하나도 없습니다.**
+
+```text
+Assets/Game/Scripts/Lobby/AltarInteraction.cs
+Assets/Game/Scripts/Lobby/AltarOfferingInstaller.cs
+```
+
+### `AltarInteraction`
+
+거리 판정은 **`LocalPlayer.Transform` 하나만** 봅니다. 다른 플레이어를 찾지 않습니다.
+
+```csharp
+Transform local = LocalPlayer.Transform;
+if (local == null) return false;          // 접속 중 · Dedicated Server → 언제나 "멀다"
+
+Vector3 gap = local.position - transform.position;
+if (ignoreHeight) gap.y = 0f;             // 제단이 계단 위에 있다
+
+float limit = PlayerIsNear ? closeDistance : openDistance;
+return gap.sqrMagnitude <= limit * limit;
+```
+
+Trigger Collider 를 쓰지 않았습니다. `OnTriggerEnter/Stay/Exit` 도, 새 Collider 도, Rigidbody
+의존도 없습니다. 이유는 설계 5.2절 그대로입니다 — Trigger 는 남의 캐릭터도 들어오고,
+상대 프리팹 구성에 의존하게 됩니다.
+
+| 항목 | 값 | 근거 |
+|---|---|---|
+| `openDistance` | **4m** | 설계 5.3절이 "포탈과 같은 4m 로 시작" |
+| `closeDistance` | **6m** | 설계 5.5절이 `ProximityPortal` 의 히스테리시스를 참조. 그 파일이 `6 / 8`(+2m)이라 같은 간격을 4m 에 적용 |
+| `ignoreHeight` | **true** | 제단이 계단 위. `MiniGamePortal` 기본값도 true |
+| `interactKey` | **`Key.E`** | 결정 2.6절. `MiniGamePortal` 의 F 와 겹치지 않아 그 파일을 고치지 않았다 |
+| `closeKey` | `Key.Escape` | 열린 창을 닫는 용도 (아래 참고) |
+
+`closeDistance` 기본값 6m 은 문서에 숫자가 없어 **기존 관례(+2m)에서 가져온 선택**입니다.
+`OnValidate` 가 `closeDistance < openDistance` 를 막습니다.
+
+이 부품은 **화면을 만들지 않습니다.** 사실만 알립니다.
+
+```csharp
+public static event Action<bool> NearChanged;   // 범위 진입 · 이탈
+public static event Action InteractPressed;     // E
+public static event Action ClosePressed;        // Esc
+public static AltarInteraction Active { get; }  // 안내 문구(PromptText)를 읽으려고
+public string PromptText => $"[{interactKey}] 조각 봉헌";
+```
+
+안내 문구가 인스펙터의 키 설정을 따라가므로, 키를 바꾸면 화면 문구도 같이 바뀝니다.
+
+`OnDrawGizmosSelected` 는 여는 거리와 닫는 거리를 두 겹 와이어 구로 그립니다.
+프리팹 루트에 잘못 놓으면 구가 계단 아래까지 덮는 것이 눈에 보입니다.
+
+여기에 **넣지 않은 것** — HTTP 호출 · `IAltarService` 봉헌 · `PlayerInventory` 차감 ·
+`AltarState` 계산 · Fusion RPC · Blue VFX · 수량 처리. 전부 다른 STEP 의 몫입니다.
+
+### `AltarOfferingInstaller`
+
+`LobbyChatInstaller` 를 그대로 본떴습니다.
+
+```text
+[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]
+  graphicsDeviceType == Null       → 즉시 return (Dedicated Server 에 UI 를 만들지 않는다)
+  LocalPlayer.Registered           → 내 캐릭터가 생긴 순간 만든다 (콜백 전체가 try/catch)
+  AltarInteraction 이벤트 3개 구독
+  SceneManager.sceneLoaded/Unloaded → 로비가 아니면 숨긴다
+  DontDestroyOnLoad
+```
+
+⚠ `LocalPlayer.Registered` 콜백을 try/catch 로 감쌌습니다. 이 알림은 `LocalPlayerView.Spawned`
+한가운데서 불리고 **그 뒤에 카메라를 붙이는 코드가 있습니다.** 여기서 예외가 새면 카메라가
+안 붙어 "Lobby에 접속 중..." 에서 멈춥니다. 삼키는 것이 아니라 `Debug.LogError` 로 분명히
+남기고 상위 흐름만 지킵니다.
+
+⚠ 구독은 `-=` 후 `+=` 로 붙입니다. 도메인 리로드를 끈 설정에서도 구독이 쌓이지 않습니다.
+
+⚠ `InLobby()` 는 `LobbyChatInstaller` 것과 **같은 내용을 옮겨 적었습니다.** 원본이 `private`
+이라 부를 수 없었습니다. 씬 이름만 보면 안 되고 `[Lobby]` 루트 오브젝트까지 봐야 하는
+이유(Fusion 이 러너 씬으로 인수)도 그대로 주석에 남겼습니다. 한쪽을 고치면 다른 쪽도 함께
+고쳐야 한다는 경고를 달아 두었습니다.
+
+상태 조합은 한 곳(`Apply()`)에서만 정합니다.
+
+```text
+범위 밖          아무것도 없음
+범위 안          안내만
+창이 열림        창만 (안내는 숨긴다)
+로비가 아님      전부 숨김 + 열린 창 상태도 접는다
+범위 이탈        창도 닫는다 (설계 5.5절)
+```
+
+씬을 오가도 UI 가 쌓이지 않습니다. `root != null` 이면 다시 만들지 않고, 지우지 않고
+`SetActive` 로만 껐다 켭니다.
+
+### 빈 패널 — STEP 5 검증용 runtime placeholder
+
+⚠ **이것은 정식 UI 가 아닙니다.** 설계상 정식 봉헌 UI 는
+`Assets/Game/Resources/AltarOfferingUI.prefab` 이고 **STEP 6** 의 산출물이며,
+그 STEP 은 "사용자가 HUD 이미지를 전달" 을 선행 조건으로 답니다.
+저장소 실측 결과 그 프리팹도 `Assets/Game/Art/UI/Altar/` 폴더도 아직 없습니다.
+
+그래서 구현 전에 멈추고 보고했고, **A안(런타임 placeholder)으로 확정**받았습니다.
+
+```text
+지금 (STEP 5)   코드로 만든 안내 한 줄 + 빈 패널. 기능 없음
+STEP 6          Resources/AltarOfferingUI.prefab 을 불러 쓴다. 이 placeholder 코드는 지운다
+```
+
+교체 지점은 `BuildPlaceholder()` **하나뿐**입니다. STEP 6 에서 그 메서드를
+`Resources.Load<GameObject>("AltarOfferingUI")` 로 바꾸면 나머지(생명주기 · 로비 판정 ·
+상태 조합)는 그대로 씁니다.
+
+placeholder 가 보여 주는 것
+
+```text
+안내    화면 아래 가운데     "[E] 조각 봉헌"
+패널    화면 가운데          "바다의 심장 봉헌 / STEP 5 Placeholder / Esc 로 닫습니다"
+```
+
+**새 에셋을 하나도 만들지 않았습니다.**
+
+```text
+Sprite · Texture · 프리팹 · 폰트 에셋   0개
+Image 는 스프라이트 없이 단색 사각형을 그린다
+한글은 TMP 설정의 fallback 에 NotoSansKR-Bold SDF 가 이미 등록되어 있어 그대로 나온다
+클릭을 받지 않으므로 GraphicRaycaster · EventSystem 이 필요 없다
+```
+
+마지막 줄은 일부러 그렇게 했습니다. `LobbyChatInstaller` 가 EventSystem 을 직접 만들었다가
+로비를 통째로 멈춘 적이 있다고 그 파일이 적어 두었습니다.
+
+STEP 6 으로 남긴 것 — 수량 `-` · `+` · `MAX` · 보유 조각 표시 · 봉헌 버튼 · 오류 문구 ·
+HTTP 봉헌 호출 · `ChatFocus` 이동 잠금 · 실제 HUD 이미지 · `AltarOfferingUIController`.
+이번 STEP 에서 하나도 앞당기지 않았습니다.
+
+⚠ `Esc` 로 닫는 것만 넣었습니다. 설계 5.5절의 상태 흐름에 "패널 닫힘 → 아직 범위 안이면
+안내 다시 표시" 가 있어 닫는 수단이 없으면 그 흐름을 확인할 수 없기 때문입니다.
+`ChatFocus` 는 건드리지 않았습니다 — 이동 잠금은 STEP 6 몫입니다.
+
+### Blue VFX
+
+이번 STEP 에는 VFX 코드가 **하나도 없습니다.** `AltarBeam` 도 `Light_Monolith` 도 건드리지
+않았고 `AltarVfxController` 도 만들지 않았습니다. 결정 #9 는 그대로입니다 —
+Blue VFX 는 성공한 봉헌 1건당 pulse 1회이고 STEP 8 · 10 의 몫입니다.
+
+### 검증 — 직접 확인한 것
+
+| 항목 | 결과 |
+|---|---|
+| Unity Editor 컴파일 | **PASS** — `AssetDatabase.Refresh` 후 두 타입을 직접 참조하는 스크립트가 컴파일·실행됨 |
+| STEP 5 신규 compile error | **0** |
+| STEP 5 신규 warning | **0** — 콘솔 경고 30개는 전부 기존 `ShipCoop/Editor` · `ShipCoopHudV2Art` 것 |
+| `.meta` 생성 | **PASS** — `AltarInteraction.cs.meta` · `AltarOfferingInstaller.cs.meta` 를 Unity 가 생성 |
+| 변경 범위 | **PASS** — 코드는 신규 2개 + `.meta` 2개뿐. 씬 · STEP 4 파일 · server 무변경 |
+
+`.meta` 는 손으로 만들지 않았습니다 (CONVENTION.md 9장).
+
+⚠ 위 "변경 범위" 는 **코드 기준**입니다. 이후 사용자가 프리팹을 배치하고 런타임을 돌리면서
+`P_HeartAltar.prefab`(의도된 변경)과 TMP 동적 폰트 아틀라스(부수 변경)가 함께 바뀌었습니다.
+자세한 것은 아래 "커밋 범위" 절에 적었습니다.
+
+### 검증 — 런타임 (사용자 확인, 2026-09-21)
+
+⚠ 아래는 **사용자가 Unity Editor 와 Lobby Dedicated Server 로 직접 돌려 본 결과**입니다.
+에이전트가 관측한 것이 아닙니다. 코드상 예상이 아니라 실제 화면에서 확인한 값입니다.
+
+#### 1인 검증 — 1차 (거리 4 / 6)
+
+```text
+캐릭터 스폰                          PASS
+제단 접근 시 안내 표시                PASS
+E 입력 → placeholder 패널 열림        PASS
+Esc 입력 → 패널 닫힘                  PASS
+6m 이탈 → 안내 숨김                   PASS
+Console Error                        0
+
+계단 한 칸 아래 안내 없음              FAIL   ← 유일한 실패
+```
+
+**원인** — `ignoreHeight = true` 라 Y 를 무시하고 XZ 평면 거리만 재기 때문입니다.
+계단 한 칸 아래는 높이만 다르고 수평 거리는 4m 안이라 그대로 들어왔습니다.
+설계가 의도한 동작(제단이 계단 위에 있으니 높이를 무시한다)의 **부작용**이고,
+버그가 아니라 **반경이 그 지형에 비해 넓었던 것**입니다.
+
+#### 1인 검증 — 2차 (거리 3 / 5)
+
+코드를 고치지 않고 **프리팹의 Inspector 값만** 좁혔습니다.
+
+```text
+캐릭터 스폰                          PASS
+계단 아래 안내 없음                   PASS   ← 해결
+제단 접근 시 "[E] 조각 봉헌" 표시      PASS
+E 입력 → placeholder 패널 열림        PASS
+Esc 입력 → 패널 닫힘                  PASS
+범위 이탈 → 안내 숨김                 PASS
+Console Error                        0
+```
+
+⚠ **코드 기본값과 프리팹 값이 다릅니다. 일부러 그대로 둡니다.**
+
+```text
+AltarInteraction.cs 기본값     openDistance 4 / closeDistance 6
+P_HeartAltar 프리팹 실제 값    openDistance 3 / closeDistance 5
+```
+
+3 / 5 는 **이 제단의 지형에 맞춘 값**이지 모든 상호작용의 일반 기본값이 아닙니다.
+다른 곳에 이 컴포넌트를 쓰면 그 지형에 맞게 다시 잡아야 하므로, 코드 기본값은
+포탈과 같은 4 / 6 으로 남기고 프리팹에서만 좁혔습니다.
+
+#### 2인 검증 — `LocalPlayer` 분리 (STEP 5 의 핵심 완료 조건)
+
+```text
+Lobby Dedicated Server   lobby-ch1
+Client A                 Unity Editor, Lobby.unity Play
+Client B                 Builds/Client/AraAtti-Client.exe
+```
+
+```text
+A 만 제단 접근    A 화면 "[E] 조각 봉헌" 표시     B 화면 안내 없음      PASS
+A 이탈 후 B 접근  B 화면 "[E] 조각 봉헌" 표시     A 화면 안내 없음      PASS
+```
+
+**2인 멀티플레이 검증 PASS.** 남이 제단에 다가가도 내 화면의 안내가 켜지지 않습니다.
+`LocalPlayer.Transform` 이 각 클라이언트에서 자기 InputAuthority 플레이어만 가리키기 때문이고,
+그래서 Trigger Collider 를 쓰지 않은 선택(설계 5.2절)이 실제로 값을 했습니다.
+
+#### Dedicated Server
+
+```text
+Lobby Dedicated Server 실제 빌드 · 실행 완료
+클라이언트 2개가 같은 lobby-ch1 에 접속 완료
+STEP 5 관련 신규 Error 확인되지 않음
+```
+
+⚠ 서버 로그 전문을 분석하지는 않았습니다. 그래서 "서버 콘솔 완전 무경고" 라고 적지 않습니다.
+확인한 것은 **STEP 5 때문에 생긴 오류가 보고되지 않았다**는 것까지입니다.
+
+`AltarOfferingInstaller` 는 `SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null` 로
+전용 서버에서 UI 생성을 차단합니다.
+
+#### 기존 이슈 — EventSystem 중복 Warning
+
+Editor 런타임에서 아래 경고가 반복 확인됐습니다.
+
+```text
+There are 2 event systems in the scene.
+Please ensure there is always exactly one event system in the scene
+```
+
+Hierarchy 실제 확인 결과 둘이 있었습니다.
+
+```text
+Lobby
+└─ EventSystem
+
+NetworkManager_Client P*
+└─ EventSystem
+```
+
+⚠ **STEP 5 가 만든 경고가 아닙니다.** `AltarOfferingInstaller` 의 runtime placeholder 는
+EventSystem 을 만들지 않습니다 — 클릭을 받지 않도록 설계해서 `GraphicRaycaster` 조차 없습니다.
+(`LobbyChatInstaller` 가 EventSystem 을 직접 만들었다가 로비를 멈춘 적이 있어 일부러 피했습니다)
+
+```text
+STEP 5 신규 Console Error   0
+EventSystem 중복 Warning    기존 존재. 원인은 STEP 5 와 별도 조사 필요
+```
+
+이번 STEP 에서는 씬 · `NetworkManager` · EventSystem 을 손대지 않았습니다.
+
+### 프리팹 배치 — 완료 (사용자가 Unity Editor 에서 수행)
+
+⚠ `.prefab` · `.unity` 는 에이전트가 고치지 않습니다 (`CLAUDE.local.md` §1).
+아래는 사용자가 배치한 뒤 **diff 에서 읽은 실제 직렬화 값**입니다.
+
+```text
+P_HeartAltar
+└─ AltarInteraction            ★ 신규 (빈 GameObject + AltarInteraction.cs)
+```
+
+```yaml
+m_Name: AltarInteraction
+m_LocalPosition: {x: -10.980167, y: -8.104431, z: 4.938965}   # Pedestal 과 같은 자리
+m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarInteraction
+openDistance: 3
+closeDistance: 5
+ignoreHeight: 1
+interactKey: 19      # UnityEngine.InputSystem.Key.E
+closeKey: 60         # UnityEngine.InputSystem.Key.Escape
+```
+
+위치는 `Pedestal` 의 localPosition 과 정확히 같습니다. 프리팹 루트(0,0,0)에 두면 거기서
+잰 반경이 계단 아래까지 덮어 안내가 잘못 뜹니다 — 그 함정을 피한 배치입니다.
+
+### 설계와 실제 구현의 차이
+
+| 항목 | 설계 | 구현 | 이유 |
+|---|---|---|---|
+| 빈 패널 | STEP 5 목표에 있으나 만드는 방법이 없음 (프리팹은 STEP 6, HUD 이미지 미전달) | 런타임 placeholder | 사용자 승인(A안). 정지 조건으로 보고 후 결정 |
+| 진입·이탈 거리 | 4m 시작, 닫는 거리 숫자 없음 | 코드 기본 **4 / 6**, 제단 프리팹 **3 / 5** | 코드 기본은 `ProximityPortal` 의 +2m 관례. 3 / 5 는 런타임에서 계단 한 칸 아래 오탐이 나와 지형에 맞춰 좁힌 값 |
+| `Esc` 닫기 | 명시 없음 | 추가 | 5.5절의 "패널 닫힘" 흐름을 확인할 수단이 필요 |
+| `InLobby()` | — | `LobbyChatInstaller` 에서 복사 | 원본이 `private` 이라 호출 불가. 새 공용 파일을 만들지 않기로 |
+
+### 최종 상호작용 설정
+
+```text
+Open Distance   3m          (코드 기본값은 4m)
+Close Distance  5m          (코드 기본값은 6m)
+Ignore Height   true
+Interact Key    Key.E       Enum 19
+Close Key       Key.Escape  Enum 60
+```
+
+### 커밋 범위
+
+STEP 5 커밋 후보는 여섯입니다.
+
+```text
+M  docs/prd/lobby_altar_inventory_system_implementation_log.md
+M  unity/UnderTheSea/Assets/Game/Prefabs/HeartAltar/P_HeartAltar.prefab
+A  unity/UnderTheSea/Assets/Game/Scripts/Lobby/AltarInteraction.cs
+A  unity/UnderTheSea/Assets/Game/Scripts/Lobby/AltarInteraction.cs.meta
+A  unity/UnderTheSea/Assets/Game/Scripts/Lobby/AltarOfferingInstaller.cs
+A  unity/UnderTheSea/Assets/Game/Scripts/Lobby/AltarOfferingInstaller.cs.meta
+```
+
+#### 빌드 산출물 — 커밋 대상 아님
+
+검증을 위해 두 실행 파일을 만들었습니다. 둘 다 `.gitignore` 의 `[Bb]uilds/` 로 제외됩니다.
+
+```text
+Builds/Server/AraAtti-Server.exe    Tools > 아라아띠 > Fusion 서버 빌드 (Dedicated Server)
+Builds/Client/AraAtti-Client.exe    Tools > 아라아띠 > Fusion 클라이언트 테스트 빌드
+```
+
+⚠ 두 빌드 기능은 **원래 있던 것**입니다(`FusionTestBuilds.BuildServer` · `BuildClient`).
+STEP 5 때문에 새로 만들지 않았습니다. Lobby Dedicated Server 의 세션 이름은
+`Lobby.unity` 의 `FusionLauncher.sessionName` 이 이미 `lobby-ch1` 이라 인자 없이도 맞습니다.
+
+#### STEP 5 와 무관한 Unity 부수 변경 — 커밋 대상 아님
+
+```text
+M  Assets/Game/Fonts/NotoSansKR-Bold SDF.asset      TMP 동적 아틀라스 (글리프 +56 / -37)
+M  ProjectSettings/UnityConnectSettings.asset       m_Enabled: 0 → 1
+```
+
+폰트는 placeholder 의 한글이 처음 렌더링되며 아틀라스가 재패킹된 결과입니다.
+`UnityConnectSettings` 는 Unity Cloud 연결이 켜지며 바뀐 것으로, 프로젝트 전체 설정이라
+팀원에게 영향을 줍니다. 둘 다 STEP 5 의 산출물이 아니므로 **커밋에 넣지 않습니다.**
+
+### 남은 문제
+
+- **EventSystem 중복 Warning** — 기존 이슈. `Lobby` 와 `NetworkManager_Client` 에 각각 하나씩
+  있습니다. STEP 5 가 만든 것이 아니고 이번 STEP 에서 손대지 않았습니다. 별도 조사 대상입니다.
+- `UnityConnectSettings.asset` 이 의도치 않게 켜진 상태로 남아 있습니다. 커밋에서 빼되,
+  되돌릴지는 사용자 판단입니다.
+
+STEP 5 완료. (컴파일 · 1인 런타임 · 2인 런타임 · Dedicated Server 전부 PASS)
