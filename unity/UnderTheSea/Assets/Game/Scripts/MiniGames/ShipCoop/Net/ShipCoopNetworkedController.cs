@@ -34,6 +34,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
         private bool twoDevices = true;
 
+        /// <summary>서버에서 이 캐릭터를 대신 조작하는 봇 입력. 사람 캐릭터에서는 null.</summary>
+        private ShipCoopBotController botController;
+
         public IHandDevice Left => left;
 
         public IHandDevice Right => twoDevices ? right : left;
@@ -44,16 +47,53 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
         public Vector2 Look { get; private set; }
 
+        /// <summary>봇 이동을 월드 방향으로 바꿀 때 쓰는 가상 카메라 각도.</summary>
+        public float LookYaw { get; private set; }
+
+        /// <summary>사람 입력 대신 서버 봇 입력을 사용하고 있는가.</summary>
+        public bool IsBot => botController != null;
+
         public override void FixedUpdateNetwork()
         {
+            if (botController != null)
+            {
+                // 봇 판단은 서버에서만 한다. 클라이언트는 NetworkTransform 과 WorkerSync 결과만 받는다.
+                if (HasStateAuthority)
+                {
+                    Apply(botController.ConsumeInput());
+                }
+
+                return;
+            }
+
             // 서버와 내 캐릭터만 입력을 받는다. 남의 캐릭터 복사본은 여기서 걸러진다.
             if (!GetInput(out ShipCoopInputData input))
             {
                 return;
             }
 
+            Apply(input);
+        }
+
+        /// <summary>서버에서 생성한 봇 입력 공급자를 연결한다.</summary>
+        public void BindBot(ShipCoopBotController source)
+        {
+            if (!HasStateAuthority)
+            {
+                Debug.LogWarning("[ShipCoopBot] 서버 권한이 없는 복사본에는 봇 입력을 연결할 수 없습니다.", this);
+                return;
+            }
+
+            botController = source;
+            PreviousButtons = default;
+        }
+
+        private void Apply(ShipCoopInputData input)
+        {
+
             Move = input.Move;
             Look = input.Look;
+            LookYaw = input.LookYaw;
             twoDevices = input.Buttons.IsSet((int)ShipCoopButton.TwoDevices);
 
             left.Apply(input.LeftTilt, input.LeftRotation,
@@ -91,6 +131,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
         public void VibrateBoth(float strength, float seconds)
         {
+            if (IsBot)
+            {
+                return;
+            }
+
             left.Vibrate(strength, seconds);
 
             if (twoDevices)
@@ -214,7 +259,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             public void Vibrate(float strength, float seconds)
             {
-                if (owner != null)
+                if (owner != null && !owner.IsBot)
                 {
                     owner.Rpc_Vibrate(isLeft ? 0 : 1, strength, seconds);
                 }

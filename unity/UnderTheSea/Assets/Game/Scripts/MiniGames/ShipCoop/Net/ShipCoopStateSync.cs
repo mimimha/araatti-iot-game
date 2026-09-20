@@ -457,7 +457,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         /// </summary>
         private void UpdateStartGate()
         {
-            Crew = Runner.ActivePlayers.Count();
+            // 봇도 실제 작업을 맡는 승무원이다. 출항 조건에는 포함하되 세션 정원에는 포함하지 않는다.
+            Crew = Runner.ActivePlayers.Count() + ShipCoopBotManager.ActiveBotCount;
 
             if (game == null)
             {
