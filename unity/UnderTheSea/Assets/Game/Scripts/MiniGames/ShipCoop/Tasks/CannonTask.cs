@@ -61,6 +61,25 @@ public class CannonTask : TaskBase
     /// <summary>포탄이 없는데 쏘려고 했다. HUD 가 "포탄 없음" 을 띄운다.</summary>
     public event Action FiredEmpty;
 
+    /// <summary>
+    /// **화면에 발사를 보여줄 때.** 반동 · 연기 연출이 듣는다.
+    ///
+    /// <see cref="Fired"/> 와 따로 두는 이유 — Fired 는 서버에서만 터지는 판정 신호다
+    /// (적선이 듣는다). 이것은 서버에서는 쏘는 순간에, 클라이언트에서는 서버가 복제한
+    /// <see cref="FireCount"/> 가 늘어난 것을 보고 터진다. 그래서 모든 화면에서 같은 순간에 나온다.
+    /// (WaterDumpPoint.DumpCount 와 같은 방법 — 11장)
+    /// </summary>
+    public event Action Recoiled;
+
+    /// <summary>
+    /// 지금까지 쏜 발수. 연출을 네트워크로 옮기는 데 쓴다 — 서버가 이 값을 복제하고
+    /// 클라이언트는 늘어난 만큼 <see cref="ShowFired"/> 로 같은 연출을 낸다.
+    /// 판을 되돌려도 0 으로 안 돌린다. 줄어드는 값은 복제 순서에 따라 연출을 놓칠 수 있다.
+    /// </summary>
+    public int FireCount { get; private set; }
+
+    private int _shownFireCount;
+
     private float _nextFireTime;
     private float _baseYaw;
 
@@ -137,6 +156,20 @@ public class CannonTask : TaskBase
         AmmoChanged?.Invoke(Ammo, maxAmmo);
     }
 
+    /// <summary>클라이언트: 서버가 쏜 발수를 받아, 늘어났으면 연출을 낸다.</summary>
+    public void ShowFired(int count)
+    {
+        // ⚠ 소리 · 반동이 안 나면 여기부터 본다: 발수가 늘어나는지, Recoiled 에 누가 걸려 있는지.
+        //    한때 소리 연출가가 씬 활성화 중 잠깐 꺼지며 신호를 놓쳤다 — 켜질 때 다시 걸어 고쳤다 (ShipCoopAudio.OnEnable).
+        if (count > _shownFireCount)
+        {
+            Recoiled?.Invoke();
+        }
+
+        _shownFireCount = count;
+        FireCount = count;
+    }
+
     protected override void Work(float deltaTime)
     {
         for (int i = 0; i < Workers.Count; i++)
@@ -191,9 +224,12 @@ public class CannonTask : TaskBase
 
         Ammo--;
         _nextFireTime = Time.time + fireInterval;
+        FireCount++;
+        _shownFireCount = FireCount;
 
         AmmoChanged?.Invoke(Ammo, maxAmmo);
         Fired?.Invoke(Ammo);
+        Recoiled?.Invoke();
 
         input.VibrateBoth(0.8f, 0.15f);
 

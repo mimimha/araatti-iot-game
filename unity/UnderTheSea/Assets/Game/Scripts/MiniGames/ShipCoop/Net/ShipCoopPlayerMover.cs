@@ -65,12 +65,28 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Networked]
         public Vector3 Motion { get; private set; }
 
+        [Header("자리에 붙는 순간 정위치로")]
+        [Tooltip("정위치로 미끄러져 가는 속도 (m/s). 걷기보다 빨라야 '붙었다' 로 보인다.")]
+        [SerializeField, Min(1f)] private float snapSpeed = 9f;
+
+        [Tooltip("정위치를 향해 몸을 돌리는 속도 (도/초).")]
+        [SerializeField, Min(90f)] private float snapTurnSpeed = 1080f;
+
+        [Tooltip("이 시간 안에 못 가면 포기한다 (초). 무엇에 막혔을 때 영영 끌려가지 않게.")]
+        [SerializeField, Range(0.1f, 2f)] private float snapTimeout = 0.6f;
+
         private CharacterController body;
         private ShipCoopCharacter look;
         private ShipCoopNetworkedController controller;
         private TaskWorker worker;
         private float fallSpeed;
         private bool logMotion;
+
+        // 붙는 순간 정위치로 미끄러지기 (ShipCoopStationStand). 서버에서만 돈다.
+        private bool snapping;
+        private Vector3 snapTo;
+        private Vector3 snapFacing;
+        private float snapDeadline;
 
         /// <summary>-logmoves 진단용. 프레임 간 차이와 서버 확정값을 견줘 본다.</summary>
         private Vector3 lastRenderAt;
@@ -97,6 +113,40 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             // 서버만 움직인다. 클라이언트에서 켜 두면 NetworkTransform 이 보내 준 위치와 싸운다.
             body.enabled = HasStateAuthority;
+
+            if (HasStateAuthority && worker != null)
+            {
+                worker.CurrentChanged += OnCurrentChanged;
+            }
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            if (worker != null)
+            {
+                worker.CurrentChanged -= OnCurrentChanged;
+            }
+        }
+
+        /// <summary>
+        /// 자리에 붙었다 — **정위치로 미끄러져 간다.** 떨어지면 그만둔다.
+        ///
+        /// 어디서 스페이스를 눌렀든 대포 뒤 · 돛대 오른쪽 · 바퀴 뒤로 가서 그쪽을 본다.
+        /// 위치는 서버가 확정하므로 여기(서버)서 옮기고, 클라이언트는 NetworkTransform 으로 받는다.
+        /// </summary>
+        private void OnCurrentChanged(TaskBase task)
+        {
+            if (task == null || !ShipCoopStationStand.TryGet(task, worker, transform.position.y, out snapTo, out snapFacing))
+            {
+                EndSnap();
+                return;
+            }
+
+            snapping = true;
+            snapDeadline = Time.time + snapTimeout;
+
+            // 정위치가 이상하면 여기부터 본다 — 어디서 어디로 가려 했나.
+            Debug.Log($"[ShipCoopMover] {task.name} 에 붙음 → 정위치 {snapTo} (지금 {transform.position}) 바라볼 곳 {snapFacing}", this);
         }
 
         /// <summary>
@@ -123,13 +173,22 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         public override void FixedUpdateNetwork()
         {
             // 서버만 위치를 확정한다. 클라이언트는 NetworkTransform 으로 결과만 받는다.
-            if (!HasStateAuthority || body == null || !body.enabled)
+            // 정위치로 미끄러지는 동안은 컨트롤러를 꺼 두므로(SnapStep), 그때는 통과시킨다.
+            if (!HasStateAuthority || body == null || (!body.enabled && !snapping))
             {
                 return;
             }
 
             Vector3 direction = Vector3.zero;
             float speed = walkSpeed;
+
+            if (snapping)
+            {
+                if (SnapStep(Runner.DeltaTime))
+                {
+                    return;
+                }
+            }
 
             if (GetInput(out ShipCoopInputData input))
             {
@@ -138,6 +197,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 if (axis.sqrMagnitude > 1f)
                 {
                     axis.Normalize();
+                }
+
+                // ⚠ **자리에 붙은 채로 움직이면 떨어진다.** 다시 붙으려면 스페이스를 눌러야 한다.
+                //    예전에는 붙기 범위(2~3m) 안이면 걸어 다니면서도 J · L · K 가 먹었다. 정위치에서
+                //    벗어나 팔만 뒤로 꺾인 채 조작하는 모양이 나왔고, 무엇에 붙어 있는지도 헷갈렸다.
+                //    스틱이 살짝 흔들리는 것(IoT 기울기)은 걸음으로 치지 않는다.
+                if (!snapping && worker != null && worker.Current != null && axis.sqrMagnitude > 0.04f)
+                {
+                    worker.LeaveCurrent();
                 }
 
                 // 클라이언트가 보내 준 카메라 각도로 돌린다. 서버에는 카메라가 없다.
@@ -195,6 +263,75 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 Debug.Log(
                     $"[ShipCoopMover] {Object.InputAuthority} 내것={HasInputAuthority} " +
                     $"서버확정={Motion.magnitude:F2}m/s 프레임차={measured.magnitude:F2}m/s");
+            }
+        }
+
+        /// <summary>
+        /// 정위치로 한 걸음. 도착했거나 시간이 지났거나 자리에서 떨어졌으면 false 를 돌려 보통 이동으로 넘긴다.
+        /// 미끄러지는 동안에는 입력을 받지 않는다 — 그 잠깐이 "붙었다" 를 보여준다.
+        /// </summary>
+        private bool SnapStep(float deltaTime)
+        {
+            if (worker == null || worker.Current == null || Time.time > snapDeadline)
+            {
+                Debug.Log($"[ShipCoopMover] 정위치 미끄러짐 중단 — 자리 {(worker != null && worker.Current != null ? worker.Current.name : "없음")} · 시간 초과 {Time.time > snapDeadline} · 지금 {transform.position}", this);
+                EndSnap();
+                return false;
+            }
+
+            // ⚠ **미끄러지는 동안 CharacterController 를 끝까지 꺼 둔다.**
+            //    1) 켜 둔 채 transform 만 옮기면 컨트롤러가 자기 위치로 되돌려 쓴다.
+            //    2) 옮긴 뒤 켜서 Move(중력)를 부르면, 캡슐이 대포 콜라이더와 겹친 순간 컨트롤러가 겹침을 풀며
+            //       도로 밀어낸다 — 서버 로그: 0.6초에 0.3m 만 가고 시간 초과, 포구 앞에 그대로.
+            //    정위치는 늘 갑판 위 빈 자리고 높이는 지금 높이 그대로 두므로, 꺼 둔 채 옮겨도 파묻힐 곳이 없다.
+            //    도착하거나 그만둘 때 EndSnap 이 다시 켠다.
+            if (body.enabled)
+            {
+                body.enabled = false;
+            }
+
+            Vector3 to = snapTo - transform.position;
+            to.y = 0f;
+            float distance = to.magnitude;
+
+            // 몸을 정위치 방향으로 돌린다. 자리에 도착해도 방향은 끝까지 맞춘다.
+            bool facingDone = true;
+
+            if (snapFacing.sqrMagnitude > 0.0001f)
+            {
+                Quaternion want = Quaternion.LookRotation(snapFacing, Vector3.up);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, want, snapTurnSpeed * deltaTime);
+                facingDone = Quaternion.Angle(transform.rotation, want) < 1f;
+            }
+
+            if (distance < 0.03f && facingDone)
+            {
+                transform.position = new Vector3(snapTo.x, transform.position.y, snapTo.z);
+                EndSnap();
+                Motion = Vector3.zero;
+                Debug.Log($"[ShipCoopMover] 정위치 도착 {transform.position}", this);
+                return true;
+            }
+
+            // 남은 거리를 한 번에 넘지 않게. 마지막 걸음은 딱 맞춰 선다.
+            float step = Mathf.Min(snapSpeed, distance / Mathf.Max(deltaTime, 0.0001f));
+            Vector3 velocity = distance > 0.0001f ? to / distance * step : Vector3.zero;
+
+            transform.position += velocity * deltaTime;
+
+            // 미끄러지는 걸음도 애니메이션이 따라오게 속도를 보낸다.
+            Motion = velocity;
+            return true;
+        }
+
+        /// <summary>미끄러지기를 끝낸다. 컨트롤러를 다시 켠다 — 켜지는 순간 transform 위치를 자기 위치로 받아들인다.</summary>
+        private void EndSnap()
+        {
+            snapping = false;
+
+            if (body != null && HasStateAuthority && !body.enabled)
+            {
+                body.enabled = true;
             }
         }
 

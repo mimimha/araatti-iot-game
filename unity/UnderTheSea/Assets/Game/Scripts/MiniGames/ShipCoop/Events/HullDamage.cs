@@ -32,6 +32,9 @@ public class HullDamage : VoyageEvent
     /// <summary>지금 살아있는 파손 지점</summary>
     public RepairTask SpawnedPoint { get; private set; }
 
+    /// <summary>지난 번에 고른 자리. 바로 다음 번엔 뽑지 않는다 — 후보가 적으면(4곳) 같은 곳이 이어질 확률이 높아 "고정" 처럼 느껴진다.</summary>
+    private Transform _lastSpawnPoint;
+
     // ⚠ **자리를 차지하지 않습니다.** 제한 시간이 없어서, 차지하면 수리할 때까지
     //    다른 사건이 하나도 못 뜹니다. 자세한 이유는 VoyageEvent.TakesSlot 참고.
     /// <inheritdoc />
@@ -110,7 +113,25 @@ public class HullDamage : VoyageEvent
         }
 
         // 매번 다른 곳이 터지게 한다. 자리를 외우면 압박이 사라진다.
-        return spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
+        // 후보가 4곳뿐이라 그냥 뽑으면 25% 확률로 지난 번과 같은 곳이 이어져 "고정"처럼 느껴진다.
+        // 후보가 둘 이상이면 지난 번 자리는 빼고 고른다.
+        Transform picked;
+
+        if (spawnPoints.Length > 1 && _lastSpawnPoint != null)
+        {
+            do
+            {
+                picked = spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
+            }
+            while (picked == _lastSpawnPoint);
+        }
+        else
+        {
+            picked = spawnPoints[UnityEngine.Random.Range(0, spawnPoints.Length)];
+        }
+
+        _lastSpawnPoint = picked;
+        return picked;
     }
 
     private void HandleRepaired(RepairTask point)

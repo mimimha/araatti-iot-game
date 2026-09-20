@@ -163,31 +163,48 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 Stick = stick;
             }
 
-            /// <summary>이번 틱에 새로 일어난 것들. 누가 가져갈 때까지 남아 있는다.</summary>
+            /// <summary>
+            /// 안 가져간 "눌린 순간" 을 이 시간이 지나면 버린다 (초).
+            ///
+            /// ⚠ <b>영영 남겨 두면 나중에 저절로 터진다.</b> 자리에 붙어 있을 때 누른 Space 는 아무도
+            ///    안 가져가고(자리는 버튼 1 을 안 쓴다), 대포 밖에서 누른 K 도 그렇다. 그 묵은 입력이
+            ///    침수로 물이 손 닿는 곳에 생기는 순간 "집었다 → (안 누르고 있으니) 놓았다" 로,
+            ///    대포에 붙는 순간 "발사" 로 터졌다. 실제로 그랬다.
+            ///    Update 가 틱보다 늦게 도는 것만 버티면 되니 몇 틱 분량이면 넉넉하다.
+            /// </summary>
+            private const float StalePressSeconds = 0.3f;
+
+            private float pressAt1 = -1f;
+            private float pressAt2 = -1f;
+            private float swingAt = -1f;
+
+            /// <summary>이번 틱에 새로 일어난 것들. 누가 가져가거나 <see cref="StalePressSeconds"/> 가 지날 때까지 남아 있는다.</summary>
             public void Push(bool button1, bool button2, bool swing)
             {
-                press1 |= button1;
-                press2 |= button2;
-                this.swing |= swing;
+                if (button1) { press1 = true; pressAt1 = Time.time; }
+                if (button2) { press2 = true; pressAt2 = Time.time; }
+                if (swing) { this.swing = true; swingAt = Time.time; }
             }
+
+            private static bool Fresh(bool had, float at) => had && Time.time - at <= StalePressSeconds;
 
             public bool ConsumeButton1Press()
             {
-                bool had = press1;
+                bool had = Fresh(press1, pressAt1);
                 press1 = false;
                 return had;
             }
 
             public bool ConsumeButton2Press()
             {
-                bool had = press2;
+                bool had = Fresh(press2, pressAt2);
                 press2 = false;
                 return had;
             }
 
             public bool TryConsumeMotion(out HandMotion motion)
             {
-                bool had = swing;
+                bool had = Fresh(swing, swingAt);
                 swing = false;
                 motion = had
                     ? new HandMotion(HandMotionType.VerticalSwing, 1f)

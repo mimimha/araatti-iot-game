@@ -427,7 +427,7 @@ namespace UnderTheSea.Character
         ///   모델 전체가 감춰져 있으면   관련 렌더러 전부 감춘다. 자리별 규칙은 보지 않는다
         ///   모델 전체가 보이면
         ///       기본 슬롯 렌더러         그 자리를 덮는 파츠를 입었으면 감춘다
-        ///       빈 기본 슬롯 렌더러      몸·얼굴·상의·하의·신발만 보인다. 나머지는 감춘다
+        ///       빈 기본 슬롯 렌더러      프리팹 기본 메시가 그대로 보인다
         ///       런타임 Equipped 파츠     보인다
         /// </code>
         ///
@@ -470,13 +470,15 @@ namespace UnderTheSea.Character
                     continue;
                 }
 
-                bool core = binding.slot == WearSlot.Body
-                    || binding.slot == WearSlot.Face
-                    || binding.slot == WearSlot.Top
-                    || binding.slot == WearSlot.Bottom
-                    || binding.slot == WearSlot.Shoes;
-
-                binding.renderer.forceRenderingOff = !(core && (occupied & binding.slot) == 0);
+                // ⚠ **허용 목록을 두지 않는다.** 예전에는 몸·얼굴·상의·하의·신발만
+                //    보이게 했는데, 세 캐릭터 프리팹(ShipCoopPlayer · NetworkPlayer ·
+                //    P_JaeYoung) 모두 **머리카락 · 귀 · 안경 · 얼굴장식까지 아홉 개**에
+                //    기본 메시가 들어 있다. 목록에 없던 넷은 파츠를 입었든 말든 늘 꺼져서,
+                //    커마를 안 거친 사람이 민머리에 귀도 안경도 없는 채로 나왔다.
+                //
+                //    규칙은 원래 이 한 줄이면 된다 — **그 자리를 파츠가 차지했을 때만 감춘다.**
+                //    메시가 없는 슬롯(모자 · 장갑 · 양말 등)은 켜 둬도 그릴 것이 없다.
+                binding.renderer.forceRenderingOff = (occupied & binding.slot) != 0;
             }
         }
 

@@ -1715,20 +1715,28 @@ public static class ShipCoopDeckLayout
     }
 
     /// <summary>
-    /// 🪣 뱃전 — **층마다 하나씩.** 우현 난간 쪽.
+    /// 🪣 뱃전 — **층마다 좌 · 우현 하나씩.** 배의 모든 난간에서 버릴 수 있어야 한다.
     ///
-    /// 하나만 두면 양동이 왕복이 18초가 됩니다. 4장은 **왕복 4초**를 전제로
-    /// 침수 속도(초당 2.5%)를 정했으므로, 그렇게 두면 아무리 퍼내도 안 줄어듭니다.
+    /// 한쪽 난간만 두면 반대편에서 퍼낸 물을 배를 가로질러 날라야 해서, 가까운 난간에
+    /// 바로 버린다는 실제 감각과도 어긋나고 왕복이 길어집니다. 4장은 **왕복 4초**를 전제로
+    /// 침수 속도(초당 2.5%)를 정했으므로, 반대편까지 나르게 두면 아무리 퍼내도 안 줄어듭니다.
+    ///
+    /// 좌현(-x)은 우현(+x) 자리를 그대로 뒤집은 자리입니다. 계단(x <see cref="StairOffsetX"/>)과
+    /// 겹치지 않게, 계단이 없는 각 층 가운데(z)에 둡니다.
     /// </summary>
     private static void PlaceDumps(StringBuilder log)
     {
-        float rail = CenterX + 4.0f;
+        float starboard = CenterX + 4.0f;
+        float port = CenterX - 4.0f;
 
         Vector3[] spots =
         {
-            new Vector3(rail, MidSurfaceY + DumpLift, MidCenterZ),
-            new Vector3(rail, AftSurfaceY + DumpLift, AftCenterZ),
-            new Vector3(rail, ForeSurfaceY + DumpLift, ForeCenterZ),
+            new Vector3(starboard, MidSurfaceY + DumpLift, MidCenterZ),
+            new Vector3(starboard, AftSurfaceY + DumpLift, AftCenterZ),
+            new Vector3(starboard, ForeSurfaceY + DumpLift, ForeCenterZ),
+            new Vector3(port, MidSurfaceY + DumpLift, MidCenterZ),
+            new Vector3(port, AftSurfaceY + DumpLift, AftCenterZ),
+            new Vector3(port, ForeSurfaceY + DumpLift, ForeCenterZ),
         };
 
         WaterDumpPoint[] found = Object.FindObjectsByType<WaterDumpPoint>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -1758,7 +1766,7 @@ public static class ShipCoopDeckLayout
         }
 
         string extra = made > 0 ? $"  ({made}개 새로 만듦)" : "";
-        log.AppendLine($"    {"🪣 뱃전",-14}  층마다 1개씩 {Mathf.Min(found.Length, spots.Length)}개{extra}");
+        log.AppendLine($"    {"🪣 뱃전",-14}  층마다 좌 · 우현 1개씩 {Mathf.Min(found.Length, spots.Length)}개{extra}");
     }
 
     /// <summary>
@@ -2224,14 +2232,18 @@ public static class ShipCoopDeckLayout
             // 예전 상자 소품. 남아 있으면 치운다 — 난간에 바로 버린다.
             RemoveChild(cube, "Prop_Crate");
 
-            AttachSplash(cube, splashPrefab, log);
+            // 좌현(-x)인지 우현(+x)인지에 따라 스플래시 · 표식이 바깥을 보게 방향을 뒤집는다.
+            float side = cube.position.x >= CenterX ? 1f : -1f;
 
-            log.AppendLine($"    🌊 {cube.name,-12}  소품 없음(난간에 버림), 스플래시 붙임, {Describe(cube.position)}");
+            AttachSplash(cube, splashPrefab, side, log);
+            AttachMarker(rails[i], cube, side, log);
+
+            log.AppendLine($"    🌊 {cube.name,-12}  소품 없음(난간에 버림), 스플래시 · 노란 표식 붙임, {Describe(cube.position)}");
         }
     }
 
-    /// <summary>💦 파티클을 큐브 바깥쪽(+x) 난간 높이에 자식으로 넣고 WaterDumpSplash 에 연결한다.</summary>
-    private static void AttachSplash(Transform cube, GameObject splashPrefab, StringBuilder log)
+    /// <summary>💦 파티클을 큐브 바깥쪽(±x) 난간 높이에 자식으로 넣고 WaterDumpSplash 에 연결한다.</summary>
+    private static void AttachSplash(Transform cube, GameObject splashPrefab, float side, StringBuilder log)
     {
         WaterDumpSplash fx = cube.GetComponent<WaterDumpSplash>();
 
@@ -2256,10 +2268,10 @@ public static class ShipCoopDeckLayout
             burst.SetParent(cube, false);
         }
 
-        // 큐브 중심에서 바깥(+x) · 난간 높이. 여기서 배 밖 위로 뿜는다.
+        // 큐브 중심에서 바깥(±x) · 난간 높이. 여기서 배 밖 위로 뿜는다.
         Undo.RecordObject(burst, "배 모델과 갑판 배치");
-        burst.position = cube.position + SplashOffset;
-        burst.rotation = Quaternion.LookRotation(new Vector3(1f, 1f, 0f).normalized, Vector3.back);
+        burst.position = cube.position + new Vector3(SplashOffset.x * side, SplashOffset.y, SplashOffset.z);
+        burst.rotation = Quaternion.LookRotation(new Vector3(side, 1f, 0f).normalized, Vector3.back);
 
         ParticleSystem system = burst.GetComponent<ParticleSystem>();
 
@@ -2272,6 +2284,82 @@ public static class ShipCoopDeckLayout
         SerializedObject so = new SerializedObject(fx);
         so.FindProperty("splash").objectReferenceValue = system;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// 🟨 여기가 버리는 곳이라고 알려주는 노란 오버레이 박스. 물이 찼을 때만 <see cref="WaterDumpPoint"/> 가 깜박인다.
+    ///
+    /// 배 난간이 이미 있다고 표식 없이 뒀더니(DressDumps 위 주석) 실제로는 어디에 버릴 수 있는지
+    /// 안 보였다 — 난간 자체는 배 전체를 두르고 있어 "여기" 를 가리키지 못한다. 그래서 각 뱃전
+    /// 위에 반투명 노란 박스를 얹고 물이 찼을 때만 깜박이게 한다.
+    /// </summary>
+    private static readonly Vector3 MarkerOffset = new Vector3(0.6f, 0.9f, 0f);
+    private static readonly Vector3 MarkerSize = new Vector3(1.6f, 1.6f, 1.6f);
+    private const string MarkerMaterialPath = "Assets/Game/Art/Materials/ShipCoop/DumpMarker.mat";
+
+    private static void AttachMarker(WaterDumpPoint dump, Transform cube, float side, StringBuilder log)
+    {
+        Transform marker = cube.Find("Marker_DumpZone");
+
+        if (marker == null)
+        {
+            GameObject made = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            made.name = "Marker_DumpZone";
+            Undo.RegisterCreatedObjectUndo(made, "배 모델과 갑판 배치");
+            Object.DestroyImmediate(made.GetComponent<Collider>());
+            marker = made.transform;
+            marker.SetParent(cube, false);
+        }
+
+        Undo.RecordObject(marker, "배 모델과 갑판 배치");
+        marker.localPosition = new Vector3(MarkerOffset.x * side, MarkerOffset.y, MarkerOffset.z);
+        marker.localRotation = Quaternion.identity;
+        marker.localScale = MarkerSize;
+
+        Renderer renderer = marker.GetComponent<Renderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sharedMaterial = GetOrCreateMarkerMaterial(log);
+        renderer.enabled = false;
+
+        SerializedObject so = new SerializedObject(dump);
+        so.FindProperty("marker").objectReferenceValue = renderer;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>노란 반투명 오버레이 재질. URP Lit/Unlit 이 없을 때만 새로 만든다.</summary>
+    private static Material GetOrCreateMarkerMaterial(StringBuilder log)
+    {
+        Material made = AssetDatabase.LoadAssetAtPath<Material>(MarkerMaterialPath);
+
+        if (made != null)
+        {
+            return made;
+        }
+
+        Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+
+        if (unlit == null)
+        {
+            log.AppendLine("  ⚠ URP Unlit 셰이더를 못 찾아 뱃전 표식이 기본 재질로 남습니다.");
+            return null;
+        }
+
+        made = new Material(unlit);
+        made.SetFloat("_Surface", 1f);
+        made.SetFloat("_Blend", 0f);
+        made.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        made.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        made.SetFloat("_ZWrite", 0f);
+        made.SetFloat("_Cull", 0f);
+        made.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        made.SetOverrideTag("RenderType", "Transparent");
+        made.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        made.SetColor("_BaseColor", new Color(1f, 0.85f, 0.1f, 0.18f));
+
+        AssetDatabase.CreateAsset(made, MarkerMaterialPath);
+        log.AppendLine($"  🟨 뱃전 표식 재질을 만들었습니다 — {MarkerMaterialPath}");
+        return made;
     }
 
     /// <summary>

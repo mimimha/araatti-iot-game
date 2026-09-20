@@ -383,12 +383,23 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                         gauge = new TaskGauge
                         {
                             Id = ShipCoopTaskIds.IdOf(cannon),
-                            Count = cannon.Ammo
+                            Count = cannon.Ammo,
+                            // 쏜 발수. 클라이언트가 늘어난 만큼 반동 연출을 낸다. (CannonTask.ShowFired)
+                            Extra = cannon.FireCount
+                        };
+                        break;
+
+                    case SailTask sail:
+                        // 돛 힘은 SailPower01 로 따로 간다. 여기는 **당기는 중인지**만 — 손 동작 연출용.
+                        gauge = new TaskGauge
+                        {
+                            Id = ShipCoopTaskIds.IdOf(sail),
+                            Value = sail.Pull
                         };
                         break;
 
                     default:
-                        // 돛은 SailPower01 로, 수리 지점은 ShipCoopHoleSync 로 간다.
+                        // 수리 지점은 ShipCoopHoleSync 로 간다.
                         continue;
                 }
 
@@ -421,6 +432,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
                     case CannonTask cannon:
                         cannon.ShowAmmo(gauge.Count);
+                        cannon.ShowFired(Mathf.RoundToInt(gauge.Extra));
+                        break;
+
+                    case SailTask sail:
+                        sail.ShowPull(gauge.Value);
                         break;
                 }
             }
