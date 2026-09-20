@@ -65,6 +65,12 @@ namespace UnderTheSea.Network.Editor
         private const string TestScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
 
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
+
+        /// <summary>
+        /// Profiler 연결용 로비 서버. 평소 서버(<see cref="ServerOutput"/>)와 폴더를 나눠
+        /// 잘 도는 빌드를 덮지 않는다. 자세한 것은 <see cref="BuildServerForProfiler"/> 참고.
+        /// </summary>
+        private const string ServerProfileOutput = "Builds/ServerProfile/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
 
         /// <summary>
@@ -144,6 +150,41 @@ namespace UnderTheSea.Network.Editor
         public static void BuildServer()
         {
             Build(ServerOutput, StandaloneBuildSubtarget.Server);
+        }
+
+        /// <summary>
+        /// <b>Profiler 를 붙일 수 있는 로비 서버.</b> 원인 조사용이고 평소에는 쓰지 않는다.
+        ///
+        /// <b>왜 따로 만드는가.</b> 서버 빌드는 <c>BuildOptions.None</c> 이라 Unity Profiler 가
+        /// 붙지 않는다. 붙이려면 <c>Development</c> 가 필요한데, 그렇다고 <see cref="ServerOutput"/>
+        /// 을 개발 빌드로 덮으면 평소 테스트·시연에 쓰는 서버가 바뀐다. 그래서 출력 폴더를
+        /// 나눠 <b>지금 잘 도는 빌드를 건드리지 않는다.</b>
+        ///
+        /// <b>무엇을 쫓고 있나.</b> 접속자 0명인 로비 DS 가 코어 1.67개를 태운다(실측 7.57%).
+        /// 같은 방식으로 띄운 광산·검 DS 는 0.43~0.48% 다. <b>17배 차이</b>다.
+        /// 씬을 비교하면 로비에만 Terrain 1개와 ReflectionProbe 1개가 있고 Transform 이
+        /// 5,601개(광산 1,013 · 검 10)인데, <b>어느 것이 범인인지는 아직 모른다.</b>
+        /// 이 건은 이미 그럴듯한 가설 두 개가 데이터로 깨진 적이 있어
+        /// (파티클·Canvas 설, MineCrystalTint 설) 추측으로 고치지 않기로 했다.
+        ///
+        /// <b>쓰는 법.</b> 빌드한 뒤 이렇게 띄우고 Profiler 창에서 이 프로세스를 고른다.
+        /// <code>
+        /// Builds\ServerProfile\AraAtti-Server.exe -batchmode -nographics
+        ///   -session prof-lobby -port 27015 -region kr
+        /// </code>
+        /// <c>ConnectWithProfiler</c> 를 켜 두면 실행 즉시 에디터 Profiler 를 찾아 붙는다.
+        ///
+        /// ⚠ Deep Profile 은 켜지 않는다. 모든 메서드에 계측이 붙어 <b>수치가 왜곡된다.</b>
+        ///    먼저 어느 단계(PlayerLoop 의 어디)가 비싼지부터 보고, 좁혀진 뒤에 필요하면 켠다.
+        /// </summary>
+        [MenuItem(MenuRoot + "로비 서버 빌드 — Profiler 연결용 (원인 조사)")]
+        public static void BuildServerForProfiler()
+        {
+            Build(
+                ServerProfileOutput,
+                StandaloneBuildSubtarget.Server,
+                new[] { TestScenePath },
+                BuildOptions.Development | BuildOptions.ConnectWithProfiler);
         }
 
         [MenuItem(MenuRoot + "Fusion 클라이언트 테스트 빌드")]

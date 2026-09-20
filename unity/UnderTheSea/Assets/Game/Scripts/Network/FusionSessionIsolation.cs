@@ -62,6 +62,17 @@ public static class FusionSessionIsolation
     /// </summary>
     public const string RegionKey = "-region";
 
+#if UNITY_EDITOR
+    /// <summary>
+    /// 에디터에서만 쓰는 대체 입력. 값은 <b>이 PC 에만</b> 남고 저장소에는 들어가지 않는다.
+    /// 커맨드라인 인자가 있으면 그쪽이 이긴다. 자세한 이유는 <see cref="Resolve"/> 의 주석 참고.
+    /// </summary>
+    public const string EditorAppVersionPref = "AraAtti.Fusion.AppVersion";
+
+    /// <inheritdoc cref="EditorAppVersionPref"/>
+    public const string EditorRegionPref = "AraAtti.Fusion.Region";
+#endif
+
     /// <summary>한 번만 읽는다. 커맨드라인은 프로세스가 사는 동안 바뀌지 않는다.</summary>
     private static bool resolved;
 
@@ -136,6 +147,41 @@ public static class FusionSessionIsolation
 
         version = (FusionLaunchArguments.GetString(AppVersionKey, string.Empty) ?? string.Empty).Trim();
         region = (FusionLaunchArguments.GetString(RegionKey, string.Empty) ?? string.Empty).Trim();
+
+#if UNITY_EDITOR
+        // ⚠ **에디터는 커맨드라인 인자를 받을 수 없다.**
+        //
+        //    Unity Hub 로 여는 에디터에는 -region · -appver 를 붙일 방법이 없다. 그런데
+        //    에디터에서 클라이언트를 돌리는 일(Multiplayer Play Mode)이 생기면서 두 가지가
+        //    걸렸다.
+        //
+        //    1. **지역을 안 박으면 에디터는 아예 접속을 못 한다.** Photon 은 접속할 때마다
+        //       지역 14곳에 핑을 쏘는데, 에디터는 무거워서 한 건에 1.6초까지 걸린다.
+        //       그러다 ConnectUsingSettings 제한 시간을 넘겨 이렇게 끝난다.
+        //
+        //           Photon.Realtime.OperationTimeoutException: Operation timed out ConnectUsingSettings
+        //
+        //       빌드는 가벼워 핑을 제때 끝내므로 **빌드는 되는데 에디터만 안 되는** 모양이 된다.
+        //       실제로 이 증상을 방화벽·네트워크로 오해해 한참 헤맸다.
+        //
+        //    2. 에디터도 팀 공용 Photon 세계에 그대로 들어가므로 **남의 DS 에 붙을 수 있다.**
+        //
+        //    그래서 인자가 없을 때만 EditorPrefs 에서 읽는다. **인자가 있으면 인자가 이긴다** —
+        //    빌드 실행 경로의 동작은 조금도 바뀌지 않는다.
+        //
+        //    EditorPrefs 를 쓰는 이유는 그 값이 **이 PC 에만** 남기 때문이다. 저장소에 들어가지
+        //    않으므로 팀원이 영향을 받지 않고, 브랜치를 옮겨도 그대로 있다.
+        //    값을 넣는 곳은 Tools > 아라아띠 > Photon 격리 설정 이다.
+        if (version.Length == 0)
+        {
+            version = UnityEditor.EditorPrefs.GetString(EditorAppVersionPref, string.Empty).Trim();
+        }
+
+        if (region.Length == 0)
+        {
+            region = UnityEditor.EditorPrefs.GetString(EditorRegionPref, string.Empty).Trim();
+        }
+#endif
 
         // 둘 다 없으면 손댈 것이 없다. null 을 넘기면 Fusion 이 공용 설정을 쓴다.
         if (version.Length == 0 && region.Length == 0)
