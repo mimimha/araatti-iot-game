@@ -159,6 +159,8 @@ public class CannonTask : TaskBase
     /// <summary>클라이언트: 서버가 쏜 발수를 받아, 늘어났으면 연출을 낸다.</summary>
     public void ShowFired(int count)
     {
+        // ⚠ 소리 · 반동이 안 나면 여기부터 본다: 발수가 늘어나는지, Recoiled 에 누가 걸려 있는지.
+        //    한때 소리 연출가가 씬 활성화 중 잠깐 꺼지며 신호를 놓쳤다 — 켜질 때 다시 걸어 고쳤다 (ShipCoopAudio.OnEnable).
         if (count > _shownFireCount)
         {
             Recoiled?.Invoke();

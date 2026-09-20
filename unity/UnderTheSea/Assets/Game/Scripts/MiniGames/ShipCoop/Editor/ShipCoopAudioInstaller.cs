@@ -39,7 +39,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.EditorTools
             "bgmReady", "bgmSailing", "bgmTension", "stingerClear", "stingerFail",
             "seaLoop", "windLoop", "ropeLoop", "wheelLoop", "floodLoop",
             "warnChime", "waveHit", "reefHit", "reefDodged", "enemyHit", "hullCrack",
-            "cannonFire", "hammerHit", "repairDone", "dumpSplash", "shipHurt", "shipSunk",
+            "cannonFire", "hammerHit", "repairDone", "dumpSplash", "waterScoop", "boxLid", "footstep", "shipHurt", "shipSunk",
         };
 
         private static readonly string[] Extensions = { ".ogg", ".wav", ".mp3" };
@@ -82,17 +82,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.EditorTools
                         continue;
                     }
 
+                    // 파일이 없으면 칸을 **비운다.** 파일을 지워서 소리를 빼는 것도 이 도구 한 번으로 끝나게.
                     AudioClip clip = FindClip(field);
+                    p.objectReferenceValue = clip;
 
-                    if (clip != null)
-                    {
-                        p.objectReferenceValue = clip;
-                        filled++;
-                    }
-                    else
-                    {
-                        missing++;
-                    }
+                    if (clip != null) filled++;
+                    else missing++;
                 }
 
                 so.ApplyModifiedPropertiesWithoutUndo();

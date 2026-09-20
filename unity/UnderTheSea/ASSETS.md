@@ -27,6 +27,10 @@
 | Toony Tiny People RTS 검 리소스 | 출처 확인 필요 | 라이선스 확인 전 업로드 보류 | `Assets/ToonyTinyPeople/` | Warriors 테스트용 검 메시와 재질 | 서연 | 2026-09-12 |
 | WaterWorks | Unity Asset Store | 유료 (구매) | `Assets/WaterWorks/` | ⛔ 지금 안 씀 (파도 시도했다 되돌림) | 민화 | 2026-09-13 |
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 | 효진 | 2026-09-15 |
+| Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
+| 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
+| Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
+| Kenney RPG Audio | kenney.nl/assets/rpg-audio | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만. 팩 본체는 저장소에 없음) | 배 협동 — 망치 · 수리 완료 · 상자 뚜껑 | 민화 | 2026-09-20 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.
