@@ -86,6 +86,11 @@ namespace Mine.Net
             //    같은 입력을 줘도 캐릭터가 설정 속도만큼 못 걷는다.
             //    실측: 걷기 속도 1 m/s 설정에서 실제 0.13 m/s (약 1/7).
             //
+            // ⚠ **파티클은 렌더러만 꺼서는 안 멈춘다.** 시뮬레이션이 따로 돌고, 그것이 잡을
+            //    띄워 워커 스레드를 깨운다. 로비 서버에서 이것만으로 코어 1.67 → 0.65 였다.
+            //    자세한 실측과 이유는 DedicatedServerParticles 주석에 있다.
+            count += DedicatedServerParticles.DisableAll();
+
             //    vSync 는 화면이 없으니 끄고, 틱(60Hz)보다 촘촘하게 돌린다.
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = serverFrameRate;
