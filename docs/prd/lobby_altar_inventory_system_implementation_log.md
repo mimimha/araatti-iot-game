@@ -1170,3 +1170,398 @@ dotnet ef migrations has-pending-model-changes
 - [x] Migration · Entity · DbContext · Unity · design.md 무변경
 
 STEP 3 완료.
+
+---
+
+## STEP 4. Unity 서비스 계층
+
+구현일: 2026-09-20
+기준 설계: `028beb47 [docs] 봉헌 성공 VFX 정책 변경`
+
+이 절의 출처는 둘로 나뉩니다.
+
+```text
+에이전트 직접 관측   저장소 파일 읽기 · 정적 점검 · unity-mcp 로 돌린 컴파일 확인 · git status
+사용자 확인          Unity 플레이 모드에서의 Fake · Http 런타임 동작
+```
+
+⚠ 코드를 처음 쓴 시점에는 Editor 를 열 수 없어 컴파일·런타임이 전부 "확인 대기" 였습니다.
+아래 검증 상태는 **그 뒤 실제로 확인된 결과로 갱신된 것**입니다.
+
+### 구현 파일
+
+신규 9개
+
+```text
+Assets/Game/Scripts/Inventory/ItemIds.cs
+Assets/Game/Scripts/Inventory/PlayerInventory.cs
+Assets/Game/Scripts/Inventory/IInventoryService.cs
+Assets/Game/Scripts/Inventory/HttpInventoryService.cs
+Assets/Game/Scripts/Inventory/FakeInventoryService.cs
+
+Assets/Game/Scripts/Lobby/AltarState.cs
+Assets/Game/Scripts/Lobby/IAltarService.cs
+Assets/Game/Scripts/Lobby/HttpAltarService.cs
+Assets/Game/Scripts/Lobby/FakeAltarService.cs
+```
+
+수정 4개
+
+```text
+Assets/Game/Scripts/Account/HttpApiConfig.cs           경로 3개 추가
+Assets/Game/Scripts/Account/AccountServiceBootstrap.cs Http/Fake 배선 4줄
+Assets/Game/Scripts/Account/AccountServiceLocator.cs   서비스 2개 노출 + 로그아웃 정리
+Assets/Game/Scripts/Account/HttpJson.cs                실패 응답 본문 보존   ← 아래 별도 절
+```
+
+⚠ `AccountServiceLocator.cs` 와 `HttpJson.cs` 는 애초 예상 목록에 없던 파일입니다.
+둘 다 사용자 승인을 받고 최소 범위로 고쳤습니다. 이유는 아래에 적습니다.
+
+### 기존 구조 조사 결과
+
+| 항목 | 이 프로젝트의 방식 | 새 코드에서 |
+|---|---|---|
+| 서비스 경계 | `IAuthService` · `ICharacterService` 인터페이스 | `IInventoryService` · `IAltarService` 같은 모양 |
+| 구현체 | `MonoBehaviour`, `Awake` 에서 Locator 에 등록, `OnDestroy` 에서 해제 | 그대로 |
+| 비동기 | Coroutine + `event Action<bool, T, string>` 콜백 | 그대로 |
+| HTTP | `HttpJson.Send(url, method, json, token, onComplete)` 코루틴 | 재사용. `UnityWebRequest` 직접 안 씀 |
+| 파싱 | `HttpJson.TryParse<T>` + `[Serializable]` 중첩 클래스, `#pragma warning disable 0649` | 그대로 |
+| 토큰 | `AccountServiceLocator.Auth.AccessToken` 을 그때그때 조회 | 그대로. 로그에 찍지 않음 |
+| 경로 | `HttpApiConfig` 상수 + `Combine` | 그대로 |
+| Http/Fake 전환 | `AccountServiceBootstrap.Active` 한 줄, `AddComponent` | 그대로 |
+| namespace | `UnderTheSea.Account` · `UnderTheSea.Network` | `UnderTheSea.Inventory` · `UnderTheSea.Lobby` |
+
+⚠ `AccountServiceBootstrap` 은 **`MonoBehaviour` 가 아니라 `static class`** 입니다
+(`[RuntimeInitializeOnLoadMethod]`). 그래서 여기에 폴링 코루틴을 둘 수 없습니다 — 아래 참고.
+
+⚠ 기존 `Lobby/` 폴더의 스크립트(`MiniGamePortal` 등)는 namespace 가 없습니다.
+새 코드는 프로젝트의 지배적 관례(`UnderTheSea.*`)를 따랐습니다.
+
+### Inventory 계층
+
+- **`ItemIds`** — `SeaHeartFragment = "sea_heart_fragment"` 하나뿐. 다른 파일에 이 문자열을
+  다시 적지 않습니다. ScriptableObject 아이템 DB 를 만들지 않았습니다.
+- **`PlayerInventory`** — 서버 값의 캐시. `SeaHeartFragment` · `HasValue` · `Changed` ·
+  `RequestRefresh()` · `Clear()`. **더하거나 빼는 메서드가 없습니다** — `Add` · `Remove` ·
+  `Spend` · `Gain` 이 없고 "성공했으니 현재 수량 - amount" 도 하지 않습니다.
+  수량이 바뀌는 길은 서버 응답을 그대로 대입하는 것 하나뿐입니다.
+  조회 실패 시 기존 값을 유지합니다(0 으로 덮지 않음).
+- **`IInventoryService`** — `RequestInventory()` + `OnInventoryResult(bool, InventoryItemDto[], string)`.
+  `clear-reward` 는 넣지 않았습니다.
+- **`HttpInventoryService`** — `GET /api/inventory`. `HttpCharacterService` 를 본보기로 했습니다.
+  빈 배열은 실패가 아니라 성공 + 수량 0 입니다.
+- **`FakeInventoryService`** — 같은 인터페이스. 조각 수는 스스로 세지 않고
+  `FakeAltarService` 가 들고 있는 값을 읽어 응답으로 만듭니다. 그래야 봉헌 후 두 숫자가 어긋나지 않습니다.
+  **진짜와 같은 적용 경로**(`PlayerInventory.ApplyItems`)를 씁니다.
+
+### Altar 계층
+
+- **`AltarState`** — 서버 상태 캐시. 9개 필드를 전부 보관합니다.
+
+```text
+TotalOffered · TargetOffering · RemainingToTarget · MyFragments · MaxOfferAmount
+AltarActivated · RecoveryPercent · MyOfferedTotal · UpdatedAt   (+ HasValue)
+```
+
+  **파생값을 계산하지 않습니다.** `RemainingToTarget` · `MaxOfferAmount` · `AltarActivated` ·
+  `RecoveryPercent` 는 서버가 준 값을 그대로 담습니다. `+=` · `-=` 가 한 군데도 없습니다.
+  Renderer · Light · ParticleSystem · Canvas · TMP 를 참조하지 않습니다.
+
+- **`IAltarService`** — `RequestState()` · `Offer(long amount, string requestId)` ·
+  `StartStatePolling()` · `StopStatePolling()` + 결과 이벤트 둘.
+- **`HttpAltarService`** — `GET /api/altar/state`, `POST /api/altar/offer`.
+- **`FakeAltarService`** — 가짜 "서버" 역할. 하드캡 · 부분 수락 금지 · `requestId` 멱등성을
+  흉내냅니다. 계산은 **가짜 서버 쪽**에서 하고, 캐시는 여전히 아무것도 계산하지 않습니다.
+  MySQL 동시성까지 흉내내지는 않습니다.
+
+`recoveryPercent` 는 서버가 준 `float` 를 그대로 보관합니다 (503/1000 → 50.300003).
+반올림은 HUD 의 몫이라 서버에도 캐시에도 넣지 않았습니다.
+
+`updatedAt` 은 문자열로 보관만 하고 **신선도 판정에도 VFX 판정에도 쓰지 않습니다.**
+
+### 상태 동기화 — 공통 순번 + mutation barrier
+
+수량을 싣고 오는 응답이 셋이라 **순번을 한 곳에서** 셉니다.
+
+```text
+GET  /api/inventory      quantity
+GET  /api/altar/state    myFragments
+POST /api/altar/offer    remainingFragments   (성공 · 409 둘 다)
+```
+
+`AltarState` 가 `issuedSequence` / `appliedSequence` 를 들고, 세 응답이 전부
+`AltarState.IssueSequence()` 로 표를 받고 `TryAcceptSequence()` 로 통과합니다.
+`responseSeq < appliedSeq` 면 **캐시에만** 반영하지 않습니다 — 완료 콜백은 그대로 올립니다.
+
+그 위에 **mutation barrier** 를 얹었습니다.
+
+```text
+1. Offer 시작        AltarState.BeginMutation()
+2. 그 전에 출발한 GET 응답   공통 순번이 stale 로 걸러낸다
+3. 봉헌 중 들어온 RequestRefresh()  즉시 요청하지 않고 pending 으로 합친다
+                                    (AltarState · PlayerInventory 양쪽)
+4. 성공 또는 상태를 담은 409  최신 권위 snapshot 으로 적용
+5. Offer 종료        AltarState.EndMutation(권위 상태를 받았는가)
+6. pending 이 있었으면  종류별로 최대 1회만 fresh GET
+7. 네트워크 실패로 snapshot 을 못 받았으면  캐시 유지 + pending refresh 수행
+```
+
+`RequestRefresh()` 는 coalescing(`inFlight`)도 함께 합니다. **성공·실패 어느 쪽이든**
+`RequestFinished()` 를 불러 해제하므로 네트워크 실패 후 조회가 영영 막히지 않습니다.
+
+⚠ 순번이 하나라서, 인벤토리 응답이 더 새로우면 살짝 이전의 제단 응답이 통째로 버려질 수
+있습니다. 보수적인 쪽으로 틀린 것이고(옛 값을 쓰지 않음), 다음 refresh 가 메웁니다.
+
+⚠ 로그아웃 시 `AltarState.Clear()` 가 번호를 하나 태워 **아직 안 돌아온 요청을 전부 무효화**합니다.
+그러지 않으면 이전 계정의 숫자가 다음 사람 화면에 들어올 수 있습니다.
+
+`MyOfferedTotal` 과 `UpdatedAt` 은 봉헌 응답에 없는 필드라 **기존 값을 유지**합니다.
+0 으로 덮으면 "내가 한 번도 봉헌 안 한" 화면이 됩니다. 봉헌 직후 한 건만큼 뒤처져 있다가
+다음 `RequestRefresh()` 에서 맞춰집니다. 로컬로 더하지 않습니다.
+
+#### 30초 폴링
+
+`AccountServiceBootstrap` 이 `static class` 라 코루틴을 돌릴 수 없어서,
+**`IAltarService.StartStatePolling()` / `StopStatePolling()`** 으로 서비스(MonoBehaviour)가
+자기 코루틴으로 돌립니다. 기본 간격 30초(Inspector 조정 가능).
+
+⚠ **자동으로 시작하지 않습니다.** 설계 12.7절이 "미니게임 씬에서는 로비의 주기 폴링이 돌지
+않는다" 를 전제로 하므로, 로비 쪽 컴포넌트(STEP 9)가 켜고 끄는 구조로 두었습니다.
+`OnDestroy` 에서 멈춰 코루틴이 새지 않고, 토큰이 없으면 요청하지 않아 401 이 쌓이지 않습니다.
+새 Manager/Runner 파일은 만들지 않았습니다.
+
+### requestId / duplicate
+
+- **`requestId` 는 호출자가 만듭니다.** `HttpAltarService` · `FakeAltarService` · `AltarState`
+  어디에도 `Guid.NewGuid()` 가 없습니다. 서비스는 받은 값을 그대로 실어 보내고,
+  결과의 `RequestId` 로 되돌려 줍니다.
+  (예외 하나 — `HttpAltarService` 의 디버그 ContextMenu 는 **호출자 역할**이라 거기서 만듭니다.
+  사람이 메뉴를 눌렀을 때만 실행되고, 주석에 그 구분을 적어 두었습니다.)
+- **`duplicate` 를 보존합니다.** `AltarOfferOutcome.Duplicate` 로 그대로 올라갑니다.
+  `duplicate == true` 도 HTTP 성공이라 오류로 다루지 않습니다.
+- **STEP 4 는 VFX 판단을 하지 않습니다.** "이 requestId 는 이미 재생했다" 같은 캐시를
+  만들지 않았습니다. 첫 응답이 유실된 재시도라면 `duplicate: true` 가 클라이언트가 **처음**
+  확인하는 성공일 수 있어서, 그 판단은 후속 event 계층의 몫입니다. (설계 10.4절)
+
+### 409 처리 — `HttpJson` 최소 수정
+
+**구현 중 발견한 막힘이고, 사용자 승인을 받아 고쳤습니다.**
+
+기존 `HttpJson.Interpret` 는 4xx/5xx 에서 본문을 버렸습니다.
+
+```csharp
+// 고치기 전
+public static HttpJsonResult Failure(long statusCode, string failureMessage)
+{
+    return new HttpJsonResult(false, statusCode, null, failureMessage);   // ← body 를 버린다
+}
+```
+
+그래서 409 에 실려 오는 `code` 와 최신 상태 7개 필드를 Unity 가 받을 방법이 없었습니다.
+설계 9.2절("실패 응답에도 최신 상태를 전부 싣는다")을 만족할 수 없는 상태였습니다.
+
+수정은 **본문을 버리지 않는 것뿐**입니다.
+
+```csharp
+public static HttpJsonResult Failure(long statusCode, string failureMessage, string body = null)
+{
+    return new HttpJsonResult(false, statusCode, body, failureMessage);
+}
+```
+
+기본값이 있는 선택 인자라 **기존 호출부(Auth · Character)는 그대로**이고, 그쪽은 여전히
+`IsSuccess` 와 `FailureMessage` 만 읽습니다.
+
+⚠ 설계 문서 1371행이 "Unity 쪽은 `HttpJson.Interpret` 가 이미 `message` 를 꺼내 준다" 고만
+적어 두어 이 구멍이 드러나지 않았습니다. **설계 변경이 아니라 구현 제약의 해소**이므로
+design.md 는 고치지 않았습니다.
+
+실패 상태를 캐시에 넣을 때 한 가지 방어를 두었습니다.
+
+```text
+400(AMOUNT_INVALID · REQUEST_ID_INVALID …)은 code · message 만 온다 → 숫자가 전부 0
+그대로 적용하면 캐시가 0 / 0 으로 망가진다
+→ targetOffering > 0 일 때만 적용한다 (서버가 DB CHECK 로 보장하는 값이다)
+```
+
+### 새 VFX 정책 경계 (결정 #9)
+
+| 확인 항목 | 결과 |
+|---|---|
+| `AltarState.Changed` | 지속 상태 전용. HUD · 봉헌 UI · 완료 표시가 듣는다 |
+| `AltarState.Changed` → VFX | **없음.** 주석으로도 못박아 두었다 |
+| `altarActivated` → VFX | **없음.** 봉헌 종료 · 버튼 잠금 · 100% 표시에만 쓴다 |
+| GET · 폴링 · Late Join | 상태만 갱신. VFX 경로가 아예 없다 |
+| `HttpAltarService` 성공 → VFX 직접 실행 | **없음.** 응답만 돌려준다 |
+| `FakeAltarService` 성공 → VFX 직접 실행 | **없음.** 같다 |
+| Particle · Light · Renderer · Canvas 참조 | 새 9개 파일에 **하나도 없음** |
+| `requestId` · `duplicate` | 후속 STEP 을 위해 손실 없이 보존 |
+
+STEP 4 에는 successful offering event 도, VFX dedupe 캐시도 없습니다. 정보만 준비합니다.
+
+### Http / Fake 배선
+
+```csharp
+// AccountServiceBootstrap.CreateIfMissing()
+Fake: FakeAuthService · FakeCharacterService · FakeAltarService · FakeInventoryService
+Http: HttpAuthService · HttpCharacterService · HttpAltarService · HttpInventoryService
+```
+
+⚠ Fake 는 **제단을 먼저** 만듭니다. 가짜 인벤토리가 제단이 들고 있는 조각 수를 읽기 때문입니다.
+
+`AccountServiceLocator` 에는 기존 `Auth` · `Characters` 와 **같은 방식으로**
+`Inventory` · `Altar` 프로퍼티와 `Register`/`Unregister` 오버로드를 더했습니다.
+`LogOut()` 이 `PlayerInventory.Clear()` · `AltarState.Clear()` 도 함께 부릅니다.
+새 DI 프레임워크나 ServiceRegistry 는 만들지 않았습니다.
+
+⚠ `IsReady` 는 예전대로 `Auth != null && Characters != null` 입니다. 의미를 바꾸면 이것을
+보고 분기하는 기존 화면이 영향을 받습니다. 부트스트랩이 넷을 함께 만들므로 실사용에 문제가
+없고, 혹시 새 서비스가 없으면 `RequestRefresh()` 가 조용히 아무것도 하지 않습니다.
+
+### 손으로 확인하는 길
+
+UI 가 없어서 `[ContextMenu]` 를 넣었습니다. 플레이 모드에서 `AccountService (Http)`
+오브젝트를 고르고 컴포넌트 톱니바퀴 메뉴에서 실행합니다.
+
+```text
+HttpInventoryService   디버그 — 인벤토리 조회     읽기만 한다
+                       디버그 — 캐시 값 보기       요청도 안 한다
+HttpAltarService       디버그 — 제단 상태 조회     읽기만 한다
+                       디버그 — 캐시 값 보기       요청도 안 한다
+                       디버그 — 봉헌 (실제 DB 가 바뀝니다)   ← 사람이 눌러야만 실행
+```
+
+봉헌은 자동으로 돌지 않습니다. 새 debug manager 파일도 만들지 않았고,
+토큰이나 Authorization 헤더를 찍지 않습니다.
+
+⚠ Fake 검증용 메뉴는 그 뒤에 `FakeInventoryService` · `FakeAltarService` 에도 더했습니다.
+전체 목록은 아래 "검증에 쓴 ContextMenu" 에 있습니다.
+
+### 검증 상태 — 전부 통과
+
+| 항목 | 결과 | 출처 |
+|---|---|---|
+| 기존 구조 조사 | **PASS** — Account 9개 파일 · CONVENTION.md · CLAUDE.local.md 직접 읽음 | 에이전트 |
+| C# 정적 점검 | **PASS** — 새 9개 + 수정 4개 파일 중괄호·괄호 균형 0, 잔재 없음 | 에이전트 |
+| Unity Editor 컴파일 | **PASS** | 에이전트 (unity-mcp) · 사용자 |
+| STEP 4 신규 compile error | **0** | 에이전트 (unity-mcp) · 사용자 |
+| `.meta` 생성 | **PASS** — 스크립트 9개 + `Inventory` 폴더 | 에이전트 (git status) · 사용자 |
+| Fake 런타임 동작 | **PASS** — 아래 표 | 사용자 |
+| Http 런타임 동작 | **PASS** — 아래 표 | 사용자 |
+
+컴파일은 `AssetDatabase.Refresh()` 뒤 새 타입 6개를 직접 참조하는 스크립트를 돌려 확인했습니다.
+Assembly-CSharp 이 깨져 있었다면 그 참조 자체가 실패합니다. Console 의 error 는 0 이었고,
+남은 경고 20개는 전부 Warriors · Character · FakeNetworkService 의 **기존** 경고입니다.
+
+`.meta` 는 손으로 만들지 않았습니다. CONVENTION.md 9장이 GUID 를 임의로 만들거나 기존 것을
+복사하지 말라고 못박고 있어 Editor 가 만들도록 두었고, 실제로 스크립트 9개와 신규 폴더
+`Assets/Game/Scripts/Inventory/` 의 `.meta` 가 생성된 것을 `git status` 로 확인했습니다.
+
+#### Fake 런타임 (사용자 확인)
+
+`AccountServiceBootstrap.Active = Implementation.Fake`
+
+| 검증 | 결과 |
+|---|---|
+| `AccountService (Fake)` bootstrap | **PASS** — 네 서비스 부착 |
+| `FakeInventoryService` 조회 | **PASS** — `sea_heart_fragment` 100, `PlayerInventory` 캐시 100 |
+| `FakeAltarService` 상태 조회 | **PASS** — 아래 값 |
+| Fake 1개 봉헌 | **PASS** — `duplicate=false`, totalOffered 1, myFragments 99, `PlayerInventory` 99 |
+| 같은 `requestId` 재요청 멱등성 | **PASS** — `duplicate=true`, totalOffered 1 유지, myFragments 99 유지, **추가 차감 없음** |
+
+```text
+상태 조회      totalOffered=0        targetOffering=1000   myFragments=100
+               remainingToTarget=1000  maxOfferAmount=100
+               altarActivated=false    recoveryPercent=0
+
+1개 봉헌 후    duplicate=false  totalOffered=1  myFragments=99  PlayerInventory=99
+같은 requestId duplicate=true   totalOffered=1  myFragments=99  (변화 없음)
+```
+
+⚠ 멱등 재요청에서 수량이 더 줄지 않은 것이 핵심입니다. 같은 논리적 봉헌이 두 번
+반영되지 않는다는 뜻이고, 이후 Blue VFX 중복 제거가 기대는 성질입니다 (설계 10.4절).
+
+#### Http 런타임 (사용자 확인)
+
+`AccountServiceBootstrap.Active = Implementation.Http`, 실제 서버 + MySQL
+
+| 검증 | 결과 |
+|---|---|
+| Boot → Login → CharacterCreate → ChannelSelect 흐름 | **PASS** |
+| JWT 인증 상태에서 `GET /api/inventory` | **HTTP 200 PASS** |
+| `GET /api/altar/state` | **HTTP 200 PASS** |
+| `POST /api/altar/offer` (보유 0, 요청 1) | **HTTP 409 PASS** |
+| `code=NOT_ENOUGH_FRAGMENTS` 파싱 | **PASS** |
+| non-2xx raw body 보존 | **PASS** |
+| 409 snapshot 캐시 적용 | **PASS** — `서버 상태 적용=True` |
+
+```text
+AltarState        TotalOffered=0        TargetOffering=1000
+                  MyFragments=0         RemainingToTarget=1000
+                  MaxOfferAmount=0      AltarActivated=false
+                  RecoveryPercent=0
+
+PlayerInventory   SeaHeartFragment=0
+```
+
+⚠ **`code` 가 찍힌 것 자체가 STEP 4 의 `HttpJson` 수정이 실제로 동작했다는 증거입니다.**
+고치기 전에는 non-2xx 에서 본문이 버려져 `message` 밖에 남지 않았습니다.
+`NOT_ENOUGH_FRAGMENTS` 를 읽었다는 것은 409 원본 본문이 보존되고 파싱되었다는 뜻이고,
+`서버 상태 적용=True` 와 위 캐시값이 그 본문의 상태가 캐시까지 들어갔다는 뜻입니다.
+설계 9.2절의 "실패 직후 `GET /api/altar/state` 를 다시 부르지 않아도 된다" 가 성립합니다.
+
+#### 검증에 쓴 ContextMenu
+
+UI 가 없어 각 서비스에 손으로 누르는 메뉴를 두었습니다. 전부
+`ContextMenu → 서비스 public API → 기존 응답·적용 경로 → 캐시` 순서만 탑니다.
+
+```text
+FakeInventoryService   디버그 — 인벤토리 조회
+FakeAltarService       디버그 — 제단 상태 조회
+                       디버그 — 1개 봉헌
+                       디버그 — 같은 requestId 재요청
+HttpInventoryService   디버그 — 인벤토리 조회 · 디버그 — 캐시 값 보기
+HttpAltarService       디버그 — 제단 상태 조회 · 디버그 — 캐시 값 보기
+                       디버그 — 봉헌 (실제 DB 가 바뀝니다)
+```
+
+⚠ 봉헌 메뉴는 **사람이 눌렀을 때만** 실행됩니다. 자동으로 돌지 않습니다.
+`requestId` 를 만드는 곳은 이 메뉴뿐이고, 그것은 메뉴가 **호출자 역할**이기 때문입니다.
+서비스 내부에는 `Guid.NewGuid()` 가 없습니다.
+
+⚠ HTTP 상태 코드는 `AltarOfferOutcome` 에 들어 있지 않습니다(DTO 를 바꾸지 않았습니다).
+각 Http 서비스의 **로그** 체크박스(`verboseLogging`)를 켜면 기존 경로가
+`POST /api/altar/offer → 실패 (HTTP 409)` 를 실제 `HttpJsonResult.StatusCode` 에서 찍습니다.
+
+#### 알려진 문제 — 이번 STEP 과 무관
+
+기존 TMP glyph 관련 오류는 **알려진 문제(known issue)이고 STEP 4 와 무관합니다.**
+인벤토리·제단 서비스 계층은 Renderer · Canvas · TMP 를 참조하지 않습니다.
+(사용자 확인 사항)
+
+### STEP 4 완료 상태
+
+- [x] 신규 서비스/캐시 9개
+- [x] `ItemIds.SeaHeartFragment`
+- [x] `PlayerInventory` 서버 캐시 / 로컬 가감 없음
+- [x] `IInventoryService` · `HttpInventoryService` · `FakeInventoryService`
+- [x] `AltarState` 서버 캐시 / GET 9개 필드 보존
+- [x] `IAltarService` · `HttpAltarService` · `FakeAltarService`
+- [x] `Offer` 가 호출자의 `requestId` 사용, 서비스 내부 Guid 생성 없음
+- [x] `duplicate` 보존
+- [x] 409 최신 상태 본문 처리
+- [x] `PlayerInventory` / `AltarState` 를 서버 값으로 동기화
+- [x] `RequestRefresh` · coalescing · 공통 sequence guard · mutation barrier
+- [x] 폴링은 상태 전용 (자동 시작 없음)
+- [x] `AltarState.Changed` 는 상태 전용, VFX event 없음
+- [x] Http/Fake 배선 · `HttpApiConfig` 경로 3개
+- [x] server · scene · prefab 변경 없음
+- [x] Unity Editor 컴파일 PASS / STEP 4 신규 compile error 0
+- [x] `.meta` 생성 PASS
+- [x] Fake 런타임 PASS (조회 · 봉헌 · 멱등성)
+- [x] Http 런타임 PASS (200 · 200 · 409 · code 파싱 · snapshot 적용)
+
+STEP 4 완료.
+
+> 설계 문서는 이 STEP 중 확정된 두 정책(non-2xx raw body 보존, 조각 수 교차 race)을
+> 반영하기 위해 별도 턴에서 갱신했습니다. 구현과 문서가 일치합니다.

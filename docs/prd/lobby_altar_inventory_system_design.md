@@ -1368,7 +1368,11 @@ remainingToTarget  > 0   → OFFERING_AMOUNT_CHANGED
 
 `message` 는 **한국어**이고 화면에 그대로 띄울 수 있어야 합니다
 (`CharacterEndpoints.cs:17` "실패는 ErrorResponse(code, message) 로 나가고 message 는 한국어다").
-Unity 쪽은 `HttpJson.Interpret` 가 이미 `message` 를 꺼내 줍니다 (`HttpJson.cs:126-131`).
+
+⚠ **다만 봉헌 실패는 `message` 만으로 끝나지 않습니다.** 409 본문에는 `code` 와 최신 상태가
+함께 실려 있고(9.2절), Unity 는 그 둘을 모두 읽어야 합니다.
+`HttpJson.Interpret` 는 `message` 를 꺼내 주지만 **그것만으로는 부족합니다** —
+실패 응답의 **원본 본문(raw body)도 함께 보존**해야 합니다. 9.2절 끝에 그 계약을 적었습니다.
 
 ---
 
@@ -1608,6 +1612,63 @@ rate limit 성격의 응답이라 HTTP 의미상 `429 Too Many Requests` 가 가
 ⚠ **실패 응답에도 최신 상태를 전부 싣습니다.** 이것이 이번 정책의 핵심입니다.
 클라이언트가 실패 직후 `GET /api/altar/state` 를 한 번 더 부르지 않아도
 UI 를 바로 맞출 수 있습니다 (§7 UX 흐름 ⑤-실패).
+
+#### 그러려면 Unity 쪽이 실패 본문을 버리지 않아야 합니다 — 확정 (2026-09-20)
+
+> **[확정] `HttpJson` 은 non-2xx 응답의 원본 본문도 보존합니다.**
+>
+> 위 계약은 서버가 상태를 실어 보내는 것만으로는 성립하지 않습니다.
+> 클라이언트가 그 본문을 읽을 수 있어야 합니다.
+
+```text
+기존   Failure → Body = null                  실패에서는 message 만 남고 본문이 버려진다
+확정   Failure → raw response body 를 보존한다
+
+IsSuccess · StatusCode · FailureMessage 의 의미는 그대로 둔다.
+```
+
+실패 결과에 세 가지가 **동시에** 남습니다.
+
+```text
+StatusCode        409
+FailureMessage    "다른 플레이어가 먼저 봉헌했습니다."     ← 기존 추출 동작 유지
+Body              { "code": ..., "totalOffered": ... }    ← 새로 보존
+```
+
+⚠ **기존 호출자와 호환되어야 합니다.** `Auth` · `Character` 서비스는 실패에서
+`IsSuccess` 와 `FailureMessage` 만 읽습니다. 본문을 더 보존한다고 그쪽 동작이 달라지면
+안 됩니다. 선택 인자를 하나 더하는 정도(`Failure(statusCode, failureMessage, body)`)로
+충분하고, **새 HTTP 추상화나 응답 프레임워크를 만들지 않습니다.**
+
+그래서 봉헌 실패의 처리는 이렇게 됩니다.
+
+```text
+POST /api/altar/offer → 409
+  → HttpAltarService 가 raw body 를 파싱한다
+  → code · message · 최신 상태 스냅샷을 한 번에 얻는다
+  → 실패는 실패대로 화면에 알리고, 상태는 그 응답값으로 맞춘다
+  → ⚠ GET /api/altar/state 를 다시 부르지 않는다
+```
+
+#### 모든 non-2xx 본문을 상태로 적용하지는 않습니다
+
+**"본문을 보존한다" 와 "본문을 캐시에 적용한다" 는 다른 말입니다.**
+
+```text
+409 봉헌 실패 (NOT_ENOUGH_FRAGMENTS · OFFERING_AMOUNT_CHANGED · OFFERING_CLOSED)
+  → 권위 상태 스냅샷이 들어 있다              → 캐시에 적용한다
+
+400 입력 오류 (AMOUNT_INVALID · AMOUNT_TOO_LARGE · REQUEST_ID_INVALID)
+  → code · message 뿐이다. 상태가 없다        → 캐시를 건드리지 않는다
+
+연결 실패 (응답 자체가 없음)
+  → 본문이 없다                               → 캐시를 건드리지 않는다
+```
+
+⚠ **비어 있는 숫자 필드로 기존 캐시를 덮어쓰면 안 됩니다.** 상태가 없는 응답을 그대로
+적용하면 보유량과 전체 봉헌량이 0 이 되어, 잘못된 입력 한 번에 화면이 초기화됩니다.
+스냅샷이 실제로 실려 있는지 확인한 뒤 적용합니다
+(예: `targetOffering > 0` — 서버가 `ck_altar_target_positive` 로 보장하는 값입니다).
 
 ⚠ **응답에 `playerId` 가 없습니다.** 요청에도 없습니다. 서버가 JWT 로 압니다.
 
@@ -3337,7 +3398,7 @@ GET / RequestRefresh         → 합쳐도 된다 (결과가 같다)
 ⚠ 이 절은 **지속 상태 전용**입니다. 아래 규칙(coalescing · 폴링 · 순번 가드)을
 일회성 VFX event 에 적용하면 사건이 사라집니다 (12.3 · 12.6절).
 
-RPC 알림(9.3절)에는 **구멍이 세 개** 있습니다. 전부 `AltarState` 한 곳에서 막습니다.
+RPC 알림(9.3절)에는 **구멍이 네 개** 있습니다. 전부 `AltarState` 한 곳에서 막습니다.
 
 #### 구멍 1 — RPC 는 같은 채널에만 갑니다
 
@@ -3411,15 +3472,111 @@ appliedSeq = responseSeq;
 > 클라이언트가 세는 순번은 두 값을 한 덩어리로 다루므로 그 함정이 없습니다.
 > `updatedAt` 은 로그·디버그용으로만 씁니다.
 
-#### 정리 — 이 셋은 전부 `AltarState` 안에 들어갑니다
+##### 순번은 **조각 수를 싣고 오는 응답 전부**가 공유합니다 — 확정 (2026-09-20)
+
+초안은 제단 GET 과 봉헌 POST 만 셌습니다. 그런데 같은 숫자를 싣고 오는 응답이 **셋**입니다.
 
 ```text
-AltarState
-  RequestRefresh()      coalescing + debounce
-  주기 폴링 (30초)       다른 채널 · RPC 유실 복구
-  순번 가드              늦게 온 응답 무시
-  Changed 이벤트         화면은 이것만 듣는다
+GET  /api/inventory      items[sea_heart_fragment].quantity
+GET  /api/altar/state    myFragments
+POST /api/altar/offer    remainingFragments        (성공 · 409 둘 다)
 ```
+
+셋이 전부 **"지금 내 조각이 몇 개인가"** 를 말합니다. 순번을 따로 세면 이렇게 됩니다.
+
+```text
+Inventory GET 출발 → 당시 값 77 을 읽음
+          ↓ 느림
+Offer 성공 → 서버 76 → 응답 먼저 도착 → 캐시 76
+Inventory GET 응답 77 늦게 도착 → 그대로 적용하면 76 → 77 로 되돌아간다
+```
+
+> **[확정] 공통 신선도 순번**
+>
+> 위 세 응답은 **하나의 `issuedSeq` / `appliedSeq`** 를 공유한다.
+> 적용 직전 `responseSeq < appliedSeq` 면 stale 이므로 **캐시에 적용하지 않는다.**
+> 이 보호는 `AltarState` 뿐 아니라 **`PlayerInventory.SeaHeartFragment` 에도 똑같이** 적용된다.
+> 어느 오래된 응답도 더 새로운 수량을 덮지 못한다.
+
+#### 구멍 4 — 순번만으로는 부족합니다 (봉헌이 도는 동안)
+
+**"나중에 요청했다" 가 "더 새로운 DB 스냅샷" 을 뜻하지는 않습니다.**
+
+```text
+Offer POST 출발        seq = 1
+Inventory GET 출발     seq = 2   ← 번호는 더 크지만
+                                   아직 봉헌이 커밋되기 전의 값 77 을 읽는다
+Offer 커밋 → 76
+Offer 응답 → 76 적용
+Inventory GET 응답 → seq 2 가 더 크다고 77 을 적용하면 틀린다
+```
+
+순번은 **응답 도착 순서**를 정리할 뿐, 서버가 그 값을 언제 읽었는지는 모릅니다.
+
+→ **봉헌이 도는 동안에는 새 조회를 내보내지 않습니다 (mutation barrier).**
+
+> **[확정] mutation barrier** — `POST /api/altar/offer` 는 조각 수와 제단 상태를 바꾸는
+> mutation 이다. 클라이언트는 그 요청이 도는 동안 조회를 미룬다. (필드 이름은 구현체가 정한다)
+>
+> ```text
+> 1. 봉헌 시작                     barrier 진입
+> 2. 봉헌보다 먼저 출발한 GET 응답   공통 순번 가드가 stale 로 차단
+> 3. 봉헌 중 들어온 조회 요청        즉시 HTTP 를 발사하지 않는다
+>      GET /api/inventory
+>      AltarState.RequestRefresh()
+> 4. 대신 pending refresh 로 기록    같은 종류는 하나로 합친다
+> 5. 봉헌 성공 또는 상태를 담은 409   서버가 준 최신 권위 스냅샷을 적용
+> 6. 봉헌 종료                      barrier 해제
+> 7. barrier 동안 요구가 있었다면     종료 후 fresh GET
+>                                   같은 종류는 최대 1회로 합친다
+> ```
+
+⚠ **봉헌 요청 자체가 실패해 권위 스냅샷을 전혀 받지 못했다면 기존 캐시를 유지합니다.**
+`fragment -= amount` · `total += amount` 를 임의로 하지 않습니다.
+그때도 barrier 해제 뒤 fresh GET 으로 실제 상태를 확인합니다.
+
+⚠ **주기 폴링도 같은 규칙을 받습니다.** 30초 tick 이 봉헌 중에 오면 그 자리에서 GET 을
+쏘지 않고 pending 으로 적어 두었다가, 봉헌이 끝난 뒤 최대 한 번만 나갑니다.
+
+#### 세션이 바뀌면 이전 요청을 무효로 만듭니다
+
+로그아웃이나 계정 전환 시, **이전 계정의 응답이 새 캐시에 들어오면 안 됩니다.**
+아직 돌아오지 않은 요청이 남아 있기 때문입니다.
+
+```text
+로그아웃 → 캐시를 비운다
+         → 동시에 신선도 세대(순번)를 무효화해 이전 요청을 전부 stale 로 만든다
+```
+
+구현 필드 이름은 강제하지 않습니다. 세대 번호를 하나 태우든 다른 방법을 쓰든,
+**이전 요청이 새 사용자의 캐시를 덮지 못하면** 됩니다.
+
+#### 정리 — 상태 동기화는 전부 `AltarState` 를 중심으로 모입니다
+
+```text
+상태 동기화 coordinator
+  RequestRefresh()          coalescing + debounce
+  주기 폴링 (30초)           다른 채널 · RPC 유실 복구
+  공통 순번 가드             늦게 온 응답 무시
+                             ⚠ inventory GET 까지 범위에 든다
+  mutation barrier           봉헌 중 새 GET 을 미루고 합친다
+  pending refresh            barrier 해제 뒤 종류별 최대 1회
+  세션 전환 시 무효화         이전 계정의 응답을 막는다
+  Changed 이벤트             화면은 이것만 듣는다
+```
+
+⚠ **새 범용 RequestManager 프레임워크를 설계하지 마세요.** 위 전부가 지금의
+서비스·캐시 계층 안에서 처리되는 규칙이고, 그 이상의 구조는 필요하지 않습니다.
+
+#### 순번이 막는 것은 **캐시 적용**뿐입니다
+
+```text
+stale 스냅샷   → 캐시에 적용하지 않는다
+요청의 완료 통지 · code · message  → 그대로 호출자에게 전달한다
+```
+
+⚠ 오래됐다고 콜백까지 삼키면 **화면이 "봉헌하는 중…" 에 멈춥니다.**
+특히 봉헌 실패의 `code` 와 `message` 는 UI 가 반드시 알아야 합니다.
 
 **상태를 보는 화면(`IslandRecoveryView` · `AltarOfferingUIController`)은 이 규칙을
 하나도 모릅니다.** `RequestRefresh()` 를 아무 때나 불러도 안전합니다.
@@ -4005,11 +4162,33 @@ SELECT * FROM altar_state WHERE total_offered > target_offering;   -- 반드시 
 
 **목표** C# 에서 서버 값을 읽고 쓸 수 있다. 화면은 아직 없다.
 **확인할 파일** `Account/HttpCharacterService.cs`, `Account/HttpJson.cs`, `Account/AccountServiceLocator.cs`
-**수정할 파일** `Account/HttpApiConfig.cs` (+3줄), `Account/AccountServiceBootstrap.cs` (+4줄)
+**수정할 파일**
+- `Account/HttpApiConfig.cs` (+3줄) — 경로 상수
+- `Account/AccountServiceBootstrap.cs` (+4줄) — Fake/Http 배선
+- `Account/HttpJson.cs` — **실패 응답의 원본 본문 보존을 위한 최소 호환 수정** (9.2절)
+  ⚠ 선택 인자 하나를 더해 `Failure` 가 본문을 버리지 않게 하는 정도다.
+  기존 `IsSuccess` · `StatusCode` · `FailureMessage` 의 의미는 그대로 두고,
+  `Auth` · `Character` 호출자는 한 줄도 고치지 않는다. **리팩터링이 아니다.**
+
 **신규 파일** 17장 Unity 목록의 서비스 9개
 
 **완료 조건** 임시 디버그 버튼(또는 `[ContextMenu]`)으로 조회·봉헌이 되고
 Console 에 서버 값이 찍힌다. **컴파일 에러 0, 새 Console Error 0.**
+
+추가로 아래 상태 동기화 규칙이 들어가 있어야 한다.
+
+```text
+· 봉헌 409 응답의 본문에서 code · message · 최신 상태를 모두 읽는다
+  → 실패 직후 GET /api/altar/state 를 다시 부르지 않는다
+· 400 입력 오류처럼 상태가 없는 응답으로는 캐시를 덮지 않는다
+· inventory GET · altar GET · offer POST 가 같은 신선도 순번을 공유한다
+  → PlayerInventory.SeaHeartFragment 도 그 보호를 받는다
+· 봉헌이 도는 동안 새 GET 을 미루고 합친다 (mutation barrier)
+  → 봉헌이 끝난 뒤 종류별 최대 1회만 나간다
+· 오래된 GET 응답이 최신 remainingFragments 를 되돌리지 않는다
+· stale 이어서 캐시에 적용하지 않더라도 완료 콜백과 code · message 는 그대로 올린다
+```
+
 **테스트** `AccountServiceBootstrap.Active` 를 `Fake` 로 바꿔도 컴파일되고 돌아가는지 확인.
 
 ---
@@ -5512,6 +5691,14 @@ A 가 클리어 → clear-reward 요청
   HttpApiConfig       경로 상수 3개 추가
   AccountServiceBootstrap  Fake/Http 분기에 각각 2줄 추가
 
+고칠 것 (하나 더)
+  HttpJson            실패 응답의 원본 본문을 보존하도록 최소 수정 (9.2절)
+                      ⚠ 지금은 non-2xx 에서 message 만 남기고 body 를 버린다.
+                        그러면 봉헌 409 의 최신 상태를 읽을 방법이 아예 없다.
+                        선택 인자를 더해 body 를 넘기는 정도로 끝낸다.
+                        IsSuccess · StatusCode · FailureMessage 의미는 그대로 두고
+                        Auth · Character 호출자는 고치지 않는다. 리팩터링하지 마라.
+
 지킬 것
   · HttpJson 과 HttpApiConfig 를 그대로 재사용한다. UnityWebRequest 를 직접 쓰지 않는다.
   · PlayerInventory / AltarState 는 static 캐시 + event Changed. RewardService 와 같은 모양.
@@ -5520,6 +5707,31 @@ A 가 클리어 → clear-reward 요청
   · AltarState 에 RequestRefresh() 를 둔다. Late Join 복원의 핵심이다.
   · 봉헌 요청 시 requestId(Guid)는 호출한 쪽이 한 번만 만들고, 재시도해도 유지한다.
   · 주석은 한국어. 기존 Account 폴더와 같은 밀도와 어투로.
+
+상태 동기화 — 12.7절을 읽고 그대로 구현해라
+  · 봉헌 409 의 body 를 파싱해 code · message · 최신 상태를 한 번에 얻는다.
+    실패 직후 GET /api/altar/state 를 다시 부르지 마라. 이미 답이 응답에 있다.
+  · 단, 400 입력 오류(AMOUNT_INVALID 등)의 body 에는 상태가 없다.
+    그것으로 캐시를 덮으면 보유량과 전체량이 0 이 된다. 스냅샷이 실렸는지 확인하고 적용해라.
+  · 아래 셋은 모두 "지금 내 조각 수" 를 싣고 온다. PlayerInventory 를 함께 갱신한다.
+        GET /api/inventory      quantity
+        GET /api/altar/state    myFragments
+        POST /api/altar/offer   remainingFragments
+    → 하나의 신선도 순번(issuedSeq / appliedSeq)을 공유한다.
+      오래된 응답이 더 새로운 수량을 덮지 못하게 한다.
+  · ⚠ 순번만으로는 부족하다. "나중에 요청함" 이 "더 새로운 DB 값" 을 뜻하지 않는다.
+    봉헌이 도는 동안에는 GET 을 즉시 쏘지 말고 pending 으로 합쳤다가,
+    봉헌이 끝난 뒤 종류별로 최대 1회만 내보낸다 (mutation barrier).
+    30초 폴링 tick 이 봉헌 중에 와도 같다.
+  · 봉헌 요청 자체가 실패해 권위 스냅샷을 못 받았으면 기존 캐시를 유지해라.
+    fragment -= amount 같은 로컬 계산을 하지 마라.
+  · 로그아웃·계정 전환 시 아직 안 돌아온 요청을 stale 로 만들어라.
+    이전 계정의 응답이 새 캐시를 덮으면 안 된다.
+  · ⚠ 오래돼서 캐시에 적용하지 않더라도 **완료 콜백과 code · message 는 그대로 올려라.**
+    삼키면 화면이 "봉헌하는 중…" 에서 멈춘다.
+  · ⚠ 여기서 말하는 coalescing 은 **상태 조회 전용**이다.
+    서로 다른 성공 봉헌의 VFX event 를 이 규칙으로 버리면 안 된다 (결정 #9, 12.6절).
+    STEP 4 에서는 VFX 를 만들지 않지만, requestId 와 duplicate 를 손실 없이 전달해 둬라.
 
 하지 말 것
   · 씬이나 프리팹을 고치지 않는다.
