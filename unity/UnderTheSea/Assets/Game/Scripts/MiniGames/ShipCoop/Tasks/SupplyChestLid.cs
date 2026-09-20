@@ -36,6 +36,12 @@ public class SupplyChestLid : MonoBehaviour
     /// <summary>0 = 닫힘, 1 = 열림. 여기서 각도로 바꾼다.</summary>
     private float _open01;
 
+    /// <summary>뚜껑이 지금 얼마나 열려 있나 (0 닫힘 ~ 1 열림). 소리(ShipCoopAudio)가 **실제로 닫히는 순간**을 잡을 때 읽는다.</summary>
+    public float Open01 => _open01;
+
+    /// <summary>이 상자. 소리가 포탄 상자인지 가릴 때 쓴다.</summary>
+    public AmmoBox Box => _box;
+
     private bool _warned;
 
     private void Awake()
