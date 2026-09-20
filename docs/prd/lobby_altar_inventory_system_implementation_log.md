@@ -382,3 +382,325 @@ Factory Reset 없음
 - [x] pending model changes 없음
 
 STEP 1 완료.
+
+---
+
+## STEP 2. 서버 조회 엔드포인트
+
+구현일: 2026-09-20
+
+이 절의 모든 명령 실행 결과와 HTTP 응답은 **에이전트 세션에서 직접 실행하고 관측한 것**입니다.
+사용자가 전달한 사실이 섞여 있지 않습니다. (STEP 1 Docker 절에서 정한 출처 구분 원칙)
+
+### 구현 파일
+
+수정
+
+```text
+server/AraAtti.Api/Program.cs        ← 엔드포인트 등록 8줄 추가
+```
+
+신규
+
+```text
+server/AraAtti.Api/Contracts/InventoryContracts.cs
+server/AraAtti.Api/Contracts/AltarContracts.cs
+server/AraAtti.Api/Endpoints/InventoryEndpoints.cs
+server/AraAtti.Api/Endpoints/AltarEndpoints.cs
+```
+
+Service · Repository · ItemCatalog · 새 DI 추상화는 만들지 않았습니다.
+조회 두 개는 엔드포인트에서 `AraAttiDbContext` 를 직접 쓰는 것으로 충분하고,
+그것이 `CharacterEndpoints` 가 이미 하고 있는 방식입니다.
+
+STEP 1 산출물(Entity 4개 · DbContext 매핑 · Migration · ModelSnapshot · seed)은
+한 줄도 건드리지 않았습니다.
+
+### 기존 서버 패턴을 따른 부분
+
+| 항목 | 따른 방식 | 근거 |
+|---|---|---|
+| Endpoint 등록 | `public static void MapXxxEndpoints(this IEndpointRouteBuilder)` | `CharacterEndpoints` |
+| 그룹 | `MapGroup(...).WithTags(...).RequireAuthorization()` | `CharacterEndpoints` |
+| DTO | `public sealed record` (파일당 여러 개) | `CharacterContracts` |
+| 사용자 식별 | `principal.TryGetUserId(out ulong userId)` | `Auth/ClaimsPrincipalExtensions` |
+| 실패 응답 | `ErrorResponse(code, message)`, message 는 한국어 | 프로젝트 전역 |
+| 조회 | `AsNoTracking()` + `CancellationToken` 전달 | `GetMyCharactersAsync` |
+| 아이템 id 상수 | 엔드포인트 클래스의 `public const` | `CharacterEndpoints.MaxCharactersPerUser` |
+
+JSON 은 `Program.cs` 에 별도 설정이 없어 minimal API 기본값(camelCase)을 그대로 씁니다.
+
+### `GET /api/inventory`
+
+```text
+인증   RequireAuthorization (그룹 단위)
+주인   JWT sub → ClaimsPrincipalExtensions.TryGetUserId → ulong userId
+조회   player_inventories WHERE user_id = <sub>  ORDER BY item_id
+```
+
+요청 본문 · 쿼리 · 경로 어디에서도 userId 를 받지 않습니다. 남의 인벤토리는 조회할 수 없습니다.
+
+가진 것이 없으면 **빈 배열**입니다. 404 가 아니고, `quantity = 0` 짜리 가짜 항목을 만들지도
+않습니다. `CharacterListResponse` 가 같은 이유로 같은 모양입니다.
+
+```json
+{ "items": [] }
+```
+
+`displayName` 은 DB 에 컬럼이 없어 서버가 붙입니다. 아는 아이템이 `sea_heart_fragment`
+하나뿐이라 분기도 하나이고, 모르는 id 는 id 를 그대로 돌려줍니다.
+아이템 카탈로그나 ScriptableObject 구조는 만들지 않았습니다 (설계 문서 4장).
+
+### `GET /api/altar/state`
+
+각 필드의 출처입니다.
+
+| 필드 | 어디서 왔나 |
+|---|---|
+| `totalOffered` | `altar_state(id=1).total_offered` |
+| `targetOffering` | `altar_state(id=1).target_offering` — **1000 을 코드에 박지 않음** |
+| `remainingToTarget` | `total >= target ? 0 : target - total` (서버 계산) |
+| `myFragments` | `player_inventories` 의 `(user_id = sub, item_id = 'sea_heart_fragment')` 수량. 행이 없으면 0 |
+| `maxOfferAmount` | `min(myFragments, remainingToTarget)` (서버 계산) |
+| `altarActivated` | `total >= target` (서버 계산) |
+| `recoveryPercent` | `min(total / target, 1) * 100` (서버 계산) |
+| `myOfferedTotal` | `altar_contributions` 의 `user_id = sub` 인 행들의 `amount` **합계** |
+| `updatedAt` | `altar_state(id=1).updated_at` |
+
+놓치기 쉬운 세 가지를 따로 적어 둡니다.
+
+```text
+altarActivated 는 activated_at 의 null 여부로 판단하지 않는다.
+  activated_at 은 감사·기록용이다 (설계 11.4.16).
+  부등호는 == 이 아니라 >= 다. 시연 중 target_offering 을 낮추면
+  total > target 이 되는데 그때도 섬은 켜져 있어야 한다 (설계 10.7).
+
+myOfferedTotal 은 totalOffered 와 다르다.
+  전체 봉헌량이 아니라 "내가" 봉헌한 합계다. 기여가 없으면 0.
+
+myFragments 는 인벤토리 행이 없으면 0 이다.
+  조회하면서 행을 새로 만들지 않는다.
+```
+
+`remainingToTarget` 은 빼기 전에 대소를 먼저 봅니다. 두 값 모두 부호 없는 정수라
+`total > target` 인 비정상 데이터에서 그냥 빼면 음수가 아니라 거대한 양수가 됩니다.
+
+`recoveryPercent` 는 `(float)` 로 올려 나눠 정수 나눗셈을 피하고, `Math.Min(..., 1f)` 로
+100% 를 넘기지 않습니다. `target == 0` 이면 0 으로 떨어뜨립니다 —
+`ck_altar_target_positive` 가 막고 있지만 0 으로 나누면 `Infinity`/`NaN` 이 JSON 으로
+나가기 때문입니다 (설계 11.2).
+
+#### `altar_state` 싱글턴 처리
+
+`id = 1` 행이 없으면 **만들지 않고** `InvalidOperationException` 으로 멈춥니다.
+런타임에 "없으면 생성" 을 넣으면 두 요청이 동시에 만들려다 부딪힙니다.
+설계에 없는 새 public error code 를 만들지 않았습니다 — 이것은 클라이언트 잘못이 아니라
+마이그레이션이 적용되지 않은 서버 상태이므로 500 이 맞습니다.
+
+### 실제 테스트 결과
+
+에이전트가 `dotnet run` 으로 서버를 띄우고 직접 호출한 결과입니다.
+로그인 절차는 `server/README.md` 6장을 그대로 따랐습니다(회원가입 → 로그인 → Bearer 토큰).
+
+인증 없음 — 둘 다 401. 본문도 프로젝트 공통 모양입니다.
+
+```text
+GET /api/inventory     (Authorization 없음)  → 401
+GET /api/altar/state   (Authorization 없음)  → 401
+
+{"code":"TOKEN_INVALID","message":"로그인이 필요합니다. 토큰이 없거나 만료되었습니다."}
+```
+
+정상 JWT — 둘 다 200.
+
+```text
+GET /api/inventory     → 200   {"items":[]}
+GET /api/altar/state   → 200
+{"totalOffered":0,"targetOffering":1000,"remainingToTarget":1000,"myFragments":0,
+ "maxOfferAmount":0,"altarActivated":false,"recoveryPercent":0,"myOfferedTotal":0,
+ "updatedAt":"2026-09-20T00:00:00Z"}
+```
+
+빈 인벤토리가 200 + `items: []` 입니다. 404 가 아닙니다.
+
+Swagger(`/swagger/v1/swagger.json`)에 두 경로가 올라온 것도 확인했습니다.
+Swagger 설정은 STEP 2 때문에 손대지 않았습니다.
+
+```text
+/api/inventory      get   tags=["Inventory"]
+/api/altar/state    get   tags=["Altar"]
+```
+
+#### 계산 경로 검증 (임시 데이터 → 원복)
+
+기본값 상태(0 / 1000, 인벤토리 0행, 기여 0행)에서는 모든 파생값이 0이라
+계산식이 실제로 검증되지 않습니다. 그래서 **현재값을 먼저 기록하고** 임시 데이터를 넣어
+확인한 뒤 **정확히 되돌렸습니다.**
+
+기록한 기준값
+
+```text
+altar_state          id=1, total_offered=0, target_offering=1000,
+                     activated_at=NULL, updated_at=2026-09-20 00:00:00.000000
+player_inventories   0행
+altar_contributions  0행
+```
+
+① 730 / 1000, 보유 77, 기여 20 + 30 — 설계 9.2절의 예시와 같은 값이 나왔습니다.
+
+```json
+{"totalOffered":730,"targetOffering":1000,"remainingToTarget":270,"myFragments":77,
+ "maxOfferAmount":77,"altarActivated":false,"recoveryPercent":73,"myOfferedTotal":50,
+ "updatedAt":"2026-09-20T00:00:00Z"}
+```
+
+`myOfferedTotal` 이 기여 건수 2 가 아니라 합계 50 이고, 전체 730 과도 다릅니다.
+
+② 사용자 격리 — 조각도 기여도 없는 두 번째 계정으로 같은 시점에 호출했습니다.
+전역 값은 같고 내 값만 0 입니다. 남의 데이터가 섞이지 않습니다.
+
+```json
+{"totalOffered":730,...,"myFragments":0,"maxOfferAmount":0,"myOfferedTotal":0}
+{"items":[]}
+```
+
+③ 회복 완료 1000 / 1000
+
+```json
+{"totalOffered":1000,"targetOffering":1000,"remainingToTarget":0,"myFragments":77,
+ "maxOfferAmount":0,"altarActivated":true,"recoveryPercent":100,...}
+```
+
+`altarActivated` 가 `true` 로 바뀌고 `remainingToTarget` 과 `maxOfferAmount` 가 0 이 됩니다.
+
+⚠ `recoveryPercent` 의 **100% 상한(`Math.Min(..., 1f)`)은 여기까지만 검증됩니다.**
+상한이 실제로 깎아내는 경우는 `total > target` 일 때뿐인데, 그 상태는
+`ck_altar_total_le_target` 이 막고 있어 정상 DB 에서 만들 수 없습니다.
+설계 10.7절이 말하는 대로 이 분기는 **방어 코드**입니다.
+
+원복 확인 — 기준값과 정확히 같습니다. `updated_at` 은 UPDATE 대상에 넣지 않아 그대로입니다.
+
+```text
+id  total_offered  target_offering  activated_at  updated_at
+1   0              1000             NULL          2026-09-20 00:00:00.000000
+
+player_inventories   0행
+altar_contributions  0행
+```
+
+테스트 계정 두 개(`test@araatti.test`, `test2@araatti.test`)도 **지웠습니다.**
+로그인 없이는 두 엔드포인트를 검증할 수 없어 README 6장의 회원가입 절차를 그대로 따라
+만든 것이고, STEP 2 테스트 외에는 쓰지 않았습니다. 지우기 전에 확인한 것은 다음 두 가지입니다.
+
+```text
+STEP 2 시작 시점 users 0행  → 두 계정 모두 이번 테스트에서 생긴 것
+characters · character_parts · player_inventories ·
+altar_contributions · reward_claims 전부 0행  → 참조하는 자식 행 없음
+```
+
+삭제 후 `users` 는 다시 0행이고, 나머지 여섯 테이블도 모두 0행,
+`altar_state` 는 `1 / 0 / 1000 / NULL / 2026-09-20 00:00:00.000000` 입니다.
+STEP 2 시작 전 상태와 같습니다. 남은 흔적은 `AUTO_INCREMENT` 카운터뿐입니다.
+
+DB drop · recreate · 스키마 변경 · 마이그레이션 생성은 하지 않았습니다.
+
+### 빌드 · 모델 상태
+
+```text
+dotnet build
+Error   0
+Warning 0                     ← STEP 1 종료 시점과 같음. 새 경고 없음
+
+dotnet ef migrations has-pending-model-changes
+→ No changes have been made to the model since the last migration.
+```
+
+`Migrations/` · `Entities/` · `AraAttiDbContextModelSnapshot.cs` 는 변경되지 않았습니다.
+
+### 설계와 실제 저장소가 달랐던 부분
+
+#### ① 응답 필드 개수 — 작업 지시서 7개 vs 설계 문서 9개
+
+작업 지시서의 `GET /api/altar/state` 예시는 7개 필드였지만,
+설계 문서 9.2절의 계약에는 `remainingToTarget` 과 `maxOfferAmount` 가 더 있습니다.
+
+```text
+지시서 예시   totalOffered, targetOffering, altarActivated, recoveryPercent,
+              myOfferedTotal, myFragments, updatedAt
+설계 9.2절    위 7개 + remainingToTarget + maxOfferAmount
+```
+
+**설계 문서를 따라 9개로 구현했습니다.** 지시서 자체가 "API 계약은 설계 문서를 우선한다" 고
+정해 두었고, 설계 9.2 · 11.1절이 이 두 값을 서버가 계산해야 하는 이유를 명시합니다 —
+UI 가 `min(보유량, 남은 칸)` 을 스스로 계산하면 같은 공식이 두 군데에 생깁니다.
+STEP 4 이후 Unity 쪽이 이 두 값을 읽습니다.
+
+#### ② `updatedAt` 의 UTC 표기
+
+`altar_state.updated_at` 은 UTC 로 저장되지만, Pomelo 는 `DateTimeKind.Unspecified` 로
+돌려줍니다. 그대로 직렬화하면 끝의 `Z` 가 빠져(`"2026-09-20T00:00:00"`) 클라이언트가
+현지 시각으로 읽습니다. 설계 9.2절의 응답 예시는 `Z` 가 붙은 UTC 표기입니다.
+
+그래서 이 엔드포인트에서만 `DateTime.SpecifyKind(state.UpdatedAt, DateTimeKind.Utc)` 로
+**잃어버린 Kind 만 다시 붙입니다.** 시각 값 자체는 바꾸지 않고, 새 시각을 만들지도 않습니다.
+
+```text
+DB          2026-09-20 00:00:00.000000
+응답        "2026-09-20T00:00:00Z"
+```
+
+⚠ 기존 엔드포인트(`/api/auth/me` · `/api/characters` 의 `createdAt` · `updatedAt`)는
+여전히 `Z` 없이 나갑니다. **이번 STEP 에서 고치지 않았습니다.** 전역 JSON 설정이나 기존
+응답을 STEP 2 때문에 바꾸는 것은 범위 밖이기 때문입니다. 나중에 정리한다면 그때는
+`AraAttiDbContext` 에서 `DateTime` 을 UTC 로 읽어 오는 변환을 한 번에 거는 편이 낫습니다.
+
+설계 예시의 소수점 여섯 자리(`.000000Z`)는 나오지 않습니다. `System.Text.Json` 이 0인
+소수부를 생략하기 때문이고, 값은 같습니다. ISO-8601 파서는 둘 다 동일하게 읽습니다.
+
+`SpecifyKind` 가 값을 왜곡하지 않는 근거를 커밋 전에 세 가지로 확인했습니다.
+
+```text
+① 서버 코드 전체에 DateTime.Now(로컬)가 없다. 시각은 전부 DateTime.UtcNow 이거나
+   명시적 DateTimeKind.Utc 리터럴이다.
+② altar_state.updated_at 의 쓰기 경로는 지금 마이그레이션 seed 하나뿐이고
+   그 값이 new DateTime(2026, 9, 20, 0, 0, 0, DateTimeKind.Utc) 이다.
+③ 컬럼이 timestamp 가 아니라 datetime 이다. MySQL 의 datetime 은 시간대 변환을 하지 않고
+   wall-clock 을 그대로 저장·반환한다. 접속 문자열에도 시간대 옵션이 없다.
+   실측: DB 2026-09-20 00:00:00.000000 → 응답 "2026-09-20T00:00:00Z" (같은 wall-clock)
+```
+
+즉 잃는 것은 `Kind` 뿐이고 값은 UTC wall-clock 그대로입니다.
+
+⚠ **STEP 3 에서 `updated_at` 을 UPDATE 할 때도 반드시 `DateTime.UtcNow` 를 써야 합니다.**
+한 곳이라도 `DateTime.Now` 를 쓰면 위 ①이 깨지고, 그때부터 `SpecifyKind(Utc)` 는
+현지 시각에 Z 를 붙이는 잘못된 코드가 됩니다.
+
+#### ③ `myOfferedTotal` 의 CLR 타입
+
+`altar_contributions.amount` 는 `int unsigned`(`uint`)인데 LINQ 에 `Sum(uint)` 오버로드가
+없습니다. `(long)` 으로 올려 합산한 뒤 응답에서 `ulong` 으로 내보냅니다.
+합계는 언제나 0 이상이고, DB 타입을 축소하지 않았습니다.
+
+### STEP 2 완료 상태
+
+- [x] InventoryContracts.cs · AltarContracts.cs 생성
+- [x] InventoryEndpoints.cs · AltarEndpoints.cs 생성
+- [x] `GET /api/inventory` 구현
+- [x] `GET /api/altar/state` 구현
+- [x] 두 엔드포인트 모두 `RequireAuthorization`
+- [x] 사용자 id 는 JWT `sub` 에서만 가져옴
+- [x] 빈 인벤토리 → 200 + `items: []`
+- [x] 다른 사용자의 데이터가 섞이지 않음 (두 계정으로 확인)
+- [x] `altar_state(id=1)` 조회, 런타임 생성 없음
+- [x] `targetOffering` 은 DB 값 사용
+- [x] `altarActivated` · `recoveryPercent` 서버 계산
+- [x] `myOfferedTotal` 은 사용자별 `amount` 합계
+- [x] `myFragments` 는 행이 없으면 0
+- [x] 토큰 없음 → 401 (두 엔드포인트)
+- [x] 정상 JWT → 200 (두 엔드포인트)
+- [x] dotnet build Error 0 / Warning 0
+- [x] pending model changes 없음
+- [x] Migration · DB 스키마 · Entity · Unity 변경 없음
+- [x] STEP 3 코드 없음 (봉헌 · clear-reward 미구현)
+
+STEP 2 완료.
