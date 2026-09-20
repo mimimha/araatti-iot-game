@@ -1412,6 +1412,76 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4586713141052078288, guid: 70ffc489c79a14a4caf59aa6cb7d74c2, type: 3}
   m_PrefabInstance: {fileID: 409298944}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &416717178
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 416717180}
+  - component: {fileID: 416717179}
+  m_Layer: 0
+  m_Name: Audio
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &416717179
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 416717178}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39dc41ca26a3a4e4aa37d23ed6a87cd7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopAudio
+  bgmReady: {fileID: 0}
+  bgmSailing: {fileID: 0}
+  bgmTension: {fileID: 0}
+  stingerClear: {fileID: 0}
+  stingerFail: {fileID: 0}
+  crossfadeSeconds: 1.5
+  tensionDelay: 1
+  seaLoop: {fileID: 0}
+  windLoop: {fileID: 0}
+  ropeLoop: {fileID: 0}
+  wheelLoop: {fileID: 0}
+  floodLoop: {fileID: 0}
+  loopLevel: 0.5
+  warnChime: {fileID: 0}
+  waveHit: {fileID: 0}
+  reefHit: {fileID: 0}
+  reefDodged: {fileID: 0}
+  enemyHit: {fileID: 0}
+  hullCrack: {fileID: 0}
+  cannonFire: {fileID: 0}
+  hammerHit: {fileID: 0}
+  repairDone: {fileID: 0}
+  dumpSplash: {fileID: 0}
+  shipHurt: {fileID: 0}
+  shipSunk: {fileID: 0}
+  sfxLevel: 0.9
+--- !u!4 &416717180
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 416717178}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!23 &471879383 stripped
 MeshRenderer:
   m_CorrespondingSourceObject: {fileID: 8726923653149605062, guid: 3e8b8abcb523c1943a465a1f1e629f9d, type: 3}
@@ -7813,3 +7883,4 @@ SceneRoots:
   - {fileID: 525450925}
   - {fileID: 1666538692}
   - {fileID: 1013782251}
+  - {fileID: 416717180}

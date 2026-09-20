@@ -505,6 +505,25 @@ CharacterController  두 번째 캡슐. 부모 캡슐과 서로 밀어낸다
 > 그래서 IK 목표를 루트 기준으로 되돌리고(Visual 을 돌려 놓았으면 그 회전도 역으로) 2.25 로 나눠 넘깁니다.
 > 고친 뒤 손 목표와 실제 손 차이가 0.49m → 0.05m. 드는 자세 · 자리 자세 둘 다 같은 보정(`ToSolver`)을 씁니다.
 
+### 🔊 소리는 **서버가 복제해 준 상태를 보고** 냅니다
+
+소리를 내는 것은 게임 공용 `AudioHub` 하나입니다 (GAME_STRUCTURE 8장). 배 협동은 `ShipCoopAudio` 가 씬에 하나 있어
+"언제 무엇을" 만 정하고 허브에 부탁합니다. 클립은 `Assets/Game/Audio/ShipCoop/` 에 **필드 이름대로** 두면
+설치 도구(`아라아띠/배 협동/소리 놓고 클립 채우기`)가 채웁니다. 비어 있는 클립은 그 소리만 안 납니다.
+
+```text
+🎵 배경음악   대기(bgmReady) → 항해(bgmSailing) → 사건이 1초 넘게 터져 있으면 긴장(bgmTension)
+             → 결과: 도착 stingerClear / 침몰 · 시간 초과 stingerFail (배경음악은 멈춘다)
+🌊 루프       seaLoop 항해 중 늘, 속도 따라 / windLoop 돌풍 / ropeLoop 돛 당길 때 / wheelLoop 조타할 때 / floodLoop 침수량만큼
+💥 효과음     warnChime 예고 · waveHit 파도 · reefHit / reefDodged 암초 · enemyHit 적선 피격 · hullCrack 파손 시작
+             cannonFire 발사 · hammerHit 망치 · repairDone 수리 완료 · dumpSplash 물 버림 · shipHurt HP 감소 · shipSunk 침몰
+```
+
+> ⚠ **판정 알림(`event Action`)에 소리를 걸면 호스트에서만 납니다.** (11장) 클라이언트는 판정을 안 돌립니다.
+> 그래서 연출가는 매 프레임 복제된 상태(`VoyageEvent.CurrentStage` · `RepairTask.Hits` · `WaterDumpPoint.DumpCount` ·
+> `EnemyShip.Hits` · `Reef.WasHit` · `ShipHealth.CurrentHp` · `ShipCoopGame.State`)를 읽어 **바뀐 순간**에 냅니다.
+> 대포만 `CannonTask.Recoiled` 가 클라이언트에서도 터지도록 되어 있어 그걸 듣습니다.
+
 ### 📦 보급 상자도 **큐브 위에 씌웁니다**
 
 포탄 · 자재 · 양동이 상자 3종은 처음에 색만 다른 큐브였습니다. 지금은 모델 소품을
@@ -2157,6 +2176,7 @@ Assets/Game/
 │       ├── ShipCoopStationPose.cs 🧍 자리에 붙으면 대포 · 밧줄 · 조타륜을 잡는 자세 (4장)
 │       ├── ShipCoopCannonRecoil.cs 💥 쏘면 대포가 뒤로 튄다. 발수 복제로 모든 화면에서 (4장)
 │       ├── ShipCoopSailRope.cs    🪢 돛 자리의 밧줄. 활대 → 손 → 갑판 (4장)
+│       ├── ShipCoopAudio.cs       🔊 소리 연출가. 상태를 보고 공용 AudioHub 에 곡 · 효과음을 부탁한다 (4장)
 │       ├── ShipCoopShipTurn.cs    조타한 만큼 뱃머리를 튼다. 갑판과 사람도 같이 (5장)
 │       ├── ShipCoopSeaFlow.cs    🌊 물 무늬를 배가 간 거리만큼 뒤로 민다 (5장)
 │       ├── ShipCoopWake.cs        ⛔ 손으로 만든 물살. 폐기. 켜지 말 것 (5장)
