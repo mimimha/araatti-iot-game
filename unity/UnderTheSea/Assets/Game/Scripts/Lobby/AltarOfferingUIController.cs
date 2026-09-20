@@ -48,7 +48,7 @@ namespace UnderTheSea.Lobby
         [Tooltip("열고 닫을 대상. 비워 두면 이 오브젝트를 쓴다.")]
         [SerializeField] private GameObject panelRoot;
 
-        [Header("동적 숫자 (정적 라벨은 이미지다)")]
+        [Header("동적 숫자")]
         [SerializeField] private TMP_Text totalOfferedValueText;
         [SerializeField] private TMP_Text ownedFragmentsValueText;
         [SerializeField] private TMP_Text selectedAmountText;
@@ -60,14 +60,6 @@ namespace UnderTheSea.Lobby
         [SerializeField] private Button maxButton;
         [SerializeField] private Button offerButton;
         [SerializeField] private Button closeButton;
-
-        [Header("장식")]
-        [Tooltip("배경 장식용 바다의 심장 조각. 상태에 따라 바뀌지 않는다. 투명도는 여기서 조절한다.")]
-        [SerializeField] private Image heartFragmentDecoration;
-
-        [SerializeField, Range(0f, 1f)]
-        [Tooltip("장식의 투명도. 글자를 읽기 어려우면 낮춘다.")]
-        private float decorationAlpha = 0.14f;
 
         [Header("상태 메시지")]
         [SerializeField, Min(0.5f)]
@@ -101,8 +93,6 @@ namespace UnderTheSea.Lobby
 
         private void Awake()
         {
-            ApplyDecorationAlpha();
-
             if (minusButton != null) minusButton.onClick.AddListener(OnMinus);
             if (plusButton != null) plusButton.onClick.AddListener(OnPlus);
             if (maxButton != null) maxButton.onClick.AddListener(OnMax);
@@ -140,13 +130,6 @@ namespace UnderTheSea.Lobby
         {
             ReleaseFocus();
         }
-
-#if UNITY_EDITOR
-        private void OnValidate()
-        {
-            ApplyDecorationAlpha();
-        }
-#endif
 
         // ------------------------------------------------------------
         // 열기 · 닫기
@@ -473,18 +456,6 @@ namespace UnderTheSea.Lobby
 
             StopCoroutine(messageClearRoutine);
             messageClearRoutine = null;
-        }
-
-        private void ApplyDecorationAlpha()
-        {
-            if (heartFragmentDecoration == null)
-            {
-                return;
-            }
-
-            Color color = heartFragmentDecoration.color;
-            color.a = decorationAlpha;
-            heartFragmentDecoration.color = color;
         }
 
         // ------------------------------------------------------------
