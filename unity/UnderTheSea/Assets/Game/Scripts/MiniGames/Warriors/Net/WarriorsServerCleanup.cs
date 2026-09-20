@@ -67,6 +67,11 @@ namespace Warriors.Net
             // 조명 - 서버는 아무것도 그리지 않으므로 그림자 계산이 통째로 낭비다
             count += DisableAll<Light>("조명");
 
+            // ⚠ **파티클은 렌더러만 꺼서는 안 멈춘다.** 시뮬레이션이 따로 돌고, 그것이 잡을
+            //    띄워 워커 스레드를 깨운다. 로비 서버에서 이것만으로 코어 1.67 → 0.65 였다.
+            //    자세한 실측과 이유는 DedicatedServerParticles 주석에 있다.
+            count += DedicatedServerParticles.DisableAll();
+
             // 화면이 없으니 vSync 는 의미가 없다. 끄고 프레임률을 직접 잡는다.
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = serverFrameRate;

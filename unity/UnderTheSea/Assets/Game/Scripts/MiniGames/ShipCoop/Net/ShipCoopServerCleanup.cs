@@ -77,11 +77,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
 
             // 연출
             count += DisableAll<ShipCoopWake>("물살 자국");
-            count += DisableRenderers<ParticleSystemRenderer>("파티클");
+
             count += DisableRenderers<TrailRenderer>("궤적");
 
             // 조명 — 서버는 아무것도 그리지 않으므로 그림자 계산이 통째로 낭비다
             count += DisableAll<Light>("조명");
+
+            // ⚠ **파티클은 렌더러만 꺼서는 안 멈춘다.** 여기 있던
+            //    DisableRenderers<ParticleSystemRenderer> 는 그리기만 막고 시뮬레이션은
+            //    그대로 돌려서, "껐다고 믿는데 안 꺼진" 상태였다. 비용은 구르는 쪽에 있다.
+            //    실측과 이유는 DedicatedServerParticles 주석에 있다.
+            count += DedicatedServerParticles.DisableAll();
 
             // 화면이 없으니 vSync 는 의미가 없다. 끄고 프레임률을 직접 잡는다.
             QualitySettings.vSyncCount = 0;
