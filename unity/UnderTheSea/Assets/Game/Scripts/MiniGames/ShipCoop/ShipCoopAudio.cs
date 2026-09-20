@@ -6,8 +6,9 @@ using UnityEngine;
 /// 🔊 배 협동의 소리 **연출가.** 게임 상태를 보고 <see cref="AudioHub"/> 에 "이 곡 · 이 소리" 를 부탁한다. (SHIPCOOP.md 4장)
 ///
 /// <code>
-///   🎵 배경음악   대기 → 항해 → (사건이 터져 있으면) 긴장 → 결과 스팅어
-///   🌊 루프       바다(항상) · 바람(돌풍) · 밧줄(돛 당길 때) · 키(조타할 때) · 물(침수량만큼)
+///   🎵 배경음악   대기 → 항해 → 결과(성공 · 실패 공통, 따로 곡을 안 두고 항해 곡을 endLevel 만큼 낮춰 이어서)
+///   🌊 루프       바다(항상, 아주 얕게) · 바람(돌풍) · 밧줄(돛 당길 때) · 키(조타할 때) · 물(침수량만큼)
+///   🐦 갈매기     루프 아니고 항해 중 30~40초마다 한 번, 셋을 돌아가며
 ///   💥 효과음     예고 종 · 대포 · 파도 충격 · 암초 충돌/스침 · 적선 피격 · 선체 파손 · 망치 · 수리 완료 ·
 ///               물 버림 · 배 피격 · 침몰
 /// </code>
@@ -29,31 +30,25 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class ShipCoopAudio : MonoBehaviour
 {
-    [Header("🎵 배경음악")]
+    [Header("🎵 배경음악 — 3단계")]
     [Tooltip("출항 전 대기.")]
     [SerializeField] private AudioClip bgmReady;
 
-    [Tooltip("항해 중. 사건이 없을 때.")]
+    [Tooltip("항해 중.")]
     [SerializeField] private AudioClip bgmSailing;
 
-    [Tooltip("사건이 하나라도 터져 있는 동안. 비워두면 항해 곡을 계속 튼다.")]
-    [SerializeField] private AudioClip bgmTension;
-
-    [Tooltip("도착(성공) 스팅어. 한 번 나고 배경음악은 멈춘다.")]
-    [SerializeField] private AudioClip stingerClear;
-
-    [Tooltip("침몰 · 시간 초과 스팅어.")]
-    [SerializeField] private AudioClip stingerFail;
+    [Tooltip("결과 화면. 따로 곡을 두지 않는다 — 항해 곡(bgmSailing)을 그대로 이어서 endLevel 만큼만 낮춰 튼다.")]
+    [SerializeField, Range(0f, 2f)] private float endLevel = 0.7f;
 
     [Tooltip("곡을 바꿀 때 겹치는 시간 (초).")]
     [SerializeField, Range(0.1f, 5f)] private float crossfadeSeconds = 1.5f;
 
-    [Tooltip("긴장 곡으로 넘어가기 전에 사건이 이만큼 이어져야 한다 (초). 짧은 사건마다 곡이 널뛰지 않게.")]
-    [SerializeField, Range(0f, 5f)] private float tensionDelay = 1f;
-
     [Header("🌊 루프")]
     [Tooltip("바다. 항해 중 항상. 속도가 빠를수록 조금 커진다.")]
     [SerializeField] private AudioClip seaLoop;
+
+    [Tooltip("바다 루프의 크기 (0~1). 들릴락 말락 하게 아주 작게 깔 때 쓴다. loopLevel 에 곱해진다.")]
+    [SerializeField, Range(0f, 1f)] private float seaLevel = 0.12f;
 
     [Tooltip("바람. 항해 중 늘 얕게 깔리고, 돌풍이 불면 커진다.")]
     [SerializeField] private AudioClip windLoop;
@@ -75,6 +70,21 @@ public class ShipCoopAudio : MonoBehaviour
 
     [Tooltip("루프의 기본 크기 (0~1). 효과음 볼륨이 곱해진다.")]
     [SerializeField, Range(0f, 1f)] private float loopLevel = 0.5f;
+
+    [Header("🐦 갈매기 — 루프가 아니라 이따금 한 번씩")]
+    [Tooltip("항해 중 돌아가며 뿌릴 갈매기 소리 셋. 순서대로 번갈아 튼다 (같은 것이 두 번 연달아 나지 않는다).")]
+    [SerializeField] private AudioClip seagull1;
+    [SerializeField] private AudioClip seagull2;
+    [SerializeField] private AudioClip seagull3;
+
+    [Tooltip("다음 갈매기 소리까지 최소 간격 (초).")]
+    [SerializeField, Range(5f, 120f)] private float seagullMinInterval = 30f;
+
+    [Tooltip("다음 갈매기 소리까지 최대 간격 (초). 이 사이에서 무작위로 정한다.")]
+    [SerializeField, Range(5f, 120f)] private float seagullMaxInterval = 40f;
+
+    [Tooltip("갈매기 소리 크기 (1 이 기준).")]
+    [SerializeField, Range(0f, 2f)] private float seagullLevel = 0.7f;
 
     [Header("💥 효과음 — 사건")]
     [Tooltip("사건 예고가 뜰 때 (종 · 북).")]
@@ -190,10 +200,12 @@ public class ShipCoopAudio : MonoBehaviour
 
     private ShipCoopState _stateSeen = ShipCoopState.Ready;
     private bool _stateInit;
-    private bool _musicStopped;   // 결과 뒤. 스팅어만 남긴다
     private float _hpSeen = -1f;
-    private float _tensionSince = -1f;
     private float _nextRescan;
+
+    // 갈매기 — 다음에 낼 시각과 다음에 낼 순번 (0,1,2 를 돌아가며).
+    private float _nextSeagullAt = -1f;
+    private int _seagullIndex;
 
     private void Awake()
     {
@@ -216,12 +228,13 @@ public class ShipCoopAudio : MonoBehaviour
     private void Start()
     {
         _quietUntil = Time.time + 2f;
+        _nextSeagullAt = Time.time + Random.Range(seagullMinInterval, seagullMaxInterval);
         Rescan(force: true);
 
         int clips = 0;
-        foreach (AudioClip c in new[] { bgmReady, bgmSailing, bgmTension, stingerClear, stingerFail, seaLoop, windLoop, ropeLoop, wheelLoop, floodLoop,
+        foreach (AudioClip c in new[] { bgmReady, bgmSailing, seaLoop, windLoop, ropeLoop, wheelLoop, floodLoop,
                                         warnChime, waveHit, reefHit, reefDodged, enemyHit, hullCrack, cannonFire, hammerHit, repairDone, dumpSplash,
-                                        waterScoop, boxLid, footstep, shipHurt, shipSunk })
+                                        waterScoop, boxLid, footstep, shipHurt, shipSunk, seagull1, seagull2, seagull3 })
         {
             if (c != null) clips++;
         }
@@ -367,6 +380,7 @@ public class ShipCoopAudio : MonoBehaviour
         WatchLids();
         WatchSteps();
         WatchShip();
+        WatchSeagulls();
 
         ChooseMusic();
         DriveLoops();
@@ -594,42 +608,22 @@ public class ShipCoopAudio : MonoBehaviour
 
         _stateSeen = state;
 
-        switch (state)
+        // ⚠ 배 침몰 소리(shipSunk)는 배경음악이 아니라 효과음이다. 곡 선택은 ChooseMusic() 이
+        //    _game.State 를 직접 보고 정하므로 여기서는 상태별 "그 순간에만 나는" 효과음만 낸다.
+        if (state == ShipCoopState.Sunk)
         {
-            case ShipCoopState.Cleared:
-                _musicStopped = true;
-                Play(stingerClear);
-                break;
-
-            case ShipCoopState.Sunk:
-                _musicStopped = true;
-                Play(shipSunk);
-                Play(stingerFail);
-                break;
-
-            case ShipCoopState.TimeOver:
-                _musicStopped = true;
-                Play(stingerFail);
-                break;
-
-            default:
-                // 대기 · 항해로 돌아왔다 — 판을 되돌린 것. 음악을 다시 튼다.
-                _musicStopped = false;
-                break;
+            Play(shipSunk);
         }
     }
 
     private void WatchEvents()
     {
-        bool anyRunning = false;
-
         for (int i = 0; i < _events.Length; i++)
         {
             VoyageEvent e = _events[i];
             if (e == null) continue;
 
             VoyageEvent.Stage now = e.CurrentStage;
-            anyRunning |= now == VoyageEvent.Stage.Running;
 
             if (!_stageSeen.TryGetValue(e, out VoyageEvent.Stage was))
             {
@@ -663,16 +657,6 @@ public class ShipCoopAudio : MonoBehaviour
             }
 
             WatchEventExtra(e);
-        }
-
-        // 긴장 곡 — 사건이 이어진 뒤에만.
-        if (anyRunning)
-        {
-            if (_tensionSince < 0f) _tensionSince = Time.time;
-        }
-        else
-        {
-            _tensionSince = -1f;
         }
     }
 
@@ -796,6 +780,38 @@ public class ShipCoopAudio : MonoBehaviour
         _hpSeen = hp;
     }
 
+    /// <summary>
+    /// 🐦 갈매기. 루프가 아니라 **이따금 한 번씩** — 항해 중 30~40초마다, 셋을 돌아가며 (같은 것이 연달아 안 나게).
+    ///
+    /// 배 전체의 배경음이라 판정 없이 공통으로 낸다(IsMine 을 안 본다). 각 화면이 자기 타이머로 독립적으로
+    /// 뿌리므로 여러 명이 동시에 들어도 정확히 같은 순간은 아니다 — 분위기용 소리라 맞출 필요가 없다.
+    /// </summary>
+    private void WatchSeagulls()
+    {
+        bool sailing = _game != null && _game.State == ShipCoopState.Sailing;
+
+        if (!sailing || Time.time < _nextSeagullAt)
+        {
+            return;
+        }
+
+        AudioClip[] clips = { seagull1, seagull2, seagull3 };
+
+        for (int i = 0; i < clips.Length; i++)
+        {
+            int idx = (_seagullIndex + i) % clips.Length;
+
+            if (clips[idx] != null)
+            {
+                Play(clips[idx], seagullLevel);
+                _seagullIndex = (idx + 1) % clips.Length;
+                break;
+            }
+        }
+
+        _nextSeagullAt = Time.time + Random.Range(seagullMinInterval, seagullMaxInterval);
+    }
+
     // ------------------------------------------------------------
     // 🙋 "내 것" 판정 — 효과음은 내가 하는 일에만 낸다. 바람 · 바다 · 배경음악 · 배 전체 사건만 공통.
     //    한 PC 에 클라 둘을 띄우면 남의 소리가 두 겹으로 들려 헷갈렸고, 실제 플레이에서도 남의 망치 · 뚜껑까지
@@ -849,28 +865,40 @@ public class ShipCoopAudio : MonoBehaviour
     // 🎵 곡 고르기 — 재생은 허브가
     // ------------------------------------------------------------
 
+    /// <summary>
+    /// 배경음악을 3단계로만 고른다 — 대기 · 항해 · 결과(성공 · 실패 공통). 결과에는 따로 곡을 두지 않는다.
+    /// 항해 곡(<see cref="bgmSailing"/>)을 그대로 이어서 <see cref="endLevel"/> 만큼만 낮춰 튼다.
+    /// 같은 클립을 같은 크기로 다시 요청하면 <c>AudioHub.PlayMusic</c> 이 값싸게 걸러 내므로 매 프레임 불러도 된다.
+    /// </summary>
     private void ChooseMusic()
     {
         AudioClip want = null;
+        float level = 1f;
 
-        if (!_musicStopped && _game != null)
+        if (_game != null)
         {
             switch (_game.State)
             {
                 case ShipCoopState.Ready:
-                    want = bgmReady != null ? bgmReady : bgmSailing;
+                    want = bgmReady;
                     break;
 
                 case ShipCoopState.Sailing:
-                    bool tense = bgmTension != null && _tensionSince >= 0f && Time.time - _tensionSince >= tensionDelay;
-                    want = tense ? bgmTension : bgmSailing;
+                    want = bgmSailing;
+                    break;
+
+                case ShipCoopState.Cleared:
+                case ShipCoopState.Sunk:
+                case ShipCoopState.TimeOver:
+                    want = bgmSailing;
+                    level = endLevel;
                     break;
             }
         }
 
         if (want != null)
         {
-            _hub.PlayMusic(want, crossfadeSeconds);
+            _hub.PlayMusic(want, crossfadeSeconds, level);
         }
         else if (_hub.CurrentMusic != null)
         {
@@ -888,7 +916,7 @@ public class ShipCoopAudio : MonoBehaviour
 
         // 바다 — 항해 중 늘. 속도가 빠르면 조금 크게.
         float speed01 = _voyage != null ? Mathf.Clamp01(Mathf.Abs(_voyage.Speed) / 5f) : 0.5f;
-        _sea.Target = (sailing ? Mathf.Lerp(0.6f, 1f, speed01) : 0.3f) * loopLevel;
+        _sea.Target = (sailing ? Mathf.Lerp(0.6f, 1f, speed01) : 0.3f) * loopLevel * seaLevel;
 
         // 바람 — 항해 중 늘 얕게, 돌풍이면 크게.
         bool squall = _voyage != null && _voyage.SquallBlowing;

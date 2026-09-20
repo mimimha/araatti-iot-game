@@ -512,8 +512,8 @@ CharacterController  두 번째 캡슐. 부모 캡슐과 서로 밀어낸다
 설치 도구(`아라아띠/배 협동/소리 놓고 클립 채우기`)가 채웁니다. 비어 있는 클립은 그 소리만 안 납니다.
 
 ```text
-🎵 배경음악   대기(bgmReady) → 항해(bgmSailing) → 사건이 1초 넘게 터져 있으면 긴장(bgmTension)
-             → 결과: 도착 stingerClear / 침몰 · 시간 초과 stingerFail (배경음악은 멈춘다)
+🎵 배경음악   대기(bgmReady) → 항해(bgmSailing) → 결과: 따로 곡 없이 항해 곡을 endLevel(기본 70%) 만큼만 낮춰 이어서
+🐦 갈매기     항해 중 30~40초마다 seagull1 · 2 · 3 을 돌아가며 (루프 아님)
 🌊 루프       seaLoop 항해 중 늘, 속도 따라 / windLoop 돌풍 / ropeLoop 돛 당길 때 / wheelLoop 조타할 때 / floodLoop 침수량만큼
 💥 효과음     warnChime 예고 · waveHit 파도 · reefHit / reefDodged 암초 · enemyHit 적선 피격 · hullCrack 파손 시작
              cannonFire 발사 · hammerHit 망치 · repairDone 수리 완료 · dumpSplash 물 버림 · shipHurt HP 감소 · shipSunk 침몰

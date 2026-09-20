@@ -24,13 +24,26 @@ public class WaterDumpPoint : MonoBehaviour
     [SerializeField, Min(0.5f)] private float reachRange = 2f;
 
     [Header("보이는 때")]
-    [Tooltip("켜면 배에 물이 찼을 때만 나타난다.\n\n" +
-             "양동이 상자와 같이 나타나고 같이 사라져야 한다.\n" +
-             "버릴 곳만 먼저 보이면 그것도 '물이 처음부터 있다' 로 읽힌다.")]
+    [Tooltip("켜면 **내가 물동이를 들고 있을 때만** 나타난다.\n\n" +
+             "침수 여부로 켜면 배에 물이 찬 동안 계속 떠 있어서 거슬린다.\n" +
+             "들고 있을 때만 보이면 '지금 이걸 어디에 버리지' 순간에만 나타난다.")]
     [SerializeField] private bool showOnlyWhenFlooded = true;
 
     [Header("연결 — 비워두면 씬에서 자동으로 찾는다")]
     [SerializeField] private ShipFlooding flooding;
+
+    [Tooltip("내가 지금 물을 들고 있는지 물어볼 곳. 비워두면 씬에서 자동으로 찾는다.")]
+    [SerializeField] private ShipCoopHud hud;
+
+    /// <summary>내(로컬 플레이어)가 지금 물을 나르는 중인지. 못 찾으면 null.</summary>
+    private CarryTask _localCarry;
+
+    [Header("노란 표식 — 배치 도구가 붙인다")]
+    [Tooltip("여기가 버리는 곳이라고 알려주는 노란 오버레이 박스. 물이 찼을 때만 깜박인다.")]
+    [SerializeField] private Renderer marker;
+
+    [Tooltip("깜박이는 한 주기(초). 반은 켜지고 반은 꺼진다.")]
+    [SerializeField, Min(0.1f)] private float markerBlinkSeconds = 1.3f;
 
     /// <summary>버릴 수 있는 거리</summary>
     public float ReachRange => reachRange;
@@ -44,10 +57,20 @@ public class WaterDumpPoint : MonoBehaviour
             flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
         }
 
+        if (hud == null)
+        {
+            hud = FindAnyObjectByType<ShipCoopHud>(FindObjectsInactive.Include);
+        }
+
         if (showOnlyWhenFlooded)
         {
             _renderers = VisibleRenderers();
             ShowRail(false);
+        }
+
+        if (marker != null)
+        {
+            marker.enabled = false;
         }
 
         if (flooding == null)
@@ -58,12 +81,26 @@ public class WaterDumpPoint : MonoBehaviour
 
     private void Update()
     {
-        if (_renderers == null)
+        if (_localCarry == null && hud != null && hud.LocalWorker != null)
         {
-            return;
+            _localCarry = hud.LocalWorker.GetComponent<CarryTask>();
         }
 
-        ShowRail(flooding != null && flooding.HasWater);
+        bool showNow = showOnlyWhenFlooded
+            ? _localCarry != null && _localCarry.Carrying == Cargo.Water
+            : true;
+
+        if (_renderers != null)
+        {
+            ShowRail(showNow);
+        }
+
+        if (marker != null)
+        {
+            // 반은 켜지고 반은 꺼진다 — "깜박깜박". 안 들고 있으면 아예 끈다.
+            bool blinkOn = showNow && Mathf.Repeat(Time.time, markerBlinkSeconds) < markerBlinkSeconds * 0.5f;
+            marker.enabled = blinkOn;
+        }
     }
 
     private void ShowRail(bool visible)

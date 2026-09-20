@@ -75,6 +75,17 @@ namespace UnderTheSea.Audio
         private float _bgmFadeSeconds = 1.5f;
         private AudioClip _bgmWant;
 
+        // 트랙마다 다른 크기로 틀 때 쓴다 (예: 결과 화면 곡을 항해 곡의 70% 로). A · B 소스에 각각 붙는다.
+        private float _bgmLevelA = 1f;
+        private float _bgmLevelB = 1f;
+
+        // 같은 곡을 유지한 채 크기만 바뀔 때(항해 → 결과) 쓰는 짧은 램프. 소스를 갈아타지 않으므로
+        // 곡이 끊기거나 다시 시작하지 않는다 — 지금 트는 소스의 목표 크기만 부드럽게 옮긴다.
+        private float _bgmLevelRampFrom = 1f;
+        private float _bgmLevelRampTo = 1f;
+        private float _bgmLevelRampT = 1f;   // 0..1, 1 이면 램프가 끝난 상태
+        private const float BgmLevelRampSeconds = 0.15f;
+
         /// <summary>지금 틀고 있는(또는 올라오는) 곡. 없으면 null.</summary>
         public AudioClip CurrentMusic => _bgmWant;
 
@@ -365,12 +376,46 @@ namespace UnderTheSea.Audio
         // ------------------------------------------------------------
 
         /// <summary>
-        /// 배경음악을 튼다. 이미 그 곡이면 그대로 이어진다. 다른 곡이면 <paramref name="fadeSeconds"/> 동안 교차한다.
+        /// 배경음악을 튼다.
+        ///
+        /// <code>
+        ///   새 곡           fadeSeconds 동안 두 소스로 교차한다 (기존 그대로)
+        ///   같은 곡 · 같은 크기   아무 것도 안 한다
+        ///   같은 곡 · 다른 크기   소스를 갈아타지 않는다. 지금 트는 소스의 크기만 <see cref="BgmLevelRampSeconds"/>
+        ///                        동안 목표로 옮긴다 — 곡이 끊기거나 다시 시작하지 않고 음량만 바뀐다
+        /// </code>
+        ///
+        /// ⚠ 한때 "같은 곡, 다른 크기" 도 크로스페이드로 처리했다 — 뒤 소스에 같은 위치(time)를 물려주고 갈아탔는데,
+        /// 두 소스가 같은 곡을 동시에 살짝 어긋난 채로 겹쳐 틀어 위상이 어긋나며 곡이 한 번 끊기는 것처럼 들렸다.
+        /// 그래서 이 경우는 소스를 아예 안 건드리고 크기만 램프한다.
         /// </summary>
-        public void PlayMusic(AudioClip clip, float fadeSeconds = 1.5f)
+        /// <param name="level">
+        /// 이 곡만의 상대 크기 (1 이 기본). 결과 화면 곡을 항해 곡의 70% 로 틀 때처럼, 곡마다 다른 크기가 필요할 때 쓴다.
+        /// 트랙이 바뀌어도(다른 소스로 교차해도) 그 트랙에 붙어 다닌다.
+        /// </param>
+        public void PlayMusic(AudioClip clip, float fadeSeconds = 1.5f, float level = 1f)
         {
-            if (!CanHear || clip == _bgmWant)
+            if (!CanHear)
             {
+                return;
+            }
+
+            if (clip == _bgmWant)
+            {
+                float currentLevel = _bgmFront == _bgmA ? _bgmLevelA : _bgmLevelB;
+
+                if (!Mathf.Approximately(currentLevel, level))
+                {
+                    _bgmLevelRampFrom = currentLevel;
+                    _bgmLevelRampTo = level;
+                    _bgmLevelRampT = 0f;
+
+                    if (logPlays)
+                    {
+                        Debug.Log($"[AudioHub] 곡 그대로, 크기만 {currentLevel:F2} → {level:F2} ({BgmLevelRampSeconds:F2}초)");
+                    }
+                }
+
                 return;
             }
 
@@ -386,12 +431,15 @@ namespace UnderTheSea.Audio
                 back.Play();
             }
 
+            if (back == _bgmA) _bgmLevelA = level; else _bgmLevelB = level;
+            _bgmLevelRampT = 1f;   // 새 트랙으로 갈아탔다. 진행 중이던 크기 램프는 의미가 없어졌다.
+
             _bgmFront = back;
             _bgmFade = 0f;
 
             if (logPlays)
             {
-                Debug.Log($"[AudioHub] 곡 → {(clip != null ? clip.name : "없음")} ({fadeSeconds:F1}초 교차)");
+                Debug.Log($"[AudioHub] 곡 → {(clip != null ? clip.name : "없음")} ({fadeSeconds:F1}초 교차, 크기 {level:F2})");
             }
         }
 
@@ -507,12 +555,24 @@ namespace UnderTheSea.Audio
 
         private void DriveMusic()
         {
+            // 같은 곡을 유지한 채 크기만 바뀌는 중이면, 지금 트는 소스의 크기를 목표로 부드럽게 옮긴다.
+            // 소스를 갈아타지 않으므로 이 램프가 끝나도 다른 소스 · 크로스페이드에는 아무 영향이 없다.
+            if (_bgmLevelRampT < 1f)
+            {
+                _bgmLevelRampT = Mathf.MoveTowards(_bgmLevelRampT, 1f, Time.unscaledDeltaTime / BgmLevelRampSeconds);
+                float ramped = Mathf.Lerp(_bgmLevelRampFrom, _bgmLevelRampTo, _bgmLevelRampT);
+
+                if (_bgmFront == _bgmA) _bgmLevelA = ramped; else _bgmLevelB = ramped;
+            }
+
             _bgmFade = Mathf.MoveTowards(_bgmFade, 1f, Time.unscaledDeltaTime / _bgmFadeSeconds);
 
             AudioSource other = _bgmFront == _bgmA ? _bgmB : _bgmA;
+            float frontLevel = _bgmFront == _bgmA ? _bgmLevelA : _bgmLevelB;
+            float otherLevel = _bgmFront == _bgmA ? _bgmLevelB : _bgmLevelA;
 
-            _bgmFront.volume = Mathf.Min(1f, (_bgmFront.clip != null && _bgmWant != null ? _bgmFade : 0f) * GainFor(_bgmFront.clip) * _musicVolume);
-            other.volume = Mathf.Min(1f, (1f - _bgmFade) * GainFor(other.clip) * _musicVolume);
+            _bgmFront.volume = Mathf.Min(1f, (_bgmFront.clip != null && _bgmWant != null ? _bgmFade : 0f) * GainFor(_bgmFront.clip) * _musicVolume * frontLevel);
+            other.volume = Mathf.Min(1f, (1f - _bgmFade) * GainFor(other.clip) * _musicVolume * otherLevel);
 
             if (other.isPlaying && _bgmFade >= 1f)
             {

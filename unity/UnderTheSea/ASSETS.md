@@ -31,6 +31,10 @@
 | 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
 | Kenney RPG Audio | kenney.nl/assets/rpg-audio | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만. 팩 본체는 저장소에 없음) | 배 협동 — 망치 · 수리 완료 · 상자 뚜껑 | 민화 | 2026-09-20 |
+| Sea and River Wave Sounds | opengameart.org/content/sea-and-river-wave-sounds | CC0 | `Assets/Game/Audio/ShipCoop/seaLoop.mp3` | 배 협동 — 바다 배경 루프 (아주 얕게) | 민화 | 2026-09-20 |
+| Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 30~40초마다 돌아가며 | 민화 | 2026-09-20 |
+| Short Alarm | opengameart.org/content/short-alarm | CC0 | `Assets/Game/Audio/ShipCoop/warnChime.ogg` | 배 협동 — 사건 예고 종 | 민화 | 2026-09-20 |
+| Exploration Fantasy Free Pack | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | `Assets/Game/Audio/ShipCoop/` (쓰는 2곡만 이름 바꿔 옮김. 원본은 `Assets/Audio/Music/` 에 있음, 저장소에는 안 올림) | 배 협동 배경음악 — 대기(Ocean Soul) · 항해(The Blacksmith) | 민화 | 2026-09-20 |
 
 > ⚠ 유료 에셋 4종 합계 **약 561MB** (Synty 431MB / ithappy 85MB / ARPG Effects 19MB / Stylized Pirate Ship 26MB) 입니다.
 > 이미지·모델·오디오는 `.gitattributes` 규칙에 따라 Git LFS 로 보관됩니다.

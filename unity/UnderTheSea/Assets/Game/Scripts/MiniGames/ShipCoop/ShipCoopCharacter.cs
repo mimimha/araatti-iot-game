@@ -49,6 +49,15 @@ public class ShipCoopCharacter : MonoBehaviour
 
     [SerializeField] private string verticalId = "Vert";
     [SerializeField] private string stateId = "State";
+    [SerializeField] private string isRepairingId = "IsRepairing";
+
+    [Tooltip("수리 자세일 때 몸을 이만큼 더 띄운다 (m).\n\n" +
+             "이 캐릭터는 몸통이 유난히 크고 둥글어서, 무릎을 깊이 굽히는 수리 자세를 그대로 두면\n" +
+             "몸통이 갑판을 파고들어 보인다. 그만큼 보정해서 띄운다.")]
+    [SerializeField, Range(0f, 0.6f)] private float repairLift = 0.3f;
+
+    /// <summary>지금 수리 자세인지. SinkModel 이 이걸 보고 몸을 더 띄운다.</summary>
+    private bool _repairing;
 
     [Header("부드럽게 섞는 속도")]
     [Tooltip("값이 확 바뀌면 다리가 튄다. 에셋 쪽과 같은 4.5 를 쓴다.")]
@@ -148,6 +157,19 @@ public class ShipCoopCharacter : MonoBehaviour
         _drivenFrame = Time.frameCount;
     }
 
+    /// <summary>
+    /// 수리 자세(웅크려 망치질)를 켜고 끈다. <c>RepairTask</c>가 붙고 뗄 때 부른다.
+    /// </summary>
+    public void SetRepairing(bool repairing)
+    {
+        _repairing = repairing;
+
+        if (animator != null)
+        {
+            animator.SetBool(isRepairingId, repairing);
+        }
+    }
+
     private void Awake()
     {
         if (animator == null)
@@ -237,18 +259,28 @@ public class ShipCoopCharacter : MonoBehaviour
         }
 
         float want = modelSink;
-        float deck;
 
-        if (FindDeckUnderFoot(out deck))
+        // ⚠ **수리 중에는 갑판 찾기를 아예 끈다.**
+        //    대포 · 조타륜처럼 자리 근처에 물건이 많은 곳(앞갑판 · 뒷갑판)에서는 발밑 레이가
+        //    그 물건에 걸려 자리마다 다른 값을 낸다. 서 있을 때는 안 보이던 차이가, 웅크려서
+        //    한참 붙어 있는 수리 자세에서는 그대로 자리 잡아 파고들어 보였다.
+        //    수리 중엔 항상 같은 기본값(modelSink)에서 repairLift 만큼만 띄운다.
+        if (!_repairing)
         {
-            // 발(캡슐 밑바닥)은 이 오브젝트의 원점에 있다. 갑판까지의 거리가 곧 내릴 깊이다.
-            want = transform.position.y - deck;
+            float deck;
+
+            if (FindDeckUnderFoot(out deck))
+            {
+                // 발(캡슐 밑바닥)은 이 오브젝트의 원점에 있다. 갑판까지의 거리가 곧 내릴 깊이다.
+                want = transform.position.y - deck;
+            }
         }
 
         // 갑판이 갑자기 바뀌어도 몸이 순간이동하지 않게 천천히 따라간다.
         _sink = Mathf.MoveTowards(_sink, want, sinkSpeed * Time.deltaTime);
 
-        model.localPosition = new Vector3(0f, -_sink, 0f) + ModelJolt;
+        float lift = _repairing ? repairLift : 0f;
+        model.localPosition = new Vector3(0f, -_sink + lift, 0f) + ModelJolt;
     }
 
     /// <summary>발밑에서 배의 갑판을 찾는다. 걷는 큐브와 내 몸은 빼고 본다.</summary>

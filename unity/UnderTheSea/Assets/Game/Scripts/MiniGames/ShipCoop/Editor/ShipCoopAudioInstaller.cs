@@ -12,8 +12,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.EditorTools
     /// 클립 파일 이름이 곧 필드 이름이다 (확장자는 .ogg · .wav · .mp3 중 무엇이든).
     ///
     /// <code>
-    ///   bgmReady  bgmSailing  bgmTension  stingerClear  stingerFail
-    ///   seaLoop  windLoop  ropeLoop  wheelLoop  floodLoop
+    ///   bgmReady  bgmSailing
+    ///   seaLoop  windLoop  ropeLoop  wheelLoop  floodLoop  seagull1  seagull2  seagull3
     ///   warnChime  waveHit  reefHit  reefDodged  enemyHit  hullCrack
     ///   cannonFire  hammerHit  repairDone  dumpSplash  shipHurt  shipSunk
     /// </code>
@@ -36,8 +36,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.EditorTools
 
         private static readonly string[] ClipFields =
         {
-            "bgmReady", "bgmSailing", "bgmTension", "stingerClear", "stingerFail",
-            "seaLoop", "windLoop", "ropeLoop", "wheelLoop", "floodLoop",
+            "bgmReady", "bgmSailing",
+            "seaLoop", "windLoop", "ropeLoop", "wheelLoop", "floodLoop", "seagull1", "seagull2", "seagull3",
             "warnChime", "waveHit", "reefHit", "reefDodged", "enemyHit", "hullCrack",
             "cannonFire", "hammerHit", "repairDone", "dumpSplash", "waterScoop", "boxLid", "footstep", "shipHurt", "shipSunk",
         };
