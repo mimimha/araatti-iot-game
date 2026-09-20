@@ -1929,8 +1929,16 @@ DB 가 두 UPDATE 를 직렬화한다
 인벤토리 차감 없음        ← ① 에서 걸렸으므로 ② 에 닿지도 않았다
 contribution 기록 없음
 altar total 변화 없음
-응답 OFFERING_AMOUNT_CHANGED + 최신 상태
+응답 OFFERING_CLOSED + 최신 상태
 ```
+
+⚠ **여기서는 `OFFERING_AMOUNT_CHANGED` 가 아니라 `OFFERING_CLOSED` 입니다.**
+0행 이후 진 쪽이 최신 상태를 읽는 시점에는 이미 `remainingToTarget = 0` 이므로
+8.6.2 의 판정이 그대로 적용됩니다. 수량을 낮춰 다시 누를 수 있는 상태가 아니라
+봉헌이 닫힌 상태입니다.
+
+⚠ **같은 `(user_id, requestId)` 가 동시에 두 번 온 경우는 여기에 해당하지 않습니다.**
+그쪽은 경쟁이 아니라 재전송이므로 10.4 의 멱등성 규칙대로 `200` + `duplicate: true` 입니다.
 
 ### 10.7 `altarActivated` 는 계산값으로 둡니다
 
@@ -4405,11 +4413,21 @@ A 가 1개, B 가 1개를 거의 동시에 요청
 
 → 정확히 한 명만 성공
 → 전체 1000 / 1000        ⚠ 1001 이 나오면 실패다
-→ 진 쪽: 409 OFFERING_AMOUNT_CHANGED
+→ 진 쪽: 409 OFFERING_CLOSED
+         "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다."
+         remainingToTarget = 0,  maxOfferAmount = 0
+         altarActivated = true,  recoveryPercent = 100.0
          보유량 5 그대로 (차감 0)
          altar_contributions 에 그 사람 행 없음
 → altar_contributions 에 행 1개
 ```
+
+⚠ 진 쪽이 최신 상태를 읽는 시점에는 남은 칸이 0 이므로 8.6.2 의 판정대로
+`OFFERING_CLOSED` 입니다. `OFFERING_AMOUNT_CHANGED` 는 아직 칸이 남아 있어
+수량을 낮춰 다시 시도할 수 있을 때의 코드입니다 (테스트 D).
+
+⚠ 두 요청의 `requestId` 가 **서로 다른** 경우입니다. 같은 `(user_id, requestId)` 가
+동시에 두 번 오면 재전송이므로 `200` + `duplicate: true` 입니다 (10.4).
 
 #### 테스트 D — UI 를 연 뒤 상태가 바뀜 (이번 정책의 대표 시나리오)
 

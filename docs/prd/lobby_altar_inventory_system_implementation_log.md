@@ -704,3 +704,469 @@ DB          2026-09-20 00:00:00.000000
 - [x] STEP 3 코드 없음 (봉헌 · clear-reward 미구현)
 
 STEP 2 완료.
+
+---
+
+## STEP 3. 제단 봉헌 API
+
+구현일: 2026-09-20
+
+이 절의 명령 실행 결과와 HTTP 응답은 모두 **에이전트 세션에서 직접 실행하고 관측한 것**입니다.
+설계에서 읽어 해석한 부분은 "설계상", 제가 고른 부분은 "구현 선택" 으로 적었습니다.
+
+### 구현 파일
+
+수정
+
+```text
+server/AraAtti.Api/Contracts/AltarContracts.cs     ← 요청·응답 DTO 3개 추가
+server/AraAtti.Api/Endpoints/AltarEndpoints.cs     ← POST /offer 추가 + 상태 계산 helper 추출
+```
+
+`Program.cs` 는 손대지 않았습니다. STEP 2 에서 `MapAltarEndpoints()` 가 이미 등록되어 있고
+새 엔드포인트는 같은 그룹 안에 붙기 때문입니다.
+Service · Repository 계층도 만들지 않았습니다.
+
+### `POST /api/altar/offer` 계약
+
+```text
+요청   { "amount": 50, "requestId": "0f2c9b1e-..." }
+성공   200  success · offeredAmount · remainingFragments · totalOffered · targetOffering ·
+            remainingToTarget · maxOfferAmount · altarActivated · recoveryPercent · duplicate
+실패   409  success · code · message + 위 상태값 전부
+입력   400  ErrorResponse(code, message)   ← 프로젝트 공통 모양
+```
+
+`acceptedAmount` · `refundedAmount` 는 없습니다. 부분 수락을 하지 않으므로 성공했다면
+`offeredAmount` 는 언제나 요청한 수량입니다. (설계 10.3.2)
+
+409 응답에도 최신 상태를 전부 싣습니다. 클라이언트가 실패 직후 `GET /api/altar/state` 를
+다시 부르지 않아도 UI 를 맞출 수 있어야 하기 때문입니다. (설계 9.2)
+
+### 입력 검증
+
+순서는 설계 8.6절 그대로입니다. 2번(캐릭터 보유)은 결정 #6 으로 검사하지 않습니다.
+
+| # | 검증 | 실패 |
+|---|---|---|
+| 1 | 로그인 | 401 `TOKEN_INVALID` |
+| 3 | amount 가 정수 | 역직렬화 400 (아래 참고) |
+| 4 | amount > 0 | 400 `AMOUNT_INVALID` |
+| 5 | amount ≤ int.MaxValue | 400 `AMOUNT_TOO_LARGE` |
+| 6 | requestId 가 Guid | 400 `REQUEST_ID_INVALID` |
+| 7 | 이미 처리된 요청 | 200 `duplicate: true` |
+| 8 | 남은 칸 ≥ amount | 409 `OFFERING_CLOSED` / `OFFERING_AMOUNT_CHANGED` |
+| 9 | 보유량 ≥ amount | 409 `NOT_ENOUGH_FRAGMENTS` |
+
+#### amount 를 `long?` 으로 받은 이유 — 구현 선택
+
+DTO 를 `int` 로 두면 `int.MaxValue` 보다 큰 JSON 숫자가 **핸들러에 닿기도 전에**
+역직렬화 400 이 되어, 설계 8.6 의 5번 `AMOUNT_TOO_LARGE` 를 우리가 돌려줄 수 없습니다.
+`uint` 로 받으면 반대로 음수를 잃어 `AMOUNT_INVALID` 를 구분할 수 없습니다.
+그래서 `long?` 으로 받고 핸들러에서 두 경계를 직접 봅니다. `JsonElement` 수동 파서나
+전역 JSON 설정 변경은 하지 않았습니다.
+
+`?`(nullable)인 이유는 기존 `SignupRequest` · `CreateCharacterRequest` 와 같습니다 —
+JSON 에서 통째로 빠질 수 있고, 그때 우리 문구로 답하기 위해서입니다.
+
+실측한 경계입니다.
+
+```text
+amount = 0                      → 400 AMOUNT_INVALID
+amount = -5                     → 400 AMOUNT_INVALID
+amount 누락                      → 400 AMOUNT_INVALID
+amount = 2147483648             → 400 AMOUNT_TOO_LARGE      ← int.MaxValue + 1
+amount = 9223372036854775807    → 400 AMOUNT_TOO_LARGE      ← long.MaxValue
+amount = 99999999999999999999   → 400 (역직렬화 단계)        ← long 범위 초과
+amount = 1.5                    → 400 (역직렬화 단계)        ← 소수
+amount = "abc"                  → 400 (역직렬화 단계)        ← 문자열
+requestId = "abc"               → 400 REQUEST_ID_INVALID
+```
+
+⚠ 마지막 세 줄은 `BadHttpRequestException` 이라 **우리 `ErrorResponse` 모양이 아닙니다.**
+설계 15.1 이 이 경우를 "JSON 파싱 실패 → 400" 으로 적어 둔 그대로입니다.
+Development 환경에서는 예외 본문이 그대로 나오고, 운영 환경에서는 본문 없는 400 입니다.
+
+#### requestId
+
+문자열로 받아 `Guid.TryParse` 로 검증합니다. `Guid` 로 직접 받으면 형식 오류가
+역직렬화 400 이 되어 `REQUEST_ID_INVALID` 를 돌려줄 수 없고, `Guid.Parse` 는 예외가
+500 으로 올라갑니다. 저장은 STEP 1 의 Entity 타입대로 `Guid` 입니다.
+
+### 트랜잭션
+
+```text
+duplicate precheck (트랜잭션 밖)
+  → BEGIN
+  → ① altar_state 조건부 원자적 UPDATE
+  → ② player_inventories 조건부 UPDATE
+  → ③ altar_contributions INSERT
+  → COMMIT
+  → 최신 상태를 읽어 응답
+```
+
+제단이 먼저, 인벤토리가 나중입니다. "봉헌 가능량이 줄었다" 가 "보유량이 모자라다" 보다
+먼저 판정되어야 정확한 이유를 줄 수 있고, 8번에서 걸리면 9번에 닿지도 않아
+인벤토리가 건드려지지 않습니다. (설계 10.3.1)
+
+#### ① 제단 — 판단을 WHERE 안에 넣습니다
+
+```csharp
+int accepted = await database.AltarStates
+    .Where(altar => altar.Id == AltarStateId
+        && altar.TotalOffered + offerAmount <= altar.TargetOffering)
+    .ExecuteUpdateAsync(setters => setters
+        .SetProperty(altar => altar.TotalOffered, altar => altar.TotalOffered + offerAmount)
+        .SetProperty(altar => altar.UpdatedAt, _ => DateTime.UtcNow), cancellationToken);
+```
+
+영향 행 0 이 곧 실패입니다. 먼저 `SELECT` 해서 판단한 뒤 `UPDATE` 하면 그 사이에 다른
+요청이 끼어들어 1001/1000 이 만들어집니다. (설계 10.2 의 두 번째 금지 사례)
+
+⚠ **조건을 설계 코드의 뺄셈(`TargetOffering - TotalOffered >= amount`)이 아니라 덧셈으로
+썼습니다 — 구현 선택입니다.** 두 컬럼이 모두 UNSIGNED 라, `total > target` 인 비정상
+데이터에서 뺄셈은 음수가 아니라 MySQL 오류(`BIGINT UNSIGNED value is out of range`)가
+됩니다. 덧셈은 같은 판정을 하면서 그 경로가 없습니다. 불변식이 지켜지는 정상 데이터에서
+두 식은 완전히 같습니다.
+
+`UpdatedAt` 은 `DateTime.UtcNow` 입니다. STEP 2 의 UTC 규칙을 유지합니다 —
+서버 코드 어디에도 `DateTime.Now` 가 없습니다.
+
+#### ② 인벤토리 — 같은 모양
+
+```csharp
+.Where(item => item.UserId == userId
+    && item.ItemId == InventoryEndpoints.SeaHeartFragmentItemId
+    && item.Quantity >= offerAmount)
+.ExecuteUpdateAsync(... Quantity - offerAmount ..., UpdatedAt = UtcNow)
+```
+
+행이 아예 없어도 0행이므로 `NOT_ENOUGH_FRAGMENTS` 가 맞습니다.
+봉헌은 UPSERT 가 아니라서 조각이 없는 사용자를 위해 행을 만들지 않습니다.
+`updated_at` 을 함께 갱신하는 것은 그 컬럼의 뜻 그대로입니다(설계에 명시는 없음 — 구현 선택).
+
+#### ③ contribution INSERT
+
+`UserId` / `RequestId`(parsed Guid) / `Amount` / `CreatedAt = DateTime.UtcNow`.
+같은 트랜잭션 안입니다.
+
+### 멱등성
+
+#### 사전 확인 + UNIQUE 최후 방어선
+
+트랜잭션 **밖에서** `(user_id, request_id)` 를 먼저 조회합니다. 있으면 봉헌을 건너뛰고
+현재 상태를 `duplicate: true` 로 돌려줍니다.
+
+사전 확인만으로는 부족합니다. 정말 동시에 온 두 요청은 둘 다 "없음" 을 봅니다.
+그래서 `uk_contributions_user_request` 가 최후의 방어선이고, 그 예외를 잡습니다.
+
+```csharp
+catch (DbUpdateException exception) when (IsDuplicateKeyViolation(exception))
+{
+    await transaction.RollbackAsync(cancellationToken);
+    database.Entry(contribution).State = EntityState.Detached;   // 실패한 INSERT 를 떼어낸다
+    AltarContribution? winner = await FindContributionAsync(...);
+    if (winner is null) throw;                                   // 우리 키가 아닌 중복은 숨기지 않는다
+    return await DuplicateAsync(database, userId, winner.Amount, cancellationToken);
+}
+```
+
+⚠ **모든 `DbUpdateException` 을 duplicate 로 보지 않습니다.** 연결이 끊긴 것도, 다른 제약을
+위반한 것도 전부 "성공" 으로 둔갑합니다. MySQL 의 1062(`ER_DUP_ENTRY`)일 때만 참입니다.
+
+```csharp
+exception.InnerException is MySqlException { ErrorCode: MySqlErrorCode.DuplicateKeyEntry }
+```
+
+`MySqlConnector` 는 Pomelo 의 전이 의존성이라 패키지를 새로 추가하지 않았습니다.
+
+⚠ rollback 후 `Added` 로 남은 엔티티를 떼어내지 않으면 다음 `SaveChanges` 가 같은 INSERT 를
+또 시도합니다. 그래서 `Detached` 로 바꿉니다.
+
+#### 실패 경로에서도 duplicate 를 다시 확인합니다 — 구현 선택
+
+같은 `(user_id, requestId)` 두 요청이 동시에 오면, 먼저 온 쪽이 마지막 칸을 채운 뒤
+나중 쪽이 **contribution INSERT 에 닿기도 전에** 제단 조건부 UPDATE 0행으로 떨어질 수
+있습니다. 그때 `OFFERING_CLOSED` 로 답하면 "같은 requestId 는 다시 실행하지 않고
+duplicate 로 돌려준다" 는 설계 10.4 의 계약이 실제 동시 상황에서 깨집니다.
+
+그래서 세 경로 모두에서 **실패를 확정하기 전에** `(user_id, requestId)` 를 다시 조회합니다.
+
+```text
+① altar 조건부 UPDATE 0행   → 재확인 → 있으면 duplicate:true
+② inventory 조건부 UPDATE 0행 → 재확인 → 있으면 duplicate:true
+③ contribution UNIQUE 충돌   → 재확인 → 있으면 duplicate:true
+```
+
+새 오류 코드는 만들지 않았습니다. 설계 계약을 동시 요청에서도 지키기 위한 보강입니다.
+
+#### 같은 requestId + 다른 amount — 구현 선택
+
+`duplicate` 응답의 `offeredAmount` 는 **이미 기록된 `altar_contributions.amount`** 입니다.
+이번 요청의 `amount` 가 달라도 새 봉헌을 하지 않습니다.
+설계에 `IDEMPOTENCY_AMOUNT_MISMATCH` 같은 코드가 없고, 실제로 반영된 수량은 처음 것
+하나뿐이므로 기존 기록을 돌려주는 편이 일관됩니다.
+
+상태값은 "그때" 가 아니라 **"지금"** 값입니다. (설계 10.4)
+
+### 상태 계산 공식 공유
+
+`GET /state` 와 `POST /offer` 가 서로 다른 공식을 갖지 않도록 `AltarSnapshot` 이라는
+`private readonly record struct` 와 `ReadSnapshotAsync` 한 곳에 모았습니다.
+STEP 2 에서 `GetAltarStateAsync` 안에 있던 계산을 그대로 옮긴 것이고, 동작은 같습니다.
+Service 계층으로 올리지 않았습니다.
+
+```text
+remainingToTarget = total >= target ? 0 : target - total
+maxOfferAmount    = min(myFragments, remainingToTarget)
+altarActivated    = total >= target
+recoveryPercent   = target == 0 ? 0 : min(total / (float)target, 1) * 100
+```
+
+### 실제 테스트 결과
+
+서버를 `dotnet run` 으로 띄우고 실제 MySQL · 실제 HTTP 로 확인했습니다.
+동시 요청은 Python `ThreadPoolExecutor` 로 보냈습니다
+(Windows PowerShell 5.1 에는 `ForEach-Object -Parallel` 이 없습니다).
+
+#### 단일 · 순차 (49개 항목 전부 PASS)
+
+```text
+26. 단일 성공      보유 100, 제단 0 → 30 봉헌
+    → 200 duplicate=false offeredAmount=30
+    → DB 보유 70, 제단 30, contribution 1행
+
+27. 보유량 부족    보유 20, 제단 500 → 30 요청
+    → 409 NOT_ENOUGH_FRAGMENTS
+    → "보유한 조각이 모자랍니다. (보유 20 / 요청 30)"
+    → DB 보유 20 그대로, 제단 500 그대로   ← ① 의 +30 이 rollback 된 것을 확인
+    → contribution 0행
+
+28. 남은 칸 초과   제단 998/1000, 보유 10 → 5 요청
+    → 409 OFFERING_AMOUNT_CHANGED
+    → DB 보유 10, 제단 998, contribution 0행
+    → remainingToTarget=2, maxOfferAmount=2
+    → acceptedAmount · refundedAmount 필드 없음 (부분 수락 없음)
+
+29. 완료 이후      제단 1000/1000, 보유 10 → 1 요청
+    → 409 OFFERING_CLOSED
+    → "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다."
+    → DB 보유 10, 제단 1000, contribution 0행
+    → altarActivated=true, recoveryPercent=100
+
+30. 순차 멱등성    같은 requestId 2회 (amount 3)
+    → 1차 200 duplicate=false, 보유 10→7, 제단 500→503
+    → 2차 200 duplicate=true,  보유 7 그대로, 제단 503 그대로, contribution 1행
+
+31. 같은 requestId + 다른 amount (3 성공 후 8 재요청)
+    → 200 duplicate=true, offeredAmount=3 (기존 기록)
+    → 보유·제단·contribution 전부 변화 없음
+
+33. 다른 사용자 + 같은 requestId
+    → A 2개 성공, B 3개 성공 (둘 다 duplicate=false)
+    → 제단 505, contribution 2행
+    → UNIQUE 가 (user_id, request_id) 라서 서로 막지 않는다
+```
+
+#### 동시성 (23 + 7 항목 전부 PASS)
+
+```text
+32-1. 동시 동일 requestId   보유 10, 제단 500, amount 3, 2건 동시
+      → 두 응답 모두 200, 하나 duplicate=false / 하나 duplicate=true
+      → 보유 정확히 -3(7), 제단 정확히 +3(503), contribution 정확히 1행
+
+32-2. 완료 경계 + 동시 동일 requestId   제단 999/1000, 보유 5, amount 1, 2건 동시
+      → 두 응답 모두 200 (code 필드 없음)
+      → 하나 duplicate=false / 하나 duplicate=true
+      → 제단 1000, 보유 4, contribution 1행
+      ⚠ 두 번째가 OFFERING_CLOSED 로 끝나지 않았다. 위의 "실패 경로 duplicate 재확인" 이
+        실제로 동작한 것이다. 이 보강이 없으면 여기서 계약이 깨진다.
+
+34. 동시 20건 합계 정확성   제단 500, 보유 30, amount 1 × 20 (requestId 전부 다름)
+    → 20건 모두 200
+    → 제단 정확히 520, 보유 정확히 10(-20), contribution 20행
+    → lost update 없음
+
+35. 하드캡 부하   계정 20개, 제단 990/1000, 각 보유 5, 각 amount 5, 20건 동시
+    → 200 이 2건, 409 가 18건 (전부 OFFERING_CLOSED)
+    → 성공 amount 총합 정확히 10
+    → 제단 정확히 1000
+    → 성공 계정 보유 0, 실패 계정 18개 전부 보유 5 그대로
+    → contribution 정확히 2행
+    → SELECT * FROM altar_state WHERE total_offered > target_offering;  →  0행
+
+36. 마지막 한 칸 경쟁   제단 999/1000, A·B 각 보유 5, 각 amount 1, requestId 다름
+    → 정확히 1명 200 / 1명 409
+    → 제단 정확히 1000, contribution 1행
+    → 패자 보유 5 그대로, 승자 4
+    → 불변식 위반 0행
+```
+
+#### 트랜잭션 · 잠금
+
+실패 경로를 모두 돌린 뒤 확인했습니다.
+
+```text
+information_schema.innodb_trx           0행   ← 남아 있는 트랜잭션 없음
+performance_schema.data_lock_waits      0행
+performance_schema.data_locks           0행
+
+다른 연결에서 SELECT ... FOR UPDATE on altar_state  → 즉시 성공 (lock wait timeout 3초 설정)
+```
+
+### 설계 문구 충돌 — 마지막 칸 경쟁의 실패 코드 (해소 완료)
+
+구현 중 **설계 문서 안에서 두 곳이 서로 다르게 적혀 있는 것**을 발견했습니다.
+
+```text
+8.6.2절 (판정 규칙)     0행 이후 최신 상태를 읽어
+                        remainingToTarget == 0  → OFFERING_CLOSED
+                        remainingToTarget  > 0  → OFFERING_AMOUNT_CHANGED
+15.1절 표               남은 칸 0(회복 완료) → OFFERING_CLOSED
+
+10.6절 (서술)           999/1000 경쟁에서 진 쪽 → "응답 OFFERING_AMOUNT_CHANGED + 최신 상태"
+19.4 테스트 C           진 쪽: 409 OFFERING_AMOUNT_CHANGED
+```
+
+999/1000 에서 한 명이 이겨 1000/1000 이 되면, 진 쪽이 읽는 `remainingToTarget` 은 0 입니다.
+따라서 8.6.2 의 규칙으로는 `OFFERING_CLOSED` 이고, 10.6 · 테스트 C 의 문구로는
+`OFFERING_AMOUNT_CHANGED` 입니다. 같은 상황에 두 답이 적혀 있습니다.
+
+**구현은 8.6.2 의 판정 규칙을 따랐습니다.** 그것이 조건을 명시한 규범 조항이고,
+15.1 표와도 일치하며, 이번 작업 지시서도 같은 규칙을 지정했기 때문입니다.
+실측 결과 테스트 36(=설계 테스트 C)의 패자 코드는 `OFFERING_CLOSED` 입니다.
+
+```text
+테스트 36 실측   승자 200 / 패자 409 OFFERING_CLOSED
+                 제단 1000, contribution 1행, 패자 보유 5 그대로
+```
+
+사용자 경험상으로도 이쪽이 맞습니다 — 그 시점에 제단은 실제로 닫혔고, 수량을 낮춰 다시
+눌러도 되는 상황이 아닙니다.
+
+#### 설계 충돌 해소 (2026-09-20)
+
+**§8.6.2 를 기준으로 통일하기로 확정되어 설계 문서를 고쳤습니다.** 코드는 그대로입니다 —
+구현이 이미 8.6.2 를 따르고 있었고, 문서 쪽 두 곳이 그것과 어긋나 있던 것입니다.
+
+```text
+§10.6         진 쪽 응답  OFFERING_AMOUNT_CHANGED → OFFERING_CLOSED
+§19.4 테스트 C  진 쪽 기대  409 OFFERING_AMOUNT_CHANGED → 409 OFFERING_CLOSED
+                           + remainingToTarget 0 · maxOfferAmount 0 ·
+                             altarActivated true · recoveryPercent 100.0 명시
+```
+
+확정된 규칙은 하나입니다.
+
+```text
+조건부 UPDATE 0행 → 최신 상태를 읽어
+  remainingToTarget == 0  → 409 OFFERING_CLOSED
+  remainingToTarget  > 0  → 409 OFFERING_AMOUNT_CHANGED
+```
+
+`OFFERING_AMOUNT_CHANGED` 는 아직 칸이 남아 있어 **수량을 낮춰 다시 시도할 수 있는**
+상태의 코드입니다. 마지막 칸 경쟁의 패자는 그 시점에 남은 칸이 0 이라 다시 봉헌할 수
+없으므로 `OFFERING_CLOSED` 가 맞습니다.
+
+⚠ **멱등성 규칙은 건드리지 않았습니다.** 같은 `(user_id, requestId)` 가 동시에 두 번 오는
+것은 칸 경쟁이 아니라 재전송이므로, 여전히 `200` + `duplicate: true` 입니다 (설계 10.4).
+위 테스트 32-2 의 실측이 그것이고, 이번 문서 수정 대상이 아닙니다.
+두 경우를 구분해 두도록 §10.6 과 테스트 C 에 각각 한 줄씩 덧붙였습니다.
+
+### 관측된 부수 사항
+
+`recoveryPercent` 가 `float` 라서 값에 따라 소수 꼬리가 보입니다.
+
+```text
+503 / 1000  →  50.300003
+998 / 1000  →  99.8
+1000 / 1000 →  100
+```
+
+설계 11.3 의 코드가 `float` 로 적혀 있어 그대로 두었습니다. 화면 표기는 클라이언트가
+포맷하는 값이므로 서버에서 반올림을 덧붙이지 않았습니다(설계에 없는 동작이라서).
+STEP 4 이후 UI 에서 자리수를 정하면 됩니다.
+
+### DB 원복
+
+테스트 전 기준값
+
+```text
+altar_state          id=1, total_offered=0, target_offering=1000,
+                     activated_at=NULL, updated_at=2026-09-20 00:00:00.000000
+users                0행
+player_inventories   0행
+altar_contributions  0행
+characters           0행
+reward_claims        0행
+```
+
+테스트 중 바꾼 것
+
+```text
+계정 22개 생성        offer-a · offer-b · cap00 ~ cap19
+player_inventories    테스트용 행 생성·수정
+altar_contributions   테스트용 행 생성
+altar_state           total_offered 를 0 · 500 · 990 · 998 · 999 · 1000 으로 반복 변경
+                      (target_offering 은 1000 그대로, activated_at 은 건드리지 않음)
+                      updated_at 은 봉헌 성공 시 서버가 UtcNow 로 갱신
+```
+
+원복 후 실제 조회 결과 — 기준값과 같습니다.
+
+```text
+id  total_offered  target_offering  activated_at  updated_at
+1   0              1000             NULL          2026-09-20 00:00:00.000000
+
+users 0행 · player_inventories 0행 · altar_contributions 0행
+characters 0행 · reward_claims 0행
+```
+
+`updated_at` 도 기준값 문자열로 되돌렸습니다. 남은 흔적은 `AUTO_INCREMENT` 카운터뿐입니다.
+DB drop · recreate · 스키마 변경은 하지 않았습니다.
+
+### 빌드 · 모델 상태
+
+```text
+dotnet build
+Error   0
+Warning 0                     ← STEP 2 종료 시점과 같음. 새 경고 없음
+
+dotnet ef migrations has-pending-model-changes
+→ No changes have been made to the model since the last migration.
+```
+
+`Migrations/` · `Entities/` · `AraAttiDbContext.cs` · Unity · `appsettings*` · `.env` ·
+`README.md` · `design.md` 모두 변경 없습니다.
+
+### STEP 3 완료 상태
+
+- [x] `POST /api/altar/offer` 구현
+- [x] 사용자 id 는 JWT `sub` 에서만
+- [x] amount 입력 검증 (`AMOUNT_INVALID` · `AMOUNT_TOO_LARGE`)
+- [x] requestId `Guid.TryParse`
+- [x] duplicate precheck
+- [x] altar 조건부 원자적 UPDATE
+- [x] inventory 조건부 UPDATE
+- [x] contribution INSERT
+- [x] 세 작업이 하나의 트랜잭션
+- [x] altar 먼저 / inventory 나중
+- [x] 부분 수락 없음
+- [x] `total_offered` 하드캡 유지 (불변식 위반 0행)
+- [x] 200 성공 / 200 duplicate / 400 3종 / 409 3종
+- [x] 실패 시 DB 부분 변경 없음
+- [x] 실패 응답에 최신 상태 포함
+- [x] 같은 requestId 순차 중복 지급 없음
+- [x] 같은 requestId 동시 중복 지급 없음
+- [x] 같은 requestId 동시 요청 완료 race 도 `duplicate: true`
+- [x] 다른 user + 같은 requestId 각각 정상
+- [x] 병렬 20건 합계 정확
+- [x] 마지막 칸 경쟁 정상
+- [x] 하드캡 부하 테스트 정상
+- [x] 트랜잭션 · 잠금 잔존 없음
+- [x] 테스트 DB 원복
+- [x] dotnet build Error 0 / Warning 0
+- [x] pending model changes 없음
+- [x] Migration · Entity · DbContext · Unity · design.md 무변경
+
+STEP 3 완료.
