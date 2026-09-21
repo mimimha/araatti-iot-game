@@ -30246,6 +30246,7 @@ MonoBehaviour:
   followSharpness: 12
   yaw: 0
   pitch: 15
+  playerControllerSource: {fileID: 0}
 --- !u!1 &1129371536
 GameObject:
   m_ObjectHideFlags: 0
@@ -55513,6 +55514,9 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3123900836210005380, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
+      insertIndex: 4
+      addedObject: {fileID: 2132715301}
+    - targetCorrespondingSourceObject: {fileID: 3123900836210005380, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2132715282}
     - targetCorrespondingSourceObject: {fileID: 3123900836210005380, guid: bd936389b3fe6e94e8ad7a15afa0bbf4, type: 3}
@@ -55589,6 +55593,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsKeyboardInput
   playerId: 0
+  playerControllerSource: {fileID: 0}
 --- !u!114 &2132715283
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55604,6 +55609,7 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSpeed: 720
   cameraTransform: {fileID: 1127452834}
+  playerControllerSource: {fileID: 0}
 --- !u!114 &2132715284
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55669,6 +55675,7 @@ MonoBehaviour:
   maxHealth: 100
   immortalForTesting: 0
   incomingDamageMultiplier: 1
+  damageCooldownSeconds: 0
 --- !u!114 &2132715296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55682,6 +55689,34 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsPlayerHitFeedback
   visualRoot: {fileID: 0}
+--- !u!114 &2132715301
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 56130395}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a187e135c7582e419dfea011d7e2969, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::IotPlayerController
+  portName: COM3
+  baudRate: 115200
+  pollIntervalMs: 5
+  dtrEnable: 1
+  rtsEnable: 0
+  leftHandId: 0
+  rightHandId: 1
+  handTimeoutSeconds: 0.5
+  controlProfile: 1
+  sprintToggle: 1
+  logRawLines: 0
+  logParseFailures: 0
+  logDongleMessages: 1
+  logConnectionChanges: 1
+  logMotions: 1
+  logDeviceOutput: 0
 --- !u!1 &2132949453
 GameObject:
   m_ObjectHideFlags: 0
