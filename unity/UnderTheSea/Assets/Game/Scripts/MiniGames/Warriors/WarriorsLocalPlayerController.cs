@@ -79,6 +79,10 @@ namespace Warriors
                 ?? GetComponent<IPlayerController>()
                 ?? GetComponentInParent<IPlayerController>();
 
+            // 완드가 꽂혀 있으면 무쌍 배치를 알려준다. 기본값(Shared)은 왼손 버튼 2 를
+            // 달리기 토글로 잠그는데, 그 조작은 배에만 있다. 무쌍은 누른 그대로 내보낸다.
+            (playerController as IotPlayerController)?.SetControlProfile(IotControlProfile.Warriors);
+
             if (playerController != null || !Application.isPlaying) return;
 
             // WarriorsTest처럼 SceneBootstrap 없이 기존 플레이어가 씬에 직접 배치된
