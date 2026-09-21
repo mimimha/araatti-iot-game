@@ -1312,6 +1312,7 @@ GameObject:
   - component: {fileID: 1814289793467282175}
   - component: {fileID: 1257440104675357009}
   - component: {fileID: 1868765229182059995}
+  - component: {fileID: 5473567927952167293}
   - component: {fileID: 3062359811241228748}
   - component: {fileID: 2555361678685936136}
   - component: {fileID: 4436310353124722661}
@@ -1323,6 +1324,8 @@ GameObject:
   - component: {fileID: 2061641660322509996}
   - component: {fileID: 5731928460017753412}
   - component: {fileID: 7276708486594036018}
+  - component: {fileID: 8740589765523071439}
+  - component: {fileID: 5301727229569671815}
   m_Layer: 0
   m_Name: ShipCoopPlayer
   m_TagString: Untagged
@@ -1414,6 +1417,7 @@ MonoBehaviour:
   NetworkedBehaviours:
   - {fileID: 1814289793467282175}
   - {fileID: 1868765229182059995}
+  - {fileID: 5473567927952167293}
   - {fileID: 3062359811241228748}
   - {fileID: 2555361678685936136}
   - {fileID: 7438512644253571555}
@@ -1523,6 +1527,22 @@ MonoBehaviour:
   hiddenUntilReady: []
   _AppearanceReady:
     RawValue: 0
+--- !u!114 &5473567927952167293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 --- !u!114 &3062359811241228748
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1544,6 +1564,9 @@ MonoBehaviour:
   bodyHeight: 2.8575
   bodyRadius: 0.5
   _Motion: {x: 0, y: 0, z: 0}
+  snapSpeed: 9
+  snapTurnSpeed: 1080
+  snapTimeout: 0.6
 --- !u!114 &2555361678685936136
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1707,6 +1730,74 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopDefaultAppearance
   waitSeconds: 20
+--- !u!114 &8740589765523071439
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a71914f1cdf03c74fb3316650b1fb632, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopNameplate
+  height: 1.45
+  scale: 0.006
+  fontSize: 34
+  playerColors:
+  - {r: 1, g: 0.33, b: 0.33, a: 1}
+  - {r: 0.36, g: 0.68, b: 1, a: 1}
+  - {r: 0.78, g: 0.51, b: 1, a: 1}
+  - {r: 1, g: 0.83, b: 0.3, a: 1}
+  fallbackColor: {r: 1, g: 0.96, b: 0.86, a: 1}
+  outline: 0.3
+  arrowSize: {x: 30, y: 22}
+  hideBeyond: 0
+  pointFromEdge: 1
+  edgeMargin: 0.045
+  edgeDistance: 0.8
+  edgeScale: 0.144
+  edgeArrowScale: 1.6
+  edgeLabelScale: 1
+  edgeLabelGap: 40
+  edgeLabelHeadroom: 0.15
+--- !u!114 &5301727229569671815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2469454619343329275}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83a67d98a563c5b4f8677a9bd462c63c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopStationPose
+  worker: {fileID: 0}
+  character: {fileID: 0}
+  strength: 0.9
+  reachLimit: 1.4
+  turnSpeed: 540
+  cannonGripAlong: 0.06
+  cannonGripApart: 0.42
+  cannonGripLift: 0.05
+  ropeReach: 0.38
+  ropeHandsApart: 0.34
+  ropeStroke: 0.28
+  ropeStrokesPerSecond: 1.6
+  ropeSlipRate: 0.6
+  wheelGripAngle: 50
+  wheelFollowLimit: 70
+  wheelGripOut: 0.06
+  wheelGripRadius: 0.95
+  joltDelay: 0.07
+  joltDistance: 0.09
+  joltLift: 0.03
+  joltSeconds: 0.55
+  leftHandFixEuler: {x: 0, y: -90, z: -90}
+  rightHandFixEuler: {x: 0, y: 90, z: 90}
+  logHands: 0
 --- !u!1 &2877561824165893445
 GameObject:
   m_ObjectHideFlags: 0

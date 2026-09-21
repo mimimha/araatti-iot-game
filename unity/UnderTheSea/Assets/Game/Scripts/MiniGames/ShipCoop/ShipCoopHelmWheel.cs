@@ -57,7 +57,25 @@ public class ShipCoopHelmWheel : MonoBehaviour
     private Quaternion _restLocalRotation;
     private Vector3 _localCenter;
     private Vector3 _localFromCenter;
+    private float _radius = 1f;
     private bool _ready;
+
+    // ------------------------------------------------------------
+    // 자리 자세(ShipCoopStationPose)가 손을 테에 놓을 때 보는 값들.
+    // 바퀴가 도는 규칙은 여기 하나라, 손도 같은 값으로 돌려야 어긋나지 않는다.
+    // ------------------------------------------------------------
+
+    /// <summary>바퀴 한가운데 (월드).</summary>
+    public Vector3 Center => _ready && wheel.parent != null ? wheel.parent.TransformPoint(_localCenter) : (wheel != null ? wheel.position : transform.position);
+
+    /// <summary>바퀴 반지름 (m). 켤 때 렌더러 경계에서 잰다.</summary>
+    public float Radius => _radius;
+
+    /// <summary>도는 축 (월드). 로컬 회전은 부모 축 기준이라 부모로 바꾼다.</summary>
+    public Vector3 Axis => wheel != null && wheel.parent != null ? wheel.parent.TransformDirection(spinAxis).normalized : spinAxis.normalized;
+
+    /// <summary>지금 바퀴가 돌아간 각도 (도). 조타 각도 × 배율.</summary>
+    public float SpinDegrees => helm != null ? helm.Heading * degreesPerHeading : 0f;
 
     private void Awake()
     {
@@ -87,6 +105,17 @@ public class ShipCoopHelmWheel : MonoBehaviour
 
         _localCenter = parent != null ? parent.InverseTransformPoint(worldCenter) : worldCenter;
         _localFromCenter = wheel.localPosition - _localCenter;
+
+        // 반지름 — 축에 수직인 두 방향 중 큰 쪽. 축이 z 면 x · y 가 바퀴 면이다.
+        if (draw != null)
+        {
+            Vector3 e = draw.bounds.extents;
+            Vector3 a = new Vector3(Mathf.Abs(spinAxis.x), Mathf.Abs(spinAxis.y), Mathf.Abs(spinAxis.z));
+            float rx = a.x > 0.5f ? 0f : e.x;
+            float ry = a.y > 0.5f ? 0f : e.y;
+            float rz = a.z > 0.5f ? 0f : e.z;
+            _radius = Mathf.Max(rx, ry, rz, 0.2f);
+        }
 
         _ready = true;
     }

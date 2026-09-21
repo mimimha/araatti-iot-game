@@ -42,6 +42,18 @@ public class SailTask : TaskBase
     /// <summary>지금 들어오는 당기기 입력. -1(풀기) ~ +1(당기기). 아무도 없으면 0.</summary>
     public float Pull { get; private set; }
 
+    /// <summary>
+    /// **당기기 입력을 밖에서 정해 준다.** 네트워크에서 서버가 정한 값을 화면에 옮길 때 쓴다.
+    ///
+    /// 판정(<see cref="Work"/>)은 서버에서만 돈다. 클라이언트는 이 값을 복제받아 여기로 넣는다.
+    /// 그래야 밧줄을 당기는 손 동작(<c>ShipCoopStationPose</c>)이 남의 화면에서도 같이 움직인다.
+    /// (ShipCoopStateSync — 돛 힘 자체는 SailPower01 로 따로 간다)
+    /// </summary>
+    public void ShowPull(float pull)
+    {
+        Pull = Mathf.Clamp(pull, -1f, 1f);
+    }
+
     /// <summary>누군가 돛을 잡고 있는지</summary>
     public bool IsManned => !IsEmpty;
 

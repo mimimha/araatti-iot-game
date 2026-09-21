@@ -164,6 +164,18 @@ public class RepairTask : TaskBase
         IsRepaired = repaired;
     }
 
+    /// <summary>붙으면 웅크려 망치질하는 자세로 바꾼다.</summary>
+    protected override void OnWorkerJoined(TaskWorker worker)
+    {
+        worker.GetComponent<ShipCoopCharacter>()?.SetRepairing(true);
+    }
+
+    /// <summary>떨어지면 자세를 되돌린다.</summary>
+    protected override void OnWorkerLeft(TaskWorker worker)
+    {
+        worker.GetComponent<ShipCoopCharacter>()?.SetRepairing(false);
+    }
+
     private void Complete()
     {
         IsRepaired = true;

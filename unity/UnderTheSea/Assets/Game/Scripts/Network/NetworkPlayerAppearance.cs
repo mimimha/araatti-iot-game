@@ -470,7 +470,11 @@ namespace UnderTheSea.Network
             CharacterAppearanceSnapshot snapshot = new CharacterAppearanceSnapshot
             {
                 nickname = string.Empty,
-                bodyColorHex = parts.Count > 0 ? SkinColor.ToString() : string.Empty,
+                // ⚠ **파츠 개수로 막지 않는다.** `SkinColor` 는 NetworkString 이라
+                //    값이 없으면 빈 문자열이고, `ApplySkinColorHex` 는 빈 문자열을 그냥
+                //    무시한다. 막아 둘 이유가 없는데 막고 있어서, **옷은 안 고르고
+                //    피부색만 고른 사람이 제 피부색을 잃었다.**
+                bodyColorHex = SkinColor.ToString(),
                 parts = parts.ToArray()
             };
 
@@ -484,6 +488,11 @@ namespace UnderTheSea.Network
                 //    상태는 비었는데 화면은 예전 옷을 입고 있는 상황이 된다.
                 //    그래서 입고 있던 것을 명시적으로 벗긴다.
                 RemoveAllEquipped();
+
+                // ⚠ **벗기고 나서 피부색은 따로 입힌다.** 이 분기가 ApplySnapshot 을
+                //    건너뛰기 때문에, 여기서 안 부르면 파츠를 하나도 안 고른 사람은
+                //    피부색이 영영 안 입혀진다. 값이 비어 있으면 아래에서 그냥 무시한다.
+                applier.ApplySkinColorHex(snapshot.bodyColorHex);
             }
             else
             {

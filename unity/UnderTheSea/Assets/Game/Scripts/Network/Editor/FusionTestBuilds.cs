@@ -66,6 +66,12 @@ namespace UnderTheSea.Network.Editor
         private const string TestScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
 
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
+
+        /// <summary>
+        /// Profiler 연결용 로비 서버. 평소 서버(<see cref="ServerOutput"/>)와 폴더를 나눠
+        /// 잘 도는 빌드를 덮지 않는다. 자세한 것은 <see cref="BuildServerForProfiler"/> 참고.
+        /// </summary>
+        private const string ServerProfileOutput = "Builds/ServerProfile/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
 
         /// <summary>
@@ -145,6 +151,41 @@ namespace UnderTheSea.Network.Editor
         public static void BuildServer()
         {
             Build(ServerOutput, StandaloneBuildSubtarget.Server);
+        }
+
+        /// <summary>
+        /// <b>Profiler 를 붙일 수 있는 로비 서버.</b> 원인 조사용이고 평소에는 쓰지 않는다.
+        ///
+        /// <b>왜 따로 만드는가.</b> 서버 빌드는 <c>BuildOptions.None</c> 이라 Unity Profiler 가
+        /// 붙지 않는다. 붙이려면 <c>Development</c> 가 필요한데, 그렇다고 <see cref="ServerOutput"/>
+        /// 을 개발 빌드로 덮으면 평소 테스트·시연에 쓰는 서버가 바뀐다. 그래서 출력 폴더를
+        /// 나눠 <b>지금 잘 도는 빌드를 건드리지 않는다.</b>
+        ///
+        /// <b>무엇을 쫓고 있나.</b> 접속자 0명인 로비 DS 가 코어 1.67개를 태운다(실측 7.57%).
+        /// 같은 방식으로 띄운 광산·검 DS 는 0.43~0.48% 다. <b>17배 차이</b>다.
+        /// 씬을 비교하면 로비에만 Terrain 1개와 ReflectionProbe 1개가 있고 Transform 이
+        /// 5,601개(광산 1,013 · 검 10)인데, <b>어느 것이 범인인지는 아직 모른다.</b>
+        /// 이 건은 이미 그럴듯한 가설 두 개가 데이터로 깨진 적이 있어
+        /// (파티클·Canvas 설, MineCrystalTint 설) 추측으로 고치지 않기로 했다.
+        ///
+        /// <b>쓰는 법.</b> 빌드한 뒤 이렇게 띄우고 Profiler 창에서 이 프로세스를 고른다.
+        /// <code>
+        /// Builds\ServerProfile\AraAtti-Server.exe -batchmode -nographics
+        ///   -session prof-lobby -port 27015 -region kr
+        /// </code>
+        /// <c>ConnectWithProfiler</c> 를 켜 두면 실행 즉시 에디터 Profiler 를 찾아 붙는다.
+        ///
+        /// ⚠ Deep Profile 은 켜지 않는다. 모든 메서드에 계측이 붙어 <b>수치가 왜곡된다.</b>
+        ///    먼저 어느 단계(PlayerLoop 의 어디)가 비싼지부터 보고, 좁혀진 뒤에 필요하면 켠다.
+        /// </summary>
+        [MenuItem(MenuRoot + "로비 서버 빌드 — Profiler 연결용 (원인 조사)")]
+        public static void BuildServerForProfiler()
+        {
+            Build(
+                ServerProfileOutput,
+                StandaloneBuildSubtarget.Server,
+                new[] { TestScenePath },
+                BuildOptions.Development | BuildOptions.ConnectWithProfiler);
         }
 
         [MenuItem(MenuRoot + "Fusion 클라이언트 테스트 빌드")]
@@ -305,6 +346,36 @@ namespace UnderTheSea.Network.Editor
             return Build(ShowcaseOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.None);
         }
 
+        /// <summary>
+        /// 빌드하느라 돌려놓은 서브타깃을 제자리로 되돌린다.
+        ///
+        /// ⚠ <b>배치 모드에서는 되돌리지 않는다.</b> 서브타깃을 바꾸면 스크립팅 정의가 달라져
+        ///    재컴파일이 필요한데, <c>-executeMethod</c> 가 도는 도중에 도메인 리로드가 끼어들면
+        ///    <b>남은 빌드가 끊긴다.</b> QA 한 벌처럼 한 실행에서 여럿을 굽는 경우가 특히 그렇다.
+        ///    배치는 어차피 끝나고 프로세스가 죽으므로 에디터에 남는 피해가 없다.
+        ///
+        ///    <b>되돌리는 것이 필요한 쪽은 에디터 메뉴로 부른 경우다.</b> 사람이 그 에디터로
+        ///    이어서 Play 하기 때문이다.
+        /// </summary>
+        private static void RestoreSubtarget(StandaloneBuildSubtarget before)
+        {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+
+            if (EditorUserBuildSettings.standaloneBuildSubtarget == before)
+            {
+                return;
+            }
+
+            EditorUserBuildSettings.standaloneBuildSubtarget = before;
+
+            Debug.Log(
+                $"[FusionTestBuilds] 빌드 대상을 {before} 로 되돌렸습니다. " +
+                "이걸 안 하면 에디터가 자기를 서버로 여겨 Play 할 때 로비에 접속하지 못합니다.");
+        }
+
         /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
         private static bool Ok(string name, BuildReport report)
         {
@@ -457,6 +528,20 @@ namespace UnderTheSea.Network.Editor
 
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 
+            // ⚠ **빌드가 끝나면 이 스위치를 되돌려야 한다.** 아래 finally 에서 한다.
+            //
+            //    서브타깃은 프로젝트 전체 설정이고, 한 번 Server 로 돌려 두면 그대로 남는다.
+            //    그러면 Unity 가 UNITY_SERVER 를 붙인 채로 에디터가 돌고,
+            //    FusionLaunchArguments.IsDedicatedServerProcess() 가 **에디터에서도 true** 가 된다.
+            //    그 상태로 Play 하면 NetworkServiceBootstrap 이 "서버는 서비스가 필요 없다" 며
+            //    통째로 건너뛰어, 채널 선택 화면이 조용히 예시 목록을 띄우고 접속이 안 된다.
+            //
+            //        [ChannelSelect] 네트워크 서비스가 없어 예시 채널 목록을 표시합니다.
+            //
+            //    증상이 원인을 전혀 가리키지 않는다. "어제 서버를 빌드했기 때문" 이라고
+            //    아무도 떠올리지 못한다. 실제로 한 번 겪었다.
+            StandaloneBuildSubtarget before = EditorUserBuildSettings.standaloneBuildSubtarget;
+
             // 에디터 메뉴로 부른 경우를 위해 여기서도 맞춰 준다.
             // 커맨드라인은 -standaloneBuildSubtarget 으로 이미 맞춰져 있어 이 줄이 무해하게 넘어간다.
             EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
@@ -481,15 +566,24 @@ namespace UnderTheSea.Network.Editor
             System.DateTime buildPlayerCallStartedUtc =
                 System.DateTime.UtcNow;
 
-            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            BuildReport report;
+
+            try
             {
-                scenes = scenes,
-                locationPathName = output,
-                target = BuildTarget.StandaloneWindows64,
-                targetGroup = BuildTargetGroup.Standalone,
-                subtarget = (int)subtarget,
-                options = options
-            });
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = output,
+                    target = BuildTarget.StandaloneWindows64,
+                    targetGroup = BuildTargetGroup.Standalone,
+                    subtarget = (int)subtarget,
+                    options = options
+                });
+            }
+            finally
+            {
+                RestoreSubtarget(before);
+            }
 
             System.DateTime buildPlayerCallEndedUtc =
                 System.DateTime.UtcNow;

@@ -89,7 +89,7 @@ public static class ShipCoopBalanceSim
         public float Damage;
         public int ChainCount;
         public bool PushesHeading;
-        public bool DrainsSail;
+        public bool FillsSail;   // 돌풍 — 바람이 돛을 펴 놓는다. 접어서 버틴다
         public bool CreatesLeak;
     }
 
@@ -268,6 +268,13 @@ public static class ShipCoopBalanceSim
                 nextEvent = Mathf.Lerp(slot.min, slot.max, (float)rng.NextDouble());
             }
 
+            // 돌풍이 부는 중인가. 배치를 정할 때 먼저 알아야 돛 자리의 일이 뒤집힌다.
+            bool squallNow = false;
+            for (int i = 0; i < live.Count; i++)
+            {
+                if (live[i].Active && live[i].Def.FillsSail) { squallNow = true; break; }
+            }
+
             // ── 사람 배치 ───────────────────
             foreach (Agent a in agents) a.Claimed = false;
 
@@ -280,7 +287,8 @@ public static class ShipCoopBalanceSim
                 // 가라앉는 것이 가장 급하다. 물은 고쳐야 멈춘다.
                 if (leaks > 0) Want(agents, StationRepair);
                 if (water > BailThreshold) Want(agents, StationBail);
-                if (sail01 < 0.99f) Want(agents, StationSail);
+                // 돌풍 중에는 돛을 **접는** 것이 돛 자리의 일이다. 30% 위면 붙는다.
+                if (squallNow ? sail01 > 0.3f : sail01 < 0.99f) Want(agents, StationSail);
                 if (Mathf.Abs(heading) > HelmDeadzone) Want(agents, StationHelm);
             }
 
@@ -355,7 +363,7 @@ public static class ShipCoopBalanceSim
                 }
 
                 if (e.Def.PushesHeading) pushed = true;
-                if (e.Def.DrainsSail) squalling = true;
+                if (e.Def.FillsSail) squalling = true;
 
                 if (e.Work >= e.Def.Duration * WorkFraction)
                 {
@@ -408,8 +416,9 @@ public static class ShipCoopBalanceSim
             }
 
             // ── 돛 · 조타 ──────────────────
-            if (onSail) sail01 = Mathf.Clamp01(sail01 + pullSpeed * Dt);
-            if (squalling) sail01 = Mathf.Clamp01(sail01 - 0.3f * Dt);
+            // 돌풍 중이면 돛 자리 사람은 당기는 게 아니라 **푼다**. 바람은 계속 펴 놓는다.
+            if (onSail) sail01 = Mathf.Clamp01(sail01 + (squalling ? -pullSpeed : pullSpeed) * Dt);
+            if (squalling) sail01 = Mathf.Clamp01(sail01 + 0.3f * Dt);
 
             if (onHelm)
             {
@@ -427,9 +436,10 @@ public static class ShipCoopBalanceSim
             // ── 나아가기 ───────────────────
             float course = Mathf.Max(0f, Mathf.Cos(heading * Mathf.Deg2Rad));
             float sailed = Mathf.Lerp(minSpeed, maxSpeed, sail01);
-            float drift = squalling ? -minSpeed : minSpeed;
+            // 돌풍 중에는 돛이 바람을 거꾸로 받는다 — 펴 놓은 만큼 뒤로 간다. (ShipVoyage.Speed)
+            float sailSign = squalling ? -1f : 1f;
 
-            travelled += (drift + (sailed - minSpeed) * course) * Dt;
+            travelled += (minSpeed + (sailed - minSpeed) * course * sailSign) * Dt;
             elapsed += Dt;
 
             sailSum += sail01;
@@ -507,7 +517,7 @@ public static class ShipCoopBalanceSim
                 Damage = so.FindProperty("damageOnFail").floatValue,
                 ChainCount = so.FindProperty("chainOnFail").arraySize,
                 PushesHeading = name.Contains("파도") || name.Contains("암초"),
-                DrainsSail = name.Contains("돌풍"),
+                FillsSail = name.Contains("돌풍"),
                 CreatesLeak = name.Contains("선체") || name.Contains("침수"),
             });
         }

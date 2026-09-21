@@ -53,9 +53,9 @@ public abstract class VoyageEvent : MonoBehaviour
     [SerializeField, Min(0f)] private float damageOnFail = 15f;
 
     [Tooltip("돛 힘이 이만큼 풀린다. (0 ~ 1)\n\n" +
-             "암초에 긁히거나 파도에 옆을 맞으면 배가 느려진다. 그것이 이 값이다.\n" +
-             "HP 와 달리 이건 시간으로 갚는다. 누군가 돛으로 가서 다시 당겨야 하고, " +
-             "그 사람이 가 있는 동안 그 사람의 원래 자리가 빈다.")]
+             "지금은 모든 사건이 0 이다. 돛 힘은 돛 담당이 당긴 만큼과 돌풍 바람으로만 움직인다.\n" +
+             "한때 암초 · 파도 · 적선 실패가 돛을 풀었는데, 돌풍 중에 겹치면 돛이 접혔다가\n" +
+             "바람에 도로 펴져 '왜 접혔지?' 가 됐다. 규칙이 하나 늘어난 만큼 헷갈림도 늘었다.")]
     [SerializeField, Range(0f, 1f)] private float sailLossOnFail = 0.4f;
 
     [Tooltip("실패하면 여기 넣은 사건들이 함께 시작된다. (5장 — 사건은 연쇄합니다)\n" +
