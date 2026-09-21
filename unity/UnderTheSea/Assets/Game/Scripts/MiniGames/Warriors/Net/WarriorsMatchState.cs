@@ -56,8 +56,24 @@ namespace Warriors.Net
     public sealed class WarriorsMatchState : NetworkBehaviour, global::MiniGames.Common.IMiniGameAdmissionSource
     {
         [Header("시작 대기")]
-        [Tooltip("이 인원이 모여야 카운트다운을 시작한다.")]
+        [Tooltip("이 인원이 모여야 카운트다운을 시작한다. 매칭이 정해 준 인원이 있으면 그쪽이 이긴다.")]
         [SerializeField, Min(1)] private int crewToStart = 2;
+
+        /// <summary>
+        /// **이번 판에 모여야 하는 인원.** 매칭이 정해 준 값이 인스펙터 값을 이긴다.
+        ///
+        /// <b>왜 인스펙터 값만으로는 안 되는가.</b> 검은 1인·2인 중에 고를 수 있다.
+        /// 1인으로 매칭된 사람이 들어왔는데 이 값이 2면 영영 시작하지 않는다.
+        /// 실제로 <c>동료를 기다리는 중 (1 / 2)</c> 에서 멈췄다.
+        ///
+        /// ⚠ <b>서버와 클라이언트가 같은 값을 봐야 한다.</b> 이 값은 대기 문구에도 쓰이는데,
+        ///    한쪽만 알면 서버는 시작하는데 화면은 계속 기다린다고 나온다.
+        ///    <see cref="MatchCrew"/> 가 양쪽에서 같은 수를 주도록 되어 있다.
+        ///
+        /// 매칭 없이 띄운 단독 실행에서는 <see cref="MatchCrew.Assigned"/> 가 0 이라
+        /// 예전처럼 인스펙터 값을 쓴다.
+        /// </summary>
+        private int RequiredCrew => MatchCrew.Assigned > 0 ? MatchCrew.Assigned : crewToStart;
 
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 10f;
@@ -375,7 +391,7 @@ namespace Warriors.Net
             Phase3Target = phase3TargetRhythmHits;
 
             Debug.Log(
-                $"[WarriorsMatch] 매치 준비 — {crewToStart}명 대기, 목표 " +
+                $"[WarriorsMatch] 매치 준비 — {RequiredCrew}명 대기, 목표 " +
                 $"{Phase1Target}/{Phase2Target}/{Phase3Target}");
         }
 
@@ -1070,7 +1086,7 @@ namespace Warriors.Net
         /// </summary>
         private void UpdateStartGate()
         {
-            if (Crew < crewToStart)
+            if (Crew < RequiredCrew)
             {
                 if (Phase == WarriorsMatchPhase.Countdown)
                 {
@@ -1386,7 +1402,7 @@ namespace Warriors.Net
             switch (phase)
             {
                 case WarriorsMatchPhase.Waiting:
-                    return $"동료를 기다리는 중  ({Crew} / {crewToStart})";
+                    return $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
 
                 case WarriorsMatchPhase.Countdown:
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";

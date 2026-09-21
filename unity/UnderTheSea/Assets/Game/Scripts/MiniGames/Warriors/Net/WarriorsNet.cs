@@ -30,12 +30,39 @@ namespace Warriors.Net
         /// </summary>
         public const string BootScenePath = "Assets/Game/Scenes/Main/MiniGames/WarriorsBoot.unity";
 
-        /// <summary>기본 세션 이름. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
-        public const string DefaultSession = "warriors-1";
+        /// <summary>
+        /// 이 게임의 방 이름 앞부분. 방 번호를 붙여 <c>warriors-1</c> · <c>warriors-2</c> 가 된다.
+        ///
+        /// <b>왜 상수로 쪼개 두는가.</b> 매칭은 DS Pool 에서 빈 방을 찾을 때 세션 목록을
+        /// 이 앞부분으로 걸러 낸다. 그때 쓰려고 <c>"warriors"</c> 를 다른 곳에 또 적으면 이름이
+        /// 두 벌이 되고, 한쪽만 바꾸는 날 조용히 빈 방을 못 찾게 된다.
+        /// </summary>
+        public const string SessionPrefix = "warriors";
 
-        /// <summary>이 프로세스가 쓸 세션 이름.</summary>
+        /// <summary>기본 방. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
+        public const string DefaultSession = SessionPrefix + "-1";
+
+        /// <summary>
+        /// 이 프로세스가 쓸 세션 이름.
+        ///
+        /// <code>
+        ///   MiniGameSessionRequest.Pending 이 있으면  그것   (Lobby 매칭이 정해 준 방)
+        ///   없으면 실행 인자 -session                        (서버 · 단독 실행)
+        ///   그것도 없으면 기본값
+        /// </code>
+        ///
+        /// <b>왜 실행 인자만으로는 안 되는가.</b> <c>-session</c> 은 프로세스가 뜰 때
+        /// 고정된다. 매칭이 "너희는 warriors-2 로" 라고 정해 줘도 클라이언트가 받을 자리가 없다.
+        /// 전용 서버는 Pending 이 늘 비어 있으므로 예전 그대로 실행 인자를 따른다.
+        ///
+        /// 배(<c>ShipCoopNet</c>)가 먼저 쓰던 방식을 그대로 가져왔다. 저장하는 자리는
+        /// 게임을 가리지 않는 <see cref="MiniGameSessionRequest"/> 하나다.
+        /// </summary>
         public static string ResolveSession()
         {
+            string assigned = MiniGameSessionRequest.Pending;
+            if (!string.IsNullOrWhiteSpace(assigned)) return assigned;
+
             return FusionLaunchArguments.GetString(FusionLaunchArguments.SessionKey, DefaultSession);
         }
 

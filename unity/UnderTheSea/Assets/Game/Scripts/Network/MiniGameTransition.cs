@@ -322,7 +322,10 @@ public sealed class MiniGameTransition : MonoBehaviour
         // 채널 접속도 조용히 막힌다.
         yield return ShutdownRunner();
 
+        // ⚠ 인원도 함께 지운다. 안 지우면 다음에 매칭 없이 들어가는 판이
+        //    앞 판의 인원을 물려받아 "1 / 2" 처럼 틀린 수를 기다린다.
         MiniGameSessionRequest.Pending = null;
+        MiniGameSessionRequest.Crew = 0;
         InMiniGame = false;
 
         busy = false;

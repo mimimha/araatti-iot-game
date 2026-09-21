@@ -129,27 +129,26 @@ public sealed class MiniGamePortal : MonoBehaviour
         entering = true;
         ShowPrompt(false);
 
-        Debug.Log($"[MiniGamePortal] '{config.DisplayName}' 으로 들어갑니다. (씬 {config.SceneName})");
+        Debug.Log($"[MiniGamePortal] '{config.DisplayName}' 매칭을 엽니다.");
 
-        // 매칭 판은 띄우지 않는다. 로딩 화면만 보여 준다.
-        if (CommonMatchingUI.Current != null)
-        {
-            CommonMatchingUI.Current.ShowQueueLoading(config);
-        }
-
-        // 세션은 넘기지 않는다 — 비워 두면 미니게임의 기본 세션으로 간다.
-        // 진짜 매칭이 붙기 전까지는 고정 세션이고, 그 사실을 감추지 않는다.
-        MiniGameTransition.Enter(config.SceneName, null, OnEnterFailed);
+        // 곧바로 들어가지 않는다. 몇 명이서 할지 먼저 고르고, 로비 서버가 같은 인원을
+        // 고른 사람들과 묶어 방을 정해 준 뒤에 떠난다.
+        MatchScreenFlow.Begin(config);
     }
 
-    private void OnEnterFailed(string reason)
+    /// <summary>
+    /// 매칭 화면이 닫혔으면 다시 누를 수 있게 한다.
+    ///
+    /// ⚠ <b>없으면 포탈이 한 번 쓰고 죽는다.</b> 매칭을 취소한 사람은 포탈 앞에 그대로
+    ///    서 있다. <c>entering</c> 이 켜진 채로 남으면 F 를 눌러도 아무 일이 없다.
+    /// </summary>
+    private void LateUpdate()
     {
-        Debug.LogError($"[MiniGamePortal] 입장 실패 — {reason}");
+        if (!entering) return;
+        if (MiniGameTransition.InMiniGame) return;
+        if (CommonMatchingUI.Current != null && CommonMatchingUI.Current.IsShown) return;
 
         entering = false;
-
-        // 전환이 Lobby 로 되돌린다. 이쪽은 화면만 치운다.
-        if (CommonMatchingUI.Current != null) CommonMatchingUI.Current.Hide();
     }
 
     private void ShowPrompt(bool on)

@@ -246,6 +246,12 @@ public class FusionLauncher : MonoBehaviour
             Debug.Log(
                 $"[Fusion] Dedicated Server 준비 완료. 세션 \"{resolvedSession}\", 포트 {resolvedPort}. " +
                 "클라이언트를 기다립니다.");
+
+            // 미니게임 서버들이 몇 명을 데리고 있는지 지켜본다. 매칭이 빈 방을 고를 때 쓴다.
+            //
+            // ⚠ 러너를 하나 더 쓴다. 지금 이 러너는 방(lobby-ch1) 안에 들어가 있어서
+            //    세션 목록을 받지 못한다 — Photon 피어는 로비에 있거나 방에 있거나 둘 중 하나다.
+            DsPoolWatcher.Begin();
         }
         else
         {
