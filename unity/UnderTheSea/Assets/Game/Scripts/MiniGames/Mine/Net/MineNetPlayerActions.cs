@@ -34,10 +34,13 @@ namespace Mine.Net
         private MineNetPlayer _who;
         private MineJump _hop;
 
+        private MineNetPlayerMover _body;
+
         public override void Spawned()
         {
             _who = GetComponent<MineNetPlayer>();
             _hop = GetComponent<MineJump>();
+            _body = GetComponent<MineNetPlayerMover>();
         }
 
         public override void FixedUpdateNetwork()
@@ -46,7 +49,15 @@ namespace Mine.Net
 
             // 조준 칸은 입력과 상관없이 매 틱 갱신한다. **채굴이 쓰는 것과 같은 계산**이라
             // 표시된 칸과 실제로 파이는 칸이 어긋나지 않는다.
-            _who.RecordFocus(ResolveFocusCell());
+            //
+            // ⚠ **지금 턴인 사람만 기록한다.** 이제 넷이 다 걸어다니므로 모두가 적으면
+            //   화면에 표시가 넷이 되고, 팔 수 없는 사람의 발밑까지 "여기를 판다" 로
+            //   읽힌다. 턴이 아닌 사람은 -1(표시 없음)로 덮어써 둔다 — 그래야 턴이
+            //   넘어가는 순간 앞사람의 표시가 스스로 사라진다.
+            //
+            //   서버가 정하므로 네 화면이 같은 칸 하나를 본다. 카운트다운에는
+            //   CurrentSlot 이 -1 이라 아무도 해당되지 않아 표시가 아예 없다.
+            _who.RecordFocus(_who.IsMyTurn ? ResolveFocusCell() : -1);
 
             if (!GetInput(out MineInputData input)) return;
 
@@ -94,7 +105,16 @@ namespace Mine.Net
 
             // 발밑이 꺼졌으니 폴짝 뛴다. 손맛일 뿐 규칙은 아니다.
             // 금만 갔을 때는 안 뛴다 — 아직 발밑이 그대로이기 때문이다.
-            if (result == MineHitResult.Broke && _hop != null) _hop.Hop();
+            if (result != MineHitResult.Broke) return;
+
+            // ⚠ 네트워크에서는 <c>MineJump</c> 만으로는 부족하다.
+            //
+            //   그쪽은 Update(-50) 에서 CharacterMover 에 jump=true 를 쓰는데,
+            //   같은 프레임에 <c>MineNetPlayerMover</c> 가 틱마다 jump=false 를
+            //   다시 써서 지워버린다. 점프는 매 프레임 읽히는 bool 하나라
+            //   나중에 쓴 쪽이 이긴다. 그래서 그 부품에게 직접 알린다.
+            if (_body != null) _body.RequestHop();
+            else if (_hop != null) _hop.Hop();
         }
 
         /// <summary>

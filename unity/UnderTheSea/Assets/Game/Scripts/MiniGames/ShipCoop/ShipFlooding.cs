@@ -45,8 +45,10 @@ public class ShipFlooding : MonoBehaviour
     [SerializeField, Min(0f)] private float risePerPointPerSecond = 0.025f;
 
     [Header("퍼냈을 때")]
-    [Tooltip("양동이 하나를 뱃전에 비우면 이만큼 줄어든다.")]
-    [SerializeField, Range(0f, 1f)] private float dumpAmount = 0.2f;
+    [Tooltip("양동이 하나를 뱃전에 비우면 이만큼 줄어든다.\n\n" +
+             "0.5 면 **두 번이면 끝**이다. 잘게 나눠도 화면에 게이지가 없으니\n" +
+             "'몇 번 더 해야 하나' 를 셀 방법이 없다. 두 번은 세지 않아도 안다.")]
+    [SerializeField, Range(0f, 1f)] private float dumpAmount = 0.5f;
 
     /// <summary>지금 찬 물의 양. 0 ~ 1</summary>
     public float Level01 { get; private set; }

@@ -42,10 +42,28 @@ namespace Mine.Net
         /// <summary>한 판의 최대 인원. P1~P4.</summary>
         public const int MaxCrew = 4;
 
-        /// <summary>시작에 필요한 기본 인원. 정식 기본값은 4인 릴레이다.</summary>
-        public const int DefaultCrewToStart = MaxCrew;
+        /// <summary>
+        /// 시작에 필요한 기본 인원.
+        ///
+        /// <b>2 인 이유는 광산이 릴레이이기 때문이다.</b> 한 사람이 30초 파고 다음 사람이
+        /// 이어받는다(<c>AdvanceTurn</c>). 혼자면 이어받을 사람이 없어 협동이 성립하지 않는다.
+        /// 둘이 최소 단위다.
+        ///
+        /// ⚠ <b>이 값은 임시 주인이다.</b> 랜덤 매칭이 붙으면 몇 명으로 시작할지는 매칭이
+        ///    정하고, 그 값을 <see cref="CrewKey"/> 로 넘기게 된다. 그때 이 상수는
+        ///    "매칭이 아무 말 없을 때" 의 기본값으로만 남는다.
+        ///
+        /// MINE.md 2장은 <b>1~4명</b>이라고 적고 있다. 혼자서도 한 판이 끝나는 것이 원래
+        /// 설계이므로, 2로 올리는 것은 <b>매칭이 붙기 전까지의 잠정 결정</b>이다.
+        /// </summary>
+        public const int DefaultCrewToStart = 2;
 
-        /// <summary>QA 용 실행 인자. <c>-crew 2</c> 로 두 명만 모여도 시작한다.</summary>
+        /// <summary>
+        /// 시작 인원을 덮어쓰는 실행 인자. <c>-crew 1</c> 이면 혼자서도 시작한다.
+        ///
+        /// QA 에서 혼자 한 바퀴를 돌려 볼 때 쓰고, 나중에는 <b>매칭이 정한 인원</b>을
+        /// 넘기는 통로가 된다.
+        /// </summary>
         public const string CrewKey = "-crew";
 
         /// <summary>이 프로세스가 쓸 세션 이름.</summary>

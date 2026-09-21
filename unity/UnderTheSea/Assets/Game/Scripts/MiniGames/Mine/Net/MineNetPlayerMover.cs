@@ -61,8 +61,50 @@ namespace Mine.Net
         /// <summary>달리는 중인가. 애니메이터의 State 로 간다.</summary>
         [Networked] public NetworkBool Running { get; private set; }
 
+        /// <summary>
+        /// 지금 공중에 떠 있는가. <b>점프 애니메이션을 모는 값이다.</b>
+        ///
+        /// <c>CharacterMover</c> 는 이 값을 Animator 의 "IsJump" 에 넣는데,
+        /// 네트워크에서 그쪽은 <b>서버에서만</b> 돌고 서버에는 그릴 화면이 없다.
+        /// 복제하지 않으면 클라이언트에서 폴짝 동작이 아예 안 나온다.
+        /// </summary>
+        [Networked] public NetworkBool Airborne { get; private set; }
+
+        /// <summary>
+        /// 프레임에서 본 공중 상태를 <b>붙잡아 둔 시한.</b>
+        ///
+        /// ⚠ <c>CharacterMover.IsAir</c> 는 <b>프레임마다</b> 바뀜다(서버 120fps).
+        ///   그런데 <c>Airborne</c> 은 <b>틱마다</b> 한 번만 쓴다(60Hz).
+        ///   순간값을 그대로 읽으면 틱과 틱 사이에 켜졌다 꺼진 것이
+        ///   통째로 사라진다. 몸이 안 뜼 때 그 폭은 <b>한 프레임</b>이다.
+        ///   그래서 프레임에서 붙잡아 둔 뒤 틱에 실어 보낸다.
+        /// </summary>
+        private float _airHoldUntil = -1f;
+
+        /// <summary>한 번 본 공중 상태를 얼마나 붙잡아 둘 것인가(초).</summary>
+        private const float AirHoldSeconds = 0.12f;
+
         private CharacterMover _mover;
         private MineNetPlayer _who;
+
+        /// <summary>
+        /// 발밑을 깨서 폴짝 뛰라는 요청. <b>프레임 단위로 들고 있는다.</b>
+        ///
+        /// ⚠ <c>MineJump</c> 가 직접 <c>CharacterMover</c> 에 써도 이쪽이 같은 프레임에
+        ///   <c>jump=false</c> 로 덮어쓰면 그만이다. 점프는 매 프레임 읽히는 bool
+        ///   하나라 나중에 쓴 쪽이 이긴다. 그래서 <b>요청을 여기서 들고 있다가</b>
+        ///   이 부품이 직접 <c>jump=true</c> 로 넣는다. 순서 싸움을 없앤다.
+        /// </summary>
+        private bool _hopRequest;
+
+        /// <summary>이 요청을 몇 번째 프레임에 받았는가. 한 프레임만 유지한다.</summary>
+        private int _hopFrame = -1;
+
+        /// <summary>몇 번째 프레임까지 <c>jump=true</c> 를 유지할 것인가.</summary>
+        private int _hopUntilFrame = -1;
+
+        /// <summary>내려설 때까지 폴짝 요청을 몇 프레임까지 들고 있을 것인가.</summary>
+        private const int HopWaitFrames = 60;
         private CharacterController _capsule;
         private Animator _animator;
 
@@ -77,9 +119,16 @@ namespace Mine.Net
         private static readonly int HorId = Animator.StringToHash("Hor");
         private static readonly int VertId = Animator.StringToHash("Vert");
         private static readonly int StateId = Animator.StringToHash("State");
+        private static readonly int JumpId = Animator.StringToHash("IsJump");
 
         /// <summary>지금 이 몸을 실제로 굴리고 있는가. 같은 값을 두 번 넣지 않으려고 기억한다.</summary>
         private bool? _simulated;
+
+        /// <summary>
+        /// 지금 사람끼리 부딪히게 해 두었는가. null 이면 <b>아직 안 정했다</b>는 뜻이라
+        /// 다음 틱에 짝을 다시 건다. 씬 전체를 훑는 일이라 바뀔 때만 한다.
+        /// </summary>
+        private bool? _crowdBump;
 
         public override void Spawned()
         {
@@ -109,14 +158,14 @@ namespace Mine.Net
                 return;
             }
 
-            // 나와 남을 서로 무시한다. 늦게 들어온 사람이 이미 있는 사람들과
-            // 짝을 지으므로, 새로 생길 때마다 모든 짝이 채워진다.
-            IgnoreOtherPlayers();
+            // 새 몸이 하나 늘었으니 **모두가 짝을 다시 맞춘다.** 실제로 켜고 끄는 것은
+            // 다음 틱의 ApplyCrowdCollision 이다. 여기서는 "다시 정해라" 고만 한다.
+            ForgetCrowdCollision();
 
             foreach (MineNetPlayerMover other in FindObjectsByType<MineNetPlayerMover>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (other != null && other != this) other.IgnoreOtherPlayers();
+                if (other != null && other != this) other.ForgetCrowdCollision();
             }
         }
 
@@ -130,6 +179,17 @@ namespace Mine.Net
         ///    <c>"CharacterController.Move called on inactive controller"</c> 가
         ///    <b>프레임마다</b> 쏟아진다. 실측으로 한 판에 서버 43만 건, 클라이언트 2만 건이었다.
         /// </summary>
+        /// <summary>
+        /// 발밑을 깨졌으니 폴짝 뛰게 한다. <c>MineNetPlayerActions.Dig</c> 가 부른다.
+        ///
+        /// 손맛일 뿐 규칙은 아니다. 파이는 칸도 점수도 바뀌지 않는다.
+        /// </summary>
+        public void RequestHop()
+        {
+            _hopRequest = true;
+            _hopFrame = Time.frameCount;
+        }
+
         public void SetSimulated(bool on)
         {
             if (_simulated == on) return;
@@ -147,11 +207,17 @@ namespace Mine.Net
         }
 
         /// <summary>
-        /// **사람끼리는 서로 막지 않는다.**
+        /// **사람끼리 부딪히게 할 것인가.** 몸이 보이는 동안만 참이다.
+        /// (<see cref="MineMatchState.CrewOnBoard"/> — 카운트다운 · 공개 · 턴)
         ///
-        /// 광산은 턴제라 한 번에 한 명만 걷는다. 나머지는 보이지도 않는 채 서 있을 뿐인데,
-        /// 그 캡슐이 물리적으로 남아 있어 <b>턴 주인이 보이지 않는 몸에 걸려 넘어간다.</b>
-        /// 실제로 "남의 머리 위를 밟고 지나가는" 모습으로 보였다.
+        /// <b>보이지 않는 몸은 길을 막으면 안 된다.</b> 대기와 결과 화면에는 몸이
+        /// 숨는데, 그 캡슐이 물리적으로 남아 있으면 <b>보이지 않는 벽에 걸려
+        /// 넘어간다.</b> 예전에 "남의 머리 위를 밟고 지나가는" 모습으로 드러났던 것이
+        /// 이것이다. 그때는 아예 영구히 꺼 두었지만, 이제 넷이 같이 서 있는 시간이
+        /// 생겨서 <b>보일 때만 켠다.</b>
+        ///
+        /// 굳어 있는 것과는 상관없다 — 공개 7초에 서 있는 셋은 움직이지 못해도
+        /// 보이므로, 첫 턴 예정자가 그 몸에 막히는 것이 맞다.
         ///
         /// <b>왜 <c>detectCollisions</c> 로는 안 되는가.</b> 그 값은 "다른 것이 나를
         /// <b>밀 수 있는가</b>" 를 정한다. <c>CharacterController.Move()</c> 가 스스로
@@ -160,15 +226,16 @@ namespace Mine.Net
         /// <b>왜 컨트롤러를 끄지 않는가.</b> 껐다 켜면 그 부품이 들고 있던 옛 자리로
         /// transform 을 되돌린다. 스폰 자리를 잃고 월드 원점으로 튀는 문제를 이미 겪었다.
         ///
-        /// 그래서 <b>짝을 지어 무시</b>한다. 한 번에 한 명만 걷는 게임이라
-        /// 사람끼리 부딪혀야 할 이유가 아예 없다 — 모든 짝을 영구히 무시해도 된다.
-        ///
-        /// ⚠ <c>Physics.IgnoreCollision</c> 은 콜라이더를 껐다 켜면 풀린다.
-        ///    <see cref="PlaceAt"/> 가 자리를 옮기며 껐다 켜므로 그 뒤에 다시 건다.
+        /// ⚠ <c>Physics.IgnoreCollision</c> 은 <b>짝마다</b> 걸리고, 콜라이더를 껐다 켜면
+        ///    풀린다. 그래서 새 몸이 생기면(<c>Spawned</c>) <see cref="ForgetCrowdCollision"/>
+        ///    로 기억을 지워 다음 틱에 전부 다시 걸게 한다.
         /// </summary>
-        public void IgnoreOtherPlayers()
+        private void ApplyCrowdCollision(bool bump)
         {
+            if (_crowdBump == bump) return;
             if (_capsule == null || !_capsule.enabled) return;
+
+            _crowdBump = bump;
 
             foreach (MineNetPlayerMover other in FindObjectsByType<MineNetPlayerMover>(
                          FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -178,8 +245,30 @@ namespace Mine.Net
                 CharacterController partner = other.GetComponent<CharacterController>();
                 if (partner == null || !partner.enabled) continue;
 
-                Physics.IgnoreCollision(_capsule, partner, true);
+                Physics.IgnoreCollision(_capsule, partner, !bump);
             }
+        }
+
+        /// <summary>
+        /// 짝을 **다시 맞춰야 한다**고 알린다. 실제로 거는 것은 다음 틱이다.
+        ///
+        /// 새 사람이 들어왔을 때(짝이 하나 늘었다)와 자리를 옮긴 뒤(콜라이더를 껐다 켜
+        /// 짝이 풀렸다) 부른다.
+        /// </summary>
+        public void ForgetCrowdCollision()
+        {
+            _crowdBump = null;
+        }
+
+        /// <summary>
+        /// 공중 상태를 <b>프레임마다</b> 붙잡는다. 서버에서만 돌면 된다.
+        /// 이유는 <see cref="_airHoldUntil"/> 에 적어 두었다.
+        /// </summary>
+        private void Update()
+        {
+            if (!HasStateAuthority || _mover == null) return;
+
+            if (_mover.IsAir) _airHoldUntil = Time.time + AirHoldSeconds;
         }
 
         public override void FixedUpdateNetwork()
@@ -189,10 +278,27 @@ namespace Mine.Net
             // 실제로 얼마나 움직였는지는 입력과 상관없이 매 틱 잰다.
             MeasureMotion();
 
-            // ⚠ **지금 턴인 사람만 몸을 굴린다.** 관전자는 여기서 걸러진다.
-            bool mine = _who != null && _who.IsMyTurn;
+            MineMatchState match = MineMatchState.Current;
+
+            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 카운트다운과 턴에는 넷 다 통과하고
+            //   (MineMatchState.FreeRoam), 목표 공개(7초)에는 첫 턴 예정자만 통과한다.
+            //   파는 것은 MineNetPlayerActions 가 IsMyTurn 으로 따로 막는다.
+            //
+            // ⚠ **판이 들려 있으면 아무도 안 움직인다.** 정답 보기가 파인 칸을 0.25m
+            //   끌어올려 캐릭터를 떠밀기 때문이다. 자기 힌트를 보는 사람만 멈추는 것으로는
+            //   부족하다 — 떠밀리는 것은 그 판 위를 걷는 <b>나머지 셋</b>이다.
+            //   (MineMatchState.BoardLifted 주석)
+            bool frozen = (_who != null && _who.WatchingOwnHint)
+                          || (match != null && match.BoardLifted);
+
+            bool mine = _who != null && _who.CanMoveNow && !frozen;
 
             SetSimulated(mine);
+
+            // ⚠ **부딪히는 것은 보이는 것을 따라간다.** 숨은 몸이 길을 막으면
+            //   보이지 않는 벽이 된다. 굳어 있어도 보이면 몸이다 — 공개 7초에
+            //   서 있는 셋은 첫 턴 예정자를 막아도 된다. (ApplyCrowdCollision 주석)
+            ApplyCrowdCollision(match != null && match.CrewOnBoard);
 
             float yaw = _who != null ? _who.CameraYaw : 0f;
 
@@ -223,6 +329,33 @@ namespace Mine.Net
                 run = turn.Buttons.IsSet((int)MineButton.Run);
                 jump = turn.Buttons.IsSet((int)MineButton.Jump);
             }
+
+            // ⚠ 폴짝은 <b>땅에 붙었을 때만</b> 들어간다.
+            //
+            //   <c>CharacterMover.CaculateGravity</c> 는 <c>m_Controller.isGrounded</c> 가
+            //   참일 때만 점프를 받는다. 그런데 칸을 파면 발밑 블록이
+            //   <c>digDepth</c> 만큼 내려가면서 <b>바로 그 순간 공중에 뜨게 된다.</b>
+            //   그때 요청을 버리면 내려설 때는 이미 요청이 없다.
+            //   그래서 <b>내려설 때까지 들고 있다가</b> 그때 넣는다.
+            //
+            //   한 프레임에 틱이 여러 번 돌 수 있고 <c>CharacterMover</c> 는
+            //   틱이 아니라 프레임마다 읽으므로, 넣기로 정한 뒤에는
+            //   다음 프레임까지 계속 true 를 유지한다.
+            if (_hopRequest)
+            {
+                if (_capsule != null && _capsule.isGrounded)
+                {
+                    _hopRequest = false;
+                    _hopUntilFrame = Time.frameCount + 1;
+                }
+                else if (Time.frameCount - _hopFrame > HopWaitFrames)
+                {
+                    // 너무 오래 기다리지는 않는다. 한참 뒤에 뛰면 어색하다.
+                    _hopRequest = false;
+                }
+            }
+
+            if (Time.frameCount <= _hopUntilFrame) jump = true;
 
             _mover.SetInput(axis, LookTarget(yaw), run, jump);
             MoveAxis = axis;
@@ -262,6 +395,10 @@ namespace Mine.Net
                 Vector3.Dot(velocity, transform.forward));
 
             AnimAxis = Vector2.ClampMagnitude(body / Mathf.Max(0.1f, walkSpeed), 1f);
+
+            // 점프 애니메이션은 <c>CharacterMover</c> 가 정한 공중 상태를 그대로 따른다.
+            // 그래야 혼자 하는 씬과 같은 타이밍으로 나온다.
+            Airborne = Time.time < _airHoldUntil;
         }
 
         /// <summary>
@@ -296,6 +433,7 @@ namespace Mine.Net
             _animator.SetFloat(HorId, _flowAxis.x);
             _animator.SetFloat(VertId, _flowAxis.y);
             _animator.SetFloat(StateId, Mathf.Clamp01(_flowState));
+            _animator.SetBool(JumpId, Airborne);
         }
 
         /// <summary>
@@ -314,7 +452,9 @@ namespace Mine.Net
         /// <summary>
         /// **서버가 이 사람을 정해진 자리로 옮긴다.**
         ///
-        /// 턴이 넘어갈 때 앞사람이 서 있던 자리로 다음 사람을 세우는 데 쓴다.
+        /// 카운트다운이 켜질 때 판 위에 흩뿌리는 데 쓴다.
+        /// (<c>MineMatchState.ScatterCrew</c>) <b>턴이 넘어갈 때는 부르지 않는다</b> —
+        /// 걷던 사람을 끌어오지 않고 서 있던 자리에서 바로 판다.
         ///
         /// ⚠ <c>CharacterController</c> 가 켜져 있으면 <c>transform.position</c> 대입을
         ///    되돌린다. 그 부품은 자기가 아는 자리를 따로 들고 있어서, 끄고 옮긴 뒤
@@ -333,25 +473,11 @@ namespace Mine.Net
             {
                 _capsule.enabled = true;
 
-                // ⚠ 껐다 켜면 짝지어 둔 무시가 풀린다. 다시 건다.
-                IgnoreOtherPlayers();
+                // ⚠ 껐다 켜면 짝지어 둔 것이 풀린다. 다음 틱에 다시 걸게 한다.
+                ForgetCrowdCollision();
             }
 
             MoveAxis = Vector2.zero;
-        }
-
-        /// <summary>
-        /// 자기 턴을 받는다. **컨트롤러를 먼저 켜고 그 다음에 옮긴다.**
-        ///
-        /// 순서를 뒤집으면 꺼진 컨트롤러 위에 자리를 써 넣게 되고, 켜지는 순간
-        /// <c>CharacterController</c> 가 자기가 기억하던 옛 자리로 되돌린다.
-        /// </summary>
-        public void TakeTurnAt(Vector3 position, Quaternion rotation)
-        {
-            if (!HasStateAuthority) return;
-
-            SetSimulated(true);
-            PlaceAt(position, rotation);
         }
     }
 }

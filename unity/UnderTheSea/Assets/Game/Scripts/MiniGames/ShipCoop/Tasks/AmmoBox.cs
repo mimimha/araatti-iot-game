@@ -29,6 +29,13 @@ public class AmmoBox : MonoBehaviour
              "'물이 처음부터 차 있다' 로 읽힌다. 도구는 일이 생긴 뒤에 나타나야 한다.")]
     [SerializeField] private bool showOnlyWhenFlooded = true;
 
+    [Header("뚜껑")]
+    [Tooltip("집은 뒤 이만큼 지나면 옆에 서 있어도 닫힌다 (초). 0 이면 사거리를 벗어날 때만 닫힌다.\n\n" +
+             "'나갈 때만 닫힘' 이면 집고 옆에 서 있는 동안 계속 열려 있어, 뚜껑 연출과 소리가 한참 뒤에 나왔다.")]
+    [SerializeField, Min(0f)] private float closeAfterTake = 0.7f;
+
+    private float _closeAt = -1f;
+
     private ShipFlooding _flooding;
     private Renderer[] _renderers;
 
@@ -41,8 +48,8 @@ public class AmmoBox : MonoBehaviour
     /// <code>
     ///   열림   TryTake 가 true 를 돌려준 순간 — 상호작용으로 실제로 집은 순간이다.
     ///          키를 누른 것이 기준이 아니다. 재고가 없어 못 집었으면 안 열린다.
-    ///   닫힘   열린 상태에서 어느 TaskWorker 도 사거리(reachRange) 안에 없을 때. 지연 없음.
-    ///          한 사람이 집고 다른 사람이 다가오면 열린 채 유지된다. 마지막 사람이 나가면 닫힌다.
+    ///   닫힘   집은 뒤 closeAfterTake(0.7초)가 지나면 — 옆에 서 있어도. 또는 그 전에 모두 사거리를 벗어나면.
+    ///          (한때 "나갈 때만" 이었는데 집고 옆에 서 있는 동안 계속 열려 있어 뚜껑 · 소리가 한참 뒤에 왔다)
     /// </code>
     ///
     /// 왜 다가가면 열리는 것이 아니라 집을 때 열리나 — 지나가기만 해도 열리면 앞계단 사이를 오가는
@@ -131,6 +138,14 @@ public class AmmoBox : MonoBehaviour
             return;
         }
 
+        // 집은 뒤 시간이 지났으면 옆에 서 있어도 닫는다.
+        if (closeAfterTake > 0f && _closeAt >= 0f && Time.time >= _closeAt)
+        {
+            IsOpen = false;
+            _closeAt = -1f;
+            return;
+        }
+
         if (_workers == null || Time.time - _workersRefreshedAt > WorkersRefreshSeconds)
         {
             _workers = FindObjectsByType<TaskWorker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
@@ -181,6 +196,7 @@ public class AmmoBox : MonoBehaviour
         // 실제로 집었다. 뚜껑을 연다. (키를 누른 것이 아니라 집기 성공이 기준)
         IsOpen = true;
         _workersRefreshedAt = -1f;
+        _closeAt = closeAfterTake > 0f ? Time.time + closeAfterTake : -1f;
 
         return true;
     }

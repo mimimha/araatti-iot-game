@@ -7,7 +7,7 @@ using UnityEngine;
 ///
 /// <code>
 ///   🏴‍☠️ 적선        P_EnemyShip.prefab          StylShip_Unity 를 중첩하고 재질만 우리 것(M_Ship_*_01)으로. 돛은 검은 해골 그대로
-///   🏝 목적지 섬     P_DestinationIsland.prefab   섬덩이(Mountain) + 화산 + 바위 아치 + 야자수. 피벗은 수면 높이의 섬 중심
+///   🏝 목적지 섬     P_DestinationIsland.prefab   섬덩이(Mountain) + 바위 아치 + 야자수. 피벗은 수면 높이의 섬 중심
 ///   ⛵ 우리 배 돛    P_PirateShip.prefab          돛 · 깃발 재질 슬롯만 미색 돛(M_Ship_SailsRope_White_01)으로 덮어쓴다
 /// </code>
 ///
@@ -39,7 +39,6 @@ public static class ShipCoopSeaProps
 
     // 섬 부품
     private const string MountainPath = "Assets/Synty/PolygonGeneric/Prefabs/Environment/SM_Gen_Env_Mountain_01.prefab";
-    private const string VolcanoPath = "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Volcano_01.prefab";
     private const string ArchPath = "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Rock_Arch_01.prefab";
     private static readonly string[] PalmPaths =
     {
@@ -54,12 +53,6 @@ public static class ShipCoopSeaProps
 
     /// <summary>섬덩이를 이만큼 가라앉힌다(m). 해안선이 물 아래로 들어가 가장자리가 잘려 보이지 않는다.</summary>
     private const float MountainSink = 2f;
-
-    /// <summary>화산 배율. 17m → 42m. 400m 밖 수평선에서 실루엣을 맡는다.</summary>
-    private const float VolcanoScale = 2.5f;
-
-    /// <summary>화산 밑을 섬덩이 꼭대기에 이만큼 묻는다(m). 떠 있으면 얹어 놓은 것처럼 보인다.</summary>
-    private const float VolcanoBury = 3f;
 
     private const float PalmScale = 1.5f;
     private const int PalmCount = 6;
@@ -174,16 +167,17 @@ public static class ShipCoopSeaProps
     ///
     /// <code>
     ///   섬덩이   Mountain_01 × 0.5, 2m 가라앉힘          덩어리. 해안선이 물 아래
-    ///   봉우리   Volcano_01 × 2.5 (42m)                 섬덩이 가장 높은 곳 위. 400m 밖 실루엣 담당
     ///   랜드마크 Rock_Arch_01 × 1                         우리가 다가가는 쪽(-z) 해안. 25m 에서 "도착" 을 말한다
     ///   야자수   Palm_01~04 × 1.5, 6그루                  -z 쪽 해안을 따라, 종류를 섞어서
     /// </code>
     /// 전부 콜라이더 없음 · 정적. 재질은 프리팹 것 그대로 (둘 다 URP 정상).
+    ///
+    /// 한때 섬덩이 위에 화산(Volcano_01 × 2.5, 42m)을 얹어 400m 밖 실루엣을 맡겼는데,
+    /// 섬덩이(12m)에 비해 너무 커서 뺐다. 멀리서는 섬덩이만 낮게 보인다.
     /// </summary>
     private static GameObject BuildIslandPrefab(StringBuilder log)
     {
         GameObject mountainPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MountainPath);
-        GameObject volcanoPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(VolcanoPath);
         GameObject archPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArchPath);
 
         if (mountainPrefab == null)
@@ -199,20 +193,6 @@ public static class ShipCoopSeaProps
             // 섬덩이 — 중심, 2m 가라앉힘.
             Transform mountain = Put(mountainPrefab, root.transform, "Island_Body", Vector3.down * MountainSink, Quaternion.identity, MountainScale);
             Bounds body = BoundsOf(mountain);
-
-            // 봉우리 — 섬덩이 가장 높은 곳. 정점을 읽을 수 있으면 진짜 꼭대기, 아니면 가운데.
-            Vector3 top = HighestPoint(mountain, body);
-
-            if (volcanoPrefab != null)
-            {
-                Transform volcano = Put(volcanoPrefab, root.transform, "Island_Peak", Vector3.zero, Quaternion.identity, VolcanoScale);
-                Bounds peak = BoundsOf(volcano);
-                volcano.position += new Vector3(top.x - peak.center.x, (top.y - VolcanoBury) - peak.min.y, top.z - peak.center.z);
-            }
-            else
-            {
-                log.AppendLine($"    ⚠ 화산을 못 찾음: {VolcanoPath}");
-            }
 
             // 랜드마크 — 우리가 다가가는 쪽(-z) 해안. 밑을 살짝 물에 담근다.
             if (archPrefab != null)
@@ -271,7 +251,7 @@ public static class ShipCoopSeaProps
 
             Bounds all = BoundsOf(root.transform);
             log.AppendLine($"    🏝 목적지 섬 프리팹 — 섬덩이 {body.size.x:F0}×{body.size.y:F0}×{body.size.z:F0}m, " +
-                           $"화산 꼭대기 y {all.max.y:F0}m, 아치 · 야자수 {palms}그루 → {IslandPrefabPath}");
+                           $"꼭대기 y {all.max.y:F0}m, 아치 · 야자수 {palms}그루 → {IslandPrefabPath}");
             return saved;
         }
         finally
@@ -308,36 +288,6 @@ public static class ShipCoopSeaProps
         }
 
         return box;
-    }
-
-    /// <summary>메시에서 가장 높은 정점(월드). 정점을 못 읽으면 경계 가운데 꼭대기.</summary>
-    private static Vector3 HighestPoint(Transform root, Bounds fallback)
-    {
-        Vector3 best = new Vector3(fallback.center.x, fallback.max.y, fallback.center.z);
-        bool any = false;
-
-        foreach (MeshFilter part in root.GetComponentsInChildren<MeshFilter>(true))
-        {
-            if (part.sharedMesh == null || !part.sharedMesh.isReadable)
-            {
-                continue;
-            }
-
-            Vector3[] points = part.sharedMesh.vertices;
-
-            for (int i = 0; i < points.Length; i++)
-            {
-                Vector3 world = part.transform.TransformPoint(points[i]);
-
-                if (!any || world.y > best.y)
-                {
-                    best = world;
-                    any = true;
-                }
-            }
-        }
-
-        return best;
     }
 
     // ------------------------------------------------------------

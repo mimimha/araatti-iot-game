@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -65,6 +66,12 @@ namespace UnderTheSea.Network.Editor
         private const string TestScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
 
         private const string ServerOutput = "Builds/Server/AraAtti-Server.exe";
+
+        /// <summary>
+        /// Profiler 연결용 로비 서버. 평소 서버(<see cref="ServerOutput"/>)와 폴더를 나눠
+        /// 잘 도는 빌드를 덮지 않는다. 자세한 것은 <see cref="BuildServerForProfiler"/> 참고.
+        /// </summary>
+        private const string ServerProfileOutput = "Builds/ServerProfile/AraAtti-Server.exe";
         private const string ClientOutput = "Builds/Client/AraAtti-Client.exe";
 
         /// <summary>
@@ -91,6 +98,17 @@ namespace UnderTheSea.Network.Editor
 
         /// <summary>정상 흐름(Boot → Title → Login → ChannelSelect → Lobby) 확인용 빌드.</summary>
         private const string FlowOutput = "Builds/FlowClient/AraAtti-Flow.exe";
+
+        /// <summary>
+        /// <b>시연용 클라이언트.</b> <see cref="FlowOutput"/> 과 씬은 같고 Development 만 뺀다.
+        ///
+        /// 사람 앞에서 도는 빌드라 화면 구석의 "Development Build" 워터마크가 남으면 안 되고,
+        /// 로그마다 스택 트레이스를 뜨느라 느려질 이유도 없다.
+        ///
+        /// ⚠ Development 가 빠지면 <c>-devjoin</c> 같은 개발용 경로와 개발자 모드 패널이
+        ///    <b>같이 사라진다.</b> 시연은 정상 로그인 경로만 쓴다.
+        /// </summary>
+        private const string ShowcaseOutput = "Builds/Showcase/AraAtti-Flow.exe";
 
         /// <summary>
         /// Warriors 전환용 씬. <b>순서가 중요하다.</b>
@@ -133,6 +151,41 @@ namespace UnderTheSea.Network.Editor
         public static void BuildServer()
         {
             Build(ServerOutput, StandaloneBuildSubtarget.Server);
+        }
+
+        /// <summary>
+        /// <b>Profiler 를 붙일 수 있는 로비 서버.</b> 원인 조사용이고 평소에는 쓰지 않는다.
+        ///
+        /// <b>왜 따로 만드는가.</b> 서버 빌드는 <c>BuildOptions.None</c> 이라 Unity Profiler 가
+        /// 붙지 않는다. 붙이려면 <c>Development</c> 가 필요한데, 그렇다고 <see cref="ServerOutput"/>
+        /// 을 개발 빌드로 덮으면 평소 테스트·시연에 쓰는 서버가 바뀐다. 그래서 출력 폴더를
+        /// 나눠 <b>지금 잘 도는 빌드를 건드리지 않는다.</b>
+        ///
+        /// <b>무엇을 쫓고 있나.</b> 접속자 0명인 로비 DS 가 코어 1.67개를 태운다(실측 7.57%).
+        /// 같은 방식으로 띄운 광산·검 DS 는 0.43~0.48% 다. <b>17배 차이</b>다.
+        /// 씬을 비교하면 로비에만 Terrain 1개와 ReflectionProbe 1개가 있고 Transform 이
+        /// 5,601개(광산 1,013 · 검 10)인데, <b>어느 것이 범인인지는 아직 모른다.</b>
+        /// 이 건은 이미 그럴듯한 가설 두 개가 데이터로 깨진 적이 있어
+        /// (파티클·Canvas 설, MineCrystalTint 설) 추측으로 고치지 않기로 했다.
+        ///
+        /// <b>쓰는 법.</b> 빌드한 뒤 이렇게 띄우고 Profiler 창에서 이 프로세스를 고른다.
+        /// <code>
+        /// Builds\ServerProfile\AraAtti-Server.exe -batchmode -nographics
+        ///   -session prof-lobby -port 27015 -region kr
+        /// </code>
+        /// <c>ConnectWithProfiler</c> 를 켜 두면 실행 즉시 에디터 Profiler 를 찾아 붙는다.
+        ///
+        /// ⚠ Deep Profile 은 켜지 않는다. 모든 메서드에 계측이 붙어 <b>수치가 왜곡된다.</b>
+        ///    먼저 어느 단계(PlayerLoop 의 어디)가 비싼지부터 보고, 좁혀진 뒤에 필요하면 켠다.
+        /// </summary>
+        [MenuItem(MenuRoot + "로비 서버 빌드 — Profiler 연결용 (원인 조사)")]
+        public static void BuildServerForProfiler()
+        {
+            Build(
+                ServerProfileOutput,
+                StandaloneBuildSubtarget.Server,
+                new[] { TestScenePath },
+                BuildOptions.Development | BuildOptions.ConnectWithProfiler);
         }
 
         [MenuItem(MenuRoot + "Fusion 클라이언트 테스트 빌드")]
@@ -247,6 +300,82 @@ namespace UnderTheSea.Network.Editor
             EditorApplication.Exit(0);
         }
 
+        /// <summary>
+        /// <b>시연 한 벌.</b> Release 클라이언트 1 + Dedicated Server 3.
+        ///
+        /// <see cref="BuildQaSetFromCommandLine"/> 과 같은 구성이되 클라이언트만 Release 다.
+        /// 서버는 창이 없어 워터마크가 없고 로그는 오히려 남아야 하므로 그대로 둔다.
+        /// </summary>
+        public static void BuildShowcaseSetFromCommandLine()
+        {
+            if (!Ok("시연 클라이언트(Release)", BuildShowcaseClient())) return;
+            if (!Ok("Lobby DS", Build(ServerOutput, StandaloneBuildSubtarget.Server))) return;
+
+            if (!Ok("ShipCoop DS", Build(
+                    ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                    ShipCoopScenes, BuildOptions.None))) return;
+
+            if (!Ok("Warriors DS", Build(
+                    WarriorsServerOutput, StandaloneBuildSubtarget.Server,
+                    WarriorsScenes, BuildOptions.None))) return;
+
+            Debug.Log("[FusionTestBuilds] 시연 한 벌을 모두 만들었습니다. (Release 클라이언트 1 · 서버 3)");
+            EditorApplication.Exit(0);
+        }
+
+        /// <summary>시연용 Release 클라이언트. 씬 목록은 정상 흐름 빌드와 같다.</summary>
+        private static BuildReport BuildShowcaseClient()
+        {
+            string[] scenes = EditorBuildSettings.scenes
+                .Where(s => s.enabled)
+                .Select(s => s.path)
+                .ToArray();
+
+            if (scenes.Length == 0)
+            {
+                Debug.LogError(
+                    "[FusionTestBuilds] 제품 Scene List 가 비어 있습니다. " +
+                    "File > Build Profiles 의 Scene List 를 확인해 주세요.");
+                return null;
+            }
+
+            Debug.Log(
+                $"[FusionTestBuilds] 시연 클라이언트(Release) — 제품 Scene List {scenes.Length}개: " +
+                string.Join(", ", scenes));
+
+            return Build(ShowcaseOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.None);
+        }
+
+        /// <summary>
+        /// 빌드하느라 돌려놓은 서브타깃을 제자리로 되돌린다.
+        ///
+        /// ⚠ <b>배치 모드에서는 되돌리지 않는다.</b> 서브타깃을 바꾸면 스크립팅 정의가 달라져
+        ///    재컴파일이 필요한데, <c>-executeMethod</c> 가 도는 도중에 도메인 리로드가 끼어들면
+        ///    <b>남은 빌드가 끊긴다.</b> QA 한 벌처럼 한 실행에서 여럿을 굽는 경우가 특히 그렇다.
+        ///    배치는 어차피 끝나고 프로세스가 죽으므로 에디터에 남는 피해가 없다.
+        ///
+        ///    <b>되돌리는 것이 필요한 쪽은 에디터 메뉴로 부른 경우다.</b> 사람이 그 에디터로
+        ///    이어서 Play 하기 때문이다.
+        /// </summary>
+        private static void RestoreSubtarget(StandaloneBuildSubtarget before)
+        {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+
+            if (EditorUserBuildSettings.standaloneBuildSubtarget == before)
+            {
+                return;
+            }
+
+            EditorUserBuildSettings.standaloneBuildSubtarget = before;
+
+            Debug.Log(
+                $"[FusionTestBuilds] 빌드 대상을 {before} 로 되돌렸습니다. " +
+                "이걸 안 하면 에디터가 자기를 서버로 여겨 Play 할 때 로비에 접속하지 못합니다.");
+        }
+
         /// <summary>방금 끝난 빌드가 성공했는가. 실패하면 거기서 멈추고 1 로 빠진다.</summary>
         private static bool Ok(string name, BuildReport report)
         {
@@ -317,6 +446,27 @@ namespace UnderTheSea.Network.Editor
                 MineClientOutput, StandaloneBuildSubtarget.Player, MineScenes, ClientOptions));
         }
 
+        /// <summary>
+        /// <b>광산 한 쌍.</b> 서버 1 + 클라이언트 1 을 한 번의 Unity 실행으로 만든다.
+        ///
+        /// 광산 흐름을 붙이는 동안 둘을 계속 같이 다시 굽게 된다. 따로 부르면 Unity 기동
+        /// 비용(도메인 리로드 · 에셋 후처리)을 두 번 낸다. 실측으로 그 고정 비용이
+        /// 빌드 작업 자체보다 컸다.
+        /// </summary>
+        public static void BuildMinePairFromCommandLine()
+        {
+            if (!Ok("Mine DS", Build(
+                    MineServerOutput, StandaloneBuildSubtarget.Server,
+                    MineScenes, BuildOptions.None))) return;
+
+            if (!Ok("Mine 클라이언트", Build(
+                    MineClientOutput, StandaloneBuildSubtarget.Player,
+                    MineScenes, ClientOptions))) return;
+
+            Debug.Log("[FusionTestBuilds] 광산 한 쌍을 만들었습니다. (서버 1 · 클라이언트 1)");
+            EditorApplication.Exit(0);
+        }
+
         [MenuItem(MenuRoot + "정상 흐름 클라이언트 빌드 (Boot 부터)")]
         public static void BuildNormalFlowClient()
         {
@@ -371,11 +521,26 @@ namespace UnderTheSea.Network.Editor
         private static BuildReport Build(
             string relativeOutput, StandaloneBuildSubtarget subtarget, string[] scenes, BuildOptions options)
         {
+            System.DateTime buildMethodEnteredUtc = System.DateTime.UtcNow;
             // 프로젝트 폴더 기준 상대 경로를 절대 경로로 바꾼다.
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
             string output = Path.Combine(projectRoot, relativeOutput);
 
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+
+            // ⚠ **빌드가 끝나면 이 스위치를 되돌려야 한다.** 아래 finally 에서 한다.
+            //
+            //    서브타깃은 프로젝트 전체 설정이고, 한 번 Server 로 돌려 두면 그대로 남는다.
+            //    그러면 Unity 가 UNITY_SERVER 를 붙인 채로 에디터가 돌고,
+            //    FusionLaunchArguments.IsDedicatedServerProcess() 가 **에디터에서도 true** 가 된다.
+            //    그 상태로 Play 하면 NetworkServiceBootstrap 이 "서버는 서비스가 필요 없다" 며
+            //    통째로 건너뛰어, 채널 선택 화면이 조용히 예시 목록을 띄우고 접속이 안 된다.
+            //
+            //        [ChannelSelect] 네트워크 서비스가 없어 예시 채널 목록을 표시합니다.
+            //
+            //    증상이 원인을 전혀 가리키지 않는다. "어제 서버를 빌드했기 때문" 이라고
+            //    아무도 떠올리지 못한다. 실제로 한 번 겪었다.
+            StandaloneBuildSubtarget before = EditorUserBuildSettings.standaloneBuildSubtarget;
 
             // 에디터 메뉴로 부른 경우를 위해 여기서도 맞춰 준다.
             // 커맨드라인은 -standaloneBuildSubtarget 으로 이미 맞춰져 있어 이 줄이 무해하게 넘어간다.
@@ -386,17 +551,55 @@ namespace UnderTheSea.Network.Editor
                 $"  씬 {scenes.Length}개, 첫 씬: {scenes[0]}\n" +
                 $"  출력: {output}");
 
-            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            // ⚠ **평문 HTTP 를 허용해 둔다.**
+            //
+            //    Unity 는 http:// 요청을 기본으로 막는다. localhost 만 예외라서, 개발 중에는
+            //    아무도 이것을 만나지 않는다. 클라이언트가 다른 PC 의 API 를 가리키는 순간
+            //    로그인에서 이렇게 터진다.
+            //
+            //        InvalidOperationException: Insecure connection not allowed
+            //
+            //    ProjectSettings.asset 을 손으로 고쳐서는 빌드에 반영되지 않았다.
+            //    빌드하는 그 세션에서 직접 지정해야 확실히 들어간다.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+
+            System.DateTime buildPlayerCallStartedUtc =
+                System.DateTime.UtcNow;
+
+            BuildReport report;
+
+            try
             {
-                scenes = scenes,
-                locationPathName = output,
-                target = BuildTarget.StandaloneWindows64,
-                targetGroup = BuildTargetGroup.Standalone,
-                subtarget = (int)subtarget,
-                options = options
-            });
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = output,
+                    target = BuildTarget.StandaloneWindows64,
+                    targetGroup = BuildTargetGroup.Standalone,
+                    subtarget = (int)subtarget,
+                    options = options
+                });
+            }
+            finally
+            {
+                RestoreSubtarget(before);
+            }
+
+            System.DateTime buildPlayerCallEndedUtc =
+                System.DateTime.UtcNow;
 
             BuildSummary summary = report.summary;
+
+
+            WriteBuildReportSummary(
+                projectRoot,
+                subtarget,
+                output,
+                scenes,
+                report,
+                buildMethodEnteredUtc,
+                buildPlayerCallStartedUtc,
+                buildPlayerCallEndedUtc);
 
             if (summary.result == BuildResult.Succeeded)
             {
@@ -412,6 +615,91 @@ namespace UnderTheSea.Network.Editor
             }
 
             return report;
+        }
+
+        private static void WriteBuildReportSummary(
+            string projectRoot,
+            StandaloneBuildSubtarget subtarget,
+            string output,
+            string[] scenes,
+            BuildReport report,
+            System.DateTime buildMethodEnteredUtc,
+            System.DateTime buildPlayerCallStartedUtc,
+            System.DateTime buildPlayerCallEndedUtc)
+        {
+            try
+            {
+                BuildSummary summary = report.summary;
+
+                string logDirectory = Path.Combine(
+                    projectRoot,
+                    "Builds",
+                    "_logs");
+
+                Directory.CreateDirectory(logDirectory);
+
+                string summaryPath = Path.Combine(
+                    logDirectory,
+                    $"latest-build-{subtarget}-summary.txt");
+
+                StringBuilder text = new StringBuilder();
+
+                text.AppendLine("[Build Summary]");
+                text.AppendLine($"Subtarget: {subtarget}");
+                text.AppendLine($"Output: {output}");
+
+                text.AppendLine($"BuildMethodEnteredUtc: {buildMethodEnteredUtc:O}");
+                text.AppendLine($"BuildPlayerCallStartedUtc: {buildPlayerCallStartedUtc:O}");
+                text.AppendLine($"BuildPlayerCallEndedUtc: {buildPlayerCallEndedUtc:O}");
+                
+                text.AppendLine($"StartedAt: {summary.buildStartedAt:O}");
+                text.AppendLine($"EndedAt: {summary.buildEndedAt:O}");
+                text.AppendLine(
+                    $"TotalTimeSec: {summary.totalTime.TotalSeconds:F3}");
+                text.AppendLine($"BuildSizeBytes: {summary.totalSize}");
+                text.AppendLine($"Warnings: {summary.totalWarnings}");
+                text.AppendLine($"Errors: {summary.totalErrors}");
+                text.AppendLine($"Result: {summary.result}");
+
+                text.AppendLine();
+                text.AppendLine("[Scenes]");
+
+                foreach (string scene in scenes)
+                {
+                    text.AppendLine(scene);
+                }
+
+                text.AppendLine();
+                text.AppendLine("[Build Steps - Slowest First]");
+
+                int rank = 1;
+
+                foreach (BuildStep step in report.steps
+                            .OrderByDescending(item => item.duration))
+                {
+                    text.AppendLine(
+                        $"{rank}. {step.duration.TotalSeconds:F3} sec | " +
+                        step.name);
+
+                    rank++;
+                }
+
+                File.WriteAllText(
+                    summaryPath,
+                    text.ToString(),
+                    Encoding.UTF8);
+
+                Debug.Log(
+                    $"[FusionTestBuilds] 상세 빌드 기록 저장: " +
+                    summaryPath);
+            }
+            catch (System.Exception exception)
+            {
+                // 측정 파일 저장 실패 때문에 정상 빌드까지 실패 처리하지 않는다.
+                Debug.LogWarning(
+                    "[FusionTestBuilds] 상세 빌드 기록 저장 실패: " +
+                    exception);
+            }
         }
 
         /// <summary>메뉴에서 부른 경우에는 에디터를 닫지 않는다.</summary>

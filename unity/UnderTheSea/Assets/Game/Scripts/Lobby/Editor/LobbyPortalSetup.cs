@@ -28,6 +28,7 @@ namespace Lobby.Editor
         private const string CanvasPrefabPath = "Assets/Game/Prefabs/MiniGames/Common/CommonMatchCanvas.prefab";
         private const string ShipConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Common/MiniGame_Ship.asset";
         private const string SwordConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Common/MiniGame_Sword.asset";
+        private const string MiningConfigPath = "Assets/Game/ScriptableObjects/MiniGames/Common/MiniGame_Mining.asset";
 
         /// <summary>
         /// 이미 있는 포탈 연출. <c>ProximityPortal</c> 과 파랑 이펙트 3종이 배선돼 있다.
@@ -95,6 +96,12 @@ namespace Lobby.Editor
         public static void BindWarriorsEntrance() => Bind("Entrance_Warriors", SwordConfigPath);
 
         public static void BindWarriorsEntranceFromCommandLine() => BindWarriorsEntrance();
+
+        /// <summary>광산 게임 입구. 배·검과 같은 자리, 같은 방식이다.</summary>
+        [MenuItem(MenuRoot + "Lobby 광산 게임 입구 만들기")]
+        public static void BindMineEntrance() => Bind("Entrance_Mine", MiningConfigPath);
+
+        public static void BindMineEntranceFromCommandLine() => BindMineEntrance();
 
         private static void Bind(string entranceName, string configPath)
         {
