@@ -333,9 +333,13 @@ namespace Warriors.Net
             // 따로 노는 별개의 상자로 보였다. 상단 카드들과 같은 톤(짙은 남색 · 낮은 알파)으로
             // 낮추고 테두리를 없앤다. 크기도 48 로 줄여 점수 카드 밑에 조용히 붙는다.
             // 모양은 막대 두 개만 남는다 — 그것으로 충분히 일시정지로 읽힌다.
+            // ⚠ 예전 자리 (-40, -176) 는 HP 칸(오른쪽 40 · 위 36 · 380×124) 바로 아래인
+            //    프로필 1P 칸(위 188~)과 겹쳐 프로필 UI 의 일부처럼 보였다.
+            //    HP 칸 <b>왼쪽</b>, 같은 상단 줄의 세로 가운데에 둔다.
+            //    x = -(40 + 380 + 16) = -436 · y = -(36 + (124 - 48) / 2) = -74.
             pauseButtonRoot = MakeButton(
                 transform, "PauseButton", string.Empty, font, 0f,
-                new Vector2(1f, 1f), new Vector2(-40f, -176f), new Vector2(48f, 48f),
+                new Vector2(1f, 1f), new Vector2(-436f, -74f), new Vector2(48f, 48f),
                 new Color(.06f, .12f, .22f, .55f), RequestToggle);
 
             AddPauseBars(pauseButtonRoot.transform);

@@ -153,7 +153,7 @@ namespace Warriors.Net
         [Tooltip("크라켄을 쓰러뜨린 뒤 결과 화면까지 천천히 어두워지는 시간(초). 라운드 사이보다 길다.")]
         [SerializeField, Min(0f)] private float finaleFadeSeconds = 1.6f;
 
-        [Header("점수 — 밸런스 미확정 (WARRIORS.md 4장)")]
+        [Header("점수 — 밸런스 미확정 (WARRIORS.md 3장)")]
         [Tooltip("1페이즈 몬스터 한 마리.")]
         [SerializeField, Min(0)] private int killScore = 100;
 
@@ -375,6 +375,19 @@ namespace Warriors.Net
             // 화면이 있는 쪽(클라이언트)에만 일시정지 버튼을 만든다. 서버에는 화면이 없다.
             if (!Runner.IsServer) WarriorsPauseControl.Ensure(this);
 
+            // **공용 결과 판의 [다시 하기] 에 우리 새 판 시작을 붙인다.**
+            //
+            // 공용 판은 세 게임이 같이 쓰므로 무쌍을 알지 못한다. 그래서 "나는 새 판을
+            // 시작할 수 있다" 를 이쪽에서 등록한다. 포탈로 들어온 판에서는 공용 판이
+            // 등록돼 있어도 쓰지 않는다 — 그 판단은 공용 판이 한다.
+            //
+            // ⚠ 씬을 벗어날 때 Despawned 에서 반드시 떼어 낸다. 정적이라 남으면
+            //    다음 씬의 결과 판이 이미 사라진 이 판에 새 판을 요청한다.
+            if (!Runner.IsServer)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = RequestRestartFromResultPanel;
+            }
+
             if (!HasStateAuthority) return;
 
             Phase = WarriorsMatchPhase.Waiting;
@@ -395,9 +408,33 @@ namespace Warriors.Net
                 $"{Phase1Target}/{Phase2Target}/{Phase3Target}");
         }
 
+        /// <summary>
+        /// 공용 결과 판의 [다시 하기] 가 부른다. <b>서버에 새 판을 부탁한다.</b>
+        ///
+        /// 씬을 다시 열지 않는다 — 판의 상태는 전부 <c>[Networked]</c> 값이라
+        /// <see cref="Rpc_RequestRestart"/> 가 그것만 처음 값으로 돌리면 된다.
+        /// </summary>
+        private void RequestRestartFromResultPanel()
+        {
+            if (Object == null || !Object.IsValid)
+            {
+                Debug.LogWarning("[WarriorsMatch] 이미 사라진 판에 다시 하기가 들어왔습니다. 무시합니다.");
+                return;
+            }
+
+            Rpc_RequestRestart();
+        }
+
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             if (Current == this) Current = null;
+
+            // ⚠ 정적이라 씬이 바뀌어도 남는다. 떼어 내지 않으면 다음 씬의 결과 판이
+            //    이미 사라진 이 판에 새 판을 요청한다.
+            if (MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler == RequestRestartFromResultPanel)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = null;
+            }
 
             // 멈춘 채로 세션이 끝나면 시간을 되돌려 놓는다. 남겨 두면 다음 판이 멈춘 채 시작한다.
             if (holdingTime)
@@ -1213,6 +1250,16 @@ namespace Warriors.Net
             {
                 if (one == null || !one.IsLive || !one.IsDown) continue;
 
+                // ⚠ **쓰러진 사람의 화면에만 띄운다.**
+                //
+                //    예전에는 누가 쓰러지든 두 화면 모두에 떴다. 멀쩡히 싸우고 있는 사람에게
+                //    "플레이어가 쓰러졌습니다" 가 뜨면 **자기가 쓰러진 줄 안다.** 그렇다고
+                //    "1P 가" 처럼 번호를 붙이는 것도 안 된다 — 확정 문구에 P1/P2 표기는 없다.
+                //
+                //    남은 사람이 할 수 있는 일도 없다. 구조·부활은 규칙에서 빠졌다.
+                //    그러니 알릴 이유가 있는 것은 당사자뿐이다.
+                if (one.Object == null || !one.Object.HasInputAuthority) continue;
+
                 return "플레이어가 쓰러졌습니다.";
             }
 
@@ -1264,6 +1311,29 @@ namespace Warriors.Net
             }
 
             return -1f;
+        }
+
+        /// <summary>
+        /// **이 화면 주인의 콤보.** 서버가 센 값을 그대로 읽는다.
+        ///
+        /// 콤보는 판이 아니라 사람마다 다른 값이라 <see cref="WarriorsNetPlayerCombat"/> 에
+        /// 복제해 두었다. 여기서는 <b>내 캐릭터</b>의 것만 골라 HUD 에 넘긴다 —
+        /// 남의 콤보를 내 화면에 띄우면 안 된다.
+        ///
+        /// ⚠ 서버에서는 <c>HasInputAuthority</c> 인 캐릭터가 없어 0 이다. 서버에는 HUD 도 없다.
+        /// </summary>
+        private int LocalCombo()
+        {
+            foreach (WarriorsNetPlayerCombat one in FindObjectsByType<WarriorsNetPlayerCombat>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || one.Object == null || !one.Object.IsValid) continue;
+                if (!one.Object.HasInputAuthority) continue;
+
+                return one.Combo;
+            }
+
+            return 0;
         }
 
         /// <summary>쓰러진 레인을 비트로 모은다. 0번 자리가 1P.</summary>
@@ -1328,6 +1398,7 @@ namespace Warriors.Net
             hud.NetworkObjective = ObjectiveFor(Phase);
             hud.NetworkObjectiveProgress = ProgressFor(Phase);
             hud.NetworkScore = Score;
+            hud.NetworkCombo = LocalCombo();
             hud.NetworkKills = Phase1Kills;
             hud.NetworkElapsedSeconds = Elapsed;
             hud.NetworkFinal = Phase == WarriorsMatchPhase.Cleared ? 1 : Phase == WarriorsMatchPhase.Failed ? 2 : 0;
@@ -1358,8 +1429,13 @@ namespace Warriors.Net
         {
             switch (phase)
             {
+                // 목표는 카운트다운이 끝나는 순간 인원수로 정해진다(Phase1GoalFor). 그 전의
+                // Phase1Target 은 혼자 기준 초기값(30)이라 "0 / 30" 이 보였다가 "0 / 50" 으로
+                // 바뀌었다. 정해지기 전에는 숫자를 내지 않는다.
                 case WarriorsMatchPhase.Waiting:
                 case WarriorsMatchPhase.Countdown:
+                    return "처치 수   -- / --";
+
                 case WarriorsMatchPhase.Phase1:
                     return $"처치 수   {Phase1Kills} / {Phase1Target}";
 

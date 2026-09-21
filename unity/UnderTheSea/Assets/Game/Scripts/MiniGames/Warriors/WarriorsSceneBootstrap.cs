@@ -46,6 +46,10 @@ namespace Warriors
                 playerController = keyboardController;
             }
 
+            // 완드가 꽂혀 있으면 무쌍 배치를 알려준다. 기본값(Shared)은 왼손 버튼 2 를
+            // 달리기 토글로 잠그는데, 그 조작은 배에만 있다. 무쌍은 누른 그대로 내보낸다.
+            (playerController as IotPlayerController)?.SetControlProfile(IotControlProfile.Warriors);
+
             MonoBehaviour controllerSource = playerController as MonoBehaviour;
             WarriorsKeyboardInput keyboardInput = localPlayer.GetComponent<WarriorsKeyboardInput>();
             WarriorsInputRouter inputRouter = FindFirstObjectByType<WarriorsInputRouter>(FindObjectsInactive.Include);

@@ -27,6 +27,12 @@ namespace Warriors
 
         private static readonly int AttackAHash = Animator.StringToHash("WarriorsAttackA");
         private static readonly int AttackBHash = Animator.StringToHash("WarriorsAttackB");
+
+        /// <summary>
+        /// 찌르기. 예전에는 클립이 없어 칼만 코드로 돌렸고, 그래서 <b>몸은 가만히 있었다.</b>
+        /// (WarriorsAnimatorSetup 이 이 상태를 컨트롤러에 넣는다)
+        /// </summary>
+        private static readonly int AttackCHash = Animator.StringToHash("WarriorsAttackC");
         private IWarriorsInputSource InputSource => inputSource as IWarriorsInputSource;
         private WarriorsAttackDirection activeDirection;
         private float activeStrength = 1f;
@@ -141,13 +147,24 @@ namespace Warriors
 
         private IEnumerator PlayDistinctWeaponAttack(WarriorsAttackDirection direction)
         {
-            // Horizontal and vertical have authored full-body clips; firing the trigger here
-            // is what actually makes the character swing rather than stand still.
-            if (animator != null && direction != WarriorsAttackDirection.Thrust)
+            // 세 공격 모두 몸이 움직인다. 트리거를 넣는 이 줄이 실제로 캐릭터를 휘두르게 한다.
+            //
+            // ⚠ 예전에는 찌르기만 빠져 있었다. 클립이 없어서였는데, 그동안 찌르기는
+            //    **칼만 혼자 움직이고 사람은 서 있었다.**
+            //    먼저 셋을 다 내린 뒤 하나만 올린다. 남아 있는 트리거가 다음 공격에
+            //    묻어 들어가면 휘두르지 않은 동작이 한 번 더 나온다.
+            if (animator != null)
             {
                 animator.ResetTrigger(AttackAHash);
                 animator.ResetTrigger(AttackBHash);
-                animator.SetTrigger(direction == WarriorsAttackDirection.HorizontalSlash ? AttackAHash : AttackBHash);
+                animator.ResetTrigger(AttackCHash);
+
+                animator.SetTrigger(direction switch
+                {
+                    WarriorsAttackDirection.HorizontalSlash => AttackAHash,
+                    WarriorsAttackDirection.VerticalSlash => AttackBHash,
+                    _ => AttackCHash,
+                });
             }
             yield return null;
             Transform weapon = weaponEquipper != null && weaponEquipper.EquippedWeapon != null
@@ -162,48 +179,15 @@ namespace Warriors
             attackTrail.startWidth = activeStrength > 1f ? .32f : .18f;
             attackTrail.enabled = true;
 
-            Quaternion rest = activeWeaponRestRotation;
-            Vector3 restPosition = activeWeaponRestPosition;
-            if (direction == WarriorsAttackDirection.Thrust)
-            {
-                bool thrustDamageApplied = false;
-                // Thrust is the one attack with no authored clip, so the blade is posed by
-                // hand. Working in world space avoids guessing at the hand bone's axes: the
-                // sword model runs along its own -X, so that is the axis aimed down the
-                // character's facing, and the stab is carried at chest height where it reads
-                // as a stab rather than a sword being walked forward.
-                Quaternion aimed = Quaternion.LookRotation(transform.forward, Vector3.up)
-                    * Quaternion.Euler(0f, 90f, 0f);
-                // The camera sits behind the player, so a stab straight down the centre line is
-                // seen end-on and reads as nothing happening. Offsetting it to the sword arm
-                // keeps the whole blade in frame.
-                Vector3 chest = transform.position + Vector3.up * thrustHeight
-                    + transform.right * thrustSideOffset;
-                for (float elapsed = 0f; elapsed < .36f; elapsed += Time.deltaTime)
-                {
-                    float t = elapsed / .36f;
-                    float push = Mathf.Sin(t * Mathf.PI);
-                    weapon.rotation = aimed;
-                    weapon.position = chest + transform.forward * (.3f + push * 1.2f);
-                    if (!thrustDamageApplied && t >= .38f)
-                    {
-                        ApplyAreaAttack(direction);
-                        thrustDamageApplied = true;
-                    }
-                    if (t >= .6f && TryChainBufferedAttack()) yield break;
-                    yield return null;
-                }
-                if (!thrustDamageApplied) ApplyAreaAttack(direction);
-                weapon.localRotation = rest;
-                weapon.localPosition = restPosition;
-                attackTrail.enabled = false;
-                CompleteAttack();
-                yield break;
-            }
-
-            // The clip moves the arms, so the blade is left alone here - rotating it as well
-            // is what used to read as the weapon spinning a full turn on every swing. Only
-            // the trail and the damage window are driven from this side.
+            // ⚠ **칼은 손에 붙어 있다. 여기서 옮기지 않는다.**
+            //
+            //    예전에는 찌르기만 칼을 **월드 좌표로** 따로 몰았다. 클립이 없어 몸이 가만히
+            //    있었기 때문인데, 그래서 <b>칼이 손보다 훨씬 앞으로 날아가</b> 손에서 떨어져
+            //    보였다. 이제 찌르기도 팔이 움직이는 클립(WarriorsAttackC)이 있으므로,
+            //    칼은 손을 따라가기만 하면 된다.
+            //
+            //    세 공격 모두 같은 규칙이다 — 몸은 클립이 움직이고, 이쪽은 **궤적과 피해 창**만
+            //    맡는다. 칼까지 여기서 돌리면 휘두를 때마다 무기가 한 바퀴 도는 것처럼 보인다.
             bool damageApplied = false;
             for (float elapsed = 0f; elapsed < .42f; elapsed += Time.deltaTime)
             {
@@ -217,7 +201,11 @@ namespace Warriors
                 yield return null;
             }
             if (!damageApplied) ApplyAreaAttack(direction);
-            weapon.localRotation = rest;
+
+            // 칼을 손 기준 제자리로 되돌린다. 휘두르는 동안 아무도 건드리지 않았으므로
+            // 보통은 이미 같은 값이지만, 이전 공격이 중간에 끊겼을 때를 위해 맞춰 둔다.
+            weapon.localRotation = activeWeaponRestRotation;
+            weapon.localPosition = activeWeaponRestPosition;
             attackTrail.enabled = false;
             CompleteAttack();
         }
