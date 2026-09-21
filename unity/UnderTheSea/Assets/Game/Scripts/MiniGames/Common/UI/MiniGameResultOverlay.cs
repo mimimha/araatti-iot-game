@@ -42,8 +42,25 @@ namespace MiniGames.Common.UI
                  "여는 시점을 서버가 정하므로 두 사람의 화면이 거의 같은 순간에 닫힌다.")]
         [SerializeField, Min(1f)] private float autoReturnSeconds = 5f;
 
+        /// <summary>
+        /// 게임이 스스로 붙이는 <b>[다시 하기] 동작.</b> 붙어 있지 않으면 버튼은 그대로 숨는다.
+        ///
+        /// <b>왜 정적인가.</b> 이 오버레이는 세 게임이 같이 쓰므로 특정 게임을 알면 안 된다.
+        /// 게임 쪽이 "나는 새 판을 시작할 수 있다" 고 등록만 하고, 여기서는 그것이 있는지만 본다.
+        ///
+        /// ⚠ <b>포탈로 들어온 판에서는 등록돼 있어도 쓰지 않는다.</b> 그때는 로비의 매칭이
+        ///    판을 잡고 있어서, 미니게임만 혼자 새 판을 시작하면 로비와 어긋난다.
+        ///    단독 실행(개발·QA 빌드)에만 쓴다.
+        ///
+        /// ⚠ 씬을 벗어날 때 반드시 <c>null</c> 로 되돌려야 한다. 정적이라 씬이 바뀌어도 남는다.
+        /// </summary>
+        public static System.Action RestartHandler;
+
         /// <summary>돌아가기를 이미 시작했는가. <b>확인과 시간 만료가 겹쳐도 한 번만 간다.</b></summary>
         private bool returning;
+
+        /// <summary>이번 결과에서 [다시 하기] 를 쓸 수 있는가. <see cref="Receive"/> 가 정한다.</summary>
+        private bool canRestart;
 
         private Coroutine countdown;
 
@@ -65,6 +82,7 @@ namespace MiniGames.Common.UI
             if (retryButtonRoot != null)
             {
                 // 보이지 않을 뿐 아니라 클릭 판정도 사라진다.
+                // 켤지 말지는 결과가 올 때 Receive 가 다시 정한다.
                 retryButtonRoot.SetActive(false);
             }
 
@@ -77,6 +95,7 @@ namespace MiniGames.Common.UI
             {
                 panel.Hide();
                 panel.LobbyRequested += HandleLobbyButton;
+                panel.RetryRequested += HandleRetryButton;
             }
 
             MiniGameResultGateway.Register(Receive);
@@ -89,6 +108,7 @@ namespace MiniGames.Common.UI
             if (panel != null)
             {
                 panel.LobbyRequested -= HandleLobbyButton;
+                panel.RetryRequested -= HandleRetryButton;
             }
 
             StopCountdown();
@@ -113,10 +133,21 @@ namespace MiniGames.Common.UI
                 $"[결과 오버레이] 결과를 받았습니다 — {(result.IsClear ? "성공" : "실패")}, " +
                 $"점수 {result.Score}, {result.PlayTimeText} (출처 {origin})");
 
+            // **단독 실행이고 게임이 새 판을 시작할 수 있을 때만 [다시 하기] 를 살린다.**
+            //
+            // 포탈로 들어온 판은 로비의 매칭이 쥐고 있어서 미니게임 혼자 새 판을 열 수 없다.
+            // 등록된 동작이 없을 때도 마찬가지다 — 눌러도 아무 일이 없으면 고장으로 보인다.
+            canRestart = RestartHandler != null && !MiniGameTransition.InMiniGame;
+
+            if (retryButtonRoot != null) retryButtonRoot.SetActive(canRestart);
+
             panel.Show(result, null);
 
             StopCountdown();
-            countdown = StartCoroutine(ReturnWhenTimeIsUp());
+
+            // ⚠ **다시 할 수 있으면 시계를 걸지 않는다.** 5초 뒤 혼자 로비로 가 버리면
+            //    누를 틈이 없고, 단독 빌드에는 갈 로비도 없다(ChannelSelect 씬이 없다).
+            if (!canRestart) countdown = StartCoroutine(ReturnWhenTimeIsUp());
         }
 
         private IEnumerator ReturnWhenTimeIsUp()
@@ -143,6 +174,43 @@ namespace MiniGames.Common.UI
         ///    틀렸다. 시계는 알린 뒤 <see cref="GoToLobby"/> 를 부르므로 그때도 코루틴
         ///    핸들이 그대로 살아 있다. 두 길을 입구에서 나누는 편이 확실하다.
         /// </summary>
+        /// <summary>
+        /// 사람이 [다시 하기] 를 눌렀다. <b>씬을 다시 열지 않는다.</b>
+        ///
+        /// 등록한 게임이 자기 방식으로 새 판을 시작한다(무쌍은 서버에 RPC 를 보낸다).
+        /// 여기서는 결과 판만 닫는다 — 새 판이 시작되면 게임이 알아서 HUD 를 되돌린다.
+        /// </summary>
+        private void HandleRetryButton()
+        {
+            if (returning || !canRestart) return;
+
+            Debug.Log("[결과 오버레이] 다시 하기를 눌렀습니다. 새 판을 요청합니다.");
+
+            if (panel != null) panel.Hide();
+            StopCountdown();
+
+            RestartHandler?.Invoke();
+        }
+
+        /// <summary>
+        /// **새 판이 시작됐으니 결과 판을 닫는다.** 게임 쪽이 부른다.
+        ///
+        /// ⚠ [다시 하기] 를 누른 사람은 <see cref="HandleRetryButton"/> 에서 스스로 닫지만,
+        ///    <b>같이 하던 상대의 화면은 아무도 닫아 주지 않는다.</b> 한 사람이 누르면 두
+        ///    사람 모두 새 판으로 가므로, 상대 화면에는 새 판 위에 지난 결과가 남는다.
+        ///
+        /// 돌아가는 중이면 건드리지 않는다 — 그쪽이 이미 닫고 나가는 길이다.
+        /// </summary>
+        public void CloseForNewMatch()
+        {
+            if (returning || panel == null || !panel.IsOpen) return;
+
+            Debug.Log("[결과 오버레이] 새 판이 시작되어 결과 판을 닫습니다.");
+
+            StopCountdown();
+            panel.Hide();
+        }
+
         private void HandleLobbyButton()
         {
             if (returning) return;

@@ -885,7 +885,8 @@ namespace Warriors.Net
                 // 막대가 주인공이고 숫자는 곁들이다. 큰 글씨로 "크라켄 HP 83%" 를 적으면
                 // 그 카드가 크라켄 얼굴보다 먼저 눈에 들어온다.
                 hud.NetworkRhythmProgress = 1f - damageDone;
-                hud.NetworkRhythmDetail = $"크라켄  <size=65%>{Mathf.CeilToInt((1f - damageDone) * 100f)}%</size>";
+                // 65% 로 줄인 숫자는 실측에서 읽기 어려웠다. 이름과 같은 크기로.
+                hud.NetworkRhythmDetail = $"크라켄  {Mathf.CeilToInt((1f - damageDone) * 100f)}%";
                 hud.NetworkRhythmLives = match.LivesLine();
             }
         }

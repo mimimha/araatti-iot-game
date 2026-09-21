@@ -176,15 +176,17 @@ namespace Warriors.Net
         private const float DownTilt = 78f;
 
         /// <summary>
-        /// **쓰러지면 실제로 쓰러져 보이게 한다.**
+        /// **쓰러진 자세를 손으로 눕히던 것을 되돌린다.**
         ///
-        /// HP 가 0 이 되어 <c>IsDown</c> 인데도 캐릭터가 멀쩡히 서 있어, 조작하지 않는 쪽이
-        /// 죽었는지 살았는지 화면으로 알 수 없었다. 쓰러짐 애니메이션 클립이 없으므로
-        /// 모델을 옆으로 눕힌다. 새 애셋을 만들지 않고 보이는 결과를 낸다.
+        /// 예전에는 쓰러짐 클립이 없어 모델을 통째로 기울여 눕혔다. 지금은 진짜 클립이
+        /// 있으므로(<c>WarriorsDown</c> 상태, <c>WarriorsPlayerLife</c> 가 <c>IsDown</c> 을
+        /// 애니메이터에 넣는다) 그 기울이기가 <b>클립 위에 한 번 더 얹혀</b> 몸이 바닥에서
+        /// 뜬 것처럼 보였다.
         ///
-        /// ⚠ <b>몸통(자식)만 돌린다.</b> 루트를 돌리면 서버가 보내 주는 회전과 싸운다.
+        /// 그래서 이제는 눕히지 않고, 예전에 기울여 둔 것이 남아 있으면 <b>똑바로 되돌리기만</b>
+        /// 한다. 판이 다시 시작될 때 기울어진 채로 서 있는 것을 막기 위해 남겨 둔다.
         /// </summary>
-        private void ShowDownPose()
+        private void ClearManualDownTilt()
         {
             if (animator == null) return;
 
@@ -194,20 +196,16 @@ namespace Warriors.Net
             // 매 틱 덮어써서 싸우게 된다. 그 경우에는 자세를 바꾸지 않고 넘어간다.
             if (body == transform) return;
 
-            bool down = life != null && life.IsDown;
-
-            Quaternion target = down
-                ? Quaternion.Euler(DownTilt, 0f, 0f)
-                : Quaternion.identity;
+            if (body.localRotation == Quaternion.identity) return;
 
             body.localRotation = Quaternion.RotateTowards(
-                body.localRotation, target, 240f * Time.deltaTime);
+                body.localRotation, Quaternion.identity, 240f * Time.deltaTime);
         }
 
         public override void Render()
         {
             ClearTrailsAfterTeleport();
-            ShowDownPose();
+            ClearManualDownTilt();
 
             if (animator == null || HasStateAuthority)
             {

@@ -211,7 +211,20 @@ namespace Warriors
                 // ended and dropped one more group onto a beach that had just been cleared -
                 // which is how a stray monster ended up floating in front of the kraken.
                 if (!enabled) yield break;
-                if (score != null && !score.IsRunning) continue;
+
+                // ⚠ **네트워크 판에서는 이 점수판을 보지 않는다.**
+                //
+                //    WarriorsTarget.HandleDied 는 몬스터가 죽을 때마다 무조건
+                //    battleScore.RegisterKill 을 부른다(네트워크 여부를 안 가린다).
+                //    이 점수판의 targetKills(프리팹 기본값 30)는 네트워크 목표(50)와
+                //    다른 값이라, 30번째 죽는 순간 이 점수판이 스스로 Cleared 로 굳어
+                //    IsRunning 이 영영 거짓이 됐다. 그러면 여기서 계속 continue 만 돌아
+                //    이미 나와 있던 몬스터가 다 죽은 뒤로는 아무도 새로 나오지 않았다 —
+                //    1페이즈 목표는 아직 50 인데 39마리에서 스폰이 완전히 멈춘 원인이다.
+                //
+                //    네트워크 판의 진행도는 <see cref="RoundProgress"/> 처럼 항상
+                //    <c>WarriorsMatchState</c> 가 기준이므로, 이 점수판 상태는 무시한다.
+                if (!Warriors.Net.WarriorsNet.IsNetworked && score != null && !score.IsRunning) continue;
                 alive.RemoveAll(x => x == null || x.IsDefeated);
 
                 // **화면에 살아 있는 수를 라운드가 흐를수록 늘린다.**
