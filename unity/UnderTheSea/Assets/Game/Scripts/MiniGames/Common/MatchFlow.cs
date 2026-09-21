@@ -97,6 +97,9 @@ namespace MiniGames.Common
             if (config == null) return false;
             if (State != MatchState.Matching) return false;
 
+            // 서버가 정하는 판에서는 이 화면이 시작시키지 않는다. 시작 버튼도 감춘다.
+            if (ServerDriven) return false;
+
             return config.CanStart(PlayerRoster.ReadyCount);
         }
 
@@ -108,6 +111,30 @@ namespace MiniGames.Common
 
         /// <summary>자동 시작을 쓰는가. 끄면 버튼으로만 시작한다.</summary>
         public bool AutoStartEnabled => autoStart;
+
+        /// <summary>
+        /// **매칭을 로비 서버가 정하는가.**
+        ///
+        /// 켜지면 이 화면은 <b>아무것도 시작시키지 않는다.</b> 몇 명이 모였는지 보여 주기만
+        /// 하고, 출발은 로비 서버가 <see cref="PlayerMatchRelay"/> 로 알려 준다.
+        ///
+        /// 자동 시작 시계와 [게임 시작] 버튼은 여기서 함께 꺼진다. 둘 다 "이 화면이 판을
+        /// 시작시킨다" 는 전제 위에 있어서, 서버가 정하는 판에서는 <b>거짓말</b>이 된다 —
+        /// 시계가 0이 되어도 아무 일도 일어나지 않고, 버튼을 눌러도 마찬가지다.
+        /// </summary>
+        public bool ServerDriven { get; private set; }
+
+        /// <summary>
+        /// 이번 판의 인원. 서버가 정해 준 값이다. 0 이면 설정의 정원을 쓴다.
+        ///
+        /// <see cref="MiniGameConfig.MaxPlayers"/> 와 다를 수 있다 — 광산은 정원이 4명이지만
+        /// 3명짜리 판을 고를 수 있다. 판은 늘 정원만큼 그리고, 이 수를 넘는 칸은 ✕ 로 막는다.
+        /// </summary>
+        public int RoomSize { get; private set; }
+
+        /// <summary>이번 판에 실제로 쓰는 자리 수.</summary>
+        public int EffectiveRoomSize =>
+            RoomSize > 0 ? RoomSize : (config != null ? config.MaxPlayers : 0);
 
         /// <summary>
         /// 네트워크가 명단을 채울 때 테스트용 로컬 플레이어 자동 참가만 끈다.
@@ -177,6 +204,23 @@ namespace MiniGames.Common
         /// 매칭 화면 하나로 세 게임을 다 받으려면 규칙만 바뀌어야 한다. 포탈이 어느 게임을
         /// 골랐는지 알려줄 때, 그리고 테스트에서 규칙을 바꿔 볼 때 쓴다.
         /// </summary>
+        /// <summary>
+        /// **로비 서버가 정해 준 판으로 화면을 맞춘다.**
+        ///
+        /// <paramref name="roomSize"/> 는 이번 판의 인원이다. 자동 시작과 시작 버튼은
+        /// 여기서 꺼진다 — 출발을 정하는 것은 서버다.
+        /// </summary>
+        public void Configure(MiniGameConfig next, int roomSize)
+        {
+            ServerDriven = true;
+            RoomSize = Mathf.Max(0, roomSize);
+
+            autoStart = false;
+            joinLocalPlayerOnStart = false;
+
+            Configure(next);
+        }
+
         public void Configure(MiniGameConfig next)
         {
             if (next == null) return;
