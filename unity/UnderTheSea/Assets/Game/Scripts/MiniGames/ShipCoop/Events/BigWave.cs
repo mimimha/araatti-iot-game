@@ -39,6 +39,29 @@ public class BigWave : VoyageEvent
              "화면 밖으로 나갈 만큼 넓어야 '못 피한다' 가 그림만으로 읽힌다.")]
     [SerializeField, Min(2f)] private float waveWidth = 120f;
 
+    // ⚠ **높이가 1.5m 였습니다. 그중 물 위로 나온 것은 0.75m 뿐이었습니다.**
+    //    큐브의 피벗이 가운데라 절반이 물속이었기 때문입니다.
+    //    지금은 <see cref="ShipCoopWaveMesh"/> 가 수면(y 0) 기준으로 뽑아 줍니다.
+    //
+    // ⚠ **키운다고 벽으로 보이지는 않습니다.** 예전에 그랬던 것은 납작한
+    //    네모라서였지 큰 것이 문제가 아니었습니다. 지금은 마루가 곡면이고
+    //    앞으로 말리므로, 높일수록 오히려 파도로 읽힙니다. (그 주석은 저쪽에 있습니다)
+    [Tooltip("수면에서 마루까지의 높이 (m). 판으로 만들 때만 쓴다.")]
+    [SerializeField, Min(0.2f)] private float waveHeight = 8f;
+
+    // ⚠ **높이를 바꾸면 두께도 같이 바꿔야 합니다.**
+    //
+    //    뒤 비탈의 기울기는 둘의 **비율**로 정해집니다. 높이만 4 → 8 로 올리고
+    //    두께를 6 으로 두면 비탈이 40° 에서 60° 가 되어, 파도가 아니라 다시
+    //    벽으로 섭니다. 1 : 1.5 를 지키면 키워도 비탈이 그대로입니다.
+    [Tooltip("파도의 앞뒤 두께 (m).\n\n" +
+             "**높이의 1.5배**로 둔다. 비율이 기울기를 정하므로 높이를 바꾸면 여기도 같이 바꾼다.\n" +
+             "얇으면 종잇장처럼 서 있고, 두꺼우면 마루가 뭉툭해져서 물마루가 안 보인다.")]
+    [SerializeField, Min(0.2f)] private float waveThickness = 12f;
+
+    [Tooltip("수면 아래로 이만큼 잠긴다 (m). 0 이면 밑선이 드러나서 바다에 얹힌 것처럼 보인다.")]
+    [SerializeField, Min(0f)] private float waveSink = 0.8f;
+
     [Tooltip("뱃머리가 정면일 때의 색")]
     [SerializeField] private Color straightColor = new Color(0.70f, 0.85f, 1f);
 
@@ -139,17 +162,25 @@ public class BigWave : VoyageEvent
         }
         else
         {
-            // 프로토타입. 에셋이 오면 wavePrefab 을 채우면 된다.
-            _wave = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            _wave.transform.localScale = new Vector3(waveWidth, 1.5f, 2f);
-            VoyageSea.Paint(_wave, waveMaterial);
+            // ⚠ **빈 것을 껍데기로 두고 마루를 자식으로 넣습니다.**
+            //    `VoyageSea.Place` 가 매 프레임 이 오브젝트의 위치를 통째로
+            //    덮어씁니다. 마루를 그대로 쓰면 자리를 잡아 줄 데가 없습니다.
+            _wave = new GameObject("BigWave");
 
-            // 부딪히면 안 된다. 판정은 조타각으로 한다.
-            Collider collider = _wave.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
+            GameObject crest = new GameObject("파도 마루");
+            crest.transform.SetParent(_wave.transform, false);
+
+            // 메시가 수면(y 0) 기준으로 나오므로 따로 올리거나 내리지 않는다.
+            crest.AddComponent<MeshFilter>().sharedMesh =
+                ShipCoopWaveMesh.GetOrBuild(waveWidth, waveHeight, waveThickness, waveSink);
+
+            MeshRenderer skin = crest.AddComponent<MeshRenderer>();
+
+            // ⚠ CreatePrimitive 은 기본 재질을 끼워 줬지만 직접 만든 것은 비어 있습니다.
+            //    그대로 두면 120m 짜리 자홍색 벽이 섭니다.
+            skin.sharedMaterial = waveMaterial != null ? waveMaterial : FallbackPaint();
+
+            // 부딪히는 것은 안 붙인다. 판정은 조타각으로 한다.
         }
 
         _wave.name = $"BigWave_{Time.frameCount}";
@@ -160,6 +191,22 @@ public class BigWave : VoyageEvent
         _waveInstance = renderer != null ? renderer.material : null;
 
         VoyageSea.Current.Place(_wave.transform, 0f, Approach01);
+    }
+
+    /// <summary>
+    /// <see cref="waveMaterial"/> 을 안 꽂았을 때 쓸 임시 재질.
+    ///
+    /// 자홍색 벽보다는 낫다는 것뿐입니다. 제대로 하려면 바다가 쓰는
+    /// SeaWater.mat 을 인스펙터에서 꽂으세요. 그래야 바다와 색이 맞습니다.
+    /// </summary>
+    private static Material FallbackPaint()
+    {
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+
+        Debug.LogWarning("[BigWave] waveMaterial 이 비어 있습니다. 임시 재질로 그립니다. " +
+                         "바다와 색을 맞추려면 SeaWater.mat 을 꽂으세요.");
+
+        return new Material(lit != null ? lit : Shader.Find("Sprites/Default"));
     }
 
     /// <summary>
@@ -286,11 +333,15 @@ public class BigWave : VoyageEvent
     /// </summary>
     public override bool HintIsUrgent => _helm != null && _helm.NeedsHelp;
 
-    /// <summary>HUD 문구. 사건 알림 아래에 작은 글씨로 붙는다.</summary>
+    /// <summary>
+    /// HUD 문구. 사건 알림 아래에 작은 글씨로 붙는다.
+    ///
+    /// **어느 키를 누르는지까지만 말한다.** 각도와 버틴 시간은 뺐습니다 — 이 게임은
+    /// 뱃머리가 파도를 향했는지를 **눈으로 보고** 판단하는 게임이지, 34° 를 읽고
+    /// 판단하는 게임이 아닙니다. 숫자는 디버그(F1, <see cref="StraightHint"/>)에 있습니다.
+    /// </summary>
     public override string LiveHint()
     {
-        float heading = _helm != null ? _helm.Heading : 0f;
-
         // 🤝 혼자서는 못 이기는 사건이다. 그 사실을 제일 먼저 말해준다. (6장)
         //
         // 이 줄이 없으면 혼자 붙은 사람은 자기가 왜 밀리는지 모릅니다.
@@ -298,23 +349,31 @@ public class BigWave : VoyageEvent
         if (_helm != null && _helm.NeedsHelp)
         {
             return IsRunning
-                ? $"혼자서는 못 버틴다 — 🆘 한 명 더!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)"
+                ? "혼자서는 못 버틴다 — 🆘 한 명 더!"
                 : "혼자서는 못 버틴다 — 둘이 조타륜을 잡아라";
         }
 
         if (IsStraight)
         {
-            return IsRunning
-                ? $"정면 유지 중 — 버텨라  ({heading:F0}°)"
-                : $"정면으로 맞춰라  ({heading:F0}°)";
+            return IsRunning ? "정면 유지 중 — 버텨라" : "정면으로 맞춰라";
         }
 
-        string turn = heading > 0f ? "J" : "L";
-        return $"{turn} 로 정면으로!  (지금 {heading:F0}°, {OffTime:F1}/{allowedOffTime:F1}초)";
+        return (_helm != null ? _helm.Heading : 0f) > 0f ? "J 로 정면으로!" : "L 로 정면으로!";
     }
 
-    /// <summary>예전 이름. 디버그 오버레이가 쓰던 것이다.</summary>
-    public string StraightHint() => LiveHint();
+    /// <summary>
+    /// 디버그 오버레이가 띄우는 한 줄. (F1)
+    ///
+    /// 각도와 버틴 시간이 여기 붙습니다. 카드 쪽(<see cref="LiveHint"/>)에서는 뺐습니다 —
+    /// 조타륜을 붙잡고 화면이 흔들리는 중에 읽을 수 있는 건 "어느 키" 까지입니다. (9장)
+    /// 숫자가 맞는지 눈으로 맞춰볼 곳은 남겨 둡니다.
+    /// </summary>
+    public string StraightHint()
+    {
+        float heading = _helm != null ? _helm.Heading : 0f;
+
+        return $"{LiveHint()}  (지금 {heading:F0}°, 벗어남 {OffTime:F1}/{allowedOffTime:F1}초)";
+    }
 
     private static HelmTask FindHelm()
     {

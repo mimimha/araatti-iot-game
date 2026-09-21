@@ -34,9 +34,13 @@
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
 | Kenney RPG Audio | kenney.nl/assets/rpg-audio | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만. 팩 본체는 저장소에 없음) | 배 협동 — 망치 · 수리 완료 · 상자 뚜껑 | 민화 | 2026-09-20 |
 | Sea and River Wave Sounds | opengameart.org/content/sea-and-river-wave-sounds | CC0 | `Assets/Game/Audio/ShipCoop/seaLoop.mp3` | 배 협동 — 바다 배경 루프 (아주 얕게) | 민화 | 2026-09-20 |
-| Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 30~40초마다 돌아가며 | 민화 | 2026-09-20 |
+| Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 20~30초마다 돌아가며 | 민화 | 2026-09-20 |
 | Short Alarm | opengameart.org/content/short-alarm | CC0 | `Assets/Game/Audio/ShipCoop/warnChime.ogg` | 배 협동 — 사건 예고 종 | 민화 | 2026-09-20 |
-| Exploration Fantasy Free Pack | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | `Assets/Game/Audio/ShipCoop/` (쓰는 2곡만 이름 바꿔 옮김. 원본은 `Assets/Audio/Music/` 에 있음, 저장소에는 안 올림) | 배 협동 배경음악 — 대기(Ocean Soul) · 항해(The Blacksmith) | 민화 | 2026-09-20 |
+| Rope & Leather tension 2 (OxidVideos) | pixabay.com/sound-effects/rope-amp-leather-tension-2-449631/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/ropeLoop.mp3` | 배 협동 — 돛 당기고 풀 때 밧줄 끼익 | 민화 | 2026-09-21 |
+| Set Sail (Forgotten-Hero-Records) | pixabay.com/music/main-title-set-sail-350596/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmReady.mp3` | 배 협동 배경음악 — 대기 | 민화 | 2026-09-21 |
+| Pirate Tavern (Full Version!) (Magiksolo) | pixabay.com/music/main-title-pirate-tavern-full-version-167990/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmSailing.mp3` | 배 협동 배경음악 — 항해 | 민화 | 2026-09-21 |
+| Pirate Adventure Loop (Ebunny) | pixabay.com/music/orchestral-pirate-adventure-loop-557984/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmResult.mp3` | 배 협동 배경음악 — 결과 | 민화 | 2026-09-21 |
+| ~~Exploration Fantasy Free Pack~~ | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | ⛔ 2026-09-21 에 위 Pixabay 곡으로 교체. 저장소에서 제거 | (이전) 배 협동 배경음악 | 민화 | 2026-09-20 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
 > 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —

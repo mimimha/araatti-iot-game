@@ -50,7 +50,9 @@ public class ShipCoopHud : MonoBehaviour
         [Tooltip("배지 안의 글자.")]
         public TextMeshProUGUI badgeLabel;
 
-        [Tooltip("남은 초. 셀 것이 없으면 꺼진다.")]
+        [Tooltip("남은 초. **지금은 비워 둔다** — 타이머 바가 대신 말한다.\n\n" +
+                 "숫자로도 보여주고 싶어지면 여기에 글자를 꽂으면 그때부터 다시 뜬다. " +
+                 "셀 것이 없는 사건(선체 파손)에서는 꺼진다.")]
         public TextMeshProUGUI seconds;
 
         [Tooltip("사건 이름. 갑판은 여기 넣지 않는다 — 아래 보조 문구로 간다.")]
@@ -96,6 +98,110 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("늦고 있을 때만 켜진다.")]
     [SerializeField] private GameObject behindWarning;
 
+    [Header("늦었다는 알림 — 임시(TMP 글씨 + 삼각형)")]
+    // ⚠ **붉은 구간만으로는 아무도 못 알아봅니다.**
+    //
+    //    붉은 칸은 "배와 기준선 사이"라는 뜻인데, 그걸 읽으려면 기준선이 무엇인지
+    //    부터 알아야 합니다. 처음 보는 사람에게는 그냥 빨간 줄입니다. 그림만으로
+    //    전해지는 개념이 아니라서, **벌어지는 순간에 글씨로 한 번 가르쳐** 줍니다.
+    //
+    //    손글씨 그림이 나오기 전까지 쓰는 임시 모양입니다. 자리 · 크기 · 타이밍을
+    //    먼저 눈으로 보려고 만든 것이라, 삼각형도 코드로 굽습니다.
+    //    (ShipCoopHurryArrowArt)
+    [Tooltip("붉은 구간 위에 잠깐 떴다 사라지는 묶음. 꺼진 채로 만들어 둔다.")]
+    [SerializeField] private GameObject hurryCallout;
+
+    [Tooltip("사라질 때 흐려지도록. hurryCallout 에 붙어 있다.")]
+    [SerializeField] private CanvasGroup hurryGroup;
+
+    [Tooltip("무엇을 해야 하는지 적는다. '서둘러'가 아니라 '돛을 당겨'.")]
+    [SerializeField] private TextMeshProUGUI hurryLabel;
+
+    [Tooltip("붉은 구간을 가리키는 삼각형. 떠 있는 동안 위아래로 까딱인다.")]
+    [SerializeField] private RectTransform hurryArrow;
+
+    [Tooltip("이만큼 뒤처져야 뜬다. 0.05 는 3분 항해에서 약 9초.\n" +
+             "조금만 뒤처져도 띄우면 출항 직후부터 떠 있게 되어 아무도 안 본다.")]
+    [SerializeField, Range(0f, 0.5f)] private float hurryBehindAtLeast = 0.05f;
+
+    [Tooltip("뒤처진 정도가 이 아래로 회복되면 '처음 벌어진 것'으로 다시 셈한다.")]
+    [SerializeField, Range(0f, 0.5f)] private float hurryClearBelow = 0.02f;
+
+    [Tooltip("한 번 띄운 뒤, 그때보다 이만큼 더 나빠지면 다시 띄운다.\n" +
+             "회복만 기다리지 않는 이유 — 끝까지 늦는 판에서는 영영 한 번뿐이 된다.")]
+    [SerializeField, Range(0.01f, 0.5f)] private float hurryWorsenBy = 0.06f;
+
+    [Tooltip("이 시간 내내 뒤처져 있어야 뜬다. 경계에서 깜빡이는 것을 막는다. (초)")]
+    [SerializeField, Min(0f)] private float hurryHoldSeconds = 2f;
+
+    [Tooltip("떠 있는 시간. (초) 계속 떠 있으면 두 번째부터는 아무도 안 본다.")]
+    [SerializeField, Min(0.5f)] private float hurryShowSeconds = 3f;
+
+    [Tooltip("아무리 나빠져도 이 시간 안에는 다시 안 뜬다. (초)")]
+    [SerializeField, Min(0f)] private float hurryCooldownSeconds = 20f;
+
+    [Tooltip("돛 힘이 이 아래면 늦은 원인을 돛으로 본다.\n" +
+             "속도 = 돛 힘 × 항로 계수라서, 둘 중 더 많이 깎아먹는 쪽을 짚는다.")]
+    [SerializeField, Range(0f, 1f)] private float hurrySailBelow = 0.6f;
+
+    /// <summary>톡 튀어나오는 데 걸리는 시간. (초)</summary>
+    private const float HurryPopSeconds = 0.18f;
+
+    /// <summary>사라지기 전 흐려지는 시간. (초)</summary>
+    private const float HurryFadeSeconds = 0.45f;
+
+    /// <summary>화살표가 까딱이는 빠르기. (rad/s)</summary>
+    private const float HurryBobSpeed = 8f;
+
+    /// <summary>화살표가 까딱이는 폭. (px)</summary>
+    private const float HurryBobPixels = 4f;
+
+    /// <summary>연속으로 <see cref="hurryBehindAtLeast"/> 넘게 뒤처진 시간. (초)</summary>
+    private float _hurryBehindFor;
+
+    /// <summary>이 시각까지 떠 있는다. 지났으면 꺼진다.</summary>
+    private float _hurryUntil = -1f;
+
+    /// <summary>이 시각 전에는 다시 안 띄운다.</summary>
+    private float _hurryNextAt;
+
+    /// <summary>마지막으로 띄웠을 때 뒤처진 정도. 음수면 아직 한 번도 안 띄웠다.</summary>
+    private float _hurryWarnedAtGap = -1f;
+
+    /// <summary>화살표가 까딱이기 전 원래 높이. 빌더가 놓은 자리를 그대로 쓴다.</summary>
+    private float _hurryArrowBaseY;
+
+    /// <summary>알림 묶음의 RectTransform. 매 프레임 붉은 구간 한가운데로 옮긴다.</summary>
+    private RectTransform _hurryRect;
+
+    // ⚠ **흰색/파란색 트랙 그림 두 장을 통째로 겹쳐서 쓴다.** (voyage-track-white-from-blue-hq /
+    //    voyage-track-filled-blue-v3-hq) 체크포인트 5개는 이제 파란색 그림 안에 이미 칠해져
+    //    있어서, 가로 Fill 마스크가 그 위치를 지나면 원도 같이 파랗게 드러난다 — 예전처럼
+    //    별도 원 오브젝트(voyageActiveNodes)를 얹어 중복으로 그릴 필요가 없어 뺐다.
+    //
+    //    두 그림은 **캔버스 전체(2152×731)를 그대로 담는다.** 그래서 progressFill.fillAmount 에
+    //    진행률(0~1)을 그대로 넣으면 안 된다 — 실제 트랙(색이 채워지는 구간)은 그림 안에서
+    //    X 359~1787에만 있고, 그 앞뒤(항구 · 섬 배지가 있는 자리)는 채워지면 안 되기 때문이다.
+    //    <see cref="ToVoyageFillAmount"/> 가 이 변환을 맡는다.
+    private const float VoyageImageWidth = 2152f;
+    private const float VoyageTrackStartX = 359f;
+    private const float VoyageTrackEndX = 1787f;
+
+    /// <summary>
+    /// 항해 진행률(0~1)을 <c>progressFill.fillAmount</c> 값으로 바꾼다.
+    ///
+    /// 흰색 · 파란색 두 그림이 캔버스 전체(0~<see cref="VoyageImageWidth"/>)를 덮으므로,
+    /// 실제 트랙 구간(<see cref="VoyageTrackStartX"/>~<see cref="VoyageTrackEndX"/>)이
+    /// 캔버스에서 차지하는 자리를 그대로 fillAmount 로 옮겨야 한다.
+    /// </summary>
+    private static float ToVoyageFillAmount(float progress01)
+    {
+        float progress = Mathf.Clamp01(progress01);
+        float currentX = Mathf.Lerp(VoyageTrackStartX, VoyageTrackEndX, progress);
+
+        return currentX / VoyageImageWidth;
+    }
+
     [Header("항로 이탈 경고")]
     // ⚠ **조타를 놓친 것은 화면 어디에도 안 나와 있었습니다.**
     //
@@ -129,7 +235,7 @@ public class ShipCoopHud : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float courseAlphaMax = 0.52f;
 
-    [Header("사건 알림 (왼쪽)")]
+    [Header("사건 알림 (상단 가운데)")]
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
     [SerializeField] private EventRow[] eventRows;
 
@@ -178,6 +284,30 @@ public class ShipCoopHud : MonoBehaviour
     [Tooltip("오른쪽 아래 키캡 글자. 자리에 따라 Space · K · J L 로 바뀐다.")]
     [SerializeField] private TextMeshProUGUI interactKeycap;
 
+    [Tooltip("\"길게 누르세요\" 같은 홀드 안내. 꾹 누르고 있어야 하는 동작에서만 켠다.")]
+    [SerializeField] private TextMeshProUGUI interactHoldHint;
+
+    [Header("상호작용 — 캐릭터 옆구리에 띄운다")]
+    // ⚠ **월드 좌표(m)로 옆·위를 밀었더니 안 맞았습니다.** 캐릭터 루트가 발밑이 아니라
+    //    어디에 있는지 몰라서(치비 캐릭터라 원점이 불확실) 늘 머리 위로 떴습니다.
+    //    그래서 사람 위치를 화면 좌표로 바꾼 **뒤에** 픽셀로만 민다 — 카메라 각도나
+    //    캐릭터 원점과 무관하게 항상 같은 자리(화면에서 옆으로 몇 px)로 뜬다.
+    // ⚠ **이름을 새로 짓습니다.** 예전 필드(interactWorldLift · interactSideOffset ·
+    //    interactScreenLift)는 이미 씬에 값이 박혀 있어서, 코드 기본값을 고쳐도
+    //    씬에 남은 옛 값이 이깁니다. 새 필드는 처음 붙는 것이라 코드 기본값을 제대로 받습니다.
+    [Tooltip("사람의 화면 좌표에서 오른쪽으로 이만큼(px) 민다. 옆구리 쪽으로 보이게 한다.")]
+    [SerializeField] private float interactBadgeRightPx = 130f;
+
+    [Tooltip("사람의 화면 좌표에서 위로 이만큼(px) 민다. 발밑이 아니라 몸통 높이로 올린다.")]
+    [SerializeField] private float interactBadgeUpPx = 40f;
+
+    /// <summary>지금 위에 떠 있어야 할 대상. 없으면 패널이 꺼져 있다.</summary>
+    private Transform _interactAnchor;
+
+    private RectTransform _interactRect;
+    private RectTransform _canvasRect;
+    private Camera _viewCamera;
+
     [Header("작업 그림")]
     [SerializeField] private Sprite taskIconHelm;
     [SerializeField] private Sprite taskIconSails;
@@ -202,6 +332,9 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private Color hpHealthy = new Color(0.45f, 0.85f, 0.55f);
     [SerializeField] private Color hpHurt = new Color(0.95f, 0.75f, 0.35f);
     [SerializeField] private Color hpCritical = new Color(0.95f, 0.40f, 0.35f);
+
+    [Tooltip("체력 숫자가 이 아래로 내려가면 빨갛게 켜진다. 그 전에는 흰색 — 초록은 갑판 나무색과 겹쳐 잘 안 보였다.")]
+    [SerializeField] private float hpCriticalBelow = 30f;
     [SerializeField] private Color timeNormal = Color.white;
     [SerializeField] private Color timeWarning = new Color(0.95f, 0.55f, 0.45f);
 
@@ -245,6 +378,26 @@ public class ShipCoopHud : MonoBehaviour
         if (health == null) health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         if (voyage == null) voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
         if (flooding == null) flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+
+        if (interactPanel != null)
+        {
+            _interactRect = interactPanel.GetComponent<RectTransform>();
+        }
+
+        // 이 스크립트는 캔버스 뿌리에 붙어 있다. 상호작용 배지를 그 캔버스 좌표로 옮기려면
+        // 그 캔버스의 RectTransform 이 필요하다. (Screen Space - Overlay)
+        _canvasRect = GetComponent<RectTransform>();
+
+        // 빌더가 놓아 둔 자리를 기억해 둔다. 까딱임은 이 높이를 기준으로 오르내린다.
+        if (hurryCallout != null)
+        {
+            _hurryRect = hurryCallout.GetComponent<RectTransform>();
+        }
+
+        if (hurryArrow != null)
+        {
+            _hurryArrowBaseY = hurryArrow.anchoredPosition.y;
+        }
     }
 
     private void Update()
@@ -264,6 +417,58 @@ public class ShipCoopHud : MonoBehaviour
         UpdateCourseWarning();
         UpdateEvents();
         UpdateInteract();
+    }
+
+    /// <summary>
+    /// 상호작용 배지를 **지금 화면을 보는 사람(LocalWorker)의 옆구리**로 옮긴다.
+    ///
+    /// 대상(자리 · 상자 · 짐) 위가 아니라 사람 몸 기준이다. 조타륜처럼 자리가 크거나
+    /// 운반처럼 대상이 계속 바뀌는 경우, 대상 위에 띄우면 배지가 뚝뚝 튀거나 물건에
+    /// 가려진다. 사람은 늘 화면 가운데 가깝게 있어 안정적이다.
+    ///
+    /// ⚠ **카메라가 다 움직인 뒤에 해야 합니다.** 배가 돌 때 카메라도 같이 따라 도는데
+    ///    (ShipCoopShipTurn · ShipCoopCamera 모두 LateUpdate), Update 시점의 카메라 위치로
+    ///    화면 좌표를 뽑으면 한 프레임 늦어 배지가 살짝 떨립니다.
+    /// </summary>
+    private void LateUpdate()
+    {
+        if (_interactRect == null || _canvasRect == null)
+        {
+            return;
+        }
+
+        if (_interactAnchor == null || !interactPanel.activeSelf)
+        {
+            return;
+        }
+
+        if (_viewCamera == null)
+        {
+            _viewCamera = Camera.main;
+        }
+
+        if (_viewCamera == null)
+        {
+            return;
+        }
+
+        Vector3 screen = _viewCamera.WorldToScreenPoint(_interactAnchor.position);
+
+        // 대상이 카메라 뒤에 있으면(등 뒤에서 붙잡는 경우는 없지만 혹시나) 그리지 않는다.
+        if (screen.z < 0f)
+        {
+            interactPanel.SetActive(false);
+            return;
+        }
+
+        // 사람의 화면 좌표가 나온 뒤에 픽셀로만 민다. (위 헤더 주석 참고)
+        screen.x += interactBadgeRightPx;
+        screen.y += interactBadgeUpPx;
+
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_canvasRect, screen, null, out Vector2 local))
+        {
+            _interactRect.anchoredPosition = local;
+        }
     }
 
     /// <summary>
@@ -356,6 +561,7 @@ public class ShipCoopHud : MonoBehaviour
 
         float ratio = health.MaxHp <= 0f ? 0f : Mathf.Clamp01(health.CurrentHp / health.MaxHp);
 
+        // 막대를 뺐다. 얼마나 남았는지는 이제 글자 색과 숫자만으로 말한다.
         if (hpFill != null)
         {
             hpFill.fillAmount = ratio;
@@ -364,7 +570,8 @@ public class ShipCoopHud : MonoBehaviour
 
         if (hpLabel != null)
         {
-            hpLabel.text = $"{health.CurrentHp:F0} / {health.MaxHp:F0}";
+            hpLabel.text = $"{health.CurrentHp:F0}";
+            hpLabel.color = health.CurrentHp <= hpCriticalBelow ? hpCritical : Color.white;
         }
     }
 
@@ -389,17 +596,20 @@ public class ShipCoopHud : MonoBehaviour
             return;
         }
 
-        float progress = game.Progress01;
+        float progress = Mathf.Clamp01(game.Progress01);
         float expected = game.ExpectedProgress01;
 
         if (progressFill != null)
         {
-            progressFill.fillAmount = progress;
+            progressFill.fillAmount = ToVoyageFillAmount(progress);
         }
 
+        // 배 마커 · 기준선 · 지연 칸은 흰색/파란색 그림과 달리 여전히 트랙 구간
+        // (X 359~1787)만 감싼 자식(Track) 위에서 움직이므로, 진행률을 그대로 쓴다.
         PlaceOnBar(shipMarker, progress);
         PlaceOnBar(expectedMarker, expected);
         SpanOnBar(delayFill, progress, expected);
+        UpdateHurryCallout(progress, expected);
 
         if (behindWarning != null)
         {
@@ -453,7 +663,128 @@ public class ShipCoopHud : MonoBehaviour
     }
 
     /// <summary>
-    /// 왼쪽 사건 카드.
+    /// 늦었다는 것을 **한 번 짚어 주는** 알림. 기준선 위에 떴다 사라지며 아래를 가리킨다.
+    ///
+    /// 붉은 구간은 "이만큼 늦었다"를 늘 보여주지만 그게 무슨 뜻인지는 말해주지
+    /// 않는다. 벌어지는 순간에 글씨로 한 번 가르쳐 주면, 그 다음부터는 붉은 구간만
+    /// 봐도 읽힌다. 그림이 못 하는 일을 글씨가 대신 하는 자리다.
+    ///
+    /// ⚠ **계속 띄우면 안 된다.** 3분 내내 "서둘러"가 떠 있으면 두 번째부터는
+    ///    아무도 안 본다. 잠깐 떴다 사라지고, **더 나빠졌을 때만** 다시 온다.
+    /// </summary>
+    private void UpdateHurryCallout(float progress, float expected)
+    {
+        if (hurryCallout == null)
+        {
+            return;
+        }
+
+        float gap = expected - progress;
+
+        // 충분히 뒤처진 상태가 얼마나 이어졌는지. 경계에서 깜빡이면 알림도 깜빡인다.
+        _hurryBehindFor = gap >= hurryBehindAtLeast ? _hurryBehindFor + Time.deltaTime : 0f;
+
+        // 거의 따라잡았으면 다음 번을 "처음 벌어진 것" 으로 셈한다.
+        if (gap <= hurryClearBelow)
+        {
+            _hurryWarnedAtGap = -1f;
+        }
+
+        // 아직 한 번도 안 띄웠으면 기준값을, 이미 띄웠으면 그때보다 더 나빠졌는지를 본다.
+        float trigger = _hurryWarnedAtGap < 0f
+            ? hurryBehindAtLeast
+            : _hurryWarnedAtGap + hurryWorsenBy;
+
+        if (gap >= trigger && _hurryBehindFor >= hurryHoldSeconds && Time.time >= _hurryNextAt)
+        {
+            _hurryUntil = Time.time + hurryShowSeconds;
+            _hurryNextAt = Time.time + hurryCooldownSeconds;
+            _hurryWarnedAtGap = gap;
+
+            if (hurryLabel != null)
+            {
+                hurryLabel.text = HurryMessage();
+            }
+        }
+
+        bool show = Time.time < _hurryUntil;
+        if (hurryCallout.activeSelf != show)
+        {
+            hurryCallout.SetActive(show);
+        }
+
+        if (!show || _hurryRect == null)
+        {
+            return;
+        }
+
+        // **기준선 자리**. 붉은 구간의 오른쪽 끝, 곧 "지금쯤 여기 와 있어야 한다" 는 곳이다.
+        //
+        // 구간 한가운데에 놓아 봤더니 "이 빨간 게 문제다" 까지만 말하고 끝났다. 끝을
+        // 가리키면 **가야 할 곳**을 말하게 되고, 붉은 구간은 거기까지 남은 빚으로 읽힌다.
+        // 늦을수록 기준선이 앞서가므로 팻말도 같이 오른쪽으로 밀려난다.
+        PlaceOnBar(_hurryRect, expected);
+
+        float shown = hurryShowSeconds - (_hurryUntil - Time.time);
+
+        // 톡 튀어나오기. 살짝 넘겼다 돌아와야 곁눈에도 걸린다.
+        float pop = EaseOutBack(Mathf.Clamp01(shown / HurryPopSeconds));
+        _hurryRect.localScale = Vector3.one * Mathf.LerpUnclamped(0.55f, 1f, pop);
+
+        if (hurryGroup != null)
+        {
+            // 끝에서 흐려지며 사라진다. 툭 꺼지면 뭐가 있었는지도 모르고 지나간다.
+            hurryGroup.alpha = Mathf.Clamp01((_hurryUntil - Time.time) / HurryFadeSeconds);
+        }
+
+        if (hurryArrow != null)
+        {
+            hurryArrow.anchoredPosition =
+                new Vector2(0f, _hurryArrowBaseY + Mathf.Sin(shown * HurryBobSpeed) * HurryBobPixels);
+        }
+    }
+
+    /// <summary>
+    /// 왜 늦는지를 짚어서 말한다.
+    ///
+    /// ⚠ **"서둘러라" 는 정보가 없다.** 처음 하는 사람은 자기가 왜 느린지를 모른다.
+    ///    속도는 <c>SailPower01 × CourseFactor</c> 둘로만 정해지므로(ShipVoyage),
+    ///    둘 중 발목을 잡는 쪽을 그대로 **지시**로 바꾼다.
+    ///
+    /// 돛을 먼저 본다. 돛은 아예 0 까지 풀릴 수 있어서 손해가 훨씬 크다.
+    /// (<see cref="SailTask.IsSlack"/> 와 같은 값을 <see cref="voyage"/> 에서 바로 읽는다 —
+    /// SailTask 를 따로 연결하지 않아도 되고, 돛 작업이 없는 씬에서도 안전하다)
+    /// </summary>
+    private string HurryMessage()
+    {
+        if (voyage != null)
+        {
+            if (voyage.SailPower01 < hurrySailBelow)
+            {
+                return "돛을 당겨!";
+            }
+
+            if (voyage.CourseFactor < courseWarnBelow)
+            {
+                return "키를 잡아!";
+            }
+        }
+
+        return "더 빨리!";
+    }
+
+    /// <summary>끝에서 살짝 넘겼다 돌아오는 곡선. 톡 튀어나오는 느낌을 만든다.</summary>
+    private static float EaseOutBack(float t)
+    {
+        const float overshoot = 1.70158f;
+
+        t -= 1f;
+        return 1f + (overshoot + 1f) * t * t * t + overshoot * t * t;
+    }
+
+
+    /// <summary>
+    /// 상단 가운데 사건 카드.
     ///
     /// **맨 윗줄은 침수가 먼저 쓴다.** 침수는 사건이 아니라 상태지만
     /// (<see cref="VoyageEvent.Active"/> 에 안 들어온다) 플레이어 입장에서는
@@ -679,6 +1010,7 @@ public class ShipCoopHud : MonoBehaviour
         if (LocalWorker == null)
         {
             interactPanel.SetActive(false);
+            _interactAnchor = null;
             return;
         }
 
@@ -689,22 +1021,24 @@ public class ShipCoopHud : MonoBehaviour
         var carry = LocalWorker.GetComponent<CarryTask>();
         if (carry != null && carry.IsCarrying)
         {
+            // ⚓ 들고 있는 동안은 손을 떼면 놓치므로 계속 눌러야 한다는 것을 말해준다.
+            // 배지는 대상이 아니라 **사람 옆구리**에 뜬다 — 대상은 걷는 동안 계속 바뀐다.
             Show(WithHint($"{CarryTask.NameOf(carry.Carrying)} 운반 중", CarryHintOf(carry)),
-                 -1f, IconOfCargo(carry.Carrying));
+                 -1f, IconOfCargo(carry.Carrying), LocalWorker.transform, isHold: true);
             return;
         }
 
         if (current != null)
         {
             Show(WithHint(current.DisplayName, HintOf(current)), GaugeOf(current), IconOf(current),
-                 TwoSidedGauge(current), KeyOf(current));
+                 TwoSidedGauge(current), KeyOf(current), LocalWorker.transform, isHold: false);
             return;
         }
 
         // 붙기 전이다. 키는 키캡이 말해주므로 이름에 또 적지 않는다.
         if (nearby != null)
         {
-            Show(nearby.DisplayName, -1f, IconOf(nearby));
+            Show(nearby.DisplayName, -1f, IconOf(nearby), LocalWorker.transform, isHold: false);
             return;
         }
 
@@ -720,33 +1054,32 @@ public class ShipCoopHud : MonoBehaviour
             if (lying != null)
             {
                 Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "꾹 누른 채로 들고 간다"),
-                     -1f, IconOfCargo(lying.Kind));
+                     -1f, IconOfCargo(lying.Kind), LocalWorker.transform, isHold: true);
                 return;
             }
 
             AmmoBox box = carry.FindReachableBox();
             if (box != null)
             {
+                // 침수 중인 양동이 앞은 "집지 말라"는 경고라 홀드 안내가 아니다.
+                bool boxIsHold = box.Kind != Cargo.Water || flooding == null || flooding.LeakingPoints == 0;
+
                 Show(WithHint($"{CarryTask.NameOf(box.Kind)} 집기", BoxHintOf(box)),
-                     -1f, IconOfCargo(box.Kind));
+                     -1f, IconOfCargo(box.Kind), LocalWorker.transform, boxIsHold);
                 return;
             }
         }
 
         interactPanel.SetActive(false);
+        _interactAnchor = null;
     }
 
     /// <summary>붙기 · 집기 · 놓기. 자리에 붙기 전에는 언제나 이 키다.</summary>
     private const string KeyInteract = "Space";
 
-    private void Show(string text, float gauge01, Sprite icon)
+    private void Show(string text, float gauge01, Sprite icon, Transform anchor, bool isHold)
     {
-        Show(text, gauge01, icon, false, KeyInteract);
-    }
-
-    private void Show(string text, float gauge01, Sprite icon, bool twoSided)
-    {
-        Show(text, gauge01, icon, twoSided, KeyInteract);
+        Show(text, gauge01, icon, false, KeyInteract, anchor, isHold);
     }
 
     /// <summary>
@@ -788,9 +1121,12 @@ public class ShipCoopHud : MonoBehaviour
 
     /// <param name="gauge01">0~1. 양쪽으로 차는 것은 -1~+1 이고 부호가 방향이다.</param>
     /// <param name="twoSided">가운데(위)에서 좌우로 갈라져 차는가.</param>
-    private void Show(string text, float gauge01, Sprite icon, bool twoSided, string key)
+    /// <param name="anchor">배지를 띄울 기준. 지금은 늘 LocalWorker.transform(사람 옆구리)이다.</param>
+    /// <param name="isHold">떼면 놓치는 동작인가. "길게 누르세요" 안내를 켤지 정한다.</param>
+    private void Show(string text, float gauge01, Sprite icon, bool twoSided, string key, Transform anchor, bool isHold)
     {
         interactPanel.SetActive(true);
+        _interactAnchor = anchor;
 
         if (interactLabel != null)
         {
@@ -800,6 +1136,11 @@ public class ShipCoopHud : MonoBehaviour
         if (interactKeycap != null)
         {
             interactKeycap.text = key;
+        }
+
+        if (interactHoldHint != null)
+        {
+            interactHoldHint.gameObject.SetActive(isHold);
         }
 
         if (interactIcon != null)

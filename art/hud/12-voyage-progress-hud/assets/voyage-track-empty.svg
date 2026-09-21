@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2152 731">
+<defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c3a63"/>
+      <stop offset="1" stop-color="#0a1c33"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8b654"/>
+      <stop offset="1" stop-color="#8a5a1e"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf6e3"/>
+      <stop offset="1" stop-color="#d8c69a"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ff0ee"/>
+      <stop offset="1" stop-color="#0f9fb0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 바깥 황동 테두리: 둥근 캡슐. 안쪽 색 구간보다 좌우로 더 뻗어서, 안쪽의
+       각진 모서리가 이 둥근 캡 안에 묻히게 한다. -->
+  <rect x="296" y="329.5" width="1560" height="72"
+        rx="36" fill="url(#brass)" stroke="#4a2f10" stroke-width="3"/>
+
+  <!-- 안쪽 아이보리 트랙. 진행선(voyage-progress-fill.svg)과 좌표 · 두께가 완전히 같다. -->
+  <rect x="332" y="344.5" width="1488" height="42" fill="url(#ivory)"/>
+
+  <g><circle cx="580" cy="365.5" r="46" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="580" cy="365.5" r="37" fill="url(#ivory)"/></g>
+  <g><circle cx="828" cy="365.5" r="46" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="828" cy="365.5" r="37" fill="url(#ivory)"/></g>
+  <g><circle cx="1076" cy="365.5" r="46" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="1076" cy="365.5" r="37" fill="url(#ivory)"/></g>
+  <g><circle cx="1324" cy="365.5" r="46" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="1324" cy="365.5" r="37" fill="url(#ivory)"/></g>
+  <g><circle cx="1572" cy="365.5" r="46" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="1572" cy="365.5" r="37" fill="url(#ivory)"/></g>
+
+  <g><circle cx="176" cy="365.5" r="118" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="176" cy="365.5" r="107" fill="url(#navy)"/><g fill="#fdf6e3" stroke="#4a2f10" stroke-width="3" stroke-linejoin="round">
+    <path d="M128,395.5 L224,395.5 L224,409.5 L128,409.5 Z"/>
+    <path d="M150,357.5 L150,395.5 L166,395.5 L166,357.5 Z"/>
+    <path d="M186,357.5 L186,395.5 L202,395.5 L202,357.5 Z"/>
+    <path d="M146,357.5 L158,343.5 L170,357.5 Z"/>
+    <path d="M182,357.5 L194,343.5 L206,357.5 Z"/>
+    <path d="M172,335.5 L172,311.5 L202,311.5 L186,323.5 L202,335.5 Z"/>
+  </g></g>
+  <g><circle cx="1976" cy="365.5" r="118" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="1976" cy="365.5" r="107" fill="url(#navy)"/><g stroke="#4a2f10" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M1924,389.5 Q1976,409.5 2028,389.5 Q1976,371.5 1924,389.5 Z" fill="#fdf6e3"/>
+    <path d="M1976,361.5 L1970,385.5 L1982,385.5 Z" fill="#8a5a1e"/>
+    <path d="M1976,319.5 L1950,357.5 L1976,345.5 L2002,357.5 Z" fill="#0f9fb0"/>
+  </g></g>
+
+</svg>
