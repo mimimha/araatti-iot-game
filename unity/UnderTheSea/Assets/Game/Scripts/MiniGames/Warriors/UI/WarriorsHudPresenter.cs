@@ -270,6 +270,9 @@ namespace Warriors
             /// <summary>판정선 뒤에 까는 글로우. 선보다 넓고 위아래로 흐려진다.</summary>
             public RectTransform judgeGlow;
 
+            /// <summary>판정선 한가운데의 밝은 심지(4px). 납작한 색 막대가 "선" 으로 읽히게 한다.</summary>
+            public RectTransform core;
+
             /// <summary>가로 · 세로 · 찌르기 열을 나누는 세로 안내선. 공격 색을 옅게 깐다.</summary>
             public RectTransform[] columns;
 
@@ -319,7 +322,9 @@ namespace Warriors
         /// 노트 지름이 90 이고 "지름 = 열 폭의 65%" 로 잡으면 90 / .65 = 138 이다.
         /// 이보다 좁으면 두 노트가 나란히 떨어질 때 어느 열인지 읽히지 않는다.
         /// </summary>
-        private const float ColumnPitch = 138f;
+        // 138 은 레인 폭 414 — 화면에서 "큰 사다리꼴 도형" 으로 읽혔다(실측). 120 이면 폭 360,
+        // 노트(90)가 열의 75% 라 옆 노트와 30px 이 뜬다. 좁은 세로 레인으로 읽히는 쪽을 택한다.
+        private const float ColumnPitch = 120f;
 
         /// <summary>판정선에서의 트랙 반폭. 열 3개 = 414, 그 절반.</summary>
         private const float TrackHalfWidthBottom = ColumnPitch * 1.5f;
@@ -329,7 +334,12 @@ namespace Warriors
         ///
         /// 직사각형이면 "투명한 상자" 로 보이고, 이 기울기가 있어야 노트가 <b>다가온다</b>고 읽힌다.
         /// </summary>
-        private const float TrackTopScale = .60f;
+        // .60 은 위가 너무 좁아 삼각형에 가까웠다(실측 "베기 이펙트 같다"). .82 면 원근 힌트는
+        // 남기면서 세로 레인으로 읽힌다.
+        // .82 — 위가 살짝 좁은 사다리꼴. 바닥은 <see cref="TrapezoidSprite"/> 로 같은 비율의
+        // 사다리꼴을 그려 가장자리 선과 정확히 겹친다 (사각형 Image 를 깔았을 때 레인 안에
+        // 네모가 따로 보였던 문제의 해법).
+        private const float TrackTopScale = .82f;
 
         /// <summary>
         /// 두 트랙의 중심. **화면 기준 고정값이다.**
@@ -410,7 +420,9 @@ namespace Warriors
         /// 너무 올리면 링이 두꺼워 보이고 기호가 묻힌다 — 링을 7px 로 얇게 유지하는 이유가
         /// 사라진다. "밝은 배경에서 사라지지 않을 만큼" 만 준다.
         /// </summary>
-        private const float NoteGlowAlpha = .55f;
+        // .55 는 실측 스크린샷(3라운드)에서 밝은 하늘·바다 위에 노트가 거의 묻혔다. 올린다.
+        // 잔상을 뺀 대신 글로우는 "또 하나의 링" 으로 안 읽히게 은은하게 둔다.
+        private const float NoteGlowAlpha = .45f;
 
         /// <summary>노트가 남기는 자국. 뒤(위쪽)로 두 토막.</summary>
         private RectTransform[][] noteTrails;
@@ -436,11 +448,19 @@ namespace Warriors
             DisableLegacyHud();
             introPhase = (WarriorsBattlePhase)int.MinValue;
             introUntil = 0f;
+
+            // ⚠ 네트워크 판에서는 attackInputSource(IWarriorsInputSource)가 비어 있어 카드 펄스가
+            //    한 번도 안 났다(프리팹 참조 {fileID: 0}). 네트워크 입력은 WarriorsInputProvider 가
+            //    모으므로 그쪽의 "방금 휘둘렀다" 신호를 같은 펄스 처리로 잇는다.
+            Warriors.Net.WarriorsInputProvider.LocalSwing += HandleLocalSwing;
         }
+
+        private void HandleLocalSwing(WarriorsAttackDirection direction) => HandleAttackForPulse(direction, 1f);
 
         private void OnDisable()
         {
             ReleaseIntroHold();
+            Warriors.Net.WarriorsInputProvider.LocalSwing -= HandleLocalSwing;
             if (attackInput != null) { attackInput.AttackRequested -= HandleAttackForPulse; attackInput = null; }
             score?.SetLegacyHudVisible(true);
             rhythm?.SetLegacyHudVisible(true);
@@ -514,23 +534,35 @@ namespace Warriors
             SetActive(standardHud, !isRhythm && !isFinalOverlay);
             // The player strip lives outside StandardHUD so it survives the rhythm round,
             // but the result screen should be clean.
-            // **더 이상 띄우지 않는다.**
+            // **2인 프로필 칸을 다시 켠다.** 좌하단, 두 칸.
             //
-            // 이 줄은 "1P 적중 12   2P 적중 8" 을 보여 줬다. 적중 수는 전투 중에 아무 판단에도
-            // 쓰이지 않는 값인데, 2인 플레이에서는 늘 켜져 화면 가장자리를 한 층 더 채웠다.
-            // 특히 3라운드에서는 그 자리보다 각자의 리듬 레인과 크라켄 HP 가 훨씬 중요하다.
+            // 한때 꺼 두었다. 그때는 "1P 적중 12   2P 적중 8" 이라는 글자 줄이었고, 적중 수는
+            // 전투 중 아무 판단에도 쓰이지 않아 화면만 한 층 더 채웠기 때문이다.
             //
-            // 부품과 갱신 코드는 남겨 둔다. 다시 켜고 싶으면 이 한 줄만 되돌리면 된다.
-            SetActive(playerStatusRoot, false);
+            // 지금은 얼굴 · 이름 · HP 가 들어간 프로필 칸이라 성격이 다르다. 2인 협동에서
+            // <b>상대가 살아 있는지</b>는 계속 봐야 하는 정보다.
+            //
+            // ⚠ **혼자일 때는 통째로 숨긴다.** 빈 2P 칸이나 "대기 중" 은 보여 주지 않는다.
+            //    혼자 하는 사람에게 자기 얼굴 하나만 띄우는 칸도 필요 없다 — 자기 HP 는
+            //    이미 오른쪽 위 칸에 크게 있다.
+            //
+            // ⚠ 결과 화면에서도 끈다. 그때 볼 것은 결과 판 하나뿐이다.
+            SetActive(playerStatusRoot, !isFinalOverlay && ResolveConnectedPlayers() >= 2);
             SetActive(rhythmRoot, isRhythm);
 
-            // ⚠ **포탈로 들어온 판에서는 옛 결과 카드를 띄우지 않는다.**
+            // ⚠ **공용 결과 판이 씬에 있으면 옛 결과 카드를 띄우지 않는다.**
             //
             //    세 게임이 같은 결과 판(MiniGameResultOverlay)을 쓰기로 했다. 이 카드는 그보다
             //    앞서 만든 것이라 둘 다 띄우면 같은 내용이 두 번 겹친다.
             //
-            //    단독 실행에는 공용 판이 없다. 그때는 이것이 유일한 결과 화면이므로 그대로 둔다.
-            SetActive(finalRoot, isFinalOverlay && !MiniGameTransition.InMiniGame);
+            //    ⚠ 예전에는 <c>!MiniGameTransition.InMiniGame</c> 으로 갈랐다. "포탈로 들어온
+            //      판에만 공용 판이 있다" 는 <b>가정</b>이었는데 그것이 틀렸다. 공용 판은
+            //      <c>MiniGameResultOverlaySetup</c> 이 미니게임 씬에 미리 깔아 두므로,
+            //      포탈을 거치지 않는 단독 실행에도 그대로 있다. 그래서 GAME OVER 가
+            //      두 겹으로 겹쳐 보였다.
+            //
+            //      가정 대신 <b>실제로 있는지</b>를 본다. 이러면 어느 경로로 들어와도 맞는다.
+            SetActive(finalRoot, isFinalOverlay && !SharedResultPanelExists());
 
             // ROUND 1 teaches the monster -> attack mapping; Fish/Crab/Jellyfish do not
             // appear from ROUND 2 on, so only the three attacks stay on screen there.
@@ -539,6 +571,15 @@ namespace Warriors
                 : flow.Phase == WarriorsBattlePhase.NormalBattle;
             SetActive(monsterGuideRoot, monsterRound && !isFinalOverlay);
             SetActive(attackGuideRoot, !monsterRound && !isFinalOverlay);
+
+            // 3라운드에서 하단 카드는 보조 정보다. 레인·노트·판정선에 시선을 양보하게 15% 줄인다.
+            // (1·2라운드 카드와 같은 비중이면 시선이 아래로 흩어졌다 — 실측 지적)
+            if (attackGuideRoot != null)
+            {
+                attackGuideRoot.transform.localScale = isRhythm ? Vector3.one * .85f : Vector3.one;
+            }
+
+            CloseSharedResultOnRestart(isFinalOverlay);
 
             TrackReachedRound();
             UpdateRoundIntro(isFinalOverlay);
@@ -550,6 +591,57 @@ namespace Warriors
             else if (isFinalOverlay) UpdateFinalOverlay();
             else UpdateStandardHud();
         }
+
+        /// <summary>
+        /// 이 씬에 <b>공용 결과 판이 깔려 있는가.</b>
+        ///
+        /// 한 번 찾고 기억한다. 결과 판은 씬이 살아 있는 동안 생기거나 사라지지 않는다.
+        /// 꺼져 있을 수 있으므로 <c>FindObjectsInactive.Include</c> 로 찾는다 —
+        /// 평소에는 숨어 있다가 결과가 올 때만 켜지기 때문이다.
+        /// </summary>
+        private bool SharedResultPanelExists()
+        {
+            if (sharedResultPanel.HasValue) return sharedResultPanel.Value;
+
+            bool found = FindAnyObjectByType<MiniGames.Common.UI.MiniGameResultOverlay>(
+                FindObjectsInactive.Include) != null;
+
+            sharedResultPanel = found;
+            return found;
+        }
+
+        private bool? sharedResultPanel;
+
+        /// <summary>
+        /// **새 판이 시작되면 공용 결과 판을 닫는다.**
+        ///
+        /// ⚠ <b>[다시 하기] 를 누른 사람의 화면만 닫히던 문제를 막는다.</b> 결과 판은 누른
+        ///    쪽에서 스스로 닫지만, 상대 화면은 아무도 닫아 주지 않아 <b>새 판이 카운트다운을
+        ///    하는 동안에도 GAME OVER 가 그대로 떠 있었다.</b>
+        ///
+        /// 판이 끝났는지는 서버가 정해 모두에게 같은 값으로 온다(<see cref="NetworkFinal"/>).
+        /// 그것이 꺼지는 순간 두 화면이 함께 닫힌다.
+        /// </summary>
+        private void CloseSharedResultOnRestart(bool isFinalOverlay)
+        {
+            if (isFinalOverlay)
+            {
+                sawFinal = true;
+                return;
+            }
+
+            if (!sawFinal) return;
+
+            sawFinal = false;
+
+            MiniGames.Common.UI.MiniGameResultOverlay shared =
+                FindAnyObjectByType<MiniGames.Common.UI.MiniGameResultOverlay>(FindObjectsInactive.Include);
+
+            if (shared != null) shared.CloseForNewMatch();
+        }
+
+        /// <summary>지난 프레임에 결과 화면이었는가. 닫을 때를 한 번만 잡기 위한 것이다.</summary>
+        private bool sawFinal;
 
         private void UpdateStandardHud()
         {
@@ -580,24 +672,75 @@ namespace Warriors
             Set(scoreText, (net ? NetworkScore : score.Score).ToString("N0"));
             Set(comboText, $"COMBO  {(net ? NetworkCombo : combo != null ? combo.Combo : 0)}");
             int activePlayers = ResolveConnectedPlayers();
-            // Health is one shared pool, so putting it on both rows drew the same bar twice
-            // and said nothing about either player. What differs between them is what each
-            // one has personally connected with, so that is what the strip shows.
-            int landedTotal = 0;
-            for (int i = 0; i < activePlayers; i++) landedTotal += LandedHitsOf(i);
 
             for (int i = 0; i < playerStateTexts.Length; i++)
             {
-                // Empty slots are hidden rather than parked on WAIT.  The battle never waits
-                // for an absent player, so a row that says WAIT for the whole run is a lie.
+                // 빈 칸은 "대기" 로 두지 않고 숨긴다. 전투는 없는 사람을 기다리지 않으므로
+                // 판이 끝날 때까지 WAIT 이라고 적혀 있는 칸은 거짓말이다.
                 bool active = i < activePlayers;
                 SetActive(RowOf(playerStateTexts[i], playerStatusRoot), active);
                 if (!active) continue;
-                int landed = LandedHitsOf(i);
-                Set(playerStateTexts[i], $"{i + 1}P   적중 {landed}");
-                if (i < playerStateFills.Length)
-                    SetFill(playerStateFills[i], landedTotal > 0 ? landed / (float)landedTotal : 0f);
+
+                // ⚠ **"적중 0" 을 뺐다.** 전투 중 아무 판단에도 쓰이지 않는 숫자인데
+                //    프로필 칸의 절반을 차지했다. 프로필에서 알아야 하는 것은
+                //    <b>누구인지</b> 와 <b>살아 있는지</b> 둘뿐이다.
+                Set(playerStateTexts[i], NameOf(i));
+
+                // 막대는 그 사람의 남은 체력이다. 적중 비율이 아니다.
+                if (i < playerStateFills.Length) SetFill(playerStateFills[i], HealthOf(i));
             }
+        }
+
+        /// <summary>
+        /// 이 칸에 적을 <b>이름.</b> 실제 계정 닉네임이 있으면 그것을 쓴다.
+        ///
+        /// 닉네임은 <c>NetworkPlayerIdentity</c> 가 <c>[Networked]</c> 로 들고 있어
+        /// <b>남의 것도 읽힌다</b> — 주인 클라이언트가 서버에 올리고 서버가 모두에게 복제한다.
+        ///
+        /// 없을 때는 "1P" 로 떨어진다. 계정 없이 도는 단독 빌드가 그 경우다.
+        /// </summary>
+        private string NameOf(int playerIndex)
+        {
+            WarriorsPlayerCombat who = WarriorsPlayers.ForId(playerIndex);
+
+            if (who != null)
+            {
+                UnderTheSea.Network.NetworkPlayerIdentity id =
+                    who.GetComponentInParent<UnderTheSea.Network.NetworkPlayerIdentity>();
+
+                // ⚠ 사라지는 중인 오브젝트의 [Networked] 값을 읽으면 예외가 난다.
+                if (id != null && id.Object != null && id.Object.IsValid)
+                {
+                    string shown = id.DisplayName;
+
+                    if (!string.IsNullOrWhiteSpace(shown) && shown != "이름 없음")
+                    {
+                        return $"{playerIndex + 1}P  {shown}";
+                    }
+                }
+            }
+
+            return $"{playerIndex + 1}P";
+        }
+
+        /// <summary>이 사람의 남은 체력 비율. 0~1.</summary>
+        private float HealthOf(int playerIndex)
+        {
+            WarriorsPlayerCombat who = WarriorsPlayers.ForId(playerIndex);
+            if (who == null) return 0f;
+
+            Warriors.Net.WarriorsPlayerLife life =
+                who.GetComponentInParent<Warriors.Net.WarriorsPlayerLife>();
+
+            if (life == null || life.Object == null || !life.Object.IsValid || life.MaxHp <= 0)
+            {
+                WarriorsHealth plain = who.GetComponentInParent<WarriorsHealth>();
+                return plain != null && plain.MaxHealth > 0
+                    ? plain.CurrentHealth / (float)plain.MaxHealth
+                    : 0f;
+            }
+
+            return Mathf.Clamp01(life.Hp / (float)life.MaxHp);
         }
 
         /// <summary>
@@ -712,6 +855,7 @@ namespace Warriors
                     Set(roundIntroBody, body);
                     objectiveLabel = objective;
                     Set(objectiveText, objective);
+                    FitObjectivePanel(objective);
                     introUntil = Time.unscaledTime + roundIntroSeconds;
                     // Keep the briefing above every regular HUD panel regardless of the
                     // prefab's authored sibling order.
@@ -741,6 +885,11 @@ namespace Warriors
 
             bool showObjective = !finalOverlayVisible && !show && !string.IsNullOrEmpty(objectiveLabel);
             SetActive(objectiveRoot, showObjective);
+
+            // ⚠ 폭은 **보이는 동안 매 프레임** 실제 글자 상자로 다시 잰다. 소개 문구가 뜨는 순간 한 번만
+            //    재면 그때 TMP 가 아직 이전 라운드 문장을 들고 있어, 3라운드의 긴 문장이 1라운드
+            //    폭의 칸을 넘었다(실측). TMP 하나 ForceMeshUpdate 는 프레임 비용이 무시할 만하다.
+            if (showObjective) FitObjectivePanel(objectiveLabel);
             if (objectiveGroup != null)
                 objectiveGroup.alpha = showObjective
                     ? Mathf.MoveTowards(objectiveGroup.alpha, 1f, Time.unscaledDeltaTime * 3.5f)
@@ -787,6 +936,10 @@ namespace Warriors
             Pulse(attackGuideCards, attackCardFills, attackCardBase, lit);
         }
 
+        /// <summary>
+        /// 카드의 **키캡 윗면(KeyBadge/CapFill)** 을 잡는다. 카드 판 자체는 금테 그림에 흰 tint 라
+        /// 색을 더해도 보이지 않는다(1 을 넘어 잘림). 키캡은 남색 평면이라 색이 그대로 난다.
+        /// </summary>
         private static void Cache(RectTransform[] cards, ref UnityEngine.UI.Image[] fills, ref Color[] baseColors)
         {
             if (cards == null || (fills != null && fills.Length == cards.Length)) return;
@@ -795,34 +948,40 @@ namespace Warriors
             for (int i = 0; i < cards.Length; i++)
             {
                 if (cards[i] == null) continue;
-                fills[i] = cards[i].GetComponent<UnityEngine.UI.Image>();
+                Transform cap = cards[i].Find("KeyBadge/CapFill");
+                fills[i] = cap != null ? cap.GetComponent<UnityEngine.UI.Image>() : cards[i].GetComponent<UnityEngine.UI.Image>();
                 if (fills[i] != null) baseColors[i] = fills[i].color;
             }
         }
 
+        /// <summary>펄스 색. 공격 종류 색(카드 아이콘 · 노트 링과 같은 계열)으로 키캡이 번쩍인다.</summary>
+        private static readonly Color[] PulseTone =
+        {
+            new Color(.25f, .65f, 1f, 1f),    // 가로베기 — 파랑
+            new Color(1f, .32f, .38f, 1f),    // 세로베기 — 빨강
+            new Color(1f, .85f, .15f, 1f),    // 찌르기 — 노랑
+        };
+
         private static void Pulse(RectTransform[] cards, UnityEngine.UI.Image[] fills, Color[] baseColors, int lit)
         {
             if (cards == null || fills == null) return;
-            float step = Time.unscaledDeltaTime * 12f;
+            float step = Time.unscaledDeltaTime * 10f;
             for (int i = 0; i < cards.Length; i++)
             {
                 if (cards[i] == null) continue;
                 bool on = i == lit;
-                Color target = on
-                    ? new Color(baseColors[i].r + .16f, baseColors[i].g + .20f, baseColors[i].b + .26f, baseColors[i].a)
-                    : baseColors[i];
 
                 // Snap up on the swing and ease back down - a hit cue has to land on the
                 // same frame as the input to read as a response rather than a delay.
                 if (on)
                 {
-                    cards[i].localScale = Vector3.one * 1.07f;
-                    if (fills[i] != null) fills[i].color = target;
+                    cards[i].localScale = Vector3.one * 1.12f;
+                    if (fills[i] != null) fills[i].color = PulseTone[Mathf.Clamp(i, 0, PulseTone.Length - 1)];
                     continue;
                 }
 
                 cards[i].localScale = Vector3.Lerp(cards[i].localScale, Vector3.one, step);
-                if (fills[i] != null) fills[i].color = Color.Lerp(fills[i].color, target, step);
+                if (fills[i] != null) fills[i].color = Color.Lerp(fills[i].color, baseColors[i], step);
             }
         }
 
@@ -1011,8 +1170,63 @@ namespace Warriors
             Set(actionText, string.Empty);
         }
 
+        // ------------------------------------------------------------
+        // 크라켄 리액션 — 정타마다 움찔, 3연속부터 크게
+        // ------------------------------------------------------------
+
+        private int krakenPulseSeen = -1;
+        private Transform krakenVisual;
+        private Vector3 krakenRest;
+        private Coroutine krakenShake;
+
+        /// <summary>
+        /// 정타 신호(<see cref="NetworkRhythmPulseLane"/>)가 새로 켜지는 순간 크라켄을 흔든다.
+        /// 서버가 복제한 값의 **변화**를 보므로 두 클라이언트에서 같은 순간에 난다.
+        /// 루트는 NetworkTransform 이 쥐고 있으므로 겉모습 자식만 흔든다 (몬스터 squash 와 같은 이유).
+        /// </summary>
+        private void ShakeKrakenOnHit()
+        {
+            int lane = NetworkRhythmPulseLane;
+            bool rising = lane >= 0 && krakenPulseSeen < 0;
+            krakenPulseSeen = lane;
+            if (!rising) return;
+
+            if (krakenVisual == null)
+            {
+                WarriorsKrakenBoss boss = FindFirstObjectByType<WarriorsKrakenBoss>();
+                Renderer body = boss != null ? boss.GetComponentInChildren<Renderer>() : null;
+                if (body == null) return;
+
+                Transform step = body.transform;
+                while (step.parent != null && step.parent != boss.transform) step = step.parent;
+                krakenVisual = step;
+                krakenRest = krakenVisual.localPosition;
+            }
+
+            int combo = NetworkMatchActive ? NetworkCombo : (rhythm != null ? rhythm.Combo : 0);
+            float amplitude = combo >= 3 ? .35f : .14f;
+
+            if (krakenShake != null) StopCoroutine(krakenShake);
+            krakenShake = StartCoroutine(KrakenShakeRoutine(amplitude, combo >= 3 ? .34f : .2f));
+        }
+
+        private System.Collections.IEnumerator KrakenShakeRoutine(float amplitude, float seconds)
+        {
+            for (float t = 0f; t < seconds && krakenVisual != null; t += Time.deltaTime)
+            {
+                float k = 1f - t / seconds;
+                float wobble = Mathf.Sin(t * 60f) * amplitude * k;
+                krakenVisual.localPosition = krakenRest + new Vector3(wobble, -Mathf.Abs(wobble) * .4f, 0f);
+                yield return null;
+            }
+
+            if (krakenVisual != null) krakenVisual.localPosition = krakenRest;
+            krakenShake = null;
+        }
+
         private void UpdateRhythmHud()
         {
+            ShakeKrakenOnHit();
             int secondsLeft = Mathf.CeilToInt(score.RemainingSeconds);
             Set(rhythmRoundText, string.IsNullOrEmpty(MatchNotice) ? "ROUND 3  ·  크라켄의 공격" : MatchNotice);
 
@@ -1054,9 +1268,9 @@ namespace Warriors
                 ? Korean(NetworkRhythmJudgement ?? string.Empty)
                 : Korean(rhythm.ActiveJudgement);
             Set(rhythmJudgementText, judgement);
-            // The chip is only a backing for the word, so it comes and goes with it rather
-            // than sitting on the lane as an empty box.
-            SetActive(rhythmJudgementChip, !string.IsNullOrEmpty(judgement));
+            // ⚠ 판정 글자의 배경 칩은 쓰지 않는다. 실측에서 화면 한가운데(크라켄 머리 위)에
+            //    글자 없는 금테 막대로만 보였다 — 글자는 다른 자리(아래 안내 줄)에 그려지기 때문.
+            SetActive(rhythmJudgementChip, false);
 
             if (NetworkRhythmActive)
             {
@@ -1138,7 +1352,9 @@ namespace Warriors
                 // 느낌은 결과가 눈에 안 보였기 때문이다. 내려오는 동안에는 색이 변하지 않는다.
                 // 남의 레인(네트워크)은 흐리고 작게 그려 내 노트가 먼저 읽히게 한다.
                 bool mine = !NetworkMatchActive || NetworkLocalLane < 0 || note.PlayerIndex == NetworkLocalLane;
-                float alpha = mine ? 1f : .38f;
+                // .38 은 남의 노트가 배경에 묻혀 "화살표가 안 보인다" 로 읽혔다(실측). 내 것과
+                // 구분만 되면 되니 .7 로 올린다. 크기 차(.92)가 여전히 내 것을 앞에 세운다.
+                float alpha = mine ? 1f : .7f;
 
                 // 멀리 있을수록 작다. 다만 스폰 지점에서도 무엇인지는 읽혀야 하므로
                 // 트랙 비율(0.60)을 그대로 쓰지 않고 0.80~1.30 으로 눌러 쓴다.
@@ -1190,16 +1406,28 @@ namespace Warriors
                 // 바깥에만 빛을 번지게 한다. 맞는 순간에는 더 세게 번진다.
                 DrawNoteGlow(i, note, burst, tone, noteScale, alpha, new Vector2(x, y));
 
-                // **위에서 내려온다는 방향감.** 노트 뒤(위쪽)에 아주 짧은 자국을 남긴다.
-                DrawNoteTrail(i, note, burst, tone, noteScale, alpha, new Vector2(x, y));
+                // ⚠ 잔상(위쪽 링 두 개)은 뺐다. 링 + 글로우 + 잔상 2 가 겹쳐 "동그라미가 너무
+                //    많아 헷갈린다" 는 실측 지적. 노트 하나 = 링 하나 + 기호 하나로 돌린다.
+                HideNoteTrail(i);
 
                 if (i < rhythmNoteGlyphs.Length && rhythmNoteGlyphs[i] != null)
                 {
+                    // 화살표 위, 키 글자 아래. 키는 화살표의 55% 로 작게 둬 주인공을 뺏지 않는다.
+                    // 둘 다 한 TMP 안에 넣어 노트 프리팹을 건드리지 않는다.
+                    // 키 글자(J/K/L)는 노트에서 뺐다 — 하단 카드가 이미 말해 주고, 두 줄이 되면
+                    // 링 안이 붐빈다. 노트는 기호 하나만 크게.
                     Set(rhythmNoteGlyphs[i], Glyph(note.Type));
 
                     // **기호가 이 노트의 주인공이다.** 링을 얇게 줄인 만큼 기호를 키우고 굵게 해
                     // 읽는 순서를 기호 → 링 → 트랙으로 돌린다.
                     rhythmNoteGlyphs[i].fontStyle = FontStyles.Bold;
+
+                    // ⚠ 두 줄이 되었으므로 글자 상자를 넘어간다. 줄바꿈을 막고 넘쳐도 그리게
+                    //    두지 않으면 아래 줄(키 글자)이 통째로 잘린다.
+                    rhythmNoteGlyphs[i].textWrappingMode = TextWrappingModes.NoWrap;
+                    rhythmNoteGlyphs[i].overflowMode = TextOverflowModes.Overflow;
+                    rhythmNoteGlyphs[i].alignment = TextAlignmentOptions.Center;
+                    rhythmNoteGlyphs[i].lineSpacing = -22f;   // 두 줄을 링 안으로 당겨 붙인다
 
                     if (rhythmNoteGlyphs[i].fontSize < GlyphFontSize)
                     {
@@ -1215,9 +1443,22 @@ namespace Warriors
                     // **기호도 링과 같은 색이다.** 흰색으로 두었더니 정작 제일 먼저 보는 것이
                     // 무채색이라 색으로 종류를 읽을 단서가 얇은 링 하나뿐이었다.
                     // 다만 바다 위에서 파랑이 묻히지 않도록 흰색을 조금 섞어 한 단계 밝게 쓴다.
+                    // 0.25 로는 파랑 노트가 바다색에 묻혔다. 색은 링이 이미 쥐고 있으므로
+                    // 기호는 <b>읽히는 것</b>이 먼저다 — 흰색 쪽으로 더 끌어올린다.
+                    // .55 는 밝은 하늘 위에서 흰색에 가까워 색이 죽었다. 외곽선(남색)이 있으니
+                    // 채도를 살려 링과 같은 색으로 읽히게 한다.
                     Color glyphTone = Color.Lerp(tone, Color.white, .25f);
                     glyphTone.a = alpha * fade;
                     rhythmNoteGlyphs[i].color = glyphTone;
+
+                    // **기호에 어두운 외곽선을 준다.** 밝은 색 기호가 밝은 하늘 위에 놓이면 색을
+                    // 아무리 조절해도 한쪽 배경에서는 묻힌다. 어두운 테가 있어야 하늘·모래·바다
+                    // 어디에서나 읽힌다. TMP SDF 외곽선이라 폰트 에셋을 건드리지 않는다.
+                    if (rhythmNoteGlyphs[i].outlineWidth < .2f)
+                    {
+                        rhythmNoteGlyphs[i].outlineWidth = .28f;
+                        rhythmNoteGlyphs[i].outlineColor = new Color32(6, 18, 40, 255);
+                    }
                 }
 
                 // **베인 노트는 조각이 되어 날아간다.** 늘어나며 옅어지기만 해서는
@@ -1690,6 +1931,9 @@ namespace Warriors
 
                     // ⚠ 글로우를 판정선보다 **먼저** 만든다. 형제 순서가 곧 그리는 순서라,
                     //    나중에 만들면 글로우가 선 위를 덮어 선이 흐려 보인다.
+                    // ⚠ MakeLanePiece 는 SetAsFirstSibling 이라 **먼저 만든 것이 위에** 그려진다.
+                    //    심지(core)가 판정선 위에 보여야 하므로 판정선보다 먼저 만든다.
+                    core = MakeLanePiece(parent, $"RhythmLane{index}Core"),
                     judgeGlow = MakeLanePiece(parent, $"RhythmLane{index}JudgeGlow"),
                     judge = MakeLanePiece(parent, $"RhythmLane{index}Judge"),
                     label = MakeLaneLabel(parent, $"RhythmLane{index}Label"),
@@ -1704,6 +1948,15 @@ namespace Warriors
                 if (shared != null && shared.enabled) shared.enabled = false;
             }
 
+            // ⚠ **프리팹 NoteTrack 의 자기 그림(150×560 · 회색 24%)과 옛 HitLine(180×5 · 금색)을 끈다.**
+            //    실측 스크린샷에서 크라켄 머리 위에 떠 있던 "회색 세로 사각형과 가로 선" 이 이것이다.
+            //    레인은 여기서 만드는 조각들이 그리므로 프리팹 그림은 남을 이유가 없다.
+            Image trackBack = parent.GetComponent<Image>();
+            if (trackBack != null && trackBack.enabled) trackBack.enabled = false;
+
+            Transform oldHitLine = parent.Find("HitLine");
+            if (oldHitLine != null && oldHitLine.gameObject.activeSelf) oldHitLine.gameObject.SetActive(false);
+
             laneCentres.Clear();
 
             for (int i = 0; i < laneVisuals.Count; i++)
@@ -1712,13 +1965,16 @@ namespace Warriors
                 // 쓰러진 사람의 줄은 지운다. 그 레인에는 노트가 나오지 않으므로(서버가 막는다)
                 // 빈 트랙만 남으면 고장난 것처럼 보인다.
                 bool down = (NetworkDownLanes & (1 << i)) != 0;
-                bool used = i < playerCount && !down;
+                // ⚠ 쓰러진 사람의 레인도 **남긴다(흐리게).** 지우면 남은 레인 하나가 한쪽에 떠
+                //    "누구 줄인지 모르는 큰 도형" 이 됐다(실측). 구조는 두 줄로 고정하고 상태만 흐리게.
+                bool used = i < playerCount;
 
                 lane.fill.gameObject.SetActive(used);
                 lane.leftEdge.gameObject.SetActive(used);
                 lane.rightEdge.gameObject.SetActive(used);
                 lane.judgeGlow.gameObject.SetActive(used);
                 lane.judge.gameObject.SetActive(used);
+                lane.core.gameObject.SetActive(used);
                 lane.label.gameObject.SetActive(used);
                 foreach (RectTransform column in lane.columns) column.gameObject.SetActive(used);
 
@@ -1729,6 +1985,7 @@ namespace Warriors
 
                 bool mine = !NetworkMatchActive || NetworkLocalLane < 0 || i == NetworkLocalLane;
                 float dim = mine ? 1f : .55f;
+                if (down) dim *= .35f;
 
                 float bottom = TrackHalfWidthBottom;
                 float top = bottom * TrackTopScale;
@@ -1744,27 +2001,32 @@ namespace Warriors
                 // **트랙보다 노트가 먼저 보여야 한다.** 예전 값(바닥 .10 · 가장자리 .85)은
                 // 청록/금색 외곽선이 또렷해 화면에서 제일 먼저 눈에 들어왔고, 개발용 와이어프레임처럼
                 // 보였다. 둘 다 크게 낮춰 트랙은 "길이 있다" 정도만 거들게 한다.
-                Color floorColor = tint;
-                floorColor.a = .05f * dim;
+                // ⚠ **밝은 해변·하늘 배경에서 다시 눌러졌다.** 트랙 색 자체(TrackTint)를
+                //    청회색 파스텔에서 진하게 바꾼 뒤에도, 여기 알파들이 예전 값(.05/.52/.09)
+                //    그대로라 화살표·선이 여전히 흐린 자국으로만 보였다. 실측 스크린샷으로
+                //    확인하고 한 번 더 올린다.
+                // 바닥은 사람 색이 아니라 **HUD 남색 유리**다. 주황/청록 면이 넓게 깔리면 보스·배경과
+                // 섞여 "색 덩어리" 로 보였다(실측). 어두운 반투명 기둥이면 HUD 판과 같은 계열로 읽힌다.
+                Color floorColor = new Color(.02f, .06f, .14f, .30f * dim);
 
-                Paint(lane.fill, new Vector2(top * 2f, spawnY - hitLineY),
+                // 바닥은 **사다리꼴 스프라이트**를 아래 폭 × 높이로 깐다. 스프라이트의 위 폭 비율이
+                // TrackTopScale 이라 어떤 크기로 늘려도 가장자리 선(같은 비율)과 정확히 겹친다.
+                PaintSprite(lane.fill, TrapezoidSprite(), new Vector2(bottom * 2f, spawnY - hitLineY),
                     new Vector2(x, (spawnY + hitLineY) * .5f), floorColor);
 
                 // **양쪽 가장자리 — 위가 좁고 아래가 넓게 기울인다.** 이 기울기가 원근을 만든다.
-                //
-                // 알파를 .30 → .52, 두께를 4 → 6 으로 올린다. 밝은 해변·바다 위에서 .30 은
-                // 배경에 그대로 녹았다. 가운데(바닥)는 .05 그대로 두어 <b>어두운 사각형이
-                // 생기지 않게</b> 한다 — 살리는 것은 경계선뿐이다.
-                Color edgeColor = tint;
-                edgeColor.a = .52f * dim;
+                // 가장자리는 사람 색을 **흰색 쪽으로 반쯤 섞어** 얇게. 진한 주황 두 줄이 "주황 프레임
+                // 덩어리" 로 읽혔다(실측). 색은 판정선이 쥐고, 가장자리는 경계만 알린다.
+                Color edgeColor = Color.Lerp(tint, Color.white, .45f);
+                edgeColor.a = .75f * dim;
 
-                PaintSegment(lane.leftEdge, x - top, spawnY, x - bottom, hitLineY, 6f, edgeColor);
-                PaintSegment(lane.rightEdge, x + top, spawnY, x + bottom, hitLineY, 6f, edgeColor);
+                PaintSegment(lane.leftEdge, x - top, spawnY, x - bottom, hitLineY, 5f, edgeColor);
+                PaintSegment(lane.rightEdge, x + top, spawnY, x + bottom, hitLineY, 5f, edgeColor);
 
                 // 트랙을 세로로 나누는 **옅은 구분선 2줄.** 길이 흐르는 방향만 거들 뿐,
                 // 공격 종류와는 상관이 없다 — 종류는 노트의 색과 기호가 말한다.
-                Color divider = tint;
-                divider.a = .09f * dim;
+                Color divider = Color.white;
+                divider.a = .14f * dim;
 
                 for (int c = 0; c < lane.columns.Length; c++)
                 {
@@ -1785,7 +2047,10 @@ namespace Warriors
                 // 파랑·빨강·노랑이 곧 공격 종류라, 2P 의 금색 판정선이 "찌르기(노랑)" 와
                 // 같은 계열로 읽혔다. 화면에서 <b>색의 의미는 공격 종류 하나</b>여야 한다.
                 // 누가 누구 줄인지는 좌우 위치가 이미 말해 준다.
-                Color judgeColor = JudgeLineColor;
+                // 판정선은 **그 레인의 색**이다. 실측 지적 — 레인이 주황인데 판정선이 청록이면
+                // 어느 줄의 선인지 한 번 더 읽어야 한다. 공격 색(파랑·빨강·노랑)과 겹치지 않게
+                // 레인 색 자체를 청록·주황으로 두었으므로 판정선이 따라가도 뜻이 안 섞인다.
+                Color judgeColor = tint;
                 judgeColor.a = 1f * dim;
 
                 // **정타가 나면 그 줄의 판정선만 번쩍인다.** 노트가 터지는 것은 노트가 있던
@@ -1794,17 +2059,19 @@ namespace Warriors
                 // 굵기를 14 → 24 로 올린다(정타 24 → 38). 실측으로 판정선 폭은 434px 이고
                 // 트랙 하단 폭 414px 의 105% 라 폭은 이미 충분했다 — 부족했던 것은 <b>두께</b>다.
                 // 1080p 에서 14px 은 밝은 바다 위에서 선이라기보다 흐린 자국으로 보였다.
-                float lineHeight = 24f;
-                float glowHeight = 46f;
-                float glowAlpha = .38f;
+                // 24px 막대 + 46 글로우는 넓은 레인 바닥과 합쳐져 "큰 베기 잔상" 으로 읽혔다(실측).
+                // 판정선은 **짧고 얇고 또렷**하게 — 14px 막대, 30 글로우. 정타 때만 잠깐 굵어진다.
+                float lineHeight = 14f;
+                float glowHeight = 30f;
+                float glowAlpha = .30f;
 
                 if (NetworkRhythmPulseLane == i)
                 {
                     judgeColor = Color.Lerp(judgeColor, Color.white, .75f);
                     judgeColor.a = 1f;
-                    lineHeight = 38f;
-                    glowHeight = 86f;
-                    glowAlpha = .75f;
+                    lineHeight = 22f;
+                    glowHeight = 52f;
+                    glowAlpha = .6f;
                 }
 
                 // 폭은 트랙 하단의 95%. 예전에는 +20px 이라 트랙보다 넓은 105% 였고,
@@ -1815,13 +2082,20 @@ namespace Warriors
 
                 // **글로우를 선 뒤에 먼저 깐다.** 어두운 패널을 까는 대신 선만 빛나게 하는 방법이다.
                 // 위아래로 흐려지는 띠라 배경을 가리지 않으면서 선이 떠 보인다.
-                Color glowColor = JudgeLineColor;
+                Color glowColor = tint;
                 glowColor.a = glowAlpha * dim;
 
                 PaintSprite(lane.judgeGlow, GlowBarSprite(),
                     new Vector2(lineWidth + 40f, glowHeight), new Vector2(x, hitLineY), glowColor);
 
-                Paint(lane.judge, new Vector2(lineWidth, lineHeight), new Vector2(x, hitLineY), judgeColor);
+                // **판정선은 둥근 막대 + 밝은 심지.** 납작한 단색 사각형은 "그림판으로 그은 선" 으로
+                // 보였다(실측 지적). 양 끝을 둥글게 하고 가운데에 흰 심지를 넣으면 레인의 바닥을
+                // 이루는 발광 막대로 읽힌다. 트랙 가장자리 선이 이 막대의 중심선에서 끝나 한 몸이다.
+                PaintSprite(lane.judge, PillSprite(), new Vector2(lineWidth, lineHeight), new Vector2(x, hitLineY), judgeColor);
+
+                Color coreColor = Color.Lerp(judgeColor, Color.white, .85f);
+                coreColor.a = (NetworkRhythmPulseLane == i ? 1f : .9f) * dim;
+                Paint(lane.core, new Vector2(lineWidth * .94f, 4f), new Vector2(x, hitLineY), coreColor);
 
                 // "P1" · "P2" 글자는 두지 않는다. 캐릭터가 좌우에 서 있고 트랙도 좌우로 갈려 있어
                 // 글자로 한 번 더 알려 줄 이유가 없다. 트랙 색이 이미 두 사람을 구분한다.
@@ -1871,17 +2145,23 @@ namespace Warriors
         /// 공격 종류 하나여야 한다. 사람 구분은 좌우 위치가 이미 하고 있으므로,
         /// 트랙은 옅은 청회색 한 가지로 두고 2P 만 아주 살짝 따뜻하게 기울인다.
         /// </summary>
+        // ⚠ **파스텔 톤이 밝은 해변·하늘 배경에 묻혔다.** 원래 값(.62,.78,.92 / .78,.80,.88)은
+        //    거의 흰색에 가까워 실측 스크린샷에서 트랙이 거의 안 보였다. 채도를 크게 올린다 —
+        //    1P 는 진한 청록, 2P 는 진한 호박색으로 배경과 확실히 갈린다.
         private static Color TrackTint(int lane) => lane == 0
-            ? new Color(.62f, .78f, .92f, 1f)
-            : new Color(.78f, .80f, .88f, 1f);
+            ? new Color(.05f, .55f, .85f, 1f)
+            : new Color(.95f, .60f, .10f, 1f);
 
         /// <summary>
         /// 판정선 색. <b>두 줄 모두 같다.</b>
         ///
         /// 공격 종류(파랑·빨강·노랑)와 섞이지 않는 청록빛 흰색이다.
         /// 화면에서 색이 뜻하는 것은 공격 종류 하나여야 한다.
+        ///
+        /// ⚠ 원래 값(.82,.96,1)은 거의 흰색이라 밝은 하늘·모래와 대비가 없었다.
+        ///    같은 색 계열을 유지하되 훨씬 진하게 눌러 확실히 도드라지게 한다.
         /// </summary>
-        private static readonly Color JudgeLineColor = new(.82f, .96f, 1f, 1f);
+        private static readonly Color JudgeLineColor = new(.0f, .65f, .78f, 1f);
 
         /// <summary>노트에 쓰는 **가운데가 완전히 빈 링**. 한 번 만들어 계속 쓴다.</summary>
         private static Sprite ringSprite;
@@ -1996,6 +2276,82 @@ namespace Warriors
         /// 그래서 픽셀을 직접 그린다. 중심에서의 거리가 <c>Inner</c> 보다 가까우면 알파가 0 이므로
         /// 가운데로 뒤의 크라켄과 바다가 그대로 비친다. 색은 링과 기호만 갖는다.
         /// </summary>
+        /// <summary>
+        /// 아래가 넓고 위가 <see cref="TrackTopScale"/> 배로 좁은 흰 사다리꼴(256×256). 레인 바닥용.
+        /// 가로·세로로 따로 늘려도 "위 폭 / 아래 폭" 비율은 그대로라 가장자리 선과 늘 일치한다.
+        /// </summary>
+        private static Sprite TrapezoidSprite()
+        {
+            if (trapezoidSprite != null) return trapezoidSprite;
+
+            const int S = 256;
+            Texture2D texture = new Texture2D(S, S, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            Color32[] pixels = new Color32[S * S];
+            float cx = S * .5f - .5f;
+
+            for (int y = 0; y < S; y++)
+            {
+                // y=0 이 아래(넓은 쪽). 위로 갈수록 반폭이 TrackTopScale 배까지 줄어든다.
+                float half = cx * Mathf.Lerp(1f, TrackTopScale, y / (float)(S - 1));
+
+                for (int x = 0; x < S; x++)
+                {
+                    float a = Mathf.Clamp01(half - Mathf.Abs(x - cx) + .5f);   // 가장자리 1px 만 부드럽게
+                    pixels[y * S + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+
+            trapezoidSprite = Sprite.Create(texture, new Rect(0f, 0f, S, S), new Vector2(.5f, .5f), 100f);
+            trapezoidSprite.name = "WarriorsLaneTrapezoid";
+            return trapezoidSprite;
+        }
+
+        private static Sprite trapezoidSprite;
+
+        /// <summary>양 끝이 반원인 흰 막대(64×32). 판정선에 쓴다. Simple 로 늘려도 끝이 둥글게 남는다.</summary>
+        private static Sprite PillSprite()
+        {
+            if (pillSprite != null) return pillSprite;
+
+            const int W = 64, H = 32;
+            Texture2D texture = new Texture2D(W, H, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            Color32[] pixels = new Color32[W * H];
+            float r = H * .5f - .5f;
+
+            for (int y = 0; y < H; y++)
+            {
+                for (int x = 0; x < W; x++)
+                {
+                    float cx = Mathf.Clamp(x, r, W - 1 - r);
+                    float d = Vector2.Distance(new Vector2(x, y), new Vector2(cx, r));
+                    float a = Mathf.Clamp01(r + .5f - d);
+                    pixels[y * W + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+
+            pillSprite = Sprite.Create(texture, new Rect(0f, 0f, W, H), new Vector2(.5f, .5f), 100f);
+            pillSprite.name = "WarriorsJudgePill";
+            return pillSprite;
+        }
+
+        private static Sprite pillSprite;
+
         private static Sprite RingSprite()
         {
             if (ringSprite != null) return ringSprite;
@@ -2012,7 +2368,9 @@ namespace Warriors
             // 화면에서 노트는 90px × 0.80~1.30 = 72~117px 이므로 링은 **약 4~6.4px** 로 찍힌다.
             // 얇아진 만큼 색이 죽지 않도록 채도와 알파를 아래 색 값에서 최대로 두었다.
             // 안쪽(반지름 55 이내)은 여전히 **전부 알파 0** 이다.
-            const float Inner = 55f;
+            // 7px(55) 은 실측에서 4~6px 로 찍혀 밝은 배경에 사라졐다. 10px(52) — 기호보다는
+            // 여전히 얇지만 링으로는 읽히는 두께다. 26px 로 갔다가 되돌린 이력이 있으니 더 올리지 말 것.
+            const float Inner = 48f;   // 14px — 실측에서 10px 도 연하게 보였다. 잔상을 뺐으니 링은 더 굵어도 된다.
 
             Texture2D texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
             {
@@ -2313,6 +2671,30 @@ namespace Warriors
         };
 
         /// <summary>
+        /// 이 공격을 내는 <b>키 글자</b>. 노트 위에 함께 찍는다.
+        ///
+        /// <b>왜 노트에 키를 적는가.</b> 화살표만 있으면 3라운드에서 읽는 순서가
+        /// <c>↔ → "가로베기구나" → "가로베기는 J 였지"</c> 로 <b>세 단계</b>다. 노트가
+        /// 판정선까지 내려오는 시간은 1초 안쪽이라 그 사이에 다 거치지 못하고,
+        /// 아래 카드로 눈을 내렸다 오면 이미 지나가 있다. 실제로 "헷갈리고 잘 안 보인다" 는
+        /// 지적을 받은 부분이 여기다.
+        ///
+        /// 키를 노트에 같이 얹으면 한 단계로 줄어든다. 화살표는 그대로 두는데,
+        /// IoT 컨트롤러가 붙으면 <b>키가 아니라 동작</b>으로 내게 되고 그때 읽어야 하는 것은
+        /// 다시 화살표이기 때문이다. 둘 다 필요하다.
+        ///
+        /// ⚠ 여기 값은 <c>IOT_INPUT.md</c> 1장 · <c>KeyboardPlayerController</c> 의
+        ///    <c>horizontalMotion / verticalMotion / thrustMotion</c> 과 같아야 한다.
+        ///    한쪽만 바꾸면 화면이 틀린 키를 가리킨다.
+        /// </summary>
+        private static string KeyOf(WarriorsAttackDirection type) => type switch
+        {
+            WarriorsAttackDirection.HorizontalSlash => "J",
+            WarriorsAttackDirection.VerticalSlash => "K",
+            _ => "L"
+        };
+
+        /// <summary>
         /// 노트가 깨질 때 <b>어느 쪽으로</b> 늘어나는가. 공격 종류마다 다르다.
         ///
         ///   ↔ 가로베기  좌우로 찢어진다 (가로 1.9배 · 세로 0.45배)
@@ -2367,6 +2749,39 @@ namespace Warriors
         /// 들어오면 칸을 넘쳐 카드 밖으로 글자가 샌다. 그때만 자동 축소를 켜고, 시계로
         /// 돌아오면 원래 크기로 되돌린다.
         /// </summary>
+        /// <summary>
+        /// **안내 패널(Objective) 너비를 문장 길이에 맞춘다.**
+        ///
+        /// ⚠ 프리팹에 박힌 값(408px)은 "가장 긴 문장" 기준으로 감으로 잡은 고정폭이었다.
+        ///    짧은 문장이 올 때는 뒤에 빈 박스가 그대로 남고, 그렇다고 줄일 근거도 없었다 —
+        ///    실측(TMP <c>GetPreferredValues</c>)도 없이 숫자만 조정하면 다음 문장에서 또 어긋난다.
+        ///
+        /// 그래서 매번 <b>이 문장의 실제 폭</b>을 재서 패딩만 더해 쓴다. 최소/최대 폭은
+        /// 화면 밖으로 나가거나(너무 넓음) 글자가 테두리에 닿는(너무 좁음) 것만 막는다.
+        /// </summary>
+        private void FitObjectivePanel(string text)
+        {
+            if (objectiveText == null || objectiveRoot == null) return;
+
+            RectTransform panel = objectiveRoot.transform as RectTransform;
+            if (panel == null) return;
+
+            // ⚠ 좌우 28 씩(56)은 실측에서 "글자보다 칸이 훨씬 길다" 로 보였다. 회색 판 테가 5px 라
+            //    글자 끝에서 테까지 14px 면 넉넉하다. 폭은 preferredWidth(자동 크기 최대값 기준으로
+            //    실제보다 크게 나옴)가 아니라 **실제 그려진 글자 상자**로 잰다.
+            const float horizontalPadding = 28f;
+            const float minWidth = 160f;
+            const float maxWidth = 520f;
+
+            objectiveText.ForceMeshUpdate();
+            float drawn = objectiveText.textBounds.size.x;
+            if (drawn <= 0f) drawn = objectiveText.GetPreferredValues(text ?? string.Empty).x;
+
+            float width = Mathf.Clamp(drawn + horizontalPadding, minWidth, maxWidth);
+
+            panel.sizeDelta = new Vector2(width, panel.sizeDelta.y);
+        }
+
         private static void FitLongText(TMP_Text target, bool longText)
         {
             if (target == null || target.enableAutoSizing == longText) return;

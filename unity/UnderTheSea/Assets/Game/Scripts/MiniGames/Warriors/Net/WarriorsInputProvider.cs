@@ -172,8 +172,16 @@ namespace Warriors.Net
                 : WarriorsAttackDirection.Thrust, 1f);
         }
 
+        /// <summary>
+        /// 이 PC 의 사람이 방금 휘두른 공격. HUD 가 해당 카드에 임팩트를 주는 데 쓴다.
+        /// 서버 판정과 무관한 **입력 순간**의 신호라 클라이언트에서 바로 터진다.
+        /// </summary>
+        public static event System.Action<WarriorsAttackDirection> LocalSwing;
+
         private void PushSwing(WarriorsAttackDirection direction, float strength)
         {
+            LocalSwing?.Invoke(direction);
+
             swingSerial++;
             if (swingSerial == 0) swingSerial = 1;   // 0 은 "아직 없음" 이라 건너뛴다
 

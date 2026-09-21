@@ -66,6 +66,7 @@ namespace Warriors
             public RenderTexture Texture;
             public string Signature;
             public int StudioIndex;
+            public Camera Camera;
         }
 
         private readonly Dictionary<int, Shot> shots = new Dictionary<int, Shot>();
@@ -77,6 +78,25 @@ namespace Warriors
 
         /// <summary>촬영용 레이어 이름. 이 레이어만 사진기가 본다.</summary>
         public const string PortraitLayerName = "Portrait";
+
+        /// <summary>
+        /// ⚠ <b>데디케이티드 서버에서는 절대 돌면 안 된다.</b>
+        ///
+        /// 서버 빌드는 "Dedicated Server Optimizations" 로 셰이더를 통째로 뺀다. 그런데 이
+        /// 컴포넌트는 화면이 있든 없든 씬에 그대로 있어 매 프레임 새 카메라를 만들고
+        /// <c>cam.Render()</c> 를 부르려 했다. 셰이더가 없는 채로 URP 파이프라인을 새로
+        /// 만들려다 <c>NullReferenceException</c> 이 나고, 이게 <b>매 프레임 반복</b>되면서
+        /// 서버 틱이 밀려 실제로 두 사람이 게임 도중 튕겼다 (로그에 32번 연속 스택트레이스).
+        ///
+        /// 서버에는 볼 사람이 없으니 애초에 찍을 이유도 없다.
+        /// </summary>
+        private void Awake()
+        {
+            if (FusionLaunchArguments.IsDedicatedServerProcess())
+            {
+                enabled = false;
+            }
+        }
 
         private void Update()
         {
@@ -122,13 +142,55 @@ namespace Warriors
             Transform body = FindBody(who.transform);
             if (body == null) return;
 
-            GameObject stand = Instantiate(body.gameObject);
-            stand.name = $"{id + 1}P 사진용";
+            // ⚠ **찍기 직전에 죽었던 카메라를 지운다.** 예전에는 다시 찍을 때마다 카메라
+            //    오브젝트를 새로 만들고 옛 것은 그대로 두었다. 외형이 바뀔 때마다(장비 갱신,
+            //    늦은 접속 등) 다시 찍으므로 죽은 카메라가 계속 쌓인다.
+            // ⚠ 아직 아무 렌더러도 안 보이면 찍지 않는다. 진단 로그로 "렌더러 보임 0 · 숨김 1" 인
+            //    채 찍힌 빈 사진이 확인됐다 — 외형 준비 신호(AppearanceReady)와 실제
+            //    forceRenderingOff 해제 사이에 한 프레임 이상 틈이 있다. 다음 Update 에 다시 온다.
+            if (!AnyVisible(who.transform)) return;
+
+            if (shots.TryGetValue(id, out Shot stale) && stale.Camera != null)
+            {
+                // ⚠ targetTexture 를 문 채 카메라를 지우면 RT 가 같이 풀린다(진단: "텍스처가 없습니다").
+                //    먼저 떼고 지운다.
+                stale.Camera.targetTexture = null;
+                Destroy(stale.Camera.gameObject);
+            }
+
+            // **몸 하나가 아니라 렌더러가 있는 자식 트리 전부**를 복제한다.
+            //
+            // 진단 로그에서 복제본 렌더러가 늘 1개였다 — 모자·머리 같은 장비 파츠가 몸(SkinnedMesh)
+            // 과 다른 자식 밑에 붙어 있어서 예전 FindBody(몸 하나)로는 사진에 안 들어왔다.
+            // 그래서 뜬 얼굴도 회색 민머리였다. 네트워크 부품이 달린 루트는 복제하지 않고,
+            // 루트의 직계 자식 중 렌더러를 가진 것만 같은 자리에 복제한다.
+            GameObject stand = new GameObject($"{id + 1}P 사진용");
             stand.transform.SetParent(studio, false);
             stand.transform.localPosition = new Vector3(id * apart, 0f, 0f);
             stand.transform.localRotation = Quaternion.Euler(0f, turn, 0f);
-            stand.transform.localScale = body.lossyScale;
+            stand.transform.localScale = who.transform.lossyScale;
 
+            // ⚠ **자식을 전부 복제하고 뼈를 다시 잇는다.**
+            //
+            //    캐릭터는 뼈대(Armature)와 메시가 서로 다른 직계 자식이다. 메시 자식만 복제하면
+            //    복제된 SkinnedMeshRenderer 의 bones · rootBone 이 **원본 뼈대(y≈0)** 를 그대로
+            //    가리켜, 메시가 촬영장이 아니라 원래 자리에 그려진다. 진단 로그의 "키 5002m ·
+            //    카메라 (940, -1497, 2582)" 가 정확히 그 증상이다(두 번 반복). 배 게임은 둘을
+            //    함께 담은 "Body" 래퍼 하나를 복제해서 이 문제가 없었다.
+            Dictionary<Transform, Transform> twin = new Dictionary<Transform, Transform>();
+
+            foreach (Transform child in who.transform)
+            {
+                GameObject copy = Instantiate(child.gameObject, stand.transform);
+                copy.transform.localPosition = child.localPosition;
+                copy.transform.localRotation = child.localRotation;
+                copy.transform.localScale = child.localScale;
+
+                PairUp(child, copy.transform, twin);
+                CopyVisibility(child.gameObject, copy);
+            }
+
+            RebindBones(who.transform, stand.transform, twin);
             StripAndLayer(stand);
 
             Bounds box = Measure(stand);
@@ -180,13 +242,62 @@ namespace Warriors
                 had.Texture = shot;
                 had.Signature = signature;
                 had.StudioIndex = id;
+                had.Camera = cam;
             }
             else
             {
-                shots[id] = new Shot { Texture = shot, Signature = signature, StudioIndex = id };
+                shots[id] = new Shot { Texture = shot, Signature = signature, StudioIndex = id, Camera = cam };
             }
 
-            Debug.Log($"[무쌍 초상] {id + 1}P 를 찍었습니다.", this);
+            // 진단: 무엇을 찍었고 실제로 무엇이 찍혔는가. 프로필이 비어 보일 때 로그만으로 갈라낸다.
+            int drawn = 0, hidden = 0;
+            foreach (Renderer r in stand.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r.forceRenderingOff || !r.enabled || !r.gameObject.activeInHierarchy) hidden++; else drawn++;
+            }
+
+            Debug.Log(
+                $"[무쌍 초상] {id + 1}P 를 찍었습니다. 렌더러 보임 {drawn} · 숨김 {hidden} · " +
+                $"키 {tall:F2}m · 카메라 {cam.transform.position} → {lookAt} · 렌더요청 {RenderPipeline.SupportsRenderRequest(cam, request)}",
+                this);
+
+            // 픽셀 읽기(ReadPixels)는 조사용이다. 개발 빌드에서만 돈다.
+            if (Debug.isDebugBuild) StartCoroutine(InspectShot(id, shot));
+        }
+
+        /// <summary>
+        /// 다음 프레임에 <b>실제로 그려진 픽셀</b>을 읽어 로그로 남긴다. 조사용.
+        /// 불투명 픽셀 비율이 0 이면 카메라가 아무것도 못 봤고, 밝기가 0 에 가까우면 빛이 없다.
+        /// </summary>
+        private System.Collections.IEnumerator InspectShot(int id, RenderTexture shot)
+        {
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            if (shot == null || !shot.IsCreated()) { Debug.LogWarning($"[무쌍 초상] {id + 1}P 텍스처가 없습니다."); yield break; }
+
+            RenderTexture was = RenderTexture.active;
+            Texture2D probe = new Texture2D(shot.width, shot.height, TextureFormat.RGBA32, false);
+            RenderTexture.active = shot;
+            probe.ReadPixels(new Rect(0, 0, shot.width, shot.height), 0, 0);
+            probe.Apply(false);
+            RenderTexture.active = was;
+
+            Color32[] px = probe.GetPixels32();
+            int opaque = 0; float sum = 0f;
+            foreach (Color32 c in px)
+            {
+                if (c.a > 128) { opaque++; sum += (c.r + c.g + c.b) / (3f * 255f); }
+            }
+
+            float coverage = opaque / (float)px.Length;
+            float brightness = opaque > 0 ? sum / opaque : 0f;
+
+            Debug.Log(
+                $"[무쌍 초상 진단] {id + 1}P — 불투명 {coverage:P1} · 평균 밝기 {brightness:F2} · " +
+                $"HUD 칸 {(FaceOf(id) != null ? "찾음" : "없음")}", this);
+
+            Destroy(probe);
         }
 
         /// <summary>
@@ -281,6 +392,29 @@ namespace Warriors
 
             studio = new GameObject("무쌍 초상 촬영장").transform;
             studio.position = studioAt;
+
+            // ⚠ **여기는 본 씬의 빛이 안 닿는다.** 메인 디렉셔널 라이트는 위치 없이
+            //    방향만 있어 이론상 어디든 비추지만, 라이트 프로브(주변광)는 <c>studioAt</c>
+            //    처럼 아무 프로브도 없는 먼 곳에서는 완전히 검은 값을 준다. 실측 스크린샷에서
+            //    사진이 실루엣처럼 어둡게 나온 것이 이 때문이다 — 직사광만 겨우 받고
+            //    주변광이 하나도 없었다. 촬영장 전용 라이트를 하나 심어 항상 같은 밝기로
+            //    찍히게 한다. Portrait 레이어만 비추므로 본 게임 화면에는 영향이 없다.
+            // ⚠ 여기 Directional 라이트를 두었다가 **게임 화면이 밝아졌다.** URP 는 라이트의
+            //    cullingMask 를 보지 않고, 방향광은 위치가 없어 씬 전체를 비춘다.
+            //    → Point 라이트. 사거리 40m 는 y=-5000 촬영장에서 게임 무대까지 절대 닿지 않는다.
+            //
+            // ⚠ **촬영 순간에 만들면 안 된다.** 사진기와 같은 프레임에 붙인 램프는 그 렌더 요청의
+            //    컬링에 아직 안 들어가 사진이 **검게** 찍혔다(실측). ShipCoop 처럼 촬영장을 세울 때
+            //    미리 만들어 둔다. 두 자리(0 · apart) 사이 위쪽 앞에서 비춰 둘 다 얼굴이 밝다.
+            Light lamp = new GameObject("촬영 조명").AddComponent<Light>();
+            lamp.transform.SetParent(studio, false);
+            lamp.transform.localPosition = new Vector3(apart * 0.5f, 3f, 3f);
+            lamp.type = LightType.Point;
+            lamp.range = apart * 2f;
+            lamp.intensity = 3.5f;
+            lamp.color = Color.white;
+            lamp.shadows = LightShadows.None;
+
             return true;
         }
 
@@ -288,6 +422,71 @@ namespace Warriors
         /// 캐릭터 모델. 무쌍은 <c>"Body"</c> 래퍼가 없어 <c>SkinnedMeshRenderer</c> 로 찾는다.
         /// 여럿이면 <b>가장 위쪽 공통 부모</b>를 쓴다 — 하나만 복사하면 몸이 조각난다.
         /// </summary>
+        /// <summary>원본 트리와 복제 트리를 같은 순서로 걸어가며 짝을 기록한다.</summary>
+        private static void PairUp(Transform origin, Transform copy, Dictionary<Transform, Transform> twin)
+        {
+            twin[origin] = copy;
+
+            int n = Mathf.Min(origin.childCount, copy.childCount);
+            for (int i = 0; i < n; i++) PairUp(origin.GetChild(i), copy.GetChild(i), twin);
+        }
+
+        /// <summary>복제된 스킨 메시의 뼈 참조를 복제된 뼈대로 옮긴다. 짝이 없는 뼈는 그대로 둔다.</summary>
+        private static void RebindBones(Transform origin, Transform copy, Dictionary<Transform, Transform> twin)
+        {
+            SkinnedMeshRenderer[] from = origin.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            SkinnedMeshRenderer[] to = copy.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+
+            if (from.Length != to.Length)
+            {
+                Debug.LogWarning($"[무쌍 초상] 스킨 메시 수가 다릅니다. 원본 {from.Length} · 복제 {to.Length}");
+                return;
+            }
+
+            for (int i = 0; i < from.Length; i++)
+            {
+                Transform[] bones = from[i].bones;
+                Transform[] moved = new Transform[bones.Length];
+
+                for (int b = 0; b < bones.Length; b++)
+                {
+                    moved[b] = bones[b] != null && twin.TryGetValue(bones[b], out Transform t) ? t : bones[b];
+                }
+
+                to[i].bones = moved;
+
+                if (from[i].rootBone != null && twin.TryGetValue(from[i].rootBone, out Transform root))
+                {
+                    to[i].rootBone = root;
+                }
+            }
+        }
+
+        /// <summary>몸을 그리는 렌더러인가. 파티클 · 트레일 · 라인은 사진 바운드를 오염시키므로 제외.</summary>
+        private static bool IsBodyRenderer(Renderer r) =>
+            r is SkinnedMeshRenderer || r is MeshRenderer;
+
+        private static bool HasBodyRenderer(Transform t)
+        {
+            foreach (Renderer r in t.GetComponentsInChildren<Renderer>(true))
+            {
+                if (IsBodyRenderer(r)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>지금 이 사람에게 실제로 그려지는 렌더러가 하나라도 있는가.</summary>
+        private static bool AnyVisible(Transform who)
+        {
+            foreach (Renderer r in who.GetComponentsInChildren<Renderer>(false))
+            {
+                if (r != null && r.enabled && !r.forceRenderingOff) return true;
+            }
+
+            return false;
+        }
+
         private static Transform FindBody(Transform who)
         {
             SkinnedMeshRenderer skin = who.GetComponentInChildren<SkinnedMeshRenderer>(false);
@@ -326,23 +525,80 @@ namespace Warriors
                 body.enabled = false;
             }
 
+            // 머리 위 이름표 같은 월드 캔버스도 사진에 들어오면 안 된다.
+            foreach (Canvas canvas in stand.GetComponentsInChildren<Canvas>(true))
+            {
+                canvas.enabled = false;
+            }
+
+            // 파티클 · 트레일 · 라인은 사진에 들어오면 안 된다 (바운드는 Measure 가 이미 뺀다).
+            foreach (ParticleSystem ps in stand.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+
+            foreach (Renderer r in stand.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!IsBodyRenderer(r)) r.enabled = false;
+            }
+
             foreach (Transform t in stand.GetComponentsInChildren<Transform>(true))
             {
                 t.gameObject.layer = layer;
             }
         }
 
+        /// <summary>
+        /// 원본이 무엇을 보이고 무엇을 감췼는지 <b>복제본에 그대로 옮긴다.</b>
+        ///
+        /// ⚠ <b>이것이 빠져서 프로필이 기본 얼굴 덩어리로 찍혔다.</b>
+        ///    <c>CharacterAppearanceApplier.RefreshVisibility</c> 는 프리팹 기본 얼굴과
+        ///    안 입은 슬롯 파츠를 <see cref="Renderer.forceRenderingOff"/> 로 감춘다
+        ///    (<c>enabled</c> 는 Fusion 의 RunnerVisibilityLink 가 되돌려 놓아서 못 쓴다).
+        ///    <c>forceRenderingOff</c> 는 실행 중에만 있는 값이라 <c>Instantiate</c> 가 복사하지
+        ///    않는다. 그래서 복제본은 기본 얼굴 + 모든 슬롯 파츠 + 입은 파츠가 <b>전부 켜진
+        ///    채</b> 찍혔다. 배 게임(<c>ShipCoopPortrait.CopyVisibility</c>)과 같은 방식으로 맞춘다.
+        ///
+        /// 두 트리는 같은 프리팹에서 나왔으므로 훑는 순서가 같다. 그래도 길이는 확인한다.
+        /// </summary>
+        private static void CopyVisibility(GameObject origin, GameObject copy)
+        {
+            Renderer[] from = origin.GetComponentsInChildren<Renderer>(true);
+            Renderer[] to = copy.GetComponentsInChildren<Renderer>(true);
+
+            if (from.Length != to.Length)
+            {
+                Debug.LogWarning(
+                    $"[무쌍 초상] 원본({from.Length})과 사진용 복제본({to.Length})의 렌더러 수가 " +
+                    "다릅니다. 가시성을 옮기지 못했습니다.");
+                return;
+            }
+
+            for (int i = 0; i < from.Length; i++)
+            {
+                if (from[i] != null && to[i] != null)
+                {
+                    to[i].forceRenderingOff = from[i].forceRenderingOff;
+                    to[i].enabled = from[i].enabled;
+                }
+            }
+        }
+
         private static Bounds Measure(GameObject stand)
         {
-            Renderer[] draws = stand.GetComponentsInChildren<Renderer>(false);
+            // 몸 렌더러만, 그리고 실제로 그려지는 것만 잰다. 감춰진 기본 얼굴 등은 바운드에서도 뺀다.
+            Bounds box = default;
+            bool any = false;
 
-            if (draws.Length == 0) return new Bounds(stand.transform.position, Vector3.zero);
+            foreach (Renderer r in stand.GetComponentsInChildren<Renderer>(false))
+            {
+                if (!IsBodyRenderer(r) || !r.enabled || r.forceRenderingOff) continue;
 
-            Bounds box = draws[0].bounds;
+                if (!any) { box = r.bounds; any = true; }
+                else box.Encapsulate(r.bounds);
+            }
 
-            for (int i = 1; i < draws.Length; i++) box.Encapsulate(draws[i].bounds);
-
-            return box;
+            return any ? box : new Bounds(stand.transform.position, Vector3.zero);
         }
 
         // ------------------------------------------------------------

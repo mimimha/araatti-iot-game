@@ -359,6 +359,19 @@ namespace Warriors.Net
             // 화면이 있는 쪽(클라이언트)에만 일시정지 버튼을 만든다. 서버에는 화면이 없다.
             if (!Runner.IsServer) WarriorsPauseControl.Ensure(this);
 
+            // **공용 결과 판의 [다시 하기] 에 우리 새 판 시작을 붙인다.**
+            //
+            // 공용 판은 세 게임이 같이 쓰므로 무쌍을 알지 못한다. 그래서 "나는 새 판을
+            // 시작할 수 있다" 를 이쪽에서 등록한다. 포탈로 들어온 판에서는 공용 판이
+            // 등록돼 있어도 쓰지 않는다 — 그 판단은 공용 판이 한다.
+            //
+            // ⚠ 씬을 벗어날 때 Despawned 에서 반드시 떼어 낸다. 정적이라 남으면
+            //    다음 씬의 결과 판이 이미 사라진 이 판에 새 판을 요청한다.
+            if (!Runner.IsServer)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = RequestRestartFromResultPanel;
+            }
+
             if (!HasStateAuthority) return;
 
             Phase = WarriorsMatchPhase.Waiting;
@@ -379,9 +392,33 @@ namespace Warriors.Net
                 $"{Phase1Target}/{Phase2Target}/{Phase3Target}");
         }
 
+        /// <summary>
+        /// 공용 결과 판의 [다시 하기] 가 부른다. <b>서버에 새 판을 부탁한다.</b>
+        ///
+        /// 씬을 다시 열지 않는다 — 판의 상태는 전부 <c>[Networked]</c> 값이라
+        /// <see cref="Rpc_RequestRestart"/> 가 그것만 처음 값으로 돌리면 된다.
+        /// </summary>
+        private void RequestRestartFromResultPanel()
+        {
+            if (Object == null || !Object.IsValid)
+            {
+                Debug.LogWarning("[WarriorsMatch] 이미 사라진 판에 다시 하기가 들어왔습니다. 무시합니다.");
+                return;
+            }
+
+            Rpc_RequestRestart();
+        }
+
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             if (Current == this) Current = null;
+
+            // ⚠ 정적이라 씬이 바뀌어도 남는다. 떼어 내지 않으면 다음 씬의 결과 판이
+            //    이미 사라진 이 판에 새 판을 요청한다.
+            if (MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler == RequestRestartFromResultPanel)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = null;
+            }
 
             // 멈춘 채로 세션이 끝나면 시간을 되돌려 놓는다. 남겨 두면 다음 판이 멈춘 채 시작한다.
             if (holdingTime)
@@ -1376,8 +1413,13 @@ namespace Warriors.Net
         {
             switch (phase)
             {
+                // 목표는 카운트다운이 끝나는 순간 인원수로 정해진다(Phase1GoalFor). 그 전의
+                // Phase1Target 은 혼자 기준 초기값(30)이라 "0 / 30" 이 보였다가 "0 / 50" 으로
+                // 바뀌었다. 정해지기 전에는 숫자를 내지 않는다.
                 case WarriorsMatchPhase.Waiting:
                 case WarriorsMatchPhase.Countdown:
+                    return "처치 수   -- / --";
+
                 case WarriorsMatchPhase.Phase1:
                     return $"처치 수   {Phase1Kills} / {Phase1Target}";
 

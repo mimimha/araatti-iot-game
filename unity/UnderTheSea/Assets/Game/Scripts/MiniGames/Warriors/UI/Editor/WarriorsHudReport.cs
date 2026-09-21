@@ -58,6 +58,52 @@ namespace Warriors.Net.Editor
                     $"타입 {image.type} · 크기 {rt.sizeDelta.x:F0}×{rt.sizeDelta.y:F0}");
             }
 
+            // 문제가 난 가지는 통째로 펼쳐 본다. 어떤 자식이 무엇을 그리는지 봐야 원인이 잡힌다.
+            foreach (string want in new[] { "Objective", "Players", "SpecialFeedback" })
+            {
+                Transform found = root.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(t => t.name == want);
+
+                if (found == null) continue;
+
+                Debug.Log($"[HUD 조사] ───── '{want}' 가지 ─────");
+                Dump(found, root.transform, 0);
+            }
+
+            Debug.Log("[HUD 조사] ───── 안내 칸 부품 ─────");
+
+            foreach (string want in new[] { "Objective", "Text" })
+            {
+                foreach (Transform found in root.GetComponentsInChildren<Transform>(true))
+                {
+                    if (found.name != want) continue;
+
+                    string parts = string.Join(" + ", found.GetComponents<Component>()
+                        .Select(c => c == null ? "(깨짐)" : c.GetType().Name));
+
+                    Debug.Log($"[HUD 조사]   {Path(found, root.transform)}  →  {parts}");
+                }
+            }
+
+            // 동그란 장식 찾기 — 가로세로가 비슷하고 작은 Image 를 전부 훑는다.
+            Debug.Log("[HUD 조사] ───── 동그라미 후보 ─────");
+
+            foreach (Image image in root.GetComponentsInChildren<Image>(true))
+            {
+                RectTransform rt = image.rectTransform;
+                float w = rt.sizeDelta.x, h = rt.sizeDelta.y;
+
+                if (w < 16f || w > 120f) continue;
+                if (Mathf.Abs(w - h) > 6f) continue;
+
+                Debug.Log(
+                    $"[HUD 조사]   {Path(image.transform, root.transform)}  " +
+                    $"{w:F0}×{h:F0} @{rt.anchoredPosition.x:F0},{rt.anchoredPosition.y:F0} · " +
+                    $"스프라이트 {(image.sprite == null ? "없음" : image.sprite.name)} · " +
+                    $"색 #{ColorUtility.ToHtmlStringRGBA(image.color)} · " +
+                    $"{(image.gameObject.activeInHierarchy ? "켜짐" : "꺼짐")}");
+            }
+
             Debug.Log("[HUD 조사] ───── 글자 ─────");
 
             foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(true).Take(40))
@@ -75,6 +121,35 @@ namespace Warriors.Net.Editor
         {
             Report();
             EditorApplication.Exit(0);
+        }
+
+        /// <summary>가지 하나를 들여쓰기로 펼친다. 그림 · 크기 · 글자를 한 줄에 같이 본다.</summary>
+        private static void Dump(Transform t, Transform stop, int depth)
+        {
+            RectTransform rt = t as RectTransform;
+            Image image = t.GetComponent<Image>();
+            RawImage raw = t.GetComponent<RawImage>();
+            TMP_Text text = t.GetComponent<TMP_Text>();
+
+            string what = image != null
+                ? $"Image {(image.sprite == null ? "단색" : image.sprite.name)} {image.type} #{ColorUtility.ToHtmlStringRGBA(image.color)}"
+                : raw != null ? "RawImage"
+                : text != null ? $"글자 \"{(text.text ?? string.Empty).Replace("\n", "↵")}\" {text.fontSize:F0}pt"
+                : "-";
+
+            // ⚠ 앵커를 같이 본다. 앵커가 벌어져 있으면(stretch) sizeDelta 는 **절대 크기가 아니라
+            //    부모 대비 여백**이다. 그것을 모르고 크기를 넣으면 판이 화면만큼 커진다.
+            string anchor = rt == null ? "" :
+                (rt.anchorMin == rt.anchorMax
+                    ? $"고정({rt.anchorMin.x:F1},{rt.anchorMin.y:F1})"
+                    : $"⚠늘림({rt.anchorMin.x:F1},{rt.anchorMin.y:F1})~({rt.anchorMax.x:F1},{rt.anchorMax.y:F1})");
+
+            Debug.Log(
+                $"[HUD 조사] {new string(' ', depth * 3)}{t.name}  " +
+                (rt != null ? $"[{rt.sizeDelta.x:F0}×{rt.sizeDelta.y:F0} @{rt.anchoredPosition.x:F0},{rt.anchoredPosition.y:F0} {anchor}]  " : "") +
+                what + (t.gameObject.activeSelf ? "" : "  (꺼짐)"));
+
+            foreach (Transform child in t) Dump(child, stop, depth + 1);
         }
 
         private static string Path(Transform t, Transform stop)
