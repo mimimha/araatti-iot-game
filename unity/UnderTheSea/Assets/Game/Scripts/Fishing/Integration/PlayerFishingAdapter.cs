@@ -26,6 +26,7 @@ namespace FishingMiniGame.Runtime
         private GameObject _localPlayerGameObject;
         private PlayerInputProvider _inputProvider;
         private PlayerInputProvider _lockedProvider;
+        private FishingGameController _fishingGameController;
         private InputAction _interactAction;
         private FishingSpot _currentFishingSpot;
         private bool _interactSubscribed;
@@ -33,6 +34,7 @@ namespace FishingMiniGame.Runtime
         private bool _handlingInteract;
         private bool _ownsMovementLock;
         private bool _movementLockBeforeFishing;
+        private bool _chatFocusInputInstalled;
         private bool _tearingDown;
 
         public FishingSpot CurrentFishingSpot => _currentFishingSpot;
@@ -48,6 +50,7 @@ namespace FishingMiniGame.Runtime
             ResolveModeController();
             ResolveFishVisualPresenter();
             ResolvePlayerPresentation();
+            EnsureChatFocusInputBoundary();
         }
 
         private void OnEnable()
@@ -56,6 +59,7 @@ namespace FishingMiniGame.Runtime
             ResolveModeController();
             ResolveFishVisualPresenter();
             ResolvePlayerPresentation();
+            EnsureChatFocusInputBoundary();
             SubscribeLocalPlayer();
             SubscribeInteractAction();
 
@@ -100,6 +104,29 @@ namespace FishingMiniGame.Runtime
             {
                 fishingModeController = GetComponent<FishingModeController>();
             }
+        }
+
+        private void EnsureChatFocusInputBoundary()
+        {
+            if (_chatFocusInputInstalled)
+            {
+                return;
+            }
+
+            if (_fishingGameController == null)
+            {
+                _fishingGameController = GetComponent<FishingGameController>();
+            }
+
+            if (_fishingGameController == null)
+            {
+                return;
+            }
+
+            _fishingGameController.SetInputSource(
+                new ChatFocusFishingInputSource(
+                    new KeyboardFishingInputSource("local-player")));
+            _chatFocusInputInstalled = true;
         }
 
         private void ResolveFishVisualPresenter()
@@ -239,6 +266,7 @@ namespace FishingMiniGame.Runtime
             ResolveModeController();
 
             if (_handlingInteract ||
+                ChatFocus.Typing ||
                 _localPlayerGameObject == null ||
                 _inputProvider == null ||
                 _currentFishingSpot == null ||

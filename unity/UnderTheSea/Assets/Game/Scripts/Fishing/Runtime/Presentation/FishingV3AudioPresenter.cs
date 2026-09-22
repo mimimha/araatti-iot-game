@@ -64,7 +64,6 @@ namespace FishingMiniGame.Runtime
     {
         [Header("Source")]
         [SerializeField] private FishingMiniGameFacade facade;
-        [SerializeField] private AudioSource audioSource;
 
         [Header("Fishing SFX Clips")]
         [SerializeField] private AudioClip biteClip;
@@ -93,11 +92,8 @@ namespace FishingMiniGame.Runtime
         private int _lastTimingJudgementSequence;
 
         public bool HasFacade => facade != null;
-        public bool HasAudioSource => audioSource != null;
-        public AudioSource OutputSource => audioSource;
         public FishingV3AudioCue LastRequestedCue { get; private set; }
         public int CueRequestSequence { get; private set; }
-        public int PlaybackSequence { get; private set; }
         public int AssignedClipCount =>
             CountAssigned(biteClip) +
             CountAssigned(hookSuccessClip) +
@@ -128,16 +124,11 @@ namespace FishingMiniGame.Runtime
         private void OnDisable()
         {
             ResetObservation();
-            if (audioSource != null)
-            {
-                audioSource.Stop();
-            }
         }
 
-        public void Configure(FishingMiniGameFacade sourceFacade, AudioSource source)
+        public void Configure(FishingMiniGameFacade sourceFacade)
         {
             facade = sourceFacade;
-            audioSource = source;
             ResetObservation();
         }
 
@@ -232,6 +223,11 @@ namespace FishingMiniGame.Runtime
             return SanitizeVolume(GetVolume(cue));
         }
 
+        public AudioClip GetConfiguredClip(FishingV3AudioCue cue)
+        {
+            return GetClip(cue);
+        }
+
         private void ResolveReferences()
         {
             if (facade == null)
@@ -239,10 +235,6 @@ namespace FishingMiniGame.Runtime
                 facade = GetComponent<FishingMiniGameFacade>();
             }
 
-            if (audioSource == null)
-            {
-                audioSource = GetComponent<AudioSource>();
-            }
         }
 
         private bool IsTrackingReset(FishingV3AudioFrame frame)
@@ -296,19 +288,6 @@ namespace FishingMiniGame.Runtime
             LastRequestedCue = cue;
             CueRequestSequence++;
             CueRequested?.Invoke(cue);
-
-            AudioClip clip = GetClip(cue);
-            if (audioSource == null ||
-                clip == null ||
-                !audioSource.enabled ||
-                !audioSource.gameObject.activeInHierarchy)
-            {
-                return;
-            }
-
-            audioSource.pitch = 1f;
-            audioSource.PlayOneShot(clip, SanitizeVolume(GetVolume(cue)));
-            PlaybackSequence++;
         }
 
         private void Synchronize(FishingV3AudioFrame frame)

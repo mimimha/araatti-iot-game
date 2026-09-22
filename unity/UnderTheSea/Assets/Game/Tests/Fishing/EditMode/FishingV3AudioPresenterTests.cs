@@ -259,36 +259,39 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
-        public void MissingAudioSource_WithAssignedClip_IsNullSafe()
+        public void AssignedClip_IsExposedForAudioHubPlayback()
         {
             FishingV3AudioPresenter presenter = CreatePresenter();
             AudioClip clip = AudioClip.Create("FishingV3AudioTest", 64, 1, 8000, false);
             _objects.Add(clip);
             presenter.ConfigureClips(clip, clip, clip, clip, clip, clip, clip, clip);
+
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Bite), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.HookSuccess), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Perfect), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Good), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Miss), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Caught), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.LineBroken), Is.SameAs(clip));
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.FishEscaped), Is.SameAs(clip));
+        }
+
+        [Test]
+        public void MissingAudioClip_IsNullSafeAndStillReportsCue()
+        {
+            FishingV3AudioPresenter presenter = CreatePresenter();
             presenter.StepPresentation(Active(FishingV3GameplayPhase.WaitingForBite));
 
             Assert.DoesNotThrow(() =>
                 presenter.StepPresentation(Active(FishingV3GameplayPhase.HookWindow)));
             Assert.That(presenter.CueRequestSequence, Is.EqualTo(1));
-            Assert.That(presenter.PlaybackSequence, Is.Zero);
+            Assert.That(presenter.GetConfiguredClip(FishingV3AudioCue.Bite), Is.Null);
         }
 
         [Test]
-        public void MissingAudioClip_WithConfiguredSource_IsNullSafe()
+        public void ConfiguredClip_StillRequestsExactlyOnceForOneTransition()
         {
-            FishingV3AudioPresenter presenter = CreatePresenter(withAudioSource: true);
-            presenter.StepPresentation(Active(FishingV3GameplayPhase.WaitingForBite));
-
-            Assert.DoesNotThrow(() =>
-                presenter.StepPresentation(Active(FishingV3GameplayPhase.HookWindow)));
-            Assert.That(presenter.CueRequestSequence, Is.EqualTo(1));
-            Assert.That(presenter.PlaybackSequence, Is.Zero);
-        }
-
-        [Test]
-        public void ConfiguredClipAndSource_PlayExactlyOnceForOneTransition()
-        {
-            FishingV3AudioPresenter presenter = CreatePresenter(withAudioSource: true);
+            FishingV3AudioPresenter presenter = CreatePresenter();
             AudioClip clip = AudioClip.Create("FishingV3AudioPlaybackTest", 64, 1, 8000, false);
             _objects.Add(clip);
             presenter.ConfigureClips(clip, clip, clip, clip, clip, clip, clip, clip);
@@ -298,7 +301,7 @@ namespace FishingMiniGame.Tests.EditMode
             presenter.StepPresentation(Active(FishingV3GameplayPhase.HookWindow));
 
             Assert.That(presenter.CueRequestSequence, Is.EqualTo(1));
-            Assert.That(presenter.PlaybackSequence, Is.EqualTo(1));
+            Assert.That(presenter.LastRequestedCue, Is.EqualTo(FishingV3AudioCue.Bite));
         }
 
         [Test]
@@ -317,7 +320,7 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
-        public void PlayerIntegrationScene_WiresDedicatedTwoDimensionalAudioSource()
+        public void PlayerIntegrationScene_WiresAudioHubAdapterWithoutDedicatedAudioSource()
         {
             const string scenePath =
                 "Assets/Game/Scenes/Develop/Yongju/FishingScenes/FishingV3PlayerIntegration.unity";
@@ -327,23 +330,27 @@ namespace FishingMiniGame.Tests.EditMode
             {
                 FishingV3AudioPresenter presenter = FindInScene<FishingV3AudioPresenter>(scene);
                 FishingMiniGameFacade facade = FindInScene<FishingMiniGameFacade>(scene);
+                System.Type adapterType = System.Type.GetType(
+                    "FishingMiniGame.Runtime.FishingV3AudioHubAdapter, Assembly-CSharp",
+                    false);
+                Assert.That(adapterType, Is.Not.Null);
+                Component adapter = presenter != null
+                    ? presenter.GetComponent(adapterType)
+                    : null;
 
                 Assert.That(presenter, Is.Not.Null);
                 Assert.That(presenter.HasFacade, Is.True);
-                Assert.That(presenter.HasAudioSource, Is.True);
-                Assert.That(presenter.OutputSource, Is.Not.Null);
-                Assert.That(presenter.OutputSource.gameObject, Is.EqualTo(presenter.gameObject));
-                Assert.That(presenter.OutputSource.playOnAwake, Is.False);
-                Assert.That(presenter.OutputSource.loop, Is.False);
-                Assert.That(presenter.OutputSource.spatialBlend, Is.Zero);
-                Assert.That(presenter.OutputSource.clip, Is.Null);
+                Assert.That(presenter.GetComponent<AudioSource>(), Is.Null);
+                Assert.That(adapter, Is.Not.Null);
                 Assert.That(presenter.AssignedClipCount, Is.EqualTo(8));
 
                 SerializedObject serialized = new SerializedObject(presenter);
                 Assert.That(serialized.FindProperty("facade").objectReferenceValue,
                     Is.EqualTo(facade));
-                Assert.That(serialized.FindProperty("audioSource").objectReferenceValue,
-                    Is.EqualTo(presenter.OutputSource));
+
+                var adapterData = new SerializedObject(adapter);
+                Assert.That(adapterData.FindProperty("presenter").objectReferenceValue,
+                    Is.EqualTo(presenter));
 
                 string[] clipPropertyNames =
                 {
@@ -365,6 +372,13 @@ namespace FishingMiniGame.Tests.EditMode
                 Assert.That(assignedClips.Distinct().Count(), Is.EqualTo(8));
                 Assert.That(assignedClips.Select(AssetDatabase.GetAssetPath),
                     Has.All.StartsWith("Assets/Game/Audio/Fishing/"));
+
+                MonoScript adapterScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                    "Assets/Game/Scripts/Fishing/Integration/FishingV3AudioHubAdapter.cs");
+                Assert.That(adapterScript, Is.Not.Null);
+                Assert.That(adapterScript.text, Does.Contain("AudioHub.Instance"));
+                Assert.That(adapterScript.text, Does.Contain(".PlayOneShot("));
+                Assert.That(adapterScript.text, Does.Not.Contain("GetComponent<AudioSource>"));
             }
             finally
             {
@@ -372,13 +386,12 @@ namespace FishingMiniGame.Tests.EditMode
             }
         }
 
-        private FishingV3AudioPresenter CreatePresenter(bool withAudioSource = false)
+        private FishingV3AudioPresenter CreatePresenter()
         {
             GameObject host = new GameObject("FishingV3AudioPresenterTests");
             _objects.Add(host);
-            AudioSource source = withAudioSource ? host.AddComponent<AudioSource>() : null;
             FishingV3AudioPresenter presenter = host.AddComponent<FishingV3AudioPresenter>();
-            presenter.Configure(null, source);
+            presenter.Configure(null);
             return presenter;
         }
 

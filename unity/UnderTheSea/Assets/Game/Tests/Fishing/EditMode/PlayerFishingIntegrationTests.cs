@@ -17,6 +17,9 @@ namespace FishingMiniGame.Tests.EditMode
     {
         private const string AdapterTypeName =
             "FishingMiniGame.Runtime.PlayerFishingAdapter, Assembly-CSharp";
+        private const string ChatFocusInputTypeName =
+            "FishingMiniGame.Runtime.ChatFocusFishingInputSource, Assembly-CSharp";
+        private const string ChatFocusTypeName = "ChatFocus, Assembly-CSharp";
         private const string InputProviderTypeName = "PlayerInputProvider, Assembly-CSharp";
 
         private readonly List<GameObject> _objects = new List<GameObject>();
@@ -82,6 +85,8 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(script.text, Does.Contain("LocalPlayer.Unregistered"));
             Assert.That(script.text, Does.Contain("_localPlayer.Runner"));
             Assert.That(script.text, Does.Contain("!player.HasInputAuthority"));
+            Assert.That(script.text, Does.Contain("ChatFocus.Typing"));
+            Assert.That(script.text, Does.Contain("ChatFocusFishingInputSource"));
             Assert.That(script.text,
                 Does.Contain("fishVisualPresenter?.ConfigureCaughtPresentation"));
 
@@ -258,6 +263,64 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(fixture.Mode.CurrentInteractor, Is.SameAs(fixture.Player));
             Assert.That(IsLocked(fixture.Provider), Is.True);
             Assert.That(ReadProperty<bool>(fixture.Adapter, "OwnsMovementLock"), Is.True);
+        }
+
+        [Test]
+        public void ChatFocus_BlocksInteractThenRestoresItAfterRelease()
+        {
+            FishingSpot spot = CreateObject("Spot").AddComponent<FishingSpot>();
+            Fixture fixture = CreateFixture(new[] { spot }, 2f);
+            object owner = new object();
+            Type chatFocusType = RequiredType(ChatFocusTypeName);
+
+            try
+            {
+                InvokeStatic(chatFocusType, "Begin", owner);
+                Refresh(fixture.Adapter);
+
+                Assert.That(TryInteract(fixture.Adapter), Is.False);
+                Assert.That(spot.IsBusy, Is.False);
+                Assert.That(fixture.Mode.State, Is.EqualTo(FishingModeLifecycleState.Inactive));
+            }
+            finally
+            {
+                InvokeStatic(chatFocusType, "End", owner);
+            }
+
+            Refresh(fixture.Adapter);
+            Assert.That(TryInteract(fixture.Adapter), Is.True);
+        }
+
+        [Test]
+        public void ChatFocusInputBoundary_BlocksJThenRestoresItAfterRelease()
+        {
+            var source = new SemanticActionInputSource();
+            IFishingInputSource gated = (IFishingInputSource)Activator.CreateInstance(
+                RequiredType(ChatFocusInputTypeName),
+                source);
+            object owner = new object();
+            Type chatFocusType = RequiredType(ChatFocusTypeName);
+
+            FishingInputFrame unlocked = gated.ReadFrame();
+            Assert.That(unlocked.HookPressed, Is.True);
+            Assert.That(unlocked.TimingPressed, Is.True);
+
+            try
+            {
+                InvokeStatic(chatFocusType, "Begin", owner);
+                FishingInputFrame locked = gated.ReadFrame();
+
+                Assert.That(locked.HookPressed, Is.False);
+                Assert.That(locked.TimingPressed, Is.False);
+            }
+            finally
+            {
+                InvokeStatic(chatFocusType, "End", owner);
+            }
+
+            FishingInputFrame restored = gated.ReadFrame();
+            Assert.That(restored.HookPressed, Is.True);
+            Assert.That(restored.TimingPressed, Is.True);
         }
 
         [Test]
@@ -495,6 +558,14 @@ namespace FishingMiniGame.Tests.EditMode
             return method.Invoke(target, arguments);
         }
 
+        private static object InvokeStatic(Type type, string name, params object[] arguments)
+        {
+            MethodInfo method = type.GetMethod(
+                name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, name);
+            return method.Invoke(null, arguments);
+        }
+
         private readonly struct Fixture
         {
             public Fixture(
@@ -537,6 +608,25 @@ namespace FishingMiniGame.Tests.EditMode
                 return new FishingInputFrame
                 {
                     ReelDelta = _reel,
+                    IsDeviceConnected = true
+                };
+            }
+
+            public void ResetState()
+            {
+            }
+        }
+
+        private sealed class SemanticActionInputSource : IFishingInputSource
+        {
+            public bool IsConnected => true;
+
+            public FishingInputFrame ReadFrame()
+            {
+                return new FishingInputFrame
+                {
+                    HookPressed = true,
+                    TimingPressed = true,
                     IsDeviceConnected = true
                 };
             }
