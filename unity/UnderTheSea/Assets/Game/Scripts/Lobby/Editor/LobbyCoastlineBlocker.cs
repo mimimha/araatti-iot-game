@@ -1,0 +1,503 @@
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace Lobby.Editor
+{
+    /// <summary>
+    /// 로비 섬의 **해안선을 따라 투명 벽**을 세운다. 바다로 걸어 들어가지 못하게 한다.
+    ///
+    /// <b>왜 필요한가.</b>
+    /// 이 씬의 바다에는 물 콜라이더가 없다. <c>OceanCollider</c> 가 있긴 한데 180° 뒤집혀 있어
+    /// (회전 <c>(0, 180, 180)</c>) 레이에도 안 걸리고 실질적으로 아무것도 막지 않는다.
+    /// 그래서 바다는 "물" 이 아니라 **계속 아래로 내려가는 지형**이다. 해변에서 걸어 들어가면
+    /// y=1 → 0 → -5 → -9.8(<c>BaseGround</c>) 까지 그냥 걸어 내려간다.
+    /// 물에 빠지는 게 아니라 바다 밑바닥을 걷는 것이고, 그 분지가 넓은 데다 군데군데
+    /// 8m 넘는 바위 절벽이 있어서 되돌아 나오지 못한다.
+    ///
+    /// <b>어떻게 막는가.</b>
+    ///   1. 섬 일대를 격자로 훑어 칸마다 **밟고 설 면의 높이**를 잰다.
+    ///      맨 위 콜라이더를 보므로 부두처럼 물 위에 놓인 구조물은 마른 땅으로 잡힌다.
+    ///   2. 해수면(<see cref="SeaLevel"/>)에서 잰 **물 깊이가 어깨까지 차는지**로 가른다.
+    ///      어깨보다 얕으면 걸어 다닐 수 있는 곳, 그보다 깊으면 막을 곳이다.
+    ///      기준 깊이는 <see cref="LobbyWaterBlocker.ShoulderDepth"/> 가 캐릭터 캡슐에서 읽어 온다.
+    ///   3. 스폰 지점에서 걸어 다닐 수 있는 칸끼리 **물 흐르듯 이어 나가(flood fill)**
+    ///      실제로 갈 수 있는 땅덩어리를 찾는다. 바다 한가운데 솟은 바위섬 둘레까지
+    ///      막지 않기 위해서다.
+    ///   4. 그 땅덩어리가 **깊은 물과 맞닿는 변에만** 벽을 세운다.
+    ///
+    /// <b>얕은 물은 막지 않는다.</b> 섬을 가로지르는 개울처럼 발목 · 무릎까지만 잠기는 곳은
+    /// 그냥 걸어서 건널 수 있어야 한다. 예전에는 조금이라도 잠기면 막아서 개울도 못 건넜다.
+    ///
+    /// <b>벽 높이는 자리마다 다르다.</b> 해수면 기준으로 일정하게 세우면, 10m 절벽 위에
+    /// 서 있는 곳에서는 벽이 발밑에 깔려 그냥 걸어 나가게 된다. 그래서 각 구간에서
+    /// 가장 높은 땅 높이를 재서 그보다 <see cref="WallAboveLand"/> 만큼 더 올린다.
+    ///
+    /// <b>여러 번 돌려도 안전하다.</b> 이미 있으면 지우고 다시 만든다.
+    ///
+    /// <code>
+    ///   Tools/아라아띠/로비 해안선 투명벽 세우기
+    ///   Tools/아라아띠/로비 해안선 투명벽 걷어내기
+    /// </code>
+    /// </summary>
+    public static class LobbyCoastlineBlocker
+    {
+        private const string LobbyScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
+
+        /// <summary><see cref="LobbyWaterBlocker"/> 가 쓰는 루트와 같은 것을 쓴다.</summary>
+        private const string BlockerRootName = "WaterBlockers";
+        private const string CoastlineName = "Blocker_Coastline";
+
+        /// <summary>
+        /// 해수면 높이. <c>OceanCollider</c> 가 y=0 에 놓여 있는 것이 근거다.
+        /// 이 값보다 낮은 땅은 바다로 본다.
+        /// </summary>
+        private const float SeaLevel = 0f;
+
+        /// <summary>훑을 범위. 섬 전체와 그 바깥 바다까지 넉넉히 덮는다.</summary>
+        private static readonly Vector2 AreaMin = new Vector2(-200f, -120f);
+        private static readonly Vector2 AreaMax = new Vector2(240f, 320f);
+
+        /// <summary>격자 한 칸(m). 캡슐 반지름 0.35m 보다 크지만, 벽이 변 전체를 덮어 틈은 없다.</summary>
+        private const float CellSize = 1f;
+
+        /// <summary>스폰 지점. 여기서부터 뭍을 이어 나간다.</summary>
+        private static readonly Vector3 SpawnHint = new Vector3(20.84f, 1.73f, 48.56f);
+
+        private const float WallThickness = 0.4f;
+
+        /// <summary>땅 높이보다 이만큼 더 높이 세운다. 점프(1.2m)로 넘을 수 없어야 한다.</summary>
+        private const float WallAboveLand = 5f;
+
+        /// <summary>
+        /// 해수면보다 이만큼 아래까지 내린다.
+        /// 벽이 서는 자리는 물이 어깨까지 차는 선(해수면에서 1m 남짓 아래)이라,
+        /// 그보다 더 내려가야 발밑으로 빠져나가지 못한다.
+        /// </summary>
+        private const float WallBelowSea = 3f;
+
+        [MenuItem("Tools/아라아띠/로비 해안선 투명벽 세우기")]
+        public static void Install()
+        {
+            Scene scene = OpenLobby();
+
+            int nx = Mathf.CeilToInt((AreaMax.x - AreaMin.x) / CellSize);
+            int nz = Mathf.CeilToInt((AreaMax.y - AreaMin.y) / CellSize);
+
+            // 물이 어깨까지 차면 막는다. 그보다 얕으면 걸어서 지나갈 수 있어야 한다.
+            float shoulder = LobbyWaterBlocker.ShoulderDepth();
+
+            // 1) 칸마다 밟고 설 면의 높이를 잰다.
+            var height = new float[nx, nz];
+            var walkable = new bool[nx, nz];
+            int walkableCount = 0;
+            int shallowCount = 0;
+
+            var buffer = new RaycastHit[32];
+
+            for (int i = 0; i < nx; i++)
+            {
+                for (int j = 0; j < nz; j++)
+                {
+                    Vector3 at = CellCenter(i, j);
+
+                    if (!TrySampleGround(at, buffer, out float y))
+                    {
+                        // 아무것도 없는 칸은 막을 곳으로 친다. 허공으로 걸어 나가면 안 된다.
+                        height[i, j] = float.MinValue;
+                        continue;
+                    }
+
+                    height[i, j] = y;
+
+                    if (!IsTooDeep(y, shoulder))
+                    {
+                        walkable[i, j] = true;
+                        walkableCount++;
+
+                        if (y < SeaLevel)
+                        {
+                            shallowCount++;
+                        }
+                    }
+                }
+            }
+
+            // 2) 스폰에서 이어 나가 실제로 걸어 다닐 수 있는 땅덩어리를 찾는다.
+            if (!TryCellOf(SpawnHint, nx, nz, out int si, out int sj) || !walkable[si, sj])
+            {
+                Debug.LogError($"[해안선] 스폰 지점 {SpawnHint} 이 걸어 다닐 수 있는 칸이 아니다. " +
+                               $"해수면({SeaLevel}) · 어깨 깊이({shoulder:F2}m) 값을 확인해라.");
+                return;
+            }
+
+            var land = new bool[nx, nz];
+            int landCount = 0;
+            var queue = new Queue<(int i, int j)>();
+            queue.Enqueue((si, sj));
+            land[si, sj] = true;
+            landCount++;
+
+            var steps = new (int di, int dj)[] { (1, 0), (-1, 0), (0, 1), (0, -1) };
+
+            while (queue.Count > 0)
+            {
+                (int ci, int cj) = queue.Dequeue();
+
+                foreach ((int di, int dj) in steps)
+                {
+                    int ni = ci + di, nj = cj + dj;
+                    if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue;
+                    if (land[ni, nj] || !walkable[ni, nj]) continue;
+
+                    land[ni, nj] = true;
+                    landCount++;
+                    queue.Enqueue((ni, nj));
+                }
+            }
+
+            Debug.Log($"[해안선] 격자 {nx}×{nz} ({CellSize}m) · 어깨 깊이 {shoulder:F2}m 기준 · " +
+                      $"지나다닐 수 있는 칸 {walkableCount}(그중 걸어서 건너는 얕은 물 {shallowCount}) 중 " +
+                      $"스폰에서 실제로 갈 수 있는 곳 {landCount}칸");
+
+            // 3) 땅과 깊은 물이 맞닿는 변에만 벽을 세운다.
+            Transform blocker = PrepareBlocker(scene);
+            int walls = 0;
+
+            // 세로 경계 — 로컬 x 가 일정한 선. i-1 칸과 i 칸 사이.
+            for (int i = 0; i <= nx; i++)
+            {
+                int runStart = -1;
+                float runTop = float.MinValue;
+
+                for (int j = 0; j <= nz; j++)
+                {
+                    bool edge = false;
+                    float top = float.MinValue;
+
+                    if (j < nz)
+                    {
+                        edge = NeedsWall(land, height, shoulder, i - 1, j, i, j, nx, nz, out top);
+                    }
+
+                    if (edge)
+                    {
+                        if (runStart < 0) { runStart = j; runTop = float.MinValue; }
+                        runTop = Mathf.Max(runTop, top);
+                    }
+                    else if (runStart >= 0)
+                    {
+                        float x = AreaMin.x + i * CellSize;
+                        float z0 = AreaMin.y + runStart * CellSize;
+                        float z1 = AreaMin.y + j * CellSize;
+                        AddWall(blocker, x, (z0 + z1) * 0.5f, WallThickness, z1 - z0, runTop);
+                        walls++;
+                        runStart = -1;
+                    }
+                }
+            }
+
+            // 가로 경계 — 로컬 z 가 일정한 선.
+            for (int j = 0; j <= nz; j++)
+            {
+                int runStart = -1;
+                float runTop = float.MinValue;
+
+                for (int i = 0; i <= nx; i++)
+                {
+                    bool edge = false;
+                    float top = float.MinValue;
+
+                    if (i < nx)
+                    {
+                        edge = NeedsWall(land, height, shoulder, i, j - 1, i, j, nx, nz, out top);
+                    }
+
+                    if (edge)
+                    {
+                        if (runStart < 0) { runStart = i; runTop = float.MinValue; }
+                        runTop = Mathf.Max(runTop, top);
+                    }
+                    else if (runStart >= 0)
+                    {
+                        float z = AreaMin.y + j * CellSize;
+                        float x0 = AreaMin.x + runStart * CellSize;
+                        float x1 = AreaMin.x + i * CellSize;
+                        AddWall(blocker, (x0 + x1) * 0.5f, z, x1 - x0, WallThickness, runTop);
+                        walls++;
+                        runStart = -1;
+                    }
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log($"[해안선] 세웠다. 벽 {walls}장. 씬을 저장했다.");
+        }
+
+        [MenuItem("Tools/아라아띠/로비 해안선 투명벽 걷어내기")]
+        public static void Remove()
+        {
+            Scene scene = OpenLobby();
+
+            GameObject root = scene.GetRootGameObjects().FirstOrDefault(g => g.name == BlockerRootName);
+            Transform existing = root != null ? root.transform.Find(CoastlineName) : null;
+
+            if (existing != null)
+            {
+                Object.DestroyImmediate(existing.gameObject);
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[해안선] 걷어냈다. 씬을 저장했다.");
+        }
+
+        /// <summary>물이 어깨까지 차는가. 밟을 것이 아예 없는 칸도 막을 곳으로 친다.</summary>
+        private static bool IsTooDeep(float groundY, float shoulder)
+        {
+            return SeaLevel - groundY >= shoulder;
+        }
+
+        /// <summary>
+        /// 두 칸 사이에 벽이 필요한지. **갈 수 있는 곳과 깊은 물이 맞닿을 때만** 세운다.
+        ///
+        /// 갈 수 있는 곳과 "닿지 못하는 뭍"(절벽 너머 바위 등)이 맞닿는 곳에는 세우지 않는다.
+        /// 거기는 지형이 이미 막고 있어서, 벽을 세우면 뭍 한가운데 보이지 않는 벽이 생긴다.
+        /// </summary>
+        private static bool NeedsWall(
+            bool[,] land, float[,] height, float shoulder,
+            int ai, int aj, int bi, int bj, int nx, int nz, out float topLand)
+        {
+            topLand = float.MinValue;
+
+            bool aLand = Inside(ai, aj, nx, nz) && land[ai, aj];
+            bool bLand = Inside(bi, bj, nx, nz) && land[bi, bj];
+
+            // 둘 다 갈 수 있거나 둘 다 아니면 경계가 아니다.
+            if (aLand == bLand)
+            {
+                return false;
+            }
+
+            // 반대쪽 칸이 "어깨까지 차는 물" 또는 "격자 밖" 일 때만 막는다.
+            int oi = aLand ? bi : ai;
+            int oj = aLand ? bj : aj;
+
+            if (Inside(oi, oj, nx, nz) && !IsTooDeep(height[oi, oj], shoulder))
+            {
+                // 얕지만 스폰에서 닿지 못하는 곳이다. 지형이 이미 막고 있으니 벽은 필요 없다.
+                return false;
+            }
+
+            topLand = height[aLand ? ai : bi, aLand ? aj : bj];
+            return true;
+        }
+
+        private static bool Inside(int i, int j, int nx, int nz)
+        {
+            return i >= 0 && j >= 0 && i < nx && j < nz;
+        }
+
+        private static Vector3 CellCenter(int i, int j)
+        {
+            return new Vector3(
+                AreaMin.x + (i + 0.5f) * CellSize, 0f,
+                AreaMin.y + (j + 0.5f) * CellSize);
+        }
+
+        private static bool TryCellOf(Vector3 world, int nx, int nz, out int i, out int j)
+        {
+            i = Mathf.FloorToInt((world.x - AreaMin.x) / CellSize);
+            j = Mathf.FloorToInt((world.z - AreaMin.y) / CellSize);
+            return Inside(i, j, nx, nz);
+        }
+
+        /// <summary>한 점 위에서 아래로 쏴, 밟고 설 맨 위 면의 높이를 돌려준다.</summary>
+        private static bool TrySampleGround(Vector3 at, RaycastHit[] buffer, out float y)
+        {
+            int count = Physics.RaycastNonAlloc(
+                new Vector3(at.x, 150f, at.z), Vector3.down, buffer, 400f, ~0, QueryTriggerInteraction.Ignore);
+
+            y = float.MinValue;
+
+            for (int k = 0; k < count; k++)
+            {
+                if (buffer[k].point.y > y)
+                {
+                    y = buffer[k].point.y;
+                }
+            }
+
+            return y > float.MinValue;
+        }
+
+        /// <summary>
+        /// 벽 하나. 아래는 해수면 밑까지, 위는 그 구간에서 가장 높은 땅보다 더 높이 세운다.
+        /// </summary>
+        private static void AddWall(Transform owner, float x, float z, float sizeX, float sizeZ, float topLand)
+        {
+            float bottom = SeaLevel - WallBelowSea;
+            float top = Mathf.Max(topLand, SeaLevel) + WallAboveLand;
+
+            BoxCollider box = owner.gameObject.AddComponent<BoxCollider>();
+            box.center = new Vector3(x, (bottom + top) * 0.5f, z);
+            box.size = new Vector3(sizeX, top - bottom, sizeZ);
+            box.isTrigger = false;
+        }
+
+        private static Transform PrepareBlocker(Scene scene)
+        {
+            GameObject root = scene.GetRootGameObjects().FirstOrDefault(g => g.name == BlockerRootName);
+            if (root == null)
+            {
+                root = new GameObject(BlockerRootName);
+                SceneManager.MoveGameObjectToScene(root, scene);
+            }
+
+            Transform existing = root.transform.Find(CoastlineName);
+            if (existing != null)
+            {
+                Object.DestroyImmediate(existing.gameObject);
+            }
+
+            var go = new GameObject(CoastlineName);
+            go.transform.SetParent(root.transform, false);
+            return go.transform;
+        }
+
+        private static Scene OpenLobby()
+        {
+            Scene open = SceneManager.GetActiveScene();
+            if (open.IsValid() && open.path == LobbyScenePath)
+            {
+                return open;
+            }
+
+            return EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+        }
+
+        /// <summary>
+        /// <c>OceanCollider</c> 의 MeshCollider 를 끈다. **얕은 바다에서 끼는 원인이다.**
+        ///
+        /// 이 판은 y=0 에 깔린 큰 사각형인데 180° 뒤집혀 있어 레이에는 안 걸린다.
+        /// 그래서 "아무것도 안 하는 물건" 처럼 보이지만, 캐릭터 충돌은 삼각형 메시 양면에
+        /// 모두 걸린다. 물이 어깨까지 차기 전까지 들어갈 수 있게 풀어 준 뒤로는
+        /// 캡슐(발끝 0 ~ 정수리 1.2)이 y=0 을 가로지르게 되어, 강에서 겪었던 끼임이
+        /// 똑같이 재현된다. skinWidth 가 0.0001 이라 수평 메시에서 빠져나오지 못한다.
+        ///
+        /// 끄더라도 잃는 것이 없다. 바다 밑은 Terrain 이 계속 이어지고,
+        /// 해안선 울타리와 <c>NetworkPlayerMover</c> 의 구조 장치가 이미 바깥을 막는다.
+        ///
+        /// 실제로 캡슐을 놓아 보고 무엇에 걸리는지 끄기 전후로 찍어 남긴다.
+        /// </summary>
+        [MenuItem("Tools/아라아띠/로비 바다 판 콜라이더 끄기")]
+        public static void DisableOceanCollider()
+        {
+            Scene scene = OpenLobby();
+
+            GameObject ocean = scene.GetRootGameObjects()
+                .SelectMany(g => g.GetComponentsInChildren<Transform>(true))
+                .FirstOrDefault(t => t.name == "OceanCollider")?.gameObject;
+
+            if (ocean == null)
+            {
+                Debug.LogWarning("[바다 판] 씬에서 OceanCollider 를 못 찾았다.");
+                return;
+            }
+
+            Collider oceanCollider = ocean.GetComponent<Collider>();
+            if (oceanCollider == null)
+            {
+                Debug.Log("[바다 판] 콜라이더가 없다. 할 일이 없다.");
+                return;
+            }
+
+            ReportCapsuleHits("끄기 전");
+
+            oceanCollider.enabled = false;
+
+            ReportCapsuleHits("끈 뒤");
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            Debug.Log("[바다 판] OceanCollider 의 콜라이더를 껐다. 씬을 저장했다.");
+        }
+
+        /// <summary>
+        /// 얕은 바다 여러 곳에 플레이어 캡슐을 놓아 보고 **무엇과 겹치는지** 찍는다.
+        /// 겹치는 것이 있으면 거기 선 캐릭터는 그 면에 끼어 못 움직인다.
+        /// </summary>
+        private static void ReportCapsuleHits(string label)
+        {
+            GameObject player = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Game/Prefabs/Characters/NetworkPlayer.prefab");
+            CharacterController cc = player != null ? player.GetComponent<CharacterController>() : null;
+
+            float height = cc != null ? cc.height : 1.2f;
+            float radius = cc != null ? cc.radius : 0.35f;
+
+            var buffer = new RaycastHit[32];
+            int checkedSpots = 0, blocked = 0;
+            var names = new HashSet<string>();
+
+            // 얕은 바다(깊이 0 ~ 어깨) 칸을 찾아 캡슐을 놓아 본다.
+            float shoulder = LobbyWaterBlocker.ShoulderDepth();
+
+            for (float x = AreaMin.x; x <= AreaMax.x && checkedSpots < 40; x += 3f)
+            {
+                for (float z = AreaMin.y; z <= AreaMax.y && checkedSpots < 40; z += 3f)
+                {
+                    if (!TrySampleGround(new Vector3(x, 0f, z), buffer, out float ground))
+                    {
+                        continue;
+                    }
+
+                    float depth = SeaLevel - ground;
+                    if (depth <= 0.1f || depth >= shoulder)
+                    {
+                        continue;
+                    }
+
+                    checkedSpots++;
+
+                    // CharacterController 캡슐과 같은 모양. 발끝이 지면에 닿게 놓는다.
+                    Vector3 bottom = new Vector3(x, ground + radius, z);
+                    Vector3 top = new Vector3(x, ground + height - radius, z);
+
+                    Collider[] hits = Physics.OverlapCapsule(
+                        bottom, top, radius, ~0, QueryTriggerInteraction.Ignore);
+
+                    foreach (Collider h in hits)
+                    {
+                        if (h == null) continue;
+                        names.Add(h.gameObject.name);
+                        blocked++;
+                    }
+                }
+            }
+
+            Debug.Log($"[바다 판] {label} — 얕은 바다 {checkedSpots}곳에 캡슐을 놓아 봄. " +
+                      $"겹친 콜라이더 {blocked}건" +
+                      (names.Count > 0 ? $" → {string.Join(", ", names.Take(8))}" : " (없음 = 안 낀다)"));
+        }
+
+        /// <summary>배치 모드 진입점.</summary>
+        public static void InstallFromCommandLine()
+        {
+            Install();
+        }
+
+        /// <summary>배치 모드 진입점.</summary>
+        public static void DisableOceanColliderFromCommandLine()
+        {
+            DisableOceanCollider();
+        }
+    }
+}
