@@ -39,7 +39,7 @@ namespace FishingMiniGame.Tests
         [Test]
         public void Capture_LowPositiveReelDelta_DoesNotIncreaseProgress()
         {
-            FishingV3Model model = CreateZoneModel(0.2f);
+            FishingV3Model model = CreateZoneModel(0.27f);
 
             model.Tick(FishingV3FishState.Fight, 0.4f, 0.1f);
 

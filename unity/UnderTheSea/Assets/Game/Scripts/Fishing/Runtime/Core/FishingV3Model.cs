@@ -44,14 +44,14 @@ namespace FishingMiniGame.Core
         public float TensionRisePerSecond = 1.5f;
         public float TensionFallPerSecond = 1.2f;
 
-        public float SlackUpperThreshold = 0.15f;
+        public float SlackUpperThreshold = 0.25f;
         public float LowUpperThreshold = 0.30f;
         public float SafeUpperThreshold = 0.75f;
-        public float HighUpperThreshold = 0.90f;
+        public float HighUpperThreshold = 0.85f;
 
         public float CaptureScale = 1f;
-        public float BreakStressPerSecond = 0.5f;
-        public float BreakStressRecoveryPerSecond = 0.4f;
+        public float BreakStressPerSecond = 0.7f;
+        public float BreakStressRecoveryPerSecond = 0.25f;
         public float EscapeRiskPerSecond = 0.5f;
         public float EscapeRiskRecoveryPerSecond = 0.4f;
 
@@ -74,7 +74,7 @@ namespace FishingMiniGame.Core
 
             SlackUpperThreshold = SanitizeThreshold(
                 SlackUpperThreshold,
-                0.15f,
+                0.25f,
                 0.001f,
                 0.96f);
             LowUpperThreshold = SanitizeThreshold(
@@ -89,15 +89,15 @@ namespace FishingMiniGame.Core
                 0.98f);
             HighUpperThreshold = SanitizeThreshold(
                 HighUpperThreshold,
-                0.90f,
+                0.85f,
                 SafeUpperThreshold + 0.001f,
                 0.999f);
 
             CaptureScale = SanitizeNonNegative(CaptureScale, 1f);
-            BreakStressPerSecond = SanitizeNonNegative(BreakStressPerSecond, 0.5f);
+            BreakStressPerSecond = SanitizeNonNegative(BreakStressPerSecond, 0.7f);
             BreakStressRecoveryPerSecond = SanitizeNonNegative(
                 BreakStressRecoveryPerSecond,
-                0.4f);
+                0.25f);
             EscapeRiskPerSecond = SanitizeNonNegative(EscapeRiskPerSecond, 0.5f);
             EscapeRiskRecoveryPerSecond = SanitizeNonNegative(
                 EscapeRiskRecoveryPerSecond,
@@ -177,6 +177,15 @@ namespace FishingMiniGame.Core
 
         public void Tick(FishingV3FishState fishState, float reelDelta, float deltaTime)
         {
+            Tick(fishState, reelDelta, deltaTime, 0f);
+        }
+
+        public void Tick(
+            FishingV3FishState fishState,
+            float reelDelta,
+            float deltaTime,
+            float behaviorTensionOffsetNormalized)
+        {
             if (Result != FishingV3Result.Active) return;
             if (!IsFinite(deltaTime) || deltaTime <= 0f) return;
 
@@ -185,9 +194,13 @@ namespace FishingMiniGame.Core
                 ? reelDelta
                 : 0f;
             ReelRateNormalized = CalculateNormalizedReelRate(positiveReelDelta, deltaTime);
+            float behaviorOffset = IsFinite(behaviorTensionOffsetNormalized)
+                ? behaviorTensionOffsetNormalized
+                : 0f;
 
             TargetTensionNormalized = FishingMath.Clamp01(
-                GetBaseTension(FishState) + _tuning.ReelTensionGain * ReelRateNormalized);
+                GetBaseTension(FishState) + behaviorOffset +
+                _tuning.ReelTensionGain * ReelRateNormalized);
             float smoothingRate = TargetTensionNormalized > TensionNormalized
                 ? _tuning.TensionRisePerSecond
                 : _tuning.TensionFallPerSecond;
@@ -206,6 +219,18 @@ namespace FishingMiniGame.Core
 
             UpdateRisks(deltaTime);
             ResolveTerminalResult();
+        }
+
+        /// <summary>
+        /// Resolves a missed pre-fight hook through the same sticky terminal
+        /// result used by the normal slack-escape path.
+        /// </summary>
+        public void ResolveFishEscaped()
+        {
+            if (Result == FishingV3Result.Active)
+            {
+                Result = FishingV3Result.FishEscaped;
+            }
         }
 
         public FishingV3TensionZone ClassifyTension(float normalizedTension)

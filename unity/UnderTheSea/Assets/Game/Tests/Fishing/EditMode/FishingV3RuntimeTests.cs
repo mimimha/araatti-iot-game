@@ -79,14 +79,28 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
-        public void FishState_DoesNotTransitionAutomatically()
+        public void FishState_TransitionsAutomaticallyAfterPhaseDuration()
         {
-            FishingV3Runtime runtime = RunningSafeRuntime();
+            FishingV3FishBehaviorTuning behaviorTuning = new FishingV3FishBehaviorTuning
+            {
+                RunDurationMinSeconds = 1f,
+                RunDurationMaxSeconds = 1f,
+                RunHeadShakeDelayMinSeconds = 0.25f,
+                RunHeadShakeDelayMaxSeconds = 0.25f
+            };
+            FishingV3Runtime runtime = new FishingV3Runtime(
+                StableSafeTuning(),
+                new FishingV3ReelInputTuning
+                {
+                    VirtualReelSpeedRevolutionsPerSecond = 1f
+                },
+                behaviorTuning);
+            runtime.Begin();
             runtime.SetFishState(FishingV3FishState.Run);
 
-            for (int i = 0; i < 20; i++) runtime.Tick(Frame(0f), 0.1f);
+            runtime.Tick(Frame(0f), 1f);
 
-            Assert.That(runtime.Current.FishState, Is.EqualTo(FishingV3FishState.Run));
+            Assert.That(runtime.Current.FishState, Is.EqualTo(FishingV3FishState.Fight));
         }
 
         [Test]
@@ -219,6 +233,152 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.Active));
         }
 
+        [Test]
+        public void BiteHookFlow_BeginsWaitingWithoutAdvancingFightSystems()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.SetFishState(FishingV3FishState.Fight);
+
+            runtime.Tick(Frame(1f, timingPressed: true), 0.5f);
+
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.WaitingForBite));
+            Assert.That(runtime.Current.IsTimingReelActive, Is.False);
+            Assert.That(runtime.Current.TimingPointerNormalized, Is.Zero);
+            Assert.That(runtime.Current.TimingJudgementSequence, Is.Zero);
+            Assert.That(runtime.Current.CaptureProgressNormalized, Is.Zero);
+            Assert.That(runtime.Current.FishStateRemainingSeconds, Is.Zero);
+            Assert.That(runtime.Current.BehaviorTensionOffsetNormalized, Is.Zero);
+        }
+
+        [Test]
+        public void BiteDelayElapsed_OpensObservableHookWindow()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+
+            runtime.Tick(Frame(0f, hookPressed: true), 1f);
+
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.HookWindow));
+            Assert.That(runtime.Current.GameplayPhaseRemainingSeconds,
+                Is.EqualTo(0.5f).Within(0.000001f));
+            Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.Active));
+        }
+
+        [Test]
+        public void HookInsideWindow_StartsFightAndActivatesTimingReel()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.SetFishState(FishingV3FishState.Fight);
+            runtime.Tick(Frame(), 1f);
+
+            runtime.Tick(Frame(0f, hookPressed: true), 0.01f);
+
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.Fighting));
+            Assert.That(runtime.Current.IsTimingReelActive, Is.True);
+            Assert.That(runtime.Current.CaptureProgressNormalized, Is.Zero);
+            Assert.That(runtime.Current.TimingJudgementSequence, Is.Zero);
+        }
+
+        [Test]
+        public void HookTimeout_EndsSessionAsFishEscaped()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.Tick(Frame(), 1f);
+
+            runtime.Tick(Frame(), 0.5f);
+
+            Assert.That(runtime.State, Is.EqualTo(FishingV3RuntimeState.Completed));
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.Terminal));
+            Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.FishEscaped));
+            Assert.That(runtime.Current.CaptureProgressNormalized, Is.Zero);
+        }
+
+        [Test]
+        public void HookAndTimingInputs_AreConsumedOnlyByTheirOwnPhase()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.SetFishState(FishingV3FishState.Fight);
+            runtime.Tick(Frame(), 1f);
+
+            runtime.Tick(Frame(0f, timingPressed: true), 0.1f);
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.HookWindow));
+
+            runtime.Tick(Frame(0f, hookPressed: true), 0.01f);
+            runtime.Tick(Frame(0f, hookPressed: true), 0.25f);
+            Assert.That(runtime.Current.TimingJudgementSequence, Is.Zero);
+
+            runtime.Tick(Frame(0f, timingPressed: true), 0.25f);
+            Assert.That(runtime.Current.TimingJudgementSequence, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BiteHookTerminal_StopsAllPhaseAndTimingProgression()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.Tick(Frame(), 1f);
+            runtime.Tick(Frame(), 0.5f);
+            FishingV3Snapshot terminal = runtime.Current;
+
+            runtime.Tick(Frame(1f, hookPressed: true, timingPressed: true), 10f);
+
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.Terminal));
+            Assert.That(runtime.Current.TimingPointerNormalized,
+                Is.EqualTo(terminal.TimingPointerNormalized));
+            Assert.That(runtime.Current.TimingJudgementSequence,
+                Is.EqualTo(terminal.TimingJudgementSequence));
+            Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.FishEscaped));
+        }
+
+        [Test]
+        public void NewSession_AfterHookFailure_RestartsWaitingPhaseCleanly()
+        {
+            FishingV3Runtime runtime = CreateBiteHookRuntime();
+            runtime.Begin();
+            runtime.Tick(Frame(), 1f);
+            runtime.Tick(Frame(), 0.5f);
+
+            runtime.Begin();
+
+            Assert.That(runtime.State, Is.EqualTo(FishingV3RuntimeState.Running));
+            Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.Active));
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.WaitingForBite));
+            Assert.That(runtime.Current.GameplayPhaseRemainingSeconds,
+                Is.EqualTo(1f).Within(0.000001f));
+            Assert.That(runtime.Current.TimingJudgementSequence, Is.Zero);
+            Assert.That(runtime.Current.CaptureProgressNormalized, Is.Zero);
+        }
+
+        [Test]
+        public void BiteHookFight_PreservesExistingCaughtPath()
+        {
+            FishingV3Tuning tuning = StableSafeTuning();
+            tuning.CaptureScale = 10f;
+            FishingV3Runtime runtime = CreateBiteHookRuntime(tuning);
+            runtime.Begin();
+            runtime.SetFishState(FishingV3FishState.Fight);
+            runtime.Tick(Frame(), 1f);
+            runtime.Tick(Frame(0f, hookPressed: true), 0.01f);
+
+            runtime.Tick(Frame(0f, timingPressed: true), 0.5f);
+
+            Assert.That(runtime.Result, Is.EqualTo(FishingV3Result.Caught));
+            Assert.That(runtime.State, Is.EqualTo(FishingV3RuntimeState.Completed));
+            Assert.That(runtime.Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.Terminal));
+        }
+
         private static FishingV3Runtime RunningSafeRuntime()
         {
             FishingV3Runtime runtime = CreateRuntime(StableSafeTuning());
@@ -227,12 +387,62 @@ namespace FishingMiniGame.Tests.EditMode
             return runtime;
         }
 
+        private static FishingV3Runtime CreateBiteHookRuntime(
+            FishingV3Tuning tuning = null)
+        {
+            return new FishingV3Runtime(
+                tuning ?? StableSafeTuning(),
+                new FishingV3ReelInputTuning
+                {
+                    VirtualReelSpeedRevolutionsPerSecond = 1f
+                },
+                new FishingV3FishBehaviorTuning
+                {
+                    CalmDurationMinSeconds = 100f,
+                    CalmDurationMaxSeconds = 100f,
+                    FightDurationMinSeconds = 100f,
+                    FightDurationMaxSeconds = 100f,
+                    RunDurationMinSeconds = 100f,
+                    RunDurationMaxSeconds = 100f,
+                    CalmOscillationAmplitudeNormalized = 0f,
+                    FightOscillationAmplitudeNormalized = 0f,
+                    RunOscillationAmplitudeNormalized = 0f,
+                    FightPullBurstAmplitudeNormalized = 0f,
+                    RunPullBurstAmplitudeNormalized = 0f
+                },
+                new FishingV3TimingReelTuning
+                {
+                    CalmPointerSpeedNormalizedPerSecond = 1f,
+                    FightPointerSpeedNormalizedPerSecond = 1f,
+                    RunPointerSpeedNormalizedPerSecond = 1f
+                },
+                FishingV3ReelControlMode.Timing,
+                new FishingV3BiteHookTuning
+                {
+                    BiteDelayMinSeconds = 1f,
+                    BiteDelayMaxSeconds = 1f,
+                    HookWindowMinSeconds = 0.5f,
+                    HookWindowMaxSeconds = 0.5f
+                },
+                FishingV3SessionFlowMode.BiteHook);
+        }
+
         private static FishingV3Runtime CreateRuntime(FishingV3Tuning tuning)
         {
-            return new FishingV3Runtime(tuning, new FishingV3ReelInputTuning
-            {
-                VirtualReelSpeedRevolutionsPerSecond = 1f
-            });
+            return new FishingV3Runtime(
+                tuning,
+                new FishingV3ReelInputTuning
+                {
+                    VirtualReelSpeedRevolutionsPerSecond = 1f
+                },
+                new FishingV3FishBehaviorTuning
+                {
+                    CalmOscillationAmplitudeNormalized = 0f,
+                    FightOscillationAmplitudeNormalized = 0f,
+                    RunOscillationAmplitudeNormalized = 0f,
+                    FightPullBurstAmplitudeNormalized = 0f,
+                    RunPullBurstAmplitudeNormalized = 0f
+                });
         }
 
         private static FishingV3Tuning StableSafeTuning()
@@ -250,11 +460,16 @@ namespace FishingMiniGame.Tests.EditMode
             };
         }
 
-        private static FishingInputFrame Frame(float normalizedReelInput)
+        private static FishingInputFrame Frame(
+            float normalizedReelInput = 0f,
+            bool hookPressed = false,
+            bool timingPressed = false)
         {
             return new FishingInputFrame
             {
                 ReelDelta = normalizedReelInput,
+                HookPressed = hookPressed,
+                TimingPressed = timingPressed,
                 IsDeviceConnected = true
             };
         }

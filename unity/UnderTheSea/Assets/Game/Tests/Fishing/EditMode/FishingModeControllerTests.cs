@@ -42,8 +42,36 @@ namespace FishingMiniGame.Tests.EditMode
                 Is.EqualTo(FishingV3RuntimeState.Running));
             Assert.That(fixture.Facade.V3Current.FishState,
                 Is.EqualTo(FishingV3FishState.Fight));
+            Assert.That(fixture.Facade.V3Current.ReelControlMode,
+                Is.EqualTo(FishingV3ReelControlMode.Timing));
+            Assert.That(fixture.Facade.V3Current.GameplayPhase,
+                Is.EqualTo(FishingV3GameplayPhase.WaitingForBite));
+            Assert.That(fixture.Facade.V3Current.IsTimingReelActive, Is.False);
             Assert.That(fixture.Facade.V3Current.CaptureProgressNormalized, Is.Zero);
             Assert.That(input.ReadCount, Is.Zero);
+        }
+
+        [TestCase(
+            FishingV3FishProfileSelectionMode.ForceSmall,
+            FishingV3FishProfileId.Small)]
+        [TestCase(
+            FishingV3FishProfileSelectionMode.ForceNormal,
+            FishingV3FishProfileId.Normal)]
+        [TestCase(
+            FishingV3FishProfileSelectionMode.ForceStrong,
+            FishingV3FishProfileId.Strong)]
+        public void ForcedFishProfile_IsAppliedWhenSpotStartsSession(
+            FishingV3FishProfileSelectionMode mode,
+            FishingV3FishProfileId expected)
+        {
+            Fixture fixture = CreateFixture();
+            fixture.Mode.ConfigureFishProfileSelection(mode, 731);
+
+            Assert.That(fixture.Spot.TryInteract(fixture.Interactor), Is.True);
+
+            Assert.That(fixture.Mode.LastSelectedFishProfile.Id, Is.EqualTo(expected));
+            Assert.That(fixture.Facade.V3Current.FishProfileId, Is.EqualTo(expected));
+            Assert.That(fixture.Facade.V3FishProfile.Id, Is.EqualTo(expected));
         }
 
         [Test]

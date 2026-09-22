@@ -16,6 +16,9 @@ namespace FishingMiniGame.Runtime
         public FishingRoundSnapshot Round => controller != null ? controller.RoundSnapshot : null;
         public FishingSessionSnapshot Session => controller != null ? controller.SessionSnapshot : null;
         public FishingV3Snapshot V3Current => controller != null ? controller.V3Snapshot : null;
+        public FishingV3FishProfile V3FishProfile => controller != null
+            ? controller.V3FishProfile
+            : null;
         public FishingSessionResult LastSessionResult => controller != null ? controller.LastSessionResult : null;
         public FishingGameMode Mode => controller != null ? controller.Mode : FishingGameMode.LegacyRound;
         public FishingGameplayRuntimeMode GameplayRuntimeMode => controller != null
@@ -49,9 +52,25 @@ namespace FishingMiniGame.Runtime
         public void ConfigureV3Runtime(
             FishingV3Tuning modelTuning = null,
             FishingV3ReelInputTuning reelInputTuning = null,
-            FishingV3ResistanceTuning resistanceTuning = null)
+            FishingV3ResistanceTuning resistanceTuning = null,
+            FishingV3FishBehaviorTuning behaviorTuning = null,
+            FishingV3TimingReelTuning timingTuning = null,
+            FishingV3ReelControlMode reelControlMode = FishingV3ReelControlMode.LegacyHold,
+            FishingV3BiteHookTuning biteHookTuning = null,
+            FishingV3SessionFlowMode sessionFlowMode =
+                FishingV3SessionFlowMode.ImmediateFight,
+            FishingV3FishProfile fishProfile = null)
         {
-            controller.ConfigureV3Runtime(modelTuning, reelInputTuning, resistanceTuning);
+            controller.ConfigureV3Runtime(
+                modelTuning,
+                reelInputTuning,
+                resistanceTuning,
+                behaviorTuning,
+                timingTuning,
+                reelControlMode,
+                biteHookTuning,
+                sessionFlowMode,
+                fishProfile);
         }
 
         public void SetV3FishState(FishingV3FishState fishState)

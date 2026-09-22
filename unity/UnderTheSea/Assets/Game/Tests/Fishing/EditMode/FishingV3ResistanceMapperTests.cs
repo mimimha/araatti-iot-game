@@ -314,6 +314,47 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
+        public void AutomaticRunHeadShake_TriggersResistanceOverlayWithoutChangingTargetTension()
+        {
+            FishingV3Tuning modelTuning =
+                FishingV3ResistanceMapperTests.ActiveModelTuning(0.5f);
+            modelTuning.RunBaseTension = 0.8f;
+            FishingV3FishBehaviorTuning behaviorTuning = new FishingV3FishBehaviorTuning
+            {
+                RunDurationMinSeconds = 2f,
+                RunDurationMaxSeconds = 2f,
+                RunHeadShakeDelayMinSeconds = 0.05f,
+                RunHeadShakeDelayMaxSeconds = 0.05f,
+                HeadShakeIntensityMinNormalized = 1f,
+                HeadShakeIntensityMaxNormalized = 1f,
+                CalmOscillationAmplitudeNormalized = 0f,
+                FightOscillationAmplitudeNormalized = 0f,
+                RunOscillationAmplitudeNormalized = 0f,
+                FightPullBurstAmplitudeNormalized = 0f,
+                RunPullBurstAmplitudeNormalized = 0f
+            };
+            Fixture fixture = CreateFixture(
+                modelTuning,
+                Frame(0f),
+                ResistanceTuning(),
+                behaviorTuning);
+            fixture.Controller.SetV3FishState(FishingV3FishState.Run);
+            fixture.Output.ResetCounts();
+
+            fixture.Controller.TickRuntime(0.05f);
+
+            Assert.That(fixture.Controller.V3Snapshot.FishState,
+                Is.EqualTo(FishingV3FishState.Run));
+            Assert.That(fixture.Controller.V3Snapshot.HeadShakeEventSequence,
+                Is.EqualTo(1));
+            Assert.That(fixture.Controller.V3Snapshot.TargetTensionNormalized,
+                Is.EqualTo(0.8f).Within(0.000001f));
+            Assert.That(fixture.Output.LastCommand.HeadShakeOverlayNormalized,
+                Is.GreaterThan(0f));
+            Assert.That(fixture.Output.LastCommand.HeadShakePulseActive, Is.True);
+        }
+
+        [Test]
         public void PauseStopsAndFreezesPulse_ResumeAppliesWithoutStalePulse()
         {
             Fixture fixture = CreateFixture(
@@ -443,7 +484,8 @@ namespace FishingMiniGame.Tests.EditMode
         private Fixture CreateFixture(
             FishingV3Tuning modelTuning,
             FishingInputFrame input,
-            FishingV3ResistanceTuning resistanceTuning = null)
+            FishingV3ResistanceTuning resistanceTuning = null,
+            FishingV3FishBehaviorTuning behaviorTuning = null)
         {
             GameObject gameObject = new GameObject("FishingV3ResistanceControllerTests");
             _objects.Add(gameObject);
@@ -458,7 +500,8 @@ namespace FishingMiniGame.Tests.EditMode
                 {
                     VirtualReelSpeedRevolutionsPerSecond = 1f
                 },
-                resistanceTuning ?? ResistanceTuning());
+                resistanceTuning ?? ResistanceTuning(),
+                behaviorTuning ?? DisabledBehaviorTuning());
             controller.BeginRound();
             return new Fixture(controller, output);
         }
@@ -473,6 +516,18 @@ namespace FishingMiniGame.Tests.EditMode
                 FallRatePerSecond = 10f,
                 HeadShakeAmplitudeNormalized = 0.2f,
                 HeadShakeDurationSeconds = 0.25f
+            };
+        }
+
+        private static FishingV3FishBehaviorTuning DisabledBehaviorTuning()
+        {
+            return new FishingV3FishBehaviorTuning
+            {
+                CalmOscillationAmplitudeNormalized = 0f,
+                FightOscillationAmplitudeNormalized = 0f,
+                RunOscillationAmplitudeNormalized = 0f,
+                FightPullBurstAmplitudeNormalized = 0f,
+                RunPullBurstAmplitudeNormalized = 0f
             };
         }
 

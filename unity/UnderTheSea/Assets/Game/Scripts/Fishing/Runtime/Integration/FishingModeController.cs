@@ -22,6 +22,9 @@ namespace FishingMiniGame.Runtime
         [SerializeField] private FishingMiniGameFacade facade;
         [SerializeField] private FishingSpot fishingSpot;
         [SerializeField] private FishingV3FishState initialFishState = FishingV3FishState.Fight;
+        [SerializeField] private FishingV3FishProfileSelectionMode fishProfileSelectionMode =
+            FishingV3FishProfileSelectionMode.SeededRandom;
+        [SerializeField] private int fishProfileSelectionSeed = 731;
 
         private FishingSpot _subscribedSpot;
         private FishingModeLifecycleState _state;
@@ -29,6 +32,8 @@ namespace FishingMiniGame.Runtime
         private GameObject _currentInteractor;
         private FishingV3Result _lastResult = FishingV3Result.Active;
         private bool _hasLastResult;
+        private FishingV3FishProfileSelector _fishProfileSelector;
+        private FishingV3FishProfile _lastSelectedFishProfile;
 
         public FishingModeLifecycleState State => _state;
 
@@ -44,9 +49,13 @@ namespace FishingMiniGame.Runtime
 
         public FishingV3Result LastResult => _lastResult;
 
+        public FishingV3FishProfile LastSelectedFishProfile =>
+            _lastSelectedFishProfile?.Copy();
+
         private void Awake()
         {
             ResolveFacade();
+            EnsureFishProfileSelector();
         }
 
         private void OnEnable()
@@ -93,6 +102,21 @@ namespace FishingMiniGame.Runtime
         {
             Unsubscribe();
             fishingSpot = null;
+        }
+
+        public void ConfigureFishProfileSelection(
+            FishingV3FishProfileSelectionMode mode,
+            int seed = 731)
+        {
+            if (_state != FishingModeLifecycleState.Inactive)
+            {
+                throw new InvalidOperationException(
+                    "Fish profile selection cannot change during an active session.");
+            }
+
+            fishProfileSelectionMode = mode;
+            fishProfileSelectionSeed = seed;
+            _fishProfileSelector = new FishingV3FishProfileSelector(mode, seed);
         }
 
         public bool RequestPause()
@@ -145,6 +169,16 @@ namespace FishingMiniGame.Runtime
         private void ResolveFacade()
         {
             if (facade == null) facade = GetComponent<FishingMiniGameFacade>();
+        }
+
+        private void EnsureFishProfileSelector()
+        {
+            if (_fishProfileSelector == null)
+            {
+                _fishProfileSelector = new FishingV3FishProfileSelector(
+                    fishProfileSelectionMode,
+                    fishProfileSelectionSeed);
+            }
         }
 
         private void Subscribe(FishingSpot spot)
@@ -201,7 +235,12 @@ namespace FishingMiniGame.Runtime
 
             try
             {
-                facade.ConfigureV3Runtime();
+                EnsureFishProfileSelector();
+                _lastSelectedFishProfile = _fishProfileSelector.SelectNext();
+                facade.ConfigureV3Runtime(
+                    reelControlMode: FishingV3ReelControlMode.Timing,
+                    sessionFlowMode: FishingV3SessionFlowMode.BiteHook,
+                    fishProfile: _lastSelectedFishProfile);
                 facade.BeginRound();
                 facade.SetV3FishState(initialFishState);
             }
@@ -217,6 +256,7 @@ namespace FishingMiniGame.Runtime
                 snapshot == null ||
                 snapshot.RuntimeState != FishingV3RuntimeState.Running ||
                 snapshot.Result != FishingV3Result.Active ||
+                snapshot.GameplayPhase != FishingV3GameplayPhase.WaitingForBite ||
                 snapshot.FishState != initialFishState)
             {
                 FailBegin();
