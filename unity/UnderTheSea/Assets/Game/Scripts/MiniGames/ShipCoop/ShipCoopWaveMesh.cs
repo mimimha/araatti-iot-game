@@ -122,6 +122,10 @@ public static class ShipCoopWaveMesh
     private static Mesh _cached;
     private static Vector4 _cachedShape;
 
+    private static Mesh _overlay;
+    private static Vector4 _overlayShape;
+    private static float _overlaySwell;
+
     /// <summary>
     /// 파도 메시를 돌려준다. 같은 모양이면 **다시 만들지 않는다.**
     /// </summary>
@@ -148,6 +152,65 @@ public static class ShipCoopWaveMesh
         _cachedShape = shape;
 
         return _cached;
+    }
+
+    /// <summary>
+    /// 같은 파도를 **살짝 부풀린** 것. 경고 막(<see cref="BigWave"/>)이 파도 겉에 뜨게 하는 데 쓴다.
+    /// </summary>
+    /// <param name="swell">겉으로 이만큼 부푼다 (m).</param>
+    public static Mesh GetOrBuildOverlay(float width, float height, float thickness, float sink, float swell)
+    {
+        Vector4 shape = new Vector4(width, height, thickness, sink);
+
+        if (_overlay != null && _overlayShape == shape && Mathf.Approximately(_overlaySwell, swell))
+        {
+            return _overlay;
+        }
+
+        if (_overlay != null)
+        {
+            Object.Destroy(_overlay);
+        }
+
+        _overlay = Swell(Build(width, height, thickness, sink), swell);
+        _overlayShape = shape;
+        _overlaySwell = swell;
+
+        return _overlay;
+    }
+
+    /// <summary>
+    /// 꼭짓점을 법선 방향으로 밀어 껍질을 만든다.
+    ///
+    /// ⚠ **같은 자리에 겹쳐 놓으면 두 면이 서로 이기려고 깜빡입니다.** (z-파이팅)
+    ///    경고 막은 파도와 완전히 같은 모양이라 이 문제를 그대로 맞습니다.
+    ///
+    /// ⚠ **크기를 키우는 것으로는 안 됩니다.** 폭 120m · 높이 8m 이라 비율이
+    ///    15배 차이 납니다. 0.3% 를 키우면 양 끝은 0.18m 씩 밀려 나가는데
+    ///    마루는 1.2cm 밖에 안 뜹니다. 뜨는 곳과 안 뜨는 곳이 생겨서
+    ///    **마루에서만 깜빡입니다.** 법선으로 밀면 어디서나 똑같이 뜹니다.
+    /// </summary>
+    private static Mesh Swell(Mesh source, float swell)
+    {
+        Vector3[] points = source.vertices;
+        Vector3[] normals = source.normals;
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            points[i] += normals[i] * swell;
+        }
+
+        source.vertices = points;
+        source.name += "_경고막";
+
+        // 꼭짓점이 움직였으니 접선도 다시. 법선은 모양이 같으므로 그대로 둔다.
+        source.RecalculateTangents();
+
+        // ⚠ 꼭짓점을 바꿔도 경계상자가 저절로 따라오지 않습니다. 재면 몸통 것 그대로입니다.
+        //    그대로 두면 화면 가장자리에서 막만 먼저 잘려 나갑니다.
+        source.RecalculateBounds();
+
+        return source;
     }
 
     private static Mesh Build(float width, float height, float thickness, float sink)
