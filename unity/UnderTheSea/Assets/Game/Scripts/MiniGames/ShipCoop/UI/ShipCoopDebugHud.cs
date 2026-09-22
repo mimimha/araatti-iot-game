@@ -167,7 +167,18 @@ public class ShipCoopDebugHud : MonoBehaviour
     /// </summary>
     private static string HintFor(VoyageEvent e)
     {
-        return e is Reef reef ? reef.DodgeHint() : e.LiveHint();
+        if (e is Reef reef)
+        {
+            return reef.DodgeHint();
+        }
+
+        // 카드에서는 숫자를 전부 뺐다(각도 · 퍼센트). 판정에 쓰는 값은 여기서만 본다.
+        if (e is BigWave wave)
+        {
+            return wave.StraightHint();
+        }
+
+        return e is Squall squall ? squall.SailHint() : e.LiveHint();
     }
 
     private void AppendTasks()

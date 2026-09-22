@@ -82,6 +82,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Networked] private float Hp { get; set; }
 
         /// <summary>
+        /// 적선을 못 막아 포격을 맞은 횟수(<see cref="ShipCoopGame.EnemyBreaches"/>). 늘어난 만큼
+        /// 클라이언트도 배를 흔든다 — <see cref="DumpCounts"/>와 같은 방식(늘어난 횟수로 한 번씩 재생).
+        /// </summary>
+        [Networked] private int EnemyBreaches { get; set; }
+
+        /// <summary>클라이언트가 마지막으로 흔든 횟수. 이보다 늘어나면 그만큼 흔든다.</summary>
+        private int _shownEnemyBreaches;
+
+        /// <summary>
         /// 무적(개발자 모드)인가. **화면에 보이라고 복제한다.**
         ///
         /// 판정은 서버만 하므로 규칙에는 필요 없다. 그런데 개발자 모드 패널은 각자 자기 화면에서 그리고
@@ -158,6 +167,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         private ShipVoyage voyage;
         private ShipFlooding flooding;
         private ShipCoopHud hud;
+        private ShipCoopShipTurn shipTurn;
 
         public override void Spawned()
         {
@@ -166,6 +176,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
             flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
             hud = FindAnyObjectByType<ShipCoopHud>(FindObjectsInactive.Include);
+            shipTurn = FindAnyObjectByType<ShipCoopShipTurn>(FindObjectsInactive.Include);
 
             boxes = FindObjectsByType<AmmoBox>(FindObjectsInactive.Include, FindObjectsSortMode.None)
                 .OrderBy(b => PathOf(b.transform), System.StringComparer.Ordinal)
@@ -211,6 +222,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 Elapsed = game.Elapsed;
                 PhaseIndex = game.CurrentPhaseIndex;
                 Score = game.FinalScore;
+                EnemyBreaches = game.EnemyBreaches;
             }
 
             if (health != null)
@@ -730,6 +742,15 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             if (game != null)
             {
                 game.ShowState((ShipCoopState)Phase, Elapsed, PhaseIndex, Score);
+
+                // 적선을 못 막은 횟수가 늘어난 만큼 배를 흔든다. 서버는 ReportEnemyBreached 에서
+                // 이미 직접 흔들었으므로(위 early return), 여기는 클라이언트 몫이다.
+                if (EnemyBreaches > _shownEnemyBreaches)
+                {
+                    shipTurn?.Shake(game.EnemyBreachShakeDegrees);
+                }
+
+                _shownEnemyBreaches = EnemyBreaches;
             }
 
             if (health != null)

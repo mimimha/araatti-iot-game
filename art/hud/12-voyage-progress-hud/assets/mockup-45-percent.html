@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Voyage HUD — 45% mockup</title>
+<style>
+  body { background: #0b1622; margin: 0; padding: 40px; font-family: sans-serif; color: #cde; }
+  .stage {
+    position: relative;
+    width: 1076px;   /* 2152 * 0.5 — Unity RectTransform 폭이라고 가정 */
+    aspect-ratio: 2152 / 731;
+    margin: 0 auto 24px;
+    outline: 1px dashed #345;
+  }
+  .stage img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .fill-clip { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; }
+  .fill-clip img { position: absolute; top: 0; left: 0; width: 1076px; height: 100%; }
+  .guide {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: #ff2fd0;
+  }
+  .guide-label {
+    position: absolute; top: -20px; font-size: 11px; color: #ff2fd0; transform: translateX(-50%);
+  }
+  h1 { text-align: center; font-size: 16px; }
+  .note { max-width: 1076px; margin: 0 auto 30px; font-size: 13px; line-height: 1.6; }
+  code { background: #16222f; padding: 2px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <h1>진행률 45% — 진행선 끝 · 배 마커 · 활성 노드 2개 검증용 목업</h1>
+
+  <div class="stage" id="stage">
+    <img src="voyage-track-empty.svg" alt="empty track">
+  </div>
+
+  <div class="note">
+    <p>분홍 세로선 = 진행선이 실제로 잘리는 X 좌표(<code>trackStartX + 0.45 * trackLength</code>)와
+    배 마커 중심 X. 두 값이 같은 자리에 겹치면 검증 통과.</p>
+    <p id="calc"></p>
+  </div>
+
+<script>
+  // build-voyage-assets.cjs 의 상수와 같은 값을 쓴다 (manifest.json 을 그대로 읽는다).
+  fetch('voyage-hud-manifest.json').then(r => r.json()).then(m => {
+    const p = 0.45;
+    const fillAmount = (m.trackStartX + p * m.trackLength) / m.viewBox.width;
+    const fillCropX = fillAmount * m.viewBox.width; // = trackStartX + p*trackLength
+    const shipX = m.trackStartX + p * m.trackLength;
+
+    const stage = document.getElementById('stage');
+
+    // 진행선: 왼쪽부터 fillAmount 만큼만 보이게 자른다 (Unity Image Filled Horizontal 재현).
+    const clip = document.createElement('div');
+    clip.className = 'fill-clip';
+    clip.style.width = (fillAmount * 100) + '%';
+    const fillImg = document.createElement('img');
+    fillImg.src = 'voyage-progress-fill.svg';
+    clip.appendChild(fillImg);
+    stage.appendChild(clip);
+
+    // 활성 노드: p 이하에 있는 노드만 켠다. (i+1)/(count+1) <= p
+    const count = m.nodeX.length;
+    let activeCount = 0;
+    m.nodeX.forEach((nx, i) => {
+      const threshold = (i + 1) / (count + 1);
+      if (p < threshold) return;
+      activeCount++;
+      const delta = nx - m.activeNodeRefX;
+      const node = document.createElement('img');
+      node.src = 'voyage-node-active.svg';
+      node.style.left = (delta / m.viewBox.width * 100) + '%';
+      stage.appendChild(node);
+    });
+
+    // 배 마커.
+    const marker = document.createElement('img');
+    marker.src = 'voyage-ship-marker.svg';
+    marker.style.left = ((shipX - m.shipMarkerRestX) / m.viewBox.width * 100) + '%';
+    stage.appendChild(marker);
+
+    // 검증 안내선 둘 다 같은 X(진행선 끝 = 배 마커 중심)에 그린다.
+    const guide = document.createElement('div');
+    guide.className = 'guide';
+    guide.style.left = (fillCropX / m.viewBox.width * 100) + '%';
+    const label = document.createElement('div');
+    label.className = 'guide-label';
+    label.textContent = 'X=' + fillCropX.toFixed(1);
+    guide.appendChild(label);
+    stage.appendChild(guide);
+
+    document.getElementById('calc').innerHTML =
+      'fillAmount = ' + fillAmount.toFixed(4) + ' → 잘리는 X = ' + fillCropX.toFixed(1) +
+      ' px · 배 마커 중심 X = ' + shipX.toFixed(1) + ' px · 활성 노드 수 = ' + activeCount +
+      ' (기대값 2)';
+  });
+</script>
+</body>
+</html>

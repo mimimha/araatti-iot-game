@@ -334,6 +334,13 @@ public abstract class VoyageEvent : MonoBehaviour
     {
         if (IsActive)
         {
+            // ⚠ **여기서 그냥 돌아서면 연쇄가 조용히 사라진다.** (5장)
+            //
+            // 암초에 부딪히거나 포격을 맞으면 `chainOnFail` 이 선체 파손을 부르는데,
+            // 구멍이 이미 하나 나 있으면 이 return 에 걸려 **아무 일도 안 일어났다.**
+            // 파도가 두 번 겹칠 수 없는 것처럼 대부분은 그게 맞지만, 구멍처럼
+            // **쌓이는 사건**은 한 겹 더 얹을 기회가 있어야 한다.
+            OnBeginAgain();
             return;
         }
 
@@ -594,6 +601,20 @@ public abstract class VoyageEvent : MonoBehaviour
 
     /// <summary>시작할 때. 연출을 켜거나 목표값을 정한다.</summary>
     protected virtual void OnBegin()
+    {
+    }
+
+    /// <summary>
+    /// **이미 벌어지고 있는데 <see cref="Begin"/> 이 또 불렸다.** 기본은 아무것도 안 한다.
+    ///
+    /// 겹칠 수 없는 사건(파도 · 돌풍 · 암초 · 적선)은 그대로 두면 됩니다 — 한 번에
+    /// 하나씩만 벌어지는 게 맞습니다. **쌓이는 사건만** 이걸 받습니다.
+    /// 지금은 선체 파손 하나이고, 구멍을 한 군데 더 냅니다.
+    ///
+    /// ⚠ 단계는 그대로입니다. 예고로 되돌아가지도, 제한 시간이 늘어나지도 않습니다.
+    ///    받는 쪽에서 <c>IsRunning</c> 인지 직접 확인하세요 — 예고 중에 불릴 수도 있습니다.
+    /// </summary>
+    protected virtual void OnBeginAgain()
     {
     }
 

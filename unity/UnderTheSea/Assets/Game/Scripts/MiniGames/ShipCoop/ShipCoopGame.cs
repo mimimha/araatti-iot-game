@@ -59,6 +59,13 @@ public class ShipCoopGame : MonoBehaviour
     [Tooltip("비워두면 씬에서 자동으로 찾는다. 없으면 침수가 굴러가지 않는다.")]
     [SerializeField] private ShipFlooding flooding;
 
+    [Tooltip("비워두면 씬에서 자동으로 찾는다. 없으면 적선 포격을 맞아도 배가 안 흔들린다.")]
+    [SerializeField] private ShipCoopShipTurn shipTurn;
+
+    [Header("충격 흔들림")]
+    [Tooltip("적선을 못 막아 포격을 맞았을 때 배가 흔들리는 세기(도).")]
+    [SerializeField, Min(0f)] private float enemyBreachShakeDegrees = 6f;
+
     [Header("제한시간 (초)")]
     [SerializeField] private float timeLimit = 180f;
 
@@ -110,9 +117,30 @@ public class ShipCoopGame : MonoBehaviour
     private int _enemiesDestroyed;
     private int _leaksSealed;
     private int _obstaclesAvoided;
+    private int _enemyBreaches;
 
     /// <summary>지금 상태</summary>
     public ShipCoopState State { get; private set; } = ShipCoopState.Ready;
+
+    /// <summary>
+    /// 씬에 있는 그 판. 배 협동 게임 씬에는 하나만 두므로 static 으로 잡아도 안전하다.
+    ///
+    /// <see cref="ShipCoopInput"/> 처럼 씬 참조가 없는 곳에서 "출항했는가" 만 물어볼 때 쓴다.
+    /// </summary>
+    public static ShipCoopGame Current { get; private set; }
+
+    private void Awake()
+    {
+        Current = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Current == this)
+        {
+            Current = null;
+        }
+    }
 
     /// <summary>끝났을 때의 점수. 끝나기 전에는 0. 네트워크에서 이 값을 복제한다.</summary>
     public int FinalScore { get; private set; }
@@ -266,6 +294,7 @@ public class ShipCoopGame : MonoBehaviour
         _enemiesDestroyed = 0;
         _leaksSealed = 0;
         _obstaclesAvoided = 0;
+        _enemyBreaches = 0;
         FinalScore = 0;
 
         if (voyage != null)
@@ -412,6 +441,7 @@ public class ShipCoopGame : MonoBehaviour
         _enemiesDestroyed = 0;
         _leaksSealed = 0;
         _obstaclesAvoided = 0;
+        _enemyBreaches = 0;
 
         voyage.ResetVoyage();
 
@@ -584,6 +614,28 @@ public class ShipCoopGame : MonoBehaviour
     public void ReportEnemyDestroyed()
     {
         _enemiesDestroyed++;
+    }
+
+    /// <summary>
+    /// 적선을 못 막아서 포격을 맞은 횟수. 배가 한 번 흔들리는 연출을 클라이언트까지
+    /// 옮기려고 늘어나는 값으로 잡아둔다. (<c>ShipCoopStateSync</c>가 복제한다)
+    /// </summary>
+    public int EnemyBreaches => _enemyBreaches;
+
+    /// <summary>흔들리는 세기(도). <c>ShipCoopStateSync</c>가 클라이언트에서 같은 세기로 흔들 때 쓴다.</summary>
+    public float EnemyBreachShakeDegrees => enemyBreachShakeDegrees;
+
+    /// <summary>적선을 못 막았다. 이 컴퓨터(권위 있는 쪽)에서 바로 배를 흔든다.</summary>
+    public void ReportEnemyBreached()
+    {
+        _enemyBreaches++;
+
+        if (shipTurn == null)
+        {
+            shipTurn = FindAnyObjectByType<ShipCoopShipTurn>(FindObjectsInactive.Include);
+        }
+
+        shipTurn?.Shake(enemyBreachShakeDegrees);
     }
 
     /// <summary>침수를 막았다.</summary>
