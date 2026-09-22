@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 1361592759528249862}
   - component: {fileID: 7828902511947581239}
   - component: {fileID: 2962692837604576806}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: FX_Birds_Colourful_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}

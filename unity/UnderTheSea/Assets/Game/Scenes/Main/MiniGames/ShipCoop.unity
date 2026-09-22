@@ -7439,7 +7439,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   health: {fileID: 0}
-  damagePerSecondWhenFull: 6
+  damagePerSecondWhenFull: 3
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
 --- !u!4 &623664410
@@ -16839,8 +16839,9 @@ MonoBehaviour:
     pool:
     - {fileID: 1760830201}
     - {fileID: 1861713332}
-    minInterval: 10
-    maxInterval: 14
+    - {fileID: 924620907}
+    minInterval: 8
+    maxInterval: 11
     maxConcurrent: 2
     openingBurst: 0
   - phaseIndex: 2
@@ -16850,8 +16851,9 @@ MonoBehaviour:
     - {fileID: 997728828}
     - {fileID: 1861713332}
     - {fileID: 562408157}
-    minInterval: 9
-    maxInterval: 13
+    - {fileID: 924620907}
+    minInterval: 7
+    maxInterval: 10
     maxConcurrent: 3
     openingBurst: 0
   - phaseIndex: 3
@@ -16888,6 +16890,7 @@ MonoBehaviour:
     maxConcurrent: 1
     openingBurst: 0
   graceSeconds: 6
+  mostInARow: 2
   randomSeed: 0
 --- !u!4 &1792953313
 Transform:

@@ -221,6 +221,18 @@ public class FusionLauncher : MonoBehaviour
             // 서버는 들어오는 연결을 받을 주소를 직접 연다.
             // 공식 샘플과 같은 방식이다. (Photon/Fusion/Runtime/FusionBootstrap.cs)
             args.Address = NetAddress.Any(resolvedPort);
+
+            // NAT 뒤에 있으면 자기 주소를 스스로 알 수 없다. 밖에서 쓸 주소를 직접 준다.
+            // 자세한 이유는 FusionLaunchArguments.PublicAddressKey 에 적어 두었다.
+            string publicIp = FusionLaunchArguments
+                .GetString(FusionLaunchArguments.PublicAddressKey, string.Empty)
+                ?.Trim();
+
+            if (!string.IsNullOrEmpty(publicIp))
+            {
+                args.CustomPublicAddress = NetAddress.CreateFromIpPort(publicIp, resolvedPort);
+                Debug.Log($"[Fusion] 바깥에 알릴 주소: {publicIp}:{resolvedPort}");
+            }
         }
 
         // 씬 재로드는 StartGame 안에서 일어난다. 복사본의 Awake 가 돌기 전에 표시해 둬야 한다.

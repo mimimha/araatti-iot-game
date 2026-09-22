@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8281051520913150276}
   - component: {fileID: 8087381960235277680}
   - component: {fileID: 8086949497265296450}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: FX_Birds_Tropical_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}

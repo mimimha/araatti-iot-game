@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2317641446962368709}
   - component: {fileID: 2514200707153642373}
   - component: {fileID: 2513575499121676667}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: FX_SunBeam_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}

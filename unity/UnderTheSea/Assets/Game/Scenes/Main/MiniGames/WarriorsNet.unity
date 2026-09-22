@@ -187,6 +187,85 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 564290d19b5eb3741a46e2fc5b8d6d12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsSpawnPoint
+--- !u!1 &102336789
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 102336791}
+  - component: {fileID: 102336790}
+  m_Layer: 0
+  m_Name: Audio
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &102336790
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 102336789}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96c67ba5b525479479cdf9ed136b24c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsAudio
+  bgmWaiting: {fileID: 0}
+  bgmRound1: {fileID: 0}
+  bgmRound2: {fileID: 0}
+  bgmRound3: {fileID: 0}
+  stingerClear: {fileID: 0}
+  stingerFail: {fileID: 0}
+  crossfadeSeconds: 1.5
+  waveLoop: {fileID: 0}
+  krakenLoop: {fileID: 0}
+  loopLevel: 0.45
+  swingHorizontal: {fileID: 0}
+  swingVertical: {fileID: 0}
+  swingThrust: {fileID: 0}
+  monsterHit: {fileID: 0}
+  comboUp: {fileID: 0}
+  monsterKill: {fileID: 0}
+  tentacleHit: {fileID: 0}
+  tentacleCut: {fileID: 0}
+  finishWindow: {fileID: 0}
+  comboSet: {fileID: 0}
+  noteHit: {fileID: 0}
+  noteMiss: {fileID: 0}
+  krakenHurt: {fileID: 0}
+  krakenRoar: {fileID: 0}
+  playerHurt: {fileID: 0}
+  playerDown: {fileID: 0}
+  roundChange: {fileID: 0}
+  countdownTick: {fileID: 0}
+  countdownGo: {fileID: 0}
+  sfxLevel: 0.85
+  swingLevel: 0.5
+  monsterLevel: 0.8
+  noteLevel: 0.9
+  krakenLevel: 1.15
+  quietSecondsOnJoin: 1.5
+--- !u!4 &102336791
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 102336789}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &151234891
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -400,10 +479,10 @@ MonoBehaviour:
   - {fileID: 459745491}
   - {fileID: 1952705951}
   hitsPerTentacle: 1
-  answerSeconds: 4.5
+  answerSeconds: 3.4
   twinExtraSeconds: 0.9
-  gapSeconds: 0.6
-  defeatShowSeconds: 0.35
+  gapSeconds: 0.2
+  defeatShowSeconds: 0.15
   missDamage: 9
   _StageOpen:
     RawValue: 0
@@ -446,7 +525,7 @@ MonoBehaviour:
   countdownSeconds: 10
   phase1TargetKills: 30
   phase1KillsPerExtraPlayer: 20
-  phase2TargetTentacleHits: 22
+  phase2TargetTentacleHits: 14
   phase3TargetRhythmHits: 14
   matchSeconds: 240
   roundIntroSeconds: 2.4
@@ -1099,3 +1178,4 @@ SceneRoots:
   - {fileID: 664164399}
   - {fileID: 2017028740}
   - {fileID: 1885143926}
+  - {fileID: 102336791}
