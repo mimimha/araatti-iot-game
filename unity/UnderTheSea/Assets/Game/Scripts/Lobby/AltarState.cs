@@ -223,7 +223,13 @@ namespace UnderTheSea.Lobby
         }
 
         /// <summary>
-        /// 봉헌이 끝나면 부른다. 미뤄 둔 조회를 <b>종류별로 최대 한 번씩</b> 내보낸다.
+        /// 봉헌이 끝나면 부른다. 미뤄 둔 조회를 <b>최대 한 번</b> 내보낸다.
+        ///
+        /// ⚠ 제단 조회가 미뤄져 있으면 인벤토리는 따로 묻지 않는다. 제단 응답에 myFragments 가
+        ///    실려 오고 <see cref="ApplyStateSnapshot"/> 이 <see cref="PlayerInventory"/> 까지
+        ///    같이 갱신하기 때문이다. 둘을 동시에 내면 공유 순번을 나눠 갖는데(제단이 먼저,
+        ///    인벤토리가 나중), 인벤토리 응답이 먼저 도착하면 제단 응답이 옛것으로 판정돼
+        ///    통째로 버려진다 — 조각 수만 맞고 MaxOfferAmount 는 옛값에 머문다.
         /// </summary>
         /// <param name="receivedServerState">
         /// 권위 상태를 실제로 받아 적용했는지. 네트워크 실패 등으로 못 받았으면 false —
@@ -248,8 +254,7 @@ namespace UnderTheSea.Lobby
             {
                 RequestRefresh();
             }
-
-            if (refreshInventory)
+            else if (refreshInventory)
             {
                 PlayerInventory.RequestRefresh();
             }

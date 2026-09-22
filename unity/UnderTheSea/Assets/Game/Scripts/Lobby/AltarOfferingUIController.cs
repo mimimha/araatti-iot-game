@@ -141,6 +141,12 @@ namespace UnderTheSea.Lobby
         /// 열면서 서버에 현재 값을 한 번 물어본다. 다른 사람이 그사이 봉헌했을 수 있다.
         /// ⚠ 서비스를 직접 부르지 않고 캐시의 입구를 쓴다. 그래야 중복 요청 합치기와
         ///    봉헌 중 차단이 그대로 걸린다. (설계 12.7절)
+        ///
+        /// ⚠ <b>인벤토리는 따로 묻지 않는다.</b> 제단 응답에 myFragments 가 함께 오고,
+        ///    <see cref="AltarState.ApplyStateSnapshot"/> 이 <see cref="PlayerInventory"/> 까지
+        ///    같이 갱신한다. 둘을 동시에 내면 공유 순번을 나눠 갖는데(제단이 먼저, 인벤토리가
+        ///    나중), 인벤토리 응답이 먼저 도착하면 제단 응답이 옛것으로 판정돼 통째로 버려진다.
+        ///    그러면 MaxOfferAmount 가 0 으로 남아 수량을 하나도 고를 수 없다.
         /// </summary>
         public void Open()
         {
@@ -155,7 +161,6 @@ namespace UnderTheSea.Lobby
             ResetSelectedAmount();
 
             AltarState.RequestRefresh();
-            PlayerInventory.RequestRefresh();
 
             AcquireFocus();
             Render();
