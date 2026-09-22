@@ -2627,6 +2627,7 @@ GameObject:
   - component: {fileID: 8617005968481719764}
   - component: {fileID: 3198784943384249776}
   - component: {fileID: 9055123758217843492}
+  - component: {fileID: 8340026935150668341}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -2775,6 +2776,7 @@ MonoBehaviour:
   - {fileID: 560222595692780822}
   - {fileID: 8617005968481719764}
   - {fileID: 3198784943384249776}
+  - {fileID: 8340026935150668341}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
 MonoBehaviour:
@@ -2850,6 +2852,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dfef390d1317dc64bb9eb45ac10cbf26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerView
+  settleWindow: 0.5
+  settleStreak: 2
+  settleTimeout: 5
+  giveUpAfter: 15
   mouseX: Mouse X
   mouseY: Mouse Y
   mouseScroll: Mouse ScrollWheel
@@ -2969,6 +2975,18 @@ MonoBehaviour:
   tailOverlap: 13
   showSeconds: 8
   fadeSeconds: 0.4
+--- !u!114 &8340026935150668341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3d699190aa94bd438dadc16d8100276, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferingRelay
 --- !u!1 &6448122823236699881
 GameObject:
   m_ObjectHideFlags: 0
