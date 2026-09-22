@@ -29,6 +29,7 @@
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/`, 셰이더는 `Art/Shaders/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 · 판 테두리 화로(`Mine_BridgeProp`) | 효진 | 2026-09-18 |
 | Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
 | 광산 HUD 그림 12종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 · 채굴 결과 판(성공·실패) | 효진 | 2026-09-20 |
+| Fredoka | fonts.google.com/specimen/Fredoka | 무료 (SIL Open Font License 1.1) | `Assets/Game/Fonts/Fredoka-Bold.ttf` (Bold 굵기 한 벌만. 라이선스 전문은 같은 폴더 `Fredoka-OFL.txt`) | 배 협동 — 상호작용 링 안 키캡 글자(Space · K · J · L) 전용. 본문 글꼴은 NotoSansKR 그대로 | 민화 | 2026-09-22 |
 | Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
 | 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |

@@ -876,6 +876,14 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 143073163394157148, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 163520605302327776, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 173411207264440464, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -884,7 +892,15 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 369994808497468293, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 455428211529336833, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 524187124001386688, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -913,6 +929,10 @@ PrefabInstance:
       value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 1431579860399852422, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 1559824161549320271, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -948,6 +968,10 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 2484200612295164355, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 2571163360939216018, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -969,6 +993,10 @@ PrefabInstance:
       value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 3236862516921553658, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3296741295433569295, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -1112,11 +1140,27 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 6054524556244551581, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6134659402024019774, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 6280375609690948854, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 6353217476997836244, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 6362435437194888385, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6515343458403154501, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -1140,11 +1184,19 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 6835973048798733847, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 6837902262888458330, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 7274590252623179329, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 7325254813563080765, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -1172,9 +1224,17 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 8318003893449966566, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 8443091316058092788, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_AdditionalShaderChannelsFlag
       value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8537480351786118116, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 8921680479182483684, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
@@ -1261,6 +1321,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9136070686684072638, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 9178005606653277357, guid: 3c4f6afddc12cfc4796e3f26796115e2, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -9384,6 +9448,7 @@ MonoBehaviour:
   - {fileID: 823452538}
   - {fileID: 1872577301}
   pointCount: 1
+  maxPoints: 2
 --- !u!4 &924620908
 Transform:
   m_ObjectHideFlags: 0
@@ -9964,8 +10029,14 @@ MonoBehaviour:
   wavePrefab: {fileID: 0}
   waveMaterial: {fileID: 2100000, guid: 0dd08b39c8b3b3243af69e9113ed84a9, type: 2}
   waveWidth: 120
+  waveHeight: 8
+  waveThickness: 12
+  waveSink: 0.8
   straightColor: {r: 0.7, g: 0.85, b: 1, a: 1}
   crookedColor: {r: 0.9, g: 0.25, b: 0.2, a: 1}
+  warningOverlay: {fileID: 0}
+  overlayAlpha: 0.4
+  overlayLift: 0.06
   pushPerSecond: 45
   randomSide: 1
   fixedSide: 1
