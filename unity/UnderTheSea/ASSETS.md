@@ -41,7 +41,7 @@
 | Set Sail (Forgotten-Hero-Records) | pixabay.com/music/main-title-set-sail-350596/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmReady.mp3` | 배 협동 배경음악 — 대기 | 민화 | 2026-09-21 |
 | Pirate Tavern (Full Version!) (Magiksolo) | pixabay.com/music/main-title-pirate-tavern-full-version-167990/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmSailing.mp3` | 배 협동 배경음악 — 항해 | 민화 | 2026-09-21 |
 | Pirate Adventure Loop (Ebunny) | pixabay.com/music/orchestral-pirate-adventure-loop-557984/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmResult.mp3` | 배 협동 배경음악 — 결과 | 민화 | 2026-09-21 |
-| ~~Exploration Fantasy Free Pack~~ | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | ⛔ 2026-09-21 에 위 Pixabay 곡으로 교체. 저장소에서 제거 | (이전) 배 협동 배경음악 | 민화 | 2026-09-20 |
+| Exploration Fantasy Free Pack (Eugene Des) | Unity Asset Store | 무료 (Standard Unity Asset Store EULA) | `Assets/Audio/Music/Exploration Fantasy Free Pack/` (10곡 중 쓰는 2곡만 담음 — 나머지는 에셋 스토어에서 다시 받는다) | 로비 배경음악 — `6. The Tavern Keeper` · 게임 시작 ~ 채널 선택 배경음악 — `8. The Apothecary`. 배 협동은 2026-09-21 에 위 Pixabay 곡으로 갈아탔다 | 민화 | 2026-09-22 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
 > 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —
