@@ -29,6 +29,15 @@ namespace Warriors.Net
 
         /// <summary>0 진행 중 · 1 잘렸다 · 2 시간을 놓쳐 반격당했다.</summary>
         public int Result;
+
+        /// <summary>
+        /// 이 촉수에 답할 수 있는 시간(초).
+        ///
+        /// ⚠ <b>화면이 제 값으로 계산하면 안 된다.</b> 두 팔이 함께 선 패턴은 서버가 시간을 더 준다
+        ///    (<c>twinExtraSeconds</c>). 화면은 그걸 모르고 짧은 시간으로 링을 조여, <b>링이 다 조여든
+        ///    뒤에도 한참 반격이 오지 않았다.</b> 그래서 서버가 쓴 값을 그대로 복제한다.
+        /// </summary>
+        public float Window;
     }
 
     /// <summary>
@@ -447,8 +456,15 @@ namespace Warriors.Net
                 WarriorsNetPlayerMover mover = life.GetComponent<WarriorsNetPlayerMover>();
                 if (mover == null) continue;
 
-                mover.PlaceAt(stand.position, stand.rotation);
-                Debug.Log($"[WarriorsPhase2] {life.PlayerIndex + 1}P 를 촉수 자리에 세웠습니다.");
+                Vector3 where = stand.position;
+
+                // 혼자면 두 자리의 가운데에 선다. 담당 팔도 가운데 두 개(FirstSlotOf)라 정면으로 마주 본다.
+                Transform other = StandFor(life.PlayerIndex == 0 ? 1 : 0);
+                if (Solo && other != null) where = (stand.position + other.position) * 0.5f;
+
+                mover.PlaceAt(where, stand.rotation);
+                Debug.Log($"[WarriorsPhase2] {life.PlayerIndex + 1}P 를 촉수 자리에 세웠습니다. " +
+                          $"(혼자 {Solo} · 자리 {where})");
             }
         }
 
@@ -481,6 +497,9 @@ namespace Warriors.Net
             WarriorsPlayerLife life = FindLife(index);
             bool away = life == null || !life.IsLive || life.IsDown;
             int first = FirstSlotOf(index);
+
+            // 맡은 자리가 없는 사람(혼자 할 때의 2P)은 촉수에 손대지 않는다.
+            if (first < 0) return;
 
             if (away)
             {
@@ -628,6 +647,7 @@ namespace Warriors.Net
         private void RaiseFor(int index)
         {
             int first = FirstSlotOf(index);
+            if (first < 0) return;   // 맡은 자리가 없는 사람 (혼자 할 때의 2P)
             bool twin = duties[index].Patterns > 0 && duties[index].Patterns % 2 == 1;
             float answer = twin ? answerSeconds + twinExtraSeconds : answerSeconds;
             int raised = 0;
@@ -674,6 +694,7 @@ namespace Warriors.Net
                 Owner = index,
                 HitsLeft = hitsPerTentacle,
                 Result = 0,
+                Window = answer,
             });
 
             arms[slot].Answer = TickTimer.CreateFromSeconds(Runner, answer);
@@ -681,8 +702,25 @@ namespace Warriors.Net
             return true;
         }
 
-        /// <summary>이 사람 구역의 첫 자리. 1P 는 0, 2P 는 2.</summary>
-        private static int FirstSlotOf(int index) => Mathf.Clamp(index, 0, WarriorsPlayers.Max - 1) * ArmsPerPlayer;
+        /// <summary>
+        /// 이 사람 구역의 첫 자리. 1P 는 0, 2P 는 2.
+        ///
+        /// **혼자면 1P 가 가운데 두 팔(1·2)을 쓰고, 없는 2P 는 맡은 자리가 없다(-1).**
+        /// 왼쪽 두 팔만 쓰면 사람도 카메라도 한쪽으로 쏠려 크라켄이 화면 구석에 선다.
+        ///
+        /// ⚠ <b>없는 2P 에게도 구역을 주면 안 된다.</b> 한때 혼자일 때 둘 다 1번을 첫 자리로 받았는데,
+        ///    <c>DriveDuty</c> 가 "2P 가 쓰러졌다" 며 <b>1P 가 방금 올린 팔을 매 틱 내려</b>
+        ///    촉수가 아예 서지 못했다. 화면에 표식도 안 떴고 라운드가 진행되지 않았다.
+        /// </summary>
+        private int FirstSlotOf(int index)
+        {
+            if (Solo) return index == 0 ? 1 : -1;
+
+            return Mathf.Clamp(index, 0, WarriorsPlayers.Max - 1) * ArmsPerPlayer;
+        }
+
+        /// <summary>혼자 하는 판인가. 매칭이 1명으로 잡았거나 실제로 한 명만 붙어 있을 때.</summary>
+        private bool Solo => match != null && match.Crew <= 1;
 
         /// <summary>
         /// 담당 구역에서 자리 하나를 고른다.
@@ -785,7 +823,7 @@ namespace Warriors.Net
                     tentacle.gameObject.SetActive(true);
                     tentacle.ConfigureAsBossPart(Mathf.Max(1, state.HitsLeft));
                     tentacle.ConfigureRequiredDirection((WarriorsAttackDirection)state.Weakness);
-                    tentacle.BeginStrikeWindow(answerSeconds);
+                    tentacle.BeginStrikeWindow(state.Window > 0f ? state.Window : answerSeconds);
                 }
             }
 
