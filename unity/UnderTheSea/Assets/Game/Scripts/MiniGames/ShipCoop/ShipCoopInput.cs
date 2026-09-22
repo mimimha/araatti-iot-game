@@ -105,14 +105,33 @@ public static class ShipCoopInput
     // ------------------------------------------------------------
 
     /// <summary>
+    /// 지금 항해 중인가. <see cref="ShipCoopGame.Current"/> 가 없으면(씬 로딩 중 등)
+    /// 상호작용을 막을 이유가 없으니 참으로 둔다.
+    /// </summary>
+    private static bool IsSailing()
+    {
+        ShipCoopGame game = ShipCoopGame.Current;
+
+        return game == null || game.State == ShipCoopState.Sailing;
+    }
+
+    /// <summary>
     /// 자리에 붙기 · 집기 · 놓기 · 장전. 오른손 버튼 1. 키보드는 Space.
     ///
     /// **버튼 하나가 다 합니다.** 빈손이고 손 닿는 곳에 집을 것이 있으면 집고,
     /// 들고 있으면 놓거나 넘기고, 그 밖에는 가까운 자리에 붙습니다.
     /// 무엇이 될지는 상황이 정하므로 부르는 쪽은 한 곳이어야 합니다.
+    ///
+    /// ⚠ 출항 전(전원 탑승 대기 · 카운트다운 중)에는 막습니다. 그 전에 자리에 붙거나
+    /// 짐을 집으면, 출항하는 순간 이미 작업 중인 것처럼 보여 늦게 탄 사람이 혼란스럽습니다.
     /// </summary>
     public static bool ConsumeInteract(IPlayerController controller)
     {
+        if (!IsSailing())
+        {
+            return false;
+        }
+
         return controller != null && controller.Right.ConsumeButton1Press();
     }
 

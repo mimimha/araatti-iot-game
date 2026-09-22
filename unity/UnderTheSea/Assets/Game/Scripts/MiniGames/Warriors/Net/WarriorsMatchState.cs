@@ -73,7 +73,26 @@ namespace Warriors.Net
         /// 매칭 없이 띄운 단독 실행에서는 <see cref="MatchCrew.Assigned"/> 가 0 이라
         /// 예전처럼 인스펙터 값을 쓴다.
         /// </summary>
-        private int RequiredCrew => MatchCrew.Assigned > 0 ? MatchCrew.Assigned : crewToStart;
+        private int RequiredCrew
+        {
+            get
+            {
+                // **개발용 -crew.** 로비 없이 띄우는 빠른 빌드에는 매칭이 없어 MatchCrew.Assigned 가
+                // 0 이고, 그러면 씬 값(2)을 봐서 혼자서는 영영 시작하지 않는다. 화면 하나 확인하려고
+                // 창을 둘 띄우는 비용이 커서 -startphase 와 같은 결로 붙였다.
+                //
+                // ⚠ **서버와 클라이언트 양쪽에 같이 준다.** 한쪽만 주면 서버는 시작하는데
+                //    화면에는 "동료를 기다리는 중" 이 남는다(위 주석과 같은 이유).
+                //    제품 실행 경로는 이 인자를 넘기지 않으므로 정상 흐름은 그대로다.
+                int dev = FusionLaunchArguments.GetInt(CrewKey, 0, 0, WarriorsPlayers.Max);
+                if (dev > 0) return dev;
+
+                return MatchCrew.Assigned > 0 ? MatchCrew.Assigned : crewToStart;
+            }
+        }
+
+        /// <summary>개발용 인원 인자. <c>-crew 1</c> 로 혼자 시작한다.</summary>
+        private const string CrewKey = "-crew";
 
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 10f;

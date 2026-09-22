@@ -40,6 +40,19 @@ IoT 체감형 해양 게임 · SSAFY 15기 · 팀 C101
 | [unity/UnderTheSea/GAME_STRUCTURE.md](unity/UnderTheSea/GAME_STRUCTURE.md) | 게임 흐름, 네트워크 방식, 담당별 규격 |
 | [unity/UnderTheSea/ASSETS.md](unity/UnderTheSea/ASSETS.md) | 사용한 외부 에셋 기록 |
 
+## 음악 크레딧
+
+배 협동 게임 배경음악은 [Pixabay](https://pixabay.com) 에서 받았습니다.
+셋 모두 [Pixabay Content License](https://pixabay.com/service/license-summary/) — 무료 · 상업적 이용 가능 · 출처 표기 의무 없음.
+
+| 화면 | 곡 | 작곡 | 출처 |
+| --- | --- | --- | --- |
+| 대기 | Set Sail | Forgotten-Hero-Records | https://pixabay.com/music/main-title-set-sail-350596/ |
+| 출항(항해) | Pirate Tavern (Full Version!) | Magiksolo (Artem Hramushkin) | https://pixabay.com/music/main-title-pirate-tavern-full-version-167990/ |
+| 결과 | Pirate Adventure Loop | Ebunny | https://pixabay.com/music/orchestral-pirate-adventure-loop-557984/ |
+
+효과음 출처는 [unity/UnderTheSea/Assets/Game/Audio/ShipCoop/CREDITS.md](unity/UnderTheSea/Assets/Game/Audio/ShipCoop/CREDITS.md) 에 있습니다.
+
 ---
 
 > 1주차 기획 회의 기록(후보 아이디어 6종)은 이 문서에서 제거했습니다.

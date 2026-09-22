@@ -678,8 +678,19 @@ namespace Warriors.Net
                 Transform stand = StandFor(life.PlayerIndex);
                 if (stand == null) continue;
 
+                Vector3 where = stand.position;
+
+                // **혼자면 가운데에 선다.** 두 사람 자리는 좌우로 갈라 놓은 것이라, 혼자 그 자리에 서면
+                // 화면이 한쪽으로 치우쳐 크라켄이 가운데에서 벗어나 보인다. 실제로 1인 실행에서
+                // 시야가 왼쪽으로 쏠렸다. 3라운드는 노트 줄이 화면(HUD) 것이라 자리를 옮겨도 판정은 그대로다.
+                //
+                // ⚠ 2페이즈는 이렇게 하지 않는다. 그쪽은 담당 촉수가 자기 쪽에만 올라오므로
+                //    가운데로 옮기면 오히려 자기 팔이 옆으로 밀려 보인다.
+                Transform other = StandFor(life.PlayerIndex == 0 ? 1 : 0);
+                if (match != null && match.Crew <= 1 && other != null) where = (stand.position + other.position) * 0.5f;
+
                 WarriorsNetPlayerMover mover = life.GetComponent<WarriorsNetPlayerMover>();
-                if (mover != null) mover.PlaceAt(stand.position, stand.rotation);
+                if (mover != null) mover.PlaceAt(where, stand.rotation);
             }
         }
 

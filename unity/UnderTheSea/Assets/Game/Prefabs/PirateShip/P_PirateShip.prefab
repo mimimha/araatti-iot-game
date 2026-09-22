@@ -581,8 +581,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSailRope
   sail: {fileID: 0}
-  ropeMaterial: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
-  thickness: 0.045
+  ropeMaterial: {fileID: 2100000, guid: bba266568c841437db30b20724ecf0ce, type: 2}
+  thickness: 0.09
   anchorOut: 0.45
   idleTailLift: 0.9
 --- !u!1001 &5278085161591403746

@@ -2093,6 +2093,18 @@ public static class ShipCoopDeckLayout
                     // 🌊 물 고인 곳. 예전에 얹은 통은 치우고 갑판에 물 웅덩이를 깐다.
                     RemoveChild(cube, "Prop_Barrel");
                     DressPuddle(cube, log);
+
+                    // 웅덩이는 바닥이지 장애물이 아니다 — 집기는 부모 큐브 기준 거리라 콜라이더가
+                    // 필요 없다(DressPuddle 주석 참고). HideButKeepCollider 가 남겨둔 솔리드
+                    // BoxCollider 를 그대로 두면 갑판 위에 보이지 않는 벽이 생겨 못 지나간다.
+                    BoxCollider box = cube.GetComponent<BoxCollider>();
+
+                    if (box != null && box.enabled)
+                    {
+                        Undo.RecordObject(box, "배 모델과 갑판 배치");
+                        box.enabled = false;
+                    }
+
                     break;
                 }
             }
