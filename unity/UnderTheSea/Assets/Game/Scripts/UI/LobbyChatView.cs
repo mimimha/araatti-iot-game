@@ -91,8 +91,8 @@ public class LobbyChatView : MonoBehaviour
             input.characterLimit = maxLength;
 
             // 클릭해서 켜졌을 때와 꺼졌을 때를 그대로 ChatFocus 로 옮긴다.
-            input.onSelect.AddListener(_ => ChatFocus.Begin());
-            input.onDeselect.AddListener(_ => ChatFocus.End());
+            input.onSelect.AddListener(_ => ChatFocus.Begin(this));
+            input.onDeselect.AddListener(_ => ChatFocus.End(this));
 
             // Enter 로 보낸다. 켜는 것은 클릭만, 보내는 것은 Enter 도 된다.
             input.onSubmit.AddListener(_ => Send());
@@ -141,7 +141,8 @@ public class LobbyChatView : MonoBehaviour
         LobbyTutorial.Finished -= Show;
 
         // ⚠ 켜 둔 채로 사라지면 영영 못 움직인다. 반드시 내린다.
-        ChatFocus.End();
+        //    Begin 을 부른 적이 없어도 안전하다 — 집합에 없는 것을 빼는 것뿐이다.
+        ChatFocus.End(this);
     }
 
     private void Update()
@@ -259,7 +260,9 @@ public class LobbyChatView : MonoBehaviour
             input.DeactivateInputField();
         }
 
-        ChatFocus.End();
+        // DeactivateInputField 가 onDeselect 를 쏘아 바로 위에서 End 가 이미 불렸을 수 있다.
+        // 두 번 불려도 결과가 같다.
+        ChatFocus.End(this);
     }
 
     /// <summary>
