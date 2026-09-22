@@ -309,6 +309,16 @@ public static class ShipCoopHudV2Art
             BuildAction(canvas, wired);
 
             Connect(hud, wired);
+
+            // ⚠ 안내 팝업도 여기서 다시 짓습니다. 위에서 캔버스 자식을 **전부** 지웠으므로,
+            //    이 줄을 빼면 팝업이 조용히 사라집니다 — 실제로 그렇게 사라진 적이 있습니다.
+            //    팝업은 손으로 만든 것이라 오래도록 빌더가 지을 줄 몰랐습니다.
+            //    SyncTextColors 보다 **먼저** 불러야 팝업의 글자색까지 같이 맞춰집니다.
+            if (!ShipCoopTutorialArt.Rebuild(root))
+            {
+                Debug.LogWarning("[HUD V2] 안내 팝업을 다시 짓지 못했다. HUD 는 그대로 저장한다.");
+            }
+
             SyncTextColors(root);
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
