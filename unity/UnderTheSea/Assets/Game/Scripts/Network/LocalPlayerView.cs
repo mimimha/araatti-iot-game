@@ -392,8 +392,14 @@ public class LocalPlayerView : NetworkBehaviour
         //    좌클릭은 그 화면 요소들이 써야 하므로 우클릭으로 잡는다.
         bool dragging = Input.GetMouseButton(1);
 
+        // 상하는 부호를 뒤집어 넘긴다.
+        //
+        // ThirdPersonCamera 는 delta.y 를 그대로 pitch 에 더하는데, pitch 가 커지면
+        // 카메라가 주시점 **위로** 올라가 아래를 내려다본다. 그래서 그대로 넘기면
+        // 마우스를 위로 끌 때 화면이 아래를 향한다(비행 시뮬 방식).
+        // 끈 쪽을 보게 하려면 여기서 뒤집는 수밖에 없다.
         Vector2 delta = dragging
-            ? new Vector2(Input.GetAxis(mouseX), Input.GetAxis(mouseY))
+            ? new Vector2(Input.GetAxis(mouseX), -Input.GetAxis(mouseY))
             : Vector2.zero;
 
         // 확대·축소는 버튼과 무관하다. 휠은 언제나 그대로 넘긴다.
