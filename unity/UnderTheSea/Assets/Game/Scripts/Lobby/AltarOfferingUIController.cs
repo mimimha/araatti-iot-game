@@ -283,7 +283,7 @@ namespace UnderTheSea.Lobby
             string requestId = Guid.NewGuid().ToString();
 
             offerInFlight = true;
-            SetMessage("봉헌하는 중...", false);
+            SetMessage("등록하는 중...", false);
             Render();
 
             service.OnOfferResult -= OnOfferResult;
@@ -314,14 +314,14 @@ namespace UnderTheSea.Lobby
             if (outcome.Success)
             {
                 SetMessage(outcome.Duplicate
-                    ? "이미 반영된 봉헌입니다."
-                    : "봉헌이 완료되었습니다.");
+                    ? "이미 등록되었습니다."
+                    : "등록이 완료되었습니다.");
             }
             else
             {
                 // 서버가 준 한국어 문구를 그대로 띄운다. 없으면 코드라도 보여 준다.
                 SetMessage(string.IsNullOrEmpty(outcome.Message)
-                    ? $"봉헌하지 못했습니다. ({outcome.Code})"
+                    ? $"등록하지 못했습니다. ({outcome.Code})"
                     : outcome.Message);
             }
 
@@ -426,6 +426,7 @@ namespace UnderTheSea.Lobby
             CancelMessageClear();
 
             messageText.text = text ?? string.Empty;
+            messageText.gameObject.SetActive(!string.IsNullOrWhiteSpace(text));
 
             if (!autoClear || string.IsNullOrWhiteSpace(text))
             {
@@ -447,6 +448,7 @@ namespace UnderTheSea.Lobby
             if (messageText != null)
             {
                 messageText.text = string.Empty;
+                messageText.gameObject.SetActive(false);
             }
 
             messageClearRoutine = null;
