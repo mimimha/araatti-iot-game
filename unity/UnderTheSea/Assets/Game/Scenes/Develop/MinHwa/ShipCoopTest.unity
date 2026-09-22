@@ -7702,7 +7702,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   health: {fileID: 0}
-  damagePerSecondWhenFull: 6
+  damagePerSecondWhenFull: 3
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
 --- !u!4 &623664410
@@ -22386,9 +22386,10 @@ MonoBehaviour:
     pool:
     - {fileID: 1760830201}
     - {fileID: 1861713332}
-    minInterval: 14
-    maxInterval: 20
-    maxConcurrent: 1
+    - {fileID: 924620907}
+    minInterval: 8
+    maxInterval: 11
+    maxConcurrent: 2
     openingBurst: 0
   - phaseIndex: 2
     label: "\uD398\uC774\uC988 2"
@@ -22397,9 +22398,10 @@ MonoBehaviour:
     - {fileID: 997728828}
     - {fileID: 1861713332}
     - {fileID: 562408157}
-    minInterval: 12
-    maxInterval: 17
-    maxConcurrent: 2
+    - {fileID: 924620907}
+    minInterval: 7
+    maxInterval: 10
+    maxConcurrent: 3
     openingBurst: 0
   - phaseIndex: 3
     label: "\uD398\uC774\uC988 3"
@@ -22409,9 +22411,9 @@ MonoBehaviour:
     - {fileID: 1861713332}
     - {fileID: 562408157}
     - {fileID: 924620907}
-    minInterval: 10
-    maxInterval: 14
-    maxConcurrent: 2
+    minInterval: 7
+    maxInterval: 11
+    maxConcurrent: 3
     openingBurst: 0
   - phaseIndex: 4
     label: FINAL STORM
@@ -22421,20 +22423,21 @@ MonoBehaviour:
     - {fileID: 1861713332}
     - {fileID: 562408157}
     - {fileID: 924620907}
-    minInterval: 7
-    maxInterval: 11
-    maxConcurrent: 3
+    minInterval: 5
+    maxInterval: 8
+    maxConcurrent: 4
     openingBurst: 3
   - phaseIndex: 0
     label: "\uCD9C\uD56D"
     pool:
     - {fileID: 1760830201}
     - {fileID: 924620907}
-    minInterval: 10
-    maxInterval: 15
+    minInterval: 8
+    maxInterval: 11
     maxConcurrent: 1
     openingBurst: 0
   graceSeconds: 6
+  mostInARow: 2
   randomSeed: 0
 --- !u!4 &1792953313
 Transform:
