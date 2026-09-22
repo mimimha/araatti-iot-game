@@ -98,6 +98,10 @@ static bool    wandKnown[WAND_COUNT] = { false, false, false, false };
 
 static uint16_t cmdSeq = 0;
 
+// 명령 미도달. 송신 콜백이 세우고 loop 가 찍는다.
+static volatile bool   sendFailed = false;
+static volatile int8_t sendFailId = -1;
+
 // ── ESP-NOW ────────────────────────────────────────────────
 
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3,0,0)
@@ -116,6 +120,34 @@ void onRecv(const uint8_t* mac, const uint8_t* d, int n) {
   memcpy(rxRing[rxHead].data, d, n);
 
   rxHead = next;
+}
+
+// MAC 으로 완드 번호를 되찾는다. 못 찾으면 -1.
+static int wandIdOf(const uint8_t* mac) {
+  for (int i = 0; i < WAND_COUNT; i++) {
+    if (wandKnown[i] && memcmp(wandMac[i], mac, 6) == 0) { return i; }
+  }
+  return -1;
+}
+
+// 명령이 실제로 완드에 닿았는지.
+//
+// esp_now_send 는 큐에 넣기만 하고 ESP_OK 를 돌려준다. 완드가 꺼져 있어도 마찬가지다.
+// 전달 실패는 여기서만 알 수 있다. 동글이 보내는 것은 명령뿐이라 이 콜백이
+// 불렸다는 것은 곧 명령 하나가 끝났다는 뜻이다.
+//
+// ⚠ 성공은 찍지 않는다. 완드가 돌려주는 #ECHO 가 이미 그 역할을 한다.
+// ⚠ 수신 콜백과 같이 Serial 을 건드리지 않는다. 여기는 WiFi 태스크다.
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3,0,0)
+void onSent(const esp_now_send_info_t* info, esp_now_send_status_t status) {
+  const uint8_t* mac = info->des_addr;
+#else
+void onSent(const uint8_t* mac, esp_now_send_status_t status) {
+#endif
+  if (status == ESP_NOW_SEND_SUCCESS) { return; }
+
+  sendFailId = (int8_t)wandIdOf(mac);
+  sendFailed = true;
 }
 
 // 완드가 말을 걸어온 MAC 을 그 번호에 묶는다. 바뀌었으면 갈아끼운다.
@@ -263,6 +295,7 @@ void setup() {
   }
 
   esp_now_register_recv_cb(onRecv);
+  esp_now_register_send_cb(onSent);
 
   // ⚠ WiFi.macAddress() 를 쓰면 안 된다. arduino-esp32 3.x 에서는 STA netif 가
   //    올라오기 전에 부르면 00:00:00:00:00:00 을 돌려준다 (실기 확인).
@@ -277,6 +310,11 @@ void setup() {
 
 void loop() {
   readSerial();
+
+  if (sendFailed) {
+    sendFailed = false;
+    Serial.printf("#ERR 완드 %d 명령 미도달 (꺼졌거나 범위 밖)\n", sendFailId);
+  }
 
   while (rxTail != rxHead) {
     RawPacket p = rxRing[rxTail];
