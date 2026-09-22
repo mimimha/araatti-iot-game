@@ -85,8 +85,18 @@ public class VoyageSea : MonoBehaviour
     [Tooltip("출항할 때 섬까지의 거리 (m). 진행도가 오르면 이만큼에서 가까워진다.")]
     [SerializeField, Min(10f)] private float islandFarDistance = 400f;
 
-    [Tooltip("도착했을 때 섬까지의 거리 (m). 0 으로 두면 배를 뚫고 지나간다.")]
-    [SerializeField, Min(0f)] private float islandNearDistance = 25f;
+    // ⚠ **섬의 피벗은 섬 "중심"입니다(가장자리가 아니다, ShipCoopSeaProps 참고).**
+    //    섬 몸체(Island_Body) 반지름이 이 값보다 작아야, 뱃머리(z 34.3, 위 horizonDistance
+    //    주석 참고)에 닿기 전에 진행도 100% 가 먼저 온다. 25 로 뒀을 때 실제로 진행도
+    //    95% 근처부터 섬이 뱃머리와 겹치기 시작해 "시간이 남았는데 섬에 막혀 못 간다"
+    //    는 버그가 됐다.
+    //
+    //    ⚠ **ShipCoopSeaProps.MountainScale 을 바꾸면 이 값도 같이 맞춰야 합니다.**
+    //    섬 반지름(대략 MountainScale × 53.8m) + 뱃머리(34.3) + 여유(5) 보다 커야 한다.
+    //    지금은 MountainScale=1.0(원본 크기, 반지름 ≈53.8m) 기준으로 34.3+53.8+5 ≈ 93 → 95.
+    [Tooltip("도착했을 때 섬까지의 거리 (m). 섬 피벗이 섬 중심이라, 뱃머리(34.3m) + 섬 반지름" +
+             "보다 작으면 100% 되기 전에 섬이 배를 집어삼킨다. ShipCoopSeaProps.MountainScale 과 같이 맞출 것.")]
+    [SerializeField, Min(0f)] private float islandNearDistance = 95f;
 
     // ⚠ **섬이 중반에 이미 코앞으로 보였습니다.**
     //

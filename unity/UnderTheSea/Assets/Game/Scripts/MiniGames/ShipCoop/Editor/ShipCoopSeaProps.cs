@@ -48,8 +48,12 @@ public static class ShipCoopSeaProps
         "Assets/Synty/PolygonNatureBiomes/PNB_Tropical_Jungle/Prefabs/SM_Env_Tree_Palm_04.prefab",
     };
 
-    /// <summary>섬덩이 배율. 162 × 23 × 108 → 81 × 12 × 54.</summary>
-    private const float MountainScale = 0.5f;
+    // ⚠ **0.5 였을 때 섬이 배에 비해 너무 작아 보였다.** 도착 거리(VoyageSea.islandNearDistance)를
+    //    뱃머리보다 앞으로 밀어낸 뒤(섬이 뱃머리를 집어삼키는 버그를 고치면서) 생긴 부작용이다 —
+    //    섬 반지름만큼은 반드시 거리를 벌려야 해서, 섬을 작게 두면 도착해도 멀어 보인다.
+    //    1.0(원본 크기)으로 되돌려서, 벌어진 거리만큼 섬 자체도 커 보이게 한다.
+    /// <summary>섬덩이 배율. 1.0 = 원본 크기 그대로(162 × 23 × 108).</summary>
+    private const float MountainScale = 1.0f;
 
     /// <summary>섬덩이를 이만큼 가라앉힌다(m). 해안선이 물 아래로 들어가 가장자리가 잘려 보이지 않는다.</summary>
     private const float MountainSink = 2f;
@@ -66,6 +70,19 @@ public static class ShipCoopSeaProps
         GameObject island = BuildIslandPrefab(log);
         WhitenOurSails(log);
         WireScene(enemy, island, log);
+    }
+
+    /// <summary>
+    /// 이 파일 하나만 다시 돌린다. `ShipCoopDeckLayout.Build`(배 모델과 갑판 배치)의 한 단계지만
+    /// 프리팹 경로로 직접 열고 닫아서(<see cref="SetUp"/>) 갑판 상태에 기대지 않는다 — 섬 크기처럼
+    /// 여기만 고쳤을 때, 배·갑판까지 통째로 다시 지을 필요 없이 이걸로 충분하다.
+    /// </summary>
+    [MenuItem("Tools/ShipCoop/바다 소품만 다시 놓기 (적선 · 섬 · 흰 돛)")]
+    public static void SetUpFromMenu()
+    {
+        var log = new StringBuilder();
+        SetUp(log);
+        Debug.Log(log.ToString());
     }
 
     // ------------------------------------------------------------

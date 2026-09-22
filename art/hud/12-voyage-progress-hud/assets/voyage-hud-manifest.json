@@ -1,0 +1,22 @@
+{
+  "viewBox": {
+    "width": 2152,
+    "height": 731
+  },
+  "trackY": 365.5,
+  "trackStartX": 332,
+  "trackEndX": 1820,
+  "trackLength": 1488,
+  "nodeX": [
+    580,
+    828,
+    1076,
+    1324,
+    1572
+  ],
+  "activeNodeRefX": 1076,
+  "shipMarkerRestX": 332,
+  "fillAmountFormula": "fillAmount = (trackStartX + p * trackLength) / viewBox.width  — p 는 0~1 진행률. EmptyTrack 과 ProgressFill 이 둘 다 캔버스 전체(0~2152)를 덮는 RectTransform이라서, Image.fillAmount 는 p 가 아니라 이 값을 써야 한다. p 를 그대로 넣으면 트랙 앞부분 (0~332) 만큼 진행이 일찍 끝난 것처럼 보인다.",
+  "shipMarkerXFormula": "anchoredPosition.x = trackStartX + p * trackLength  — ProgressFill 의 잘린 끝과 항상 같은 X. 두 식이 같은 trackStartX/trackLength 를 쓰므로 자동으로 맞는다.",
+  "activeNodePlacement": "voyage-node-active.svg 를 노드 i 위에 겹칠 때는 (nodeX[i] - activeNodeRefX) 만큼 X 로 옮긴다. i 번째 노드는 p >= (i+1)/(nodeCount+1) 일 때 활성화한다."
+}

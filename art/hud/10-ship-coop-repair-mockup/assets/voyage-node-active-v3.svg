@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff0a8"/><stop offset="0.2" stop-color="#f9c84c"/>
+      <stop offset="0.55" stop-color="#b86b16"/><stop offset="0.82" stop-color="#f2b83f"/>
+      <stop offset="1" stop-color="#6f350e"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffef1"/><stop offset="0.52" stop-color="#f5e5c4"/>
+      <stop offset="1" stop-color="#c9a97c"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#baffff"/><stop offset="0.28" stop-color="#28f2ff"/>
+      <stop offset="0.7" stop-color="#00b8e7"/><stop offset="1" stop-color="#087daf"/>
+    </linearGradient>
+    <radialGradient id="navy"><stop offset="0" stop-color="#173c68"/><stop offset="1" stop-color="#06182b"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#130a03" flood-opacity=".65"/>
+    </filter>
+    <filter id="cyanGlow" x="-30%" y="-100%" width="160%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <circle cx="627" cy="627" r="270" fill="url(#cyan)" stroke="#087ca7" stroke-width="35" filter="url(#cyanGlow)"/>
+  <ellipse cx="555" cy="535" rx="75" ry="42" fill="#d7ffff" opacity=".8" transform="rotate(-35 555 535)"/>
+</svg>

@@ -785,16 +785,10 @@ public class Reef : VoyageEvent
         string side = RockSide < 0f ? "좌현" : "우현";
         string key = RockSide > 0f ? "J" : "L";
 
-        if (VoyageSea.Current == null)
-        {
-            return $"{side} 암초 — {key} 로 꺾어라";
-        }
+        // 바다가 아직 없으면 간격을 잴 수 없다. 그때는 "아직 안 비켰다" 로 읽는다.
+        bool clear = VoyageSea.Current != null && GapFromShip() >= TouchGap;
 
-        float gap = GapFromShip();
-
-        return gap >= TouchGap
-            ? $"{side} 암초 — 비켰다  ({gap:F1}m)"
-            : $"{side} 암초 — {key} 로 꺾어라  ({gap:F1}/{TouchGap:F1}m)";
+        return clear ? $"{side} 암초 — 비켰다" : $"{side} 암초 — {key} 로 꺾어라";
     }
 
     /// <summary>
