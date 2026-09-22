@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2791070141105912205}
   - component: {fileID: 2623504239751164027}
   - component: {fileID: 2623669636185560455}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: FX_Waterfall_Impact_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}

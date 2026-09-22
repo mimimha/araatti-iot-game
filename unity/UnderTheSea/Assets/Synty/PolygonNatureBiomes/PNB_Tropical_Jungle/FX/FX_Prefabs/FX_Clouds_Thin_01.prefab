@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4907082308360997354}
   - component: {fileID: 5104606115562904678}
   - component: {fileID: 5103046226451313662}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: FX_Clouds_Thin_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}

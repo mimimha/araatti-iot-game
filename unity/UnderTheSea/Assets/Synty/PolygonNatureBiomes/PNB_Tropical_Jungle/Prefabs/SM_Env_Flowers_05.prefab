@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1713393330678609830}
   - component: {fileID: 5880906721971503319}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Flowers_05
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -73,7 +73,7 @@ GameObject:
   - component: {fileID: 8127508863687640100}
   - component: {fileID: 133100224222075362}
   - component: {fileID: 3264453142983950911}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Flowers_05_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -111,7 +111,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3219756262010043418}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -156,7 +156,7 @@ GameObject:
   - component: {fileID: 1216393836133020409}
   - component: {fileID: 5525453911416279282}
   - component: {fileID: 8704652069347895791}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Flowers_05_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -194,7 +194,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6077307331344956116}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -239,7 +239,7 @@ GameObject:
   - component: {fileID: 2624875586618516704}
   - component: {fileID: 2348579059406430076}
   - component: {fileID: 7318221882604651624}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Flowers_05_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -277,7 +277,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7071777863072030739}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
