@@ -71,7 +71,7 @@ namespace UnderTheSea.Lobby
         public bool PlayerIsNear { get; private set; }
 
         /// <summary>안내에 띄울 문구. 인스펙터에서 키를 바꾸면 문구도 따라 바뀐다.</summary>
-        public string PromptText => $"[{interactKey}] 조각 봉헌";
+        public string PromptText => $"[{interactKey}] 조각 등록";
 
         private void OnEnable()
         {

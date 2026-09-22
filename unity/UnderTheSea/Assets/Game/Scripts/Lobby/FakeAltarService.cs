@@ -156,12 +156,12 @@ namespace UnderTheSea.Lobby
 
             if (amount <= 0)
             {
-                return Failure(requestId, "AMOUNT_INVALID", "봉헌할 수량은 1개 이상이어야 합니다.");
+                return Failure(requestId, "AMOUNT_INVALID", "등록할 수량은 1개 이상이어야 합니다.");
             }
 
             if (amount > int.MaxValue)
             {
-                return Failure(requestId, "AMOUNT_TOO_LARGE", "봉헌할 수량이 너무 큽니다.");
+                return Failure(requestId, "AMOUNT_TOO_LARGE", "등록할 수량이 너무 큽니다.");
             }
 
             if (!Guid.TryParse(requestId, out _))
@@ -180,12 +180,12 @@ namespace UnderTheSea.Lobby
 
             if (RemainingToTarget <= 0)
             {
-                return Failure(requestId, "OFFERING_CLOSED", "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다.");
+                return Failure(requestId, "OFFERING_CLOSED", "섬 회복이 완료되어 더 이상 등록할 수 없습니다.");
             }
 
             if (amount > RemainingToTarget)
             {
-                return Failure(requestId, "OFFERING_AMOUNT_CHANGED", "다른 플레이어가 먼저 봉헌했습니다.");
+                return Failure(requestId, "OFFERING_AMOUNT_CHANGED", "다른 플레이어가 먼저 등록했습니다.");
             }
 
             if (amount > fragments)

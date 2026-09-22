@@ -269,8 +269,8 @@ public static class AltarEndpoints
         // ⚠ 수량이 들어간 문구("N개 남았습니다")를 여기에 붙이지 않는다.
         //    클라이언트가 remainingToTarget 으로 조합한다. (설계 9.2)
         return snapshot.RemainingToTarget == 0
-            ? Failure("OFFERING_CLOSED", "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다.", snapshot)
-            : Failure("OFFERING_AMOUNT_CHANGED", "다른 플레이어가 먼저 봉헌했습니다.", snapshot);
+            ? Failure("OFFERING_CLOSED", "섬 회복이 완료되어 더 이상 등록할 수 없습니다.", snapshot)
+            : Failure("OFFERING_AMOUNT_CHANGED", "다른 플레이어가 먼저 등록했습니다.", snapshot);
     }
 
     /// <summary>인벤토리 조건부 UPDATE 가 0행이었을 때. 제단 증가는 이미 되돌아갔다.</summary>
@@ -449,14 +449,14 @@ public static class AltarEndpoints
     private static IResult AmountInvalid()
     {
         return Results.Json(
-            new ErrorResponse("AMOUNT_INVALID", "봉헌할 수량은 1개 이상이어야 합니다."),
+            new ErrorResponse("AMOUNT_INVALID", "등록할 수량은 1개 이상이어야 합니다."),
             statusCode: StatusCodes.Status400BadRequest);
     }
 
     private static IResult AmountTooLarge()
     {
         return Results.Json(
-            new ErrorResponse("AMOUNT_TOO_LARGE", "봉헌할 수량이 너무 큽니다."),
+            new ErrorResponse("AMOUNT_TOO_LARGE", "등록할 수량이 너무 큽니다."),
             statusCode: StatusCodes.Status400BadRequest);
     }
 
