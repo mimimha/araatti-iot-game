@@ -22,7 +22,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.EditorTools
         private const string PlayerPrefabPath = "Assets/Game/Prefabs/Characters/ShipCoopPlayer.prefab";
         private const string ShipPrefabPath = "Assets/Game/Prefabs/PirateShip/P_PirateShip.prefab";
         private const string SmokePath = "Assets/Synty/PolygonGeneric/Prefabs/FX/FX_Smoke_01.prefab";
-        private const string RopeMaterialPath = "Assets/Game/Prefabs/PirateShip/M_Ship_SailsRope_01.mat";
+        private const string RopeMaterialPath = "Assets/Game/Prefabs/PirateShip/M_ShipCoop_SailsRope_Sand_01.mat";
         private const string BallMaterialPath = "Assets/Game/Art/Materials/ShipCoop/AmmoBall.mat";
 
         [MenuItem("아라아띠/배 협동/자리 자세 · 대포 반동 붙이기")]
