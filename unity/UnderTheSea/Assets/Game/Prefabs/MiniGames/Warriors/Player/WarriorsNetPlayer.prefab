@@ -92,6 +92,7 @@ GameObject:
   - component: {fileID: 2567063243186289222}
   - component: {fileID: 4314159039576879615}
   - component: {fileID: 1000972543256861106}
+  - component: {fileID: 2609532915910849623}
   m_Layer: 0
   m_Name: WarriorsNetPlayer
   m_TagString: Untagged
@@ -391,6 +392,7 @@ MonoBehaviour:
   - {fileID: 9212662751742564423}
   - {fileID: 4314159039576879615}
   - {fileID: 1000972543256861106}
+  - {fileID: 2609532915910849623}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1330021359424559203
 MonoBehaviour:
@@ -492,6 +494,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsNetPlayerCombat
   _AttackSeq: 0
   _AttackKind: 0
+  _Combo: 0
+  comboResetSeconds: 3
 --- !u!114 &2567063243186289222
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -567,6 +571,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameDefaultAppearance
   waitSeconds: 20
+--- !u!114 &2609532915910849623
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 375977923591297978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 --- !u!1 &443834245626656415
 GameObject:
   m_ObjectHideFlags: 0
@@ -776,7 +796,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 538960030572789786}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -1070,7 +1090,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1196624080866729310}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1

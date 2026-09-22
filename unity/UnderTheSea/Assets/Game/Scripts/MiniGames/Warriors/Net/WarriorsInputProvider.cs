@@ -16,9 +16,11 @@ namespace Warriors.Net
     /// 키 배치는 <c>WarriorsKeyboardInput</c> 과 같게 맞춘다. (WARRIORS.md 2장)
     /// <code>
     ///   이동      WASD
-    ///   가로베기  1      물고기
-    ///   세로베기  2      게
-    ///   찌르기    3      해파리
+    ///   가로베기  J      물고기
+    ///   세로베기  K      게
+    ///   찌르기    L      해파리
+    ///   회피      Shift
+    ///   카메라    마우스 우클릭 드래그
     /// </code>
     /// </summary>
     [RequireComponent(typeof(NetworkRunner))]
@@ -26,6 +28,17 @@ namespace Warriors.Net
     {
         public void OnInput(NetworkRunner runner, NetworkInput input)
         {
+            // ⚠ **IoT 장치를 여기서 매번 다시 찾는다.** 한 번만 찾으면 영영 못 찾는다.
+            //
+            //    이 부품은 WarriorsLauncher 가 WarriorsBoot 에서 붙인다. 그 순간에는
+            //    Fusion 이 WarriorsNet 을 아직 열지 않아 WarriorsIoTInput 이 존재하지 않는다.
+            //    OnEnable 에서 한 번 찾고 마는 구조였을 때는 null 을 받고 끝이라,
+            //    **장치를 아무리 정확히 만들어도 네트워크 판에서는 아무 일도 일어나지 않았다.**
+            //    오류도 나지 않아 장치 쪽을 의심하게 된다.
+            //
+            //    이미 걸려 있으면 곧바로 빠져나오므로 매 틱 부담은 없다.
+            HookDevice();
+
             WarriorsInputData data = new WarriorsInputData();
 
             Keyboard keyboard = Keyboard.current;
@@ -45,14 +58,12 @@ namespace Warriors.Net
 
                 data.Move = move;
 
-                // 윗줄 숫자키와 오른쪽 숫자 키패드 둘 다 받는다. WarriorsKeyboardInput(싱글)과 같다 —
-                // 노트북 키패드로 치던 사람이 빌드에서만 공격이 안 되던 원인이다.
-                data.Buttons.Set((int)WarriorsButton.HorizontalSlash,
-                    keyboard.digit1Key.isPressed || keyboard.numpad1Key.isPressed);
-                data.Buttons.Set((int)WarriorsButton.VerticalSlash,
-                    keyboard.digit2Key.isPressed || keyboard.numpad2Key.isPressed);
-                data.Buttons.Set((int)WarriorsButton.Thrust,
-                    keyboard.digit3Key.isPressed || keyboard.numpad3Key.isPressed);
+                // 공격은 J K L 하나씩이다. (IOT_INPUT.md 1장 게임별 배치)
+                // 예전 1 2 3 과 숫자 키패드는 뺐다 — 오른손 홈 위치에서 손을 떼지 않게 하고,
+                // 키패드 없는 노트북에서 키마다 동작이 달라지던 문제도 함께 없앤다.
+                data.Buttons.Set((int)WarriorsButton.HorizontalSlash, keyboard.jKey.isPressed);
+                data.Buttons.Set((int)WarriorsButton.VerticalSlash, keyboard.kKey.isPressed);
+                data.Buttons.Set((int)WarriorsButton.Thrust, keyboard.lKey.isPressed);
                 data.Buttons.Set((int)WarriorsButton.Dodge, keyboard.leftShiftKey.isPressed);
             }
 
@@ -98,7 +109,15 @@ namespace Warriors.Net
         }
 
         /// <summary>
-        /// 이 컴퓨터에 IoT 검 입력원이 있으면 붙는다.
+        /// 이 컴퓨터에 IoT 검 입력원이 있으면 붙는다. <b>붙을 때까지 매 틱 다시 찾는다.</b>
+        ///
+        /// <b>왜 한 번으로 끝내면 안 되는가.</b> 이 부품은 <c>WarriorsBoot</c> 에서 만들어지고
+        /// <c>WarriorsIoTInput</c> 은 Fusion 이 나중에 여는 <c>WarriorsNet</c> 에 있다.
+        /// 처음에는 반드시 못 찾는다. 그 한 번으로 포기하면 장치는 영영 연결되지 않는다.
+        ///
+        /// ⚠ <b>들고 있던 것이 사라졌으면 다시 찾는다.</b> 씬이 바뀌면 파괴된 객체가 남는데,
+        ///    <c>deviceHooked</c> 만 보고 건너뛰면 그때도 영영 연결되지 않는다.
+        ///    유니티의 <c>==</c> 는 파괴된 객체를 <c>null</c> 로 알려주므로 그것으로 가린다.
         ///
         /// ⚠ <b>가짜 장치를 만들지 않는다.</b> 실제 전송 계층이 없으면 <c>WarriorsIoTInput</c> 이
         ///    씬에 없을 뿐이고, 그때는 키보드만으로 정상 동작한다. 장치가 붙는 쪽에서
@@ -106,13 +125,23 @@ namespace Warriors.Net
         /// </summary>
         private void HookDevice()
         {
-            if (deviceHooked) return;
+            if (deviceHooked && device != null) return;
 
             device = FindFirstObjectByType<WarriorsIoTInput>(FindObjectsInactive.Include);
-            if (device == null) return;
 
+            if (device == null)
+            {
+                deviceHooked = false;
+                return;
+            }
+
+            // 두 번 붙는 것을 막는다. 같은 대상에 두 번 더하면 스윙이 두 번 들어간다.
+            device.AttackRequested -= HandleDeviceSwing;
             device.AttackRequested += HandleDeviceSwing;
             deviceHooked = true;
+
+            // QA 에서 이 줄이 안 보이면 장치 입력이 게임에 닿지 않는다는 뜻이다.
+            Debug.Log($"[Warriors 입력] IoT 검 입력원에 연결했습니다. ({device.name})", device);
         }
 
         /// <summary>실제 검이 보낸 스윙. 세기가 그대로 실린다.</summary>
@@ -126,9 +155,9 @@ namespace Warriors.Net
         {
             if (keyboard == null || !Application.isFocused) { keyboardHeld = false; return; }
 
-            bool h = keyboard.digit1Key.isPressed || keyboard.numpad1Key.isPressed;
-            bool v = keyboard.digit2Key.isPressed || keyboard.numpad2Key.isPressed;
-            bool t = keyboard.digit3Key.isPressed || keyboard.numpad3Key.isPressed;
+            bool h = keyboard.jKey.isPressed;
+            bool v = keyboard.kKey.isPressed;
+            bool t = keyboard.lKey.isPressed;
 
             bool anyHeld = h || v || t;
 
@@ -143,8 +172,16 @@ namespace Warriors.Net
                 : WarriorsAttackDirection.Thrust, 1f);
         }
 
+        /// <summary>
+        /// 이 PC 의 사람이 방금 휘두른 공격. HUD 가 해당 카드에 임팩트를 주는 데 쓴다.
+        /// 서버 판정과 무관한 **입력 순간**의 신호라 클라이언트에서 바로 터진다.
+        /// </summary>
+        public static event System.Action<WarriorsAttackDirection> LocalSwing;
+
         private void PushSwing(WarriorsAttackDirection direction, float strength)
         {
+            LocalSwing?.Invoke(direction);
+
             swingSerial++;
             if (swingSerial == 0) swingSerial = 1;   // 0 은 "아직 없음" 이라 건너뛴다
 

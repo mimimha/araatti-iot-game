@@ -35,6 +35,13 @@ namespace UnderTheSea.Editor
                 return;
             }
 
+            // ⚠ 가상 플레이어(MPPM 클론)에서는 돌지 않는다.
+            //    클론은 Assets 를 심링크로 공유하는 별도 프로젝트이고 AssetDatabase 가
+            //    읽기 전용이라, 여기서 아틀라스를 쓰려 하면 실패하면서
+            //    "Asset Database is set to Read Only" 가 쏟아지고 Fusion 설정까지 못 읽게 된다.
+            //    폰트 에셋과 TMP 대체 폰트 등록은 이미 저장소에 있으므로 클론은 읽기만 하면 된다.
+            if (VirtualPlayer.IsClone) return;
+
             InstallInternal(logSuccess: false);
         }
 

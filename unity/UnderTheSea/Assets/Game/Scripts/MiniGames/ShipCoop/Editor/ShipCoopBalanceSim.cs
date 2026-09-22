@@ -21,8 +21,19 @@ using UnityEngine;
 ///   1. 파손 지점이 있으면 한 명이 수리하러 간다 — 방치하면 물이 차서 배가 가라앉는다
 ///   2. 물이 절반 넘게 찼으면 한 명이 퍼낸다
 ///   3. 돛이 풀렸으면 한 명이 당긴다
-///   4. 뱃머리가 틀어졌으면 한 명이 조타를 잡는다
+///   4. 뱃머리가 틀어졌으면 한 명이 조타를 잡는다.
+///      **거대한 파도가 밀고 있으면 둘이 붙는다** (`HelmTask.pushedCapacity`)
 ///   5. 남는 사람이 터진 사건을 맡는다
+///
+/// ⛔ **한 자리에 한 명만 붙이던 시절의 결과는 버리세요.**
+///
+///    예전 모델은 (가) 한 자리에 한 명만 배정하고, (나) 조타에 누가 있으면
+///    미는 힘을 통째로 무시하고, (다) 암초도 미는 사건으로 치고,
+///    (라) 거대한 파도의 침수를 한 방울도 안 셌습니다.
+///
+///    (가)+(나) 때문에 **혼자서도 파도를 늘 이겼고**, 그래서 둘째 사람이
+///    필요한 상황이 모델 안에 아예 없었습니다. 이 게임의 핵심 협력 작업(6장)을
+///    빼놓고 "4번째 사람이 필요한가" 를 재고 있었던 셈입니다.
 ///
 /// **자리를 옮기는 데 드는 시간을 셉니다.** 3층짜리 배라 공짜가 아닙니다.
 /// 이걸 빼면 한 명이 순간이동하며 모든 자리를 지켜서 혼자서도 100% 가 나옵니다.
@@ -64,7 +75,11 @@ public static class ShipCoopBalanceSim
     /// <summary>자리를 옮기는 데 걸리는 시간.</summary>
     private const float SwitchSeconds = 3f;
 
-    /// <summary>파도 · 암초가 터져 있는 동안 뱃머리를 미는 속도 (도/초)</summary>
+    /// <summary>
+    /// 뱃머리를 미는 속도의 기본값 (도/초). 실제로는 사건에서 읽습니다. (<see cref="EventDef.PushPerSecond"/>)
+    ///
+    /// ⚠ **미는 것은 거대한 파도뿐입니다.** 암초는 조타각을 읽기만 합니다.
+    /// </summary>
     private const float PushDegPerSecond = 45f;
 
     /// <summary>조타를 잡으러 갈지 정하는 기준 각도</summary>
@@ -91,6 +106,26 @@ public static class ShipCoopBalanceSim
         public bool PushesHeading;
         public bool FillsSail;   // 돌풍 — 바람이 돛을 펴 놓는다. 접어서 버틴다
         public bool CreatesLeak;
+
+        /// <summary>뱃머리가 이 각도 안이면 정면으로 받은 것으로 본다. (거대한 파도)</summary>
+        public float StraightTolerance;
+
+        /// <summary>정면을 벗어나 있어도 되는 시간. 넘으면 실패한다. (거대한 파도)</summary>
+        public float AllowedOffTime;
+
+        /// <summary>뱃머리를 미는 속도 (도/초).</summary>
+        public float PushPerSecond;
+
+        // ⚠ **거대한 파도는 HP 를 안 깎습니다. 갑판에 물을 붓습니다.**
+        //    씬의 `damageOnFail` 이 0 이라 예전 모델에서는 **실패해도 아무 일이
+        //    없었습니다.** 뱃머리만 끝까지 꺾이고 끝이었습니다. 정작 이 사건의
+        //    대가인 침수를 한 방울도 안 세고 있었던 것입니다. (BigWave.Flood)
+
+        /// <summary>옆으로 맞았을 때 갑판에 차는 물 (0~1).</summary>
+        public float FloodOnFail;
+
+        /// <summary>정면으로 받아냈어도 넘어오는 물 (0~1).</summary>
+        public float FloodOnPass;
     }
 
     private class Live
@@ -98,6 +133,13 @@ public static class ShipCoopBalanceSim
         public EventDef Def;
         public float Age;
         public float Work;
+
+        /// <summary>정면을 벗어나 있던 시간. 미는 사건만 쓴다. (BigWave.OffTime 과 같다)</summary>
+        public float OffTime;
+
+        /// <summary>미는 쪽. +1 이면 우현으로 밀린다.</summary>
+        public float PushSide = 1f;
+
         public bool Active => Age >= Def.WarnSeconds;
         public float ActiveAge => Age - Def.WarnSeconds;
     }
@@ -154,6 +196,9 @@ public static class ShipCoopBalanceSim
         float turnSpeed = hs.FindProperty("turnSpeed").floatValue;
         float recenter = hs.FindProperty("recenterSpeed").floatValue;
 
+        // 밀리는 동안 조타에 붙을 수 있는 인원. 실제 HelmTask 가 정원을 이만큼 늘린다.
+        int helmPushedCapacity = Mathf.Max(1, hs.FindProperty("pushedCapacity").intValue);
+
         float pullSpeed = new SerializedObject(sail).FindProperty("pullSpeed").floatValue;
 
         var fs = new SerializedObject(flood);
@@ -163,9 +208,29 @@ public static class ShipCoopBalanceSim
 
         float maxHp = new SerializedObject(hp).FindProperty("maxHp").floatValue;
 
-        // 구멍이 뚫릴 수 있는 자리의 수. 씬에 놓인 수리 지점만큼이다.
-        int repairPoints = Mathf.Max(1,
-            Object.FindObjectsByType<RepairTask>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length);
+        // ⚠ **수리 지점은 씬에 미리 놓여 있지 않습니다. 선체 파손이 터질 때 생깁니다.**
+        //    그래서 `FindObjectsByType<RepairTask>` 는 에디터에서 늘 0 이고,
+        //    `Max(1, 0)` 때문에 한동안 **구멍이 1개뿐인 것으로 재고 있었습니다.**
+        //    진짜 상한은 선체 파손 사건의 `maxPoints` 입니다. 지금 값은 2 라,
+        //    구멍이 둘까지 뚫리고 **둘을 동시에 수리할 수 있습니다.**
+        int repairPoints = 0;
+
+        foreach (var e in Object.FindObjectsByType<VoyageEvent>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            SerializedProperty mp = new SerializedObject(e).FindProperty("maxPoints");
+            if (mp != null) repairPoints = Mathf.Max(repairPoints, mp.intValue);
+        }
+
+        if (repairPoints <= 0)
+        {
+            repairPoints = Mathf.Max(1,
+                Object.FindObjectsByType<RepairTask>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length);
+        }
+
+        // ⚠ **양동이는 자리 정원이 없습니다.** 들고 다니는 물건이고 버리는 곳이 여러 곳이라,
+        //    사람만 있으면 동시에 퍼냅니다. 한 명으로 묶어 두면 침수가 실제보다 훨씬 무섭게 나옵니다.
+        int dumpPoints = Mathf.Max(1,
+            Object.FindObjectsByType<WaterDumpPoint>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length);
 
         List<EventDef> defs = ReadEvents();
         (float min, float max, int cap)[] schedule = ReadSchedule();
@@ -199,8 +264,8 @@ public static class ShipCoopBalanceSim
 
                 Result r = Sim(rng, crew, sailOnly,
                                distance, maxSpeed, minSpeed, limit, maxHp,
-                               maxHeading, turnSpeed, recenter, pullSpeed,
-                               floodDps, floodRise, dumpAmount, repairPoints,
+                               maxHeading, turnSpeed, recenter, helmPushedCapacity, pullSpeed,
+                               floodDps, floodRise, dumpAmount, repairPoints, dumpPoints,
                                defs, schedule);
 
                 solved += r.Solved;
@@ -226,8 +291,8 @@ public static class ShipCoopBalanceSim
 
     private static Result Sim(System.Random rng, int crew, bool sailOnly,
                               float distance, float maxSpeed, float minSpeed, float limit, float maxHp,
-                              float maxHeading, float turnSpeed, float recenter, float pullSpeed,
-                              float floodDps, float floodRise, float dumpAmount, int repairPoints,
+                              float maxHeading, float turnSpeed, float recenter, int helmPushedCapacity, float pullSpeed,
+                              float floodDps, float floodRise, float dumpAmount, int repairPoints, int dumpPoints,
                               List<EventDef> defs, (float min, float max, int cap)[] schedule)
     {
         var agents = new Agent[crew];
@@ -242,9 +307,10 @@ public static class ShipCoopBalanceSim
         float elapsed = 0f;
         float hp = maxHp;
         float water = 0f;
-        int leaks = 0;
-
-        float repairWork = 0f;
+        // ⚠ **구멍마다 진행도를 따로 잽니다.** 한 사람이 자기 구멍 하나씩 붙는 것이 실제
+        //    게임입니다. 합쳐서 하나의 계기로 재면, 구멍 두 개가 동시에 열려도 **번갈아
+        //    하나씩만** 끝나는 것으로 나옵니다. (아래 갱신부에 이유가 적혀 있습니다)
+        var holeWork = new List<float>();   // 원소 하나 = 뚫린 구멍 하나. 값은 그 구멍에 들인 사람 시간
         float bailWork = 0f;
         float nextEvent = 6f;                 // graceSeconds
 
@@ -262,7 +328,7 @@ public static class ShipCoopBalanceSim
             {
                 if (live.Count < slot.cap)
                 {
-                    live.Add(new Live { Def = defs[rng.Next(defs.Count)] });
+                    live.Add(NewLive(defs, rng));
                 }
 
                 nextEvent = Mathf.Lerp(slot.min, slot.max, (float)rng.NextDouble());
@@ -275,26 +341,56 @@ public static class ShipCoopBalanceSim
                 if (live[i].Active && live[i].Def.FillsSail) { squallNow = true; break; }
             }
 
+            // 지금 뱃머리가 밀리고 있는가. **배치 전에 알아야** 조타에 둘을 부를 수 있다.
+            bool pushNow = false;
+            for (int i = 0; i < live.Count; i++)
+            {
+                if (live[i].Active && live[i].Def.PushesHeading) { pushNow = true; break; }
+            }
+
             // ── 사람 배치 ───────────────────
             foreach (Agent a in agents) a.Claimed = false;
 
             if (sailOnly)
             {
-                Want(agents, StationSail);
+                Want(agents, StationSail, 1);
             }
             else
             {
                 // 가라앉는 것이 가장 급하다. 물은 고쳐야 멈춘다.
-                if (leaks > 0) Want(agents, StationRepair);
-                if (water > BailThreshold) Want(agents, StationBail);
+                //
+                // ⚠ 구멍이 둘이면 **둘이 동시에** 막는다. 구멍마다 수리 지점이 따로 생긴다.
+                if (holeWork.Count > 0) Want(agents, StationRepair, Mathf.Min(holeWork.Count, repairPoints));
+
+                // 물이 찰수록 더 붙는다. 양동이는 정원이 없어서 사람만 있으면 병렬이다.
+                int bailWant = 0;
+                if (water > BailThreshold) bailWant = 1;
+                if (water > 0.50f) bailWant = 2;
+                if (water > 0.75f) bailWant = 3;
+
+                if (bailWant > 0) Want(agents, StationBail, Mathf.Min(bailWant, dumpPoints));
                 // 돌풍 중에는 돛을 **접는** 것이 돛 자리의 일이다. 30% 위면 붙는다.
-                if (squallNow ? sail01 > 0.3f : sail01 < 0.99f) Want(agents, StationSail);
-                if (Mathf.Abs(heading) > HelmDeadzone) Want(agents, StationHelm);
+                if (squallNow ? sail01 > 0.3f : sail01 < 0.99f) Want(agents, StationSail, 1);
+
+                // ⚠ **밀리는 동안에는 조타에 둘을 부릅니다.** (HelmTask.pushedCapacity)
+                //    혼자서는 35 − 45 = −10°/초 로 계속 밀려서 집니다.
+                //    밀리기 시작하면 뱃머리가 아직 정면이어도 미리 붙어야 합니다.
+                if (pushNow)
+                {
+                    Want(agents, StationHelm, helmPushedCapacity);
+                }
+                else if (Mathf.Abs(heading) > HelmDeadzone)
+                {
+                    Want(agents, StationHelm, 1);
+                }
             }
 
             for (int i = 0; i < live.Count; i++)
             {
-                if (live[i].Active) Want(agents, StationEvent + i);
+                // ⚠ **미는 사건(거대한 파도)은 따로 사람을 붙이는 일이 아닙니다.**
+                //    조타를 붙잡는 것이 그 사건의 일 전부입니다. 여기서 또 한 명을
+                //    부르면 파도 하나에 세 명이 매달리는 것이 되어 실제와 다릅니다.
+                if (live[i].Active && !live[i].Def.PushesHeading) Want(agents, StationEvent + i, 1);
             }
 
             foreach (Agent a in agents)
@@ -302,7 +398,13 @@ public static class ShipCoopBalanceSim
                 if (!a.Claimed) a.Station = -1;
             }
 
-            bool onSail = false, onHelm = false;
+            bool onSail = false;
+
+            // ⚠ 참/거짓이 아니라 **사람 수**입니다. 조타는 붙은 만큼 빨리 돌아갑니다.
+            int helmers = 0;
+
+            // 이번 틱에 수리에 붙어 있는 사람 수. 구멍마다 한 명씩 붙는다.
+            int repairers = 0;
 
             foreach (Agent a in agents)
             {
@@ -315,8 +417,8 @@ public static class ShipCoopBalanceSim
                 switch (a.Station)
                 {
                     case StationSail: onSail = true; break;
-                    case StationHelm: onHelm = true; break;
-                    case StationRepair: repairWork += Dt; break;
+                    case StationHelm: helmers++; break;
+                    case StationRepair: repairers++; break;
                     case StationBail: bailWork += Dt; break;
                     default:
                         if (a.Station >= StationEvent)
@@ -328,11 +430,24 @@ public static class ShipCoopBalanceSim
                 }
             }
 
-            // ── 수리 · 퍼내기 ───────────────
-            if (repairWork >= RepairSeconds && leaks > 0)
+            // ── 수리 ───────────────────────
+            //
+            // ⛔ **예전에는 합친 계기 하나로 쟀습니다.** 구멍이 둘 열려서 둘이 붙으면,
+            //    계기가 2배 속도로 차고 '한 구멍만' 끝난 뒤 리셋됐습니다. 실제로는
+            //    '둘 다 동시에' 끝나야 하는데 말입니다. 그래서 두 번째 구멍이 실제보다
+            //    늦게 끝나는 것으로 나왔습니다.
+            //
+            // ✅ 구멍마다 **따로** 진행도를 잽니다. 붙은 사람 수(repairers)만큼
+            //    앞에서부터 순서대로 채웁니다. 다 같은 값이라 어느 구멍이 먼저인지는
+            //    안 가린다.
+            for (int i = 0; i < repairers && i < holeWork.Count; i++)
             {
-                leaks--;
-                repairWork = 0f;
+                holeWork[i] += Dt;
+            }
+
+            for (int i = holeWork.Count - 1; i >= 0; i--)
+            {
+                if (holeWork[i] >= RepairSeconds) holeWork.RemoveAt(i);
             }
 
             if (bailWork >= BailSeconds)
@@ -343,6 +458,7 @@ public static class ShipCoopBalanceSim
 
             // ── 사건 진행 ───────────────────
             bool pushed = false, squalling = false;
+            float pushSide = 1f, pushRate = PushDegPerSecond;
 
             for (int i = live.Count - 1; i >= 0; i--)
             {
@@ -357,12 +473,44 @@ public static class ShipCoopBalanceSim
                 //    이걸 안 막으면 구멍이 무한정 쌓여서 침몰률이 실제보다 훨씬 높게 나온다.
                 if (e.Def.CreatesLeak)
                 {
-                    if (leaks < repairPoints) leaks++;
+                    if (holeWork.Count < repairPoints) holeWork.Add(0f);
                     live.RemoveAt(i);
                     continue;
                 }
 
-                if (e.Def.PushesHeading) pushed = true;
+                // ── 거대한 파도 ────────────────
+                //
+                // 다른 사건과 판정이 다릅니다. **일한 시간이 아니라 뱃머리 각도**로
+                // 정해집니다. 조타를 붙잡아 정면을 지키면 넘어가고, 정해진 시간보다
+                // 오래 벗어나 있으면 옆으로 맞습니다. (BigWave.OnTick / OnTimeout)
+                if (e.Def.PushesHeading)
+                {
+                    pushed = true;
+                    pushSide = e.PushSide;
+                    pushRate = e.Def.PushPerSecond;
+
+                    if (Mathf.Abs(heading) > e.Def.StraightTolerance) e.OffTime += Dt;
+
+                    if (e.OffTime > e.Def.AllowedOffTime)
+                    {
+                        // 옆으로 맞았다. HP 가 아니라 갑판에 물이 쏟아진다.
+                        result.Failed++;
+                        water = Mathf.Clamp01(water + e.Def.FloodOnFail);
+                        live.RemoveAt(i);
+                        continue;
+                    }
+
+                    if (e.ActiveAge >= e.Def.Duration)
+                    {
+                        // 버텨냈다. 그래도 물은 넘어온다.
+                        result.Solved++;
+                        water = Mathf.Clamp01(water + e.Def.FloodOnPass);
+                        live.RemoveAt(i);
+                    }
+
+                    continue;
+                }
+
                 if (e.Def.FillsSail) squalling = true;
 
                 if (e.Work >= e.Def.Duration * WorkFraction)
@@ -379,15 +527,12 @@ public static class ShipCoopBalanceSim
                     hp -= e.Def.Damage;
                     sail01 = Mathf.Clamp01(sail01 - e.Def.SailLoss);
 
-                    if (e.Def.PushesHeading)
-                    {
-                        heading = Mathf.Sign(heading == 0f ? 1f : heading) * maxHeading;
-                    }
+                    // 미는 사건은 여기까지 오지 않는다. 위에서 각도로 따로 판정한다.
 
                     // 사건은 연쇄한다. (5장)
                     for (int c = 0; c < e.Def.ChainCount; c++)
                     {
-                        live.Add(new Live { Def = defs[rng.Next(defs.Count)] });
+                        live.Add(NewLive(defs, rng));
                     }
 
                     live.RemoveAt(i);
@@ -395,9 +540,9 @@ public static class ShipCoopBalanceSim
             }
 
             // ── 침수 ───────────────────────
-            if (leaks > 0)
+            if (holeWork.Count > 0)
             {
-                water = Mathf.Clamp01(water + floodRise * leaks * Dt);
+                water = Mathf.Clamp01(water + floodRise * holeWork.Count * Dt);
             }
 
             if (water > 0f)
@@ -420,18 +565,44 @@ public static class ShipCoopBalanceSim
             if (onSail) sail01 = Mathf.Clamp01(sail01 + (squalling ? -pullSpeed : pullSpeed) * Dt);
             if (squalling) sail01 = Mathf.Clamp01(sail01 + 0.3f * Dt);
 
-            if (onHelm)
+            // ── 조타 ───────────────────────
+            //
+            // ⛔ **예전에는 이랬습니다. 틀린 모델이었습니다.**
+            //
+            //      if (onHelm)       heading → 0 (turnSpeed 로)
+            //      else if (pushed)  heading 을 민다
+            //
+            //    `else` 라서 **사람이 한 명이라도 붙으면 미는 힘이 사라졌습니다.**
+            //    혼자서도 거대한 파도를 늘 이겼고, 그래서 둘째 사람이 필요한 상황이
+            //    모델 안에 존재하지 않았습니다. 이 게임의 핵심 협력 작업(6장)이
+            //    통째로 빠진 채로 밸런스를 재고 있었던 것입니다.
+            //
+            // ✅ 실제 `HelmTask.Work` 는 **둘을 같은 프레임에 다 적용합니다.**
+            //    붙은 사람 수만큼 돌리고, 미는 힘은 그와 별개로 계속 작용합니다.
+            //
+            //      아무도 없음   0 − 45 = −45°/초   밀린다
+            //      혼자          35 − 45 = −10°/초  밀린다. 시간은 벌지만 진다
+            //      둘이서        70 − 45 = +25°/초  되돌린다
+            //
+            //    `Mathf.Clamp(steer, -Capacity, Capacity)` 가 1 이 아니라 정원으로
+            //    자르기 때문에 두 배가 나옵니다. (HelmTask.cs)
+
+            if (pushed)
             {
-                heading = Mathf.MoveTowards(heading, 0f, turnSpeed * Dt);
+                heading += pushSide * pushRate * Dt;
             }
-            else if (pushed)
+
+            if (helmers > 0)
             {
-                heading = Mathf.Clamp(heading + PushDegPerSecond * Dt, -maxHeading, maxHeading);
+                // 사람은 늘 정면 쪽으로 돌린다. 미는 힘과 겨루는 것은 위에서 이미 더해졌다.
+                heading = Mathf.MoveTowards(heading, 0f, helmers * turnSpeed * Dt);
             }
-            else if (recenter > 0f)
+            else if (!pushed && recenter > 0f)
             {
                 heading = Mathf.MoveTowards(heading, 0f, recenter * Dt);
             }
+
+            heading = Mathf.Clamp(heading, -maxHeading, maxHeading);
 
             // ── 나아가기 ───────────────────
             float course = Mathf.Max(0f, Mathf.Cos(heading * Mathf.Deg2Rad));
@@ -465,29 +636,64 @@ public static class ShipCoopBalanceSim
         return result;
     }
 
-    private static void Want(Agent[] agents, int station)
+    /// <summary>사건 하나를 새로 띄운다. 미는 사건은 밀 방향을 여기서 정한다. (BigWave.randomSide)</summary>
+    private static Live NewLive(List<EventDef> defs, System.Random rng)
     {
+        return new Live
+        {
+            Def = defs[rng.Next(defs.Count)],
+            PushSide = rng.NextDouble() < 0.5 ? -1f : 1f,
+        };
+    }
+
+    /// <summary>없는 값이면 기본값을 준다. BigWave 에만 있는 필드를 다른 사건에서도 읽으므로 필요하다.</summary>
+    private static float Prop(SerializedObject so, string name, float fallback)
+    {
+        SerializedProperty p = so.FindProperty(name);
+        return p != null ? p.floatValue : fallback;
+    }
+
+    /// <summary>
+    /// 그 자리에 <paramref name="want"/> 명을 붙인다.
+    ///
+    /// ⚠ **한동안 한 자리에 한 명만 붙였습니다.** 그래서 조타에 둘이 붙는 상황이
+    ///    아예 만들어지지 않았고, 이 게임의 핵심 협력 작업(6장)이 모델에서 통째로
+    ///    빠져 있었습니다. 실제 `TaskBase` 는 `capacity` 만큼 **동시에** 받습니다.
+    ///
+    /// 이미 그 자리에 있는 사람을 먼저 셉니다. 옮기는 시간이 안 드니까요.
+    /// </summary>
+    private static void Want(Agent[] agents, int station, int want)
+    {
+        int have = 0;
+
         foreach (Agent a in agents)
         {
-            if (a.Station == station)
+            if (have >= want) break;
+
+            if (a.Station == station && !a.Claimed)
             {
                 a.Claimed = true;
-                return;
+                have++;
             }
         }
 
-        Agent take = null;
-        foreach (Agent a in agents)
+        while (have < want)
         {
-            if (a.Claimed) continue;
-            if (take == null || (a.Station == -1 && take.Station != -1)) take = a;
+            Agent take = null;
+
+            foreach (Agent a in agents)
+            {
+                if (a.Claimed) continue;
+                if (take == null || (a.Station == -1 && take.Station != -1)) take = a;
+            }
+
+            if (take == null) return;   // 더 부를 사람이 없다
+
+            take.Station = station;
+            take.Switching = SwitchSeconds;
+            take.Claimed = true;
+            have++;
         }
-
-        if (take == null) return;
-
-        take.Station = station;
-        take.Switching = SwitchSeconds;
-        take.Claimed = true;
     }
 
     private static int PhaseOf(float progress)
@@ -516,9 +722,20 @@ public static class ShipCoopBalanceSim
                 SailLoss = so.FindProperty("sailLossOnFail").floatValue,
                 Damage = so.FindProperty("damageOnFail").floatValue,
                 ChainCount = so.FindProperty("chainOnFail").arraySize,
-                PushesHeading = name.Contains("파도") || name.Contains("암초"),
+                // ⚠ **암초는 미는 사건이 아닙니다.** 한동안 여기 같이 넣어 뒀는데,
+                //    `ExternalPushPerSecond` 를 쓰는 것은 `BigWave` 하나뿐입니다.
+                //    암초는 `_helm.Heading` 을 **읽기만** 합니다 — 피했는지 보려고요.
+                //    같이 넣으면 모델이 실제보다 어려워집니다.
+                PushesHeading = name.Contains("파도"),
                 FillsSail = name.Contains("돌풍"),
                 CreatesLeak = name.Contains("선체") || name.Contains("침수"),
+
+                // BigWave 에만 있는 값. 다른 사건에는 없으므로 기본값으로 떨어진다.
+                StraightTolerance = Prop(so, "straightTolerance", 12f),
+                AllowedOffTime = Prop(so, "allowedOffTime", 1.5f),
+                PushPerSecond = Prop(so, "pushPerSecond", PushDegPerSecond),
+                FloodOnFail = Prop(so, "floodOnFail", 0f),
+                FloodOnPass = Prop(so, "floodOnSucceed", 0f),
             });
         }
 

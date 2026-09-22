@@ -1339,7 +1339,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4027799897945942615}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -2478,7 +2478,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5750252758484118130}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -2628,6 +2628,7 @@ GameObject:
   - component: {fileID: 3198784943384249776}
   - component: {fileID: 9055123758217843492}
   - component: {fileID: 8340026935150668341}
+  - component: {fileID: 8781997664107607958}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -2777,6 +2778,7 @@ MonoBehaviour:
   - {fileID: 8617005968481719764}
   - {fileID: 3198784943384249776}
   - {fileID: 8340026935150668341}
+  - {fileID: 8781997664107607958}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
 MonoBehaviour:
@@ -2987,6 +2989,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3d699190aa94bd438dadc16d8100276, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferingRelay
+--- !u!114 &8781997664107607958
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d060330750216c4b97a6f1b30b45871, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMatchRelay
 --- !u!1 &6448122823236699881
 GameObject:
   m_ObjectHideFlags: 0

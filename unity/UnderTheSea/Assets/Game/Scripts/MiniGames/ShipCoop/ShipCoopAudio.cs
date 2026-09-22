@@ -6,9 +6,10 @@ using UnityEngine;
 /// 🔊 배 협동의 소리 **연출가.** 게임 상태를 보고 <see cref="AudioHub"/> 에 "이 곡 · 이 소리" 를 부탁한다. (SHIPCOOP.md 4장)
 ///
 /// <code>
-///   🎵 배경음악   대기 → 항해 → 결과(성공 · 실패 공통, 따로 곡을 안 두고 항해 곡을 endLevel 만큼 낮춰 이어서)
+///   🎵 배경음악   대기 → 항해 → 결과(성공 · 실패 공통, 결과 곡 하나. 비어 있으면 항해 곡을 endLevel 만큼 낮춰 이어서)
+///               곡이 바뀔 때마다 crossfadeSeconds 동안 교차 — 갑자기 튀거나 뚝 끊기지 않는다
 ///   🌊 루프       바다(항상, 아주 얕게) · 바람(돌풍) · 밧줄(돛 당길 때) · 키(조타할 때) · 물(침수량만큼)
-///   🐦 갈매기     루프 아니고 항해 중 30~40초마다 한 번, 셋을 돌아가며
+///   🐦 갈매기     루프 아니고 항해 중 20~30초마다 한 번, 셋을 돌아가며
 ///   💥 효과음     예고 종 · 대포 · 파도 충격 · 암초 충돌/스침 · 적선 피격 · 선체 파손 · 망치 · 수리 완료 ·
 ///               물 버림 · 배 피격 · 침몰
 /// </code>
@@ -37,18 +38,21 @@ public class ShipCoopAudio : MonoBehaviour
     [Tooltip("항해 중.")]
     [SerializeField] private AudioClip bgmSailing;
 
-    [Tooltip("결과 화면. 따로 곡을 두지 않는다 — 항해 곡(bgmSailing)을 그대로 이어서 endLevel 만큼만 낮춰 튼다.")]
+    [Tooltip("결과 화면 (성공 · 실패 공통).")]
+    [SerializeField] private AudioClip bgmResult;
+
+    [Tooltip("결과 화면 곡의 상대 크기. bgmResult 가 비어 있으면 항해 곡(bgmSailing)을 그대로 이어서 이만큼 낮춰 튼다.")]
     [SerializeField, Range(0f, 2f)] private float endLevel = 0.7f;
 
-    [Tooltip("곡을 바꿀 때 겹치는 시간 (초).")]
-    [SerializeField, Range(0.1f, 5f)] private float crossfadeSeconds = 1.5f;
+    [Tooltip("곡을 바꿀 때 겹치는 시간 (초). 씬에 들어올 때는 이 시간 동안 페이드 인, 나갈 때는 페이드 아웃.")]
+    [SerializeField, Range(0.1f, 5f)] private float crossfadeSeconds = 2.5f;
 
     [Header("🌊 루프")]
     [Tooltip("바다. 항해 중 항상. 속도가 빠를수록 조금 커진다.")]
     [SerializeField] private AudioClip seaLoop;
 
     [Tooltip("바다 루프의 크기 (0~1). 들릴락 말락 하게 아주 작게 깔 때 쓴다. loopLevel 에 곱해진다.")]
-    [SerializeField, Range(0f, 1f)] private float seaLevel = 0.12f;
+    [SerializeField, Range(0f, 1f)] private float seaLevel = 0.24f;
 
     [Tooltip("바람. 항해 중 늘 얕게 깔리고, 돌풍이 불면 커진다.")]
     [SerializeField] private AudioClip windLoop;
@@ -78,10 +82,10 @@ public class ShipCoopAudio : MonoBehaviour
     [SerializeField] private AudioClip seagull3;
 
     [Tooltip("다음 갈매기 소리까지 최소 간격 (초).")]
-    [SerializeField, Range(5f, 120f)] private float seagullMinInterval = 30f;
+    [SerializeField, Range(5f, 120f)] private float seagullMinInterval = 20f;
 
     [Tooltip("다음 갈매기 소리까지 최대 간격 (초). 이 사이에서 무작위로 정한다.")]
-    [SerializeField, Range(5f, 120f)] private float seagullMaxInterval = 40f;
+    [SerializeField, Range(5f, 120f)] private float seagullMaxInterval = 30f;
 
     [Tooltip("갈매기 소리 크기 (1 이 기준).")]
     [SerializeField, Range(0f, 2f)] private float seagullLevel = 0.7f;
@@ -232,7 +236,7 @@ public class ShipCoopAudio : MonoBehaviour
         Rescan(force: true);
 
         int clips = 0;
-        foreach (AudioClip c in new[] { bgmReady, bgmSailing, seaLoop, windLoop, ropeLoop, wheelLoop, floodLoop,
+        foreach (AudioClip c in new[] { bgmReady, bgmSailing, bgmResult, seaLoop, windLoop, ropeLoop, wheelLoop, floodLoop,
                                         warnChime, waveHit, reefHit, reefDodged, enemyHit, hullCrack, cannonFire, hammerHit, repairDone, dumpSplash,
                                         waterScoop, boxLid, footstep, shipHurt, shipSunk, seagull1, seagull2, seagull3 })
         {
@@ -781,7 +785,7 @@ public class ShipCoopAudio : MonoBehaviour
     }
 
     /// <summary>
-    /// 🐦 갈매기. 루프가 아니라 **이따금 한 번씩** — 항해 중 30~40초마다, 셋을 돌아가며 (같은 것이 연달아 안 나게).
+    /// 🐦 갈매기. 루프가 아니라 **이따금 한 번씩** — 항해 중 20~30초마다, 셋을 돌아가며 (같은 것이 연달아 안 나게).
     ///
     /// 배 전체의 배경음이라 판정 없이 공통으로 낸다(IsMine 을 안 본다). 각 화면이 자기 타이머로 독립적으로
     /// 뿌리므로 여러 명이 동시에 들어도 정확히 같은 순간은 아니다 — 분위기용 소리라 맞출 필요가 없다.
@@ -866,8 +870,9 @@ public class ShipCoopAudio : MonoBehaviour
     // ------------------------------------------------------------
 
     /// <summary>
-    /// 배경음악을 3단계로만 고른다 — 대기 · 항해 · 결과(성공 · 실패 공통). 결과에는 따로 곡을 두지 않는다.
-    /// 항해 곡(<see cref="bgmSailing"/>)을 그대로 이어서 <see cref="endLevel"/> 만큼만 낮춰 튼다.
+    /// 배경음악을 3단계로만 고른다 — 대기 · 항해 · 결과(성공 · 실패 공통).
+    /// 결과 곡(<see cref="bgmResult"/>)이 비어 있으면 항해 곡(<see cref="bgmSailing"/>)을 그대로 이어서
+    /// <see cref="endLevel"/> 만큼만 낮춰 튼다.
     /// 같은 클립을 같은 크기로 다시 요청하면 <c>AudioHub.PlayMusic</c> 이 값싸게 걸러 내므로 매 프레임 불러도 된다.
     /// </summary>
     private void ChooseMusic()
@@ -890,8 +895,15 @@ public class ShipCoopAudio : MonoBehaviour
                 case ShipCoopState.Cleared:
                 case ShipCoopState.Sunk:
                 case ShipCoopState.TimeOver:
-                    want = bgmSailing;
-                    level = endLevel;
+                    if (bgmResult != null)
+                    {
+                        want = bgmResult;
+                    }
+                    else
+                    {
+                        want = bgmSailing;
+                        level = endLevel;
+                    }
                     break;
             }
         }

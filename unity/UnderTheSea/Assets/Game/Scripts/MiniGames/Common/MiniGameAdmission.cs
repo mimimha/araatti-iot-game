@@ -66,7 +66,17 @@ namespace MiniGames.Common
             NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
         {
             int now = runner != null ? runner.ActivePlayers.Count() : 0;
-            int max = config != null ? config.MaxPlayers : 0;
+
+            // 들어오는 사람이 "이번 판은 몇 명" 을 들고 온다. 첫 사람의 값이 이 판을 정한다.
+            // 로비 서버가 알려 줄 길이 없어서(둘은 서로 접속하지 않는다) 이렇게 나른다.
+            MatchCrew.Remember(MatchCrewToken.Clamp(MatchCrewToken.Read(token), config));
+
+            // ⚠ 정원은 **이번 판의 인원**이다. 게임의 최대 정원이 아니다.
+            //    광산은 정원이 4명이어도 3인 판이면 네 번째 사람은 들어오면 안 된다.
+            //    매칭이 정해 준 것이 없을 때만 예전처럼 최대 정원으로 막는다.
+            int max = MatchCrew.Assigned > 0
+                ? MatchCrew.Assigned
+                : (config != null ? config.MaxPlayers : 0);
 
             if (!TryFindSource(out string whyNoSource))
             {
@@ -119,7 +129,23 @@ namespace MiniGames.Common
 
         // ── 나머지 콜백은 이 부품의 일이 아니다 ───────────────────────────────
         void INetworkRunnerCallbacks.OnPlayerJoined(NetworkRunner runner, PlayerRef player) { }
-        void INetworkRunnerCallbacks.OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
+        /// <summary>
+        /// 마지막 사람이 나가면 "몇 명짜리 판" 을 잊는다.
+        ///
+        /// ⚠ <b>안 잊으면 다음 팀이 앞 팀의 인원으로 시작한다.</b> 2인 판이 끝난 방에
+        ///    4인 팀이 들어오면 둘만 모여도 출발해 버린다. 서버는 판을 거듭 쓰는 자원이라
+        ///    한 판이 남긴 것을 다음 판이 물려받지 않게 해야 한다.
+        /// </summary>
+        void INetworkRunnerCallbacks.OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+        {
+            if (runner == null) return;
+
+            // 이 콜백은 그 사람이 빠지기 전에 불릴 수 있다. 자기 자신을 빼고 센다.
+            int left = runner.ActivePlayers.Count(p => p != player);
+            if (left > 0) return;
+
+            MatchCrew.Forget();
+        }
         void INetworkRunnerCallbacks.OnInput(NetworkRunner runner, NetworkInput input) { }
         void INetworkRunnerCallbacks.OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
         void INetworkRunnerCallbacks.OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }

@@ -468,7 +468,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 1.7839632, y: 1, z: 1.745157}
   m_Center: {x: 0.010368347, y: -2.1557315e-11, z: -0.030946553}
@@ -6754,15 +6754,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 39dc41ca26a3a4e4aa37d23ed6a87cd7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipCoopAudio
-  bgmReady: {fileID: 8300000, guid: 0b33f169803c29c44a053c5bd9e77434, type: 3}
-  bgmSailing: {fileID: 8300000, guid: 624655035d2813848bf7a744acf0a80b, type: 3}
+  bgmReady: {fileID: 8300000, guid: 18ad4163b6dbf474c847ecba04fc9dfe, type: 3}
+  bgmSailing: {fileID: 8300000, guid: c87aa6039fe83e44c836946b857ded92, type: 3}
+  bgmResult: {fileID: 8300000, guid: a704c22e077126d4abed2428f991888f, type: 3}
   endLevel: 0.7
-  crossfadeSeconds: 1.5
+  crossfadeSeconds: 2.5
   seaLoop: {fileID: 8300000, guid: eb1a8a59747a86740967cc45e9a5cef5, type: 3}
-  seaLevel: 0.12
+  seaLevel: 0.24
   windLoop: {fileID: 8300000, guid: 1055e225fb5fc544e827ca0037e9f8bd, type: 3}
   windBase: 0.3
-  ropeLoop: {fileID: 0}
+  ropeLoop: {fileID: 8300000, guid: 953786a8cdbd4e31b1febf8199d28849, type: 3}
   ropeRepeat: 2
   wheelLoop: {fileID: 0}
   floodLoop: {fileID: 0}
@@ -6770,8 +6771,8 @@ MonoBehaviour:
   seagull1: {fileID: 8300000, guid: 8f8ee080077a39745b4d73d05609fdd4, type: 3}
   seagull2: {fileID: 8300000, guid: 0f6cd111e39a0f5458ebd8613a053817, type: 3}
   seagull3: {fileID: 8300000, guid: 38f66f06ebf25d04fbac1d1ac78b73c2, type: 3}
-  seagullMinInterval: 30
-  seagullMaxInterval: 40
+  seagullMinInterval: 20
+  seagullMaxInterval: 30
   seagullLevel: 0.7
   warnChime: {fileID: 8300000, guid: 933da6be62189994dad86e149d0b3956, type: 3}
   waveHit: {fileID: 0}
@@ -7438,7 +7439,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   health: {fileID: 0}
-  damagePerSecondWhenFull: 6
+  damagePerSecondWhenFull: 3
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
 --- !u!4 &623664410
@@ -8233,7 +8234,7 @@ MonoBehaviour:
   islandPrefab: {fileID: 5063434830540745403, guid: 956a64f998ce9134d8f84ea0b4c87f6a, type: 3}
   islandMaterial: {fileID: 2100000, guid: 619b831207f62b8489f25611c81b734c, type: 2}
   islandFarDistance: 400
-  islandNearDistance: 25
+  islandNearDistance: 95
   islandApproachCurve: 2
   logIsland: 0
   courseHalfWidth: 5
@@ -16474,7 +16475,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae4304993b074614b9722c46837842cb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopStateSync
-  crewToStart: 2
+  crewToStart: 1
   resultHoldSeconds: 3
   countdownSeconds: 10
 --- !u!114 &1666538690
@@ -16838,9 +16839,10 @@ MonoBehaviour:
     pool:
     - {fileID: 1760830201}
     - {fileID: 1861713332}
-    minInterval: 14
-    maxInterval: 20
-    maxConcurrent: 1
+    - {fileID: 924620907}
+    minInterval: 8
+    maxInterval: 11
+    maxConcurrent: 2
     openingBurst: 0
   - phaseIndex: 2
     label: "\uD398\uC774\uC988 2"
@@ -16849,9 +16851,10 @@ MonoBehaviour:
     - {fileID: 997728828}
     - {fileID: 1861713332}
     - {fileID: 562408157}
-    minInterval: 12
-    maxInterval: 17
-    maxConcurrent: 2
+    - {fileID: 924620907}
+    minInterval: 7
+    maxInterval: 10
+    maxConcurrent: 3
     openingBurst: 0
   - phaseIndex: 3
     label: "\uD398\uC774\uC988 3"
@@ -16861,9 +16864,9 @@ MonoBehaviour:
     - {fileID: 1861713332}
     - {fileID: 562408157}
     - {fileID: 924620907}
-    minInterval: 10
-    maxInterval: 14
-    maxConcurrent: 2
+    minInterval: 7
+    maxInterval: 11
+    maxConcurrent: 3
     openingBurst: 0
   - phaseIndex: 4
     label: FINAL STORM
@@ -16873,20 +16876,21 @@ MonoBehaviour:
     - {fileID: 1861713332}
     - {fileID: 562408157}
     - {fileID: 924620907}
-    minInterval: 7
-    maxInterval: 11
-    maxConcurrent: 3
+    minInterval: 5
+    maxInterval: 8
+    maxConcurrent: 4
     openingBurst: 3
   - phaseIndex: 0
     label: "\uCD9C\uD56D"
     pool:
     - {fileID: 1760830201}
     - {fileID: 924620907}
-    minInterval: 10
-    maxInterval: 15
+    minInterval: 8
+    maxInterval: 11
     maxConcurrent: 1
     openingBurst: 0
   graceSeconds: 6
+  mostInARow: 2
   randomSeed: 0
 --- !u!4 &1792953313
 Transform:

@@ -127,6 +127,13 @@ namespace Mine.Net
                 CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
             };
 
+            if (!isServer)
+            {
+                // 이번 판의 인원을 서버에 들고 간다. 로비 서버와 미니게임 서버는 서로
+                // 말을 걸지 않으므로, 접속하는 사람이 나르는 것이 유일한 길이다.
+                args.ConnectionToken = MatchCrewToken.Write(MiniGameSessionRequest.Crew);
+            }
+
             if (isServer)
             {
                 args.Address = NetAddress.Any(port);

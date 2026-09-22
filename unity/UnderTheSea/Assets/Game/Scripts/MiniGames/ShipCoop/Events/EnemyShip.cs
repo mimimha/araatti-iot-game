@@ -81,6 +81,7 @@ public class EnemyShip : VoyageEvent
     protected override void OnFail()
     {
         Unsubscribe();
+        Game?.ReportEnemyBreached();
     }
 
     protected override void OnCancel()

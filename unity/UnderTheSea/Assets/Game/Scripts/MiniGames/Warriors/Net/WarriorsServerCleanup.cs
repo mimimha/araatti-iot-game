@@ -50,6 +50,10 @@ namespace Warriors.Net
             count += DisableAll<AudioListener>("귀");
             count += DisableAll<AudioSource>("소리");
 
+            // 소리 연출가 - 스스로도 AudioHub.CanHear 로 꺼지지만, 서버에서 판 상태를 매 프레임
+            // 읽을 이유가 없으므로 여기서도 끈다.
+            count += DisableAll<WarriorsAudio>("소리 연출");
+
             // 화면에 그리는 것
             count += DisableAll<Canvas>("Canvas");
             count += DisableAll<CanvasScaler>("Canvas 크기 맞춤");
@@ -63,6 +67,7 @@ namespace Warriors.Net
             count += DisableAll<WarriorsTentacleIndicator>("촉수 표시");
             count += DisableAll<WarriorsMonsterVisualAnimator>("몬스터 애니메이션");
             count += DisableAll<WarriorsKrakenTentacleDeformer>("촉수 변형");
+            count += DisableAll<WarriorsKrakenLegs>("크라켄 다리 뼈");
 
             // 조명 - 서버는 아무것도 그리지 않으므로 그림자 계산이 통째로 낭비다
             count += DisableAll<Light>("조명");

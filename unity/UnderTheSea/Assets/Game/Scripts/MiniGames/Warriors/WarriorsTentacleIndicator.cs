@@ -7,6 +7,9 @@ namespace Warriors
         [SerializeField] private WarriorsTarget target;
         [SerializeField] private Font labelFont;
         [SerializeField] private Transform indicatorAnchor;
+
+        /// <summary>이 촉수가 크라켄 팔에 묶여 있으면 그 다리. 없으면 예전처럼 고정 자리에 뜬다.</summary>
+        private WarriorsTentacleArmLink armLink;
         [SerializeField] private TextMesh arrowLabel;
         [SerializeField] private SpriteRenderer arrowDisc;
         [SerializeField] private Color discColor = new(.06f, .10f, .22f, .93f);
@@ -14,13 +17,103 @@ namespace Warriors
         [SerializeField] private SpriteRenderer windowRing;
         [SerializeField] private Color glyphColor = new(.97f, .99f, 1f, 1f);
         [SerializeField] private Color ringColor = new(1f, .72f, .26f, .95f);
-        [SerializeField, Min(.1f)] private float ringStartSize = 1.78f;
+        [SerializeField, Min(.1f)] private float ringStartSize = 1.4f;
+
+        /// <summary>
+        /// 표식 전체(원판 · 링 · 화살표)를 한꺼번에 키우는 값.
+        ///
+        /// ⚠ <b>원판만 키우면 안 된다.</b> 링은 <see cref="ringStartSize"/> 에서 <see cref="discSize"/> 까지
+        ///    조여들며 남은 시간을 보여 주는데, 원판만 키우면 그 여백이 사라져 <b>조여드는 것이 안 보인다.</b>
+        ///    실제로 그렇게 만들었다가 되돌렸다. 멀어서 작게 보이면 이 값으로 통째로 키운다.
+        /// </summary>
+        [SerializeField, Min(.1f)] private float markerScale = 1f;
+
+        /// <summary>맞은 순간 부풀며 사라지는 세기. 1(막 맞음) → 0(다 사라짐).</summary>
+        private float burst;
+
+        /// <summary>이미 터졌는가. 터진 표식은 다시 나타나지 않는다 — 다음 촉수가 올라올 때 되살아난다.</summary>
+        private bool spent;
+
+        /// <summary>직전 프레임의 남은 시간. 이 값이 <b>다시 올라가면</b> 새 촉수가 선 것이다.</summary>
+        private float lastRemaining = -1f;
         [SerializeField] private Vector3 localOffset = new(0f, 3.6f, -.82f);
         [SerializeField] private Vector3 fixedWorldEuler = new(0f, 180f, 0f);
         [SerializeField, Min(0f)] private float cameraClearance = 1f;
         [SerializeField] private float outwardOffset = 1f;
 
+        /// <summary>터지는 연출 길이(초).</summary>
+        private const float BurstSeconds = .45f;
+
         private Transform bodyCentre;
+
+        /// <summary>맞았다 — 표식이 한 번 부풀었다 옅어진다. 팔은 움직이지 않는다.</summary>
+        public void PlayBurst()
+        {
+            burst = 1f;
+            spent = true;
+
+            SpawnShards(indicatorAnchor != null ? indicatorAnchor.position : transform.position);
+        }
+
+        /// <summary>
+        /// 표식이 터질 때 튀는 <b>분홍 파편.</b> 프리팹 없이 코드로 만든다
+        /// (촉수 물보라 <c>WarriorsKrakenBoss.SpawnTentacleSplash</c> 와 같은 방식).
+        ///
+        /// 크기만 커지는 연출은 화면에서 거의 안 보였다. 실제로 <b>부서지는 것이 튀어야</b>
+        /// "제대로 맞혔다" 가 읽힌다. 색은 크라켄 빨판의 분홍에서 가져왔다.
+        /// </summary>
+        private static void SpawnShards(Vector3 position)
+        {
+            var shards = new GameObject("TentacleMarkShards");
+            shards.transform.position = position;
+
+            ParticleSystem particles = shards.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = .2f;
+            main.loop = false;
+            main.startLifetime = .3f;
+            main.startSpeed = 3.2f;
+            main.startSize = .3f;
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(1f, .62f, .82f, 1f), new Color(1f, .86f, .93f, 1f));
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.28f);
+            main.gravityModifier = .55f;
+            main.maxParticles = 4;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 2) });   // 톡 하고 두 조각만. 많으면 과하다
+
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = .12f;
+
+            // 튀어 나가며 작아진다 — 파편처럼 보이게.
+            ParticleSystem.SizeOverLifetimeModule size = particles.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0f));
+
+            ParticleSystem.ColorOverLifetimeModule fade = particles.colorOverLifetime;
+            fade.enabled = true;
+            fade.color = new ParticleSystem.MinMaxGradient(new Gradient
+            {
+                colorKeys = new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, .6f), new GradientAlphaKey(0f, 1f) },
+            });
+
+            // 표식보다 앞에 그려져야 보인다. 파티클 기본 재질은 렌더 큐가 뒤라 바다에 잠긴다.
+            var renderer = shards.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.renderMode = ParticleSystemRenderMode.Billboard;
+                renderer.sortingOrder = 33;
+            }
+
+            particles.Play();
+        }
 
         private Vector3 BodyCentre
         {
@@ -43,6 +136,12 @@ namespace Warriors
 
         private void OnEnable()
         {
+            // 촉수는 자리를 돌려 쓴다. 지난번에 터진 상태가 남아 있으면 새로 올라온 촉수가
+            // 검은 원판으로 보인다 — 실제로 세 번째 촉수부터 그랬다.
+            burst = 0f;
+            spent = false;
+            lastRemaining = -1f;
+
             EnsureLabel();
             RefreshLabel();
         }
@@ -51,14 +150,22 @@ namespace Warriors
         {
             if (arrowLabel == null) EnsureLabel();
             if (arrowLabel == null) return;
-            indicatorAnchor.localPosition = localOffset;
+            // 팔에 묶여 있으면(2라운드 크라켄 팔) **그 팔 끝을 따라간다.** 팔이 흔들리는데 표식만
+            // 제자리에 있으면 둘이 따로 놀아 무엇을 베는지 안 읽힌다 — 화면에서 실제로 그랬다.
+            if (armLink == null) armLink = GetComponentInParent<WarriorsTentacleArmLink>();
+
+            if (armLink != null && armLink.TryTipPosition(out Vector3 tip)) indicatorAnchor.position = tip;
+            else indicatorAnchor.localPosition = localOffset;
+
             indicatorAnchor.rotation = Quaternion.Euler(fixedWorldEuler);
 
             // The arms fill the frame, so a marker sitting dead centre on one of them
             // reads as part of the arm rather than as something to answer. Stepping it
             // out to the side - away from the body - gives it its own patch of screen
             // while it still clearly belongs to the arm underneath it.
-            if (outwardOffset != 0f)
+            // ⚠ 팔에 묶인 촉수는 옆으로 밀지 않는다. 그 값은 표식을 팔에서 **떼어 놓으려던** 것이라,
+            //    팔 위에 얹는 지금 방식과는 반대로 작동한다.
+            if (outwardOffset != 0f && armLink == null)
             {
                 float side = indicatorAnchor.position.x - BodyCentre.x;
                 indicatorAnchor.position +=
@@ -78,7 +185,27 @@ namespace Warriors
             }
 
             indicatorAnchor.gameObject.SetActive(target != null && !target.IsDefeated);
-            if (arrowDisc != null) arrowDisc.transform.localScale = Vector3.one * discSize;
+
+            // 맞은 순간 표식이 **부풀면서 옅어진다.** 한 번 터진 표식은 다시 나타나지 않는다.
+            //
+            // ⚠ 예전에는 알파를 (1 - burst) 로 줬는데, 맞는 순간 값이 1 이라 **즉시 사라졌다가
+            //    잦아들면서 도로 나타났다.** 화면에서 "벴는데 화살표가 남아 있다" 로 보였다.
+            //    지금은 burst 가 그대로 알파다 — 1(선명) → 0(사라짐).
+            if (burst > 0f) burst = Mathf.Max(0f, burst - Time.unscaledDeltaTime / BurstSeconds);
+
+            // 터질 때는 **크게, 그리고 늦게 옅어진다.** 작게 터지면 화면에서 안 보인다 —
+            // 제곱근을 써서 커지는 동안에도 한참 선명하게 남는다.
+            float show = spent ? Mathf.Sqrt(burst) : 1f;
+            float pop = 1f + 3f * (spent ? 1f - burst : 0f);
+
+            indicatorAnchor.localScale = Vector3.one * (markerScale * pop);
+
+            if (arrowDisc != null)
+            {
+                arrowDisc.transform.localScale = Vector3.one * discSize;
+                Color tone = discColor;
+                arrowDisc.color = new Color(tone.r, tone.g, tone.b, tone.a * show);
+            }
 
             // The ring closes in on the marker as the window runs out and meets it at the
             // moment the tentacle swings. No colour change and no number: the distance
@@ -86,11 +213,31 @@ namespace Warriors
             if (windowRing != null)
             {
                 float remaining = target != null ? target.StrikeWindowNormalized : -1f;
-                windowRing.enabled = remaining >= 0f;
+
+                // 남은 시간이 **다시 올라갔다** = 같은 자리에 새 촉수가 섰다. 표식을 되살린다.
+                if (remaining > lastRemaining + .05f) { spent = false; burst = 0f; }
+                lastRemaining = remaining;
+
+                windowRing.enabled = remaining >= 0f && (!spent || burst > 0f);
+
                 if (remaining >= 0f)
+                {
                     windowRing.transform.localScale =
                         Vector3.one * Mathf.Lerp(discSize, ringStartSize, remaining);
+
+                    // 막 올라온 순간 링이 가장 크다. 그대로 켜면 튀어나오는 것처럼 보여서
+                    // 처음 0.2초는 알파로 스며들게 한다. 터질 때는 같이 옅어진다.
+                    float fadeIn = Mathf.InverseLerp(1f, .97f, remaining);
+                    Color tone = ringColor;
+                    windowRing.color = new Color(tone.r, tone.g, tone.b, tone.a * fadeIn * show);
+                }
             }
+            if (arrowLabel != null)
+            {
+                Color glyph = glyphColor;
+                arrowLabel.color = new Color(glyph.r, glyph.g, glyph.b, glyph.a * show);
+            }
+
             RefreshLabel();
         }
 

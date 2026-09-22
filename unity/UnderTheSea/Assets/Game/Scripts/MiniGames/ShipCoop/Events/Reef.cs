@@ -170,6 +170,14 @@ public class Reef : VoyageEvent
     private const int VerdictHit = 1;
     private const int VerdictDodged = 2;
 
+    /// <summary>
+    /// 꺾어서 피하는 사건이다. 바위가 떠 있는 동안 항로 이탈 경고를 끈다.
+    ///
+    /// 피하라고 해 놓고 꺾은 사람을 혼낼 수는 없다. 자세한 이유는 밑줄 친 쪽에 적어 뒀다.
+    /// (<see cref="VoyageEvent.DodgedByLeavingCourse"/>)
+    /// </summary>
+    public override bool DodgedByLeavingCourse => true;
+
     /// <summary>복제할 값 — 이번 바위를 부딪혔는지 피했는지.</summary>
     public override int SyncExtra => _verdict;
 
@@ -785,16 +793,10 @@ public class Reef : VoyageEvent
         string side = RockSide < 0f ? "좌현" : "우현";
         string key = RockSide > 0f ? "J" : "L";
 
-        if (VoyageSea.Current == null)
-        {
-            return $"{side} 암초 — {key} 로 꺾어라";
-        }
+        // 바다가 아직 없으면 간격을 잴 수 없다. 그때는 "아직 안 비켰다" 로 읽는다.
+        bool clear = VoyageSea.Current != null && GapFromShip() >= TouchGap;
 
-        float gap = GapFromShip();
-
-        return gap >= TouchGap
-            ? $"{side} 암초 — 비켰다  ({gap:F1}m)"
-            : $"{side} 암초 — {key} 로 꺾어라  ({gap:F1}/{TouchGap:F1}m)";
+        return clear ? $"{side} 암초 — 비켰다" : $"{side} 암초 — {key} 로 꺾어라";
     }
 
     /// <summary>

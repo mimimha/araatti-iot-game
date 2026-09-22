@@ -513,6 +513,67 @@ namespace UnderTheSea.Network.Editor
             return Build(FlowOutput, StandaloneBuildSubtarget.Player, scenes, BuildOptions.Development);
         }
 
+        /// <summary>
+        /// **어느 운영체제용으로 만드는가.** 에디터가 지금 켜 둔 플랫폼을 그대로 따른다.
+        ///
+        /// <code>
+        ///   에디터 플랫폼이 Linux  →  StandaloneLinux64     EC2 에 올릴 것
+        ///   그 밖의 모든 경우      →  StandaloneWindows64   지금까지와 같다
+        /// </code>
+        ///
+        /// <b>왜 인자를 새로 만들지 않고 에디터 플랫폼을 보는가.</b> 서브타깃과 같은 이유다.
+        /// 플랫폼을 바꾸면 에셋을 전부 다시 임포트하고 스크립트를 다시 컴파일한다. 빌드가
+        /// 도는 도중에 그 일이 벌어지면 도메인 리로드가 <c>-executeMethod</c> 를 끊는다.
+        /// 그래서 <b>프로세스가 시작할 때</b> Unity 자신의 인자로 맞춰 둔다.
+        ///
+        /// <code>
+        ///   Unity.exe -batchmode -quit -nographics -projectPath &lt;경로&gt; ^
+        ///     -buildTarget Linux64 ^
+        ///     -standaloneBuildSubtarget Server ^
+        ///     -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildServerFromCommandLine
+        /// </code>
+        ///
+        /// ⚠ <b>에디터를 리눅스로 바꿔 둔 채로 두지 말 것.</b> 되돌릴 때 전체 임포트가 다시 돌고,
+        ///    그사이 에디터는 리눅스용 정의로 돌아 Play 결과가 달라질 수 있다.
+        ///    리눅스 빌드는 위처럼 <b>따로 띄운 프로세스</b>에서만 만든다.
+        ///    (그래서 메뉴 항목을 두지 않았다. 메뉴로 부르면 켜 둔 에디터의 플랫폼이 바뀐다)
+        /// </summary>
+        private static BuildTarget Platform =>
+            EditorUserBuildSettings.activeBuildTarget == BuildTarget.StandaloneLinux64
+                ? BuildTarget.StandaloneLinux64
+                : BuildTarget.StandaloneWindows64;
+
+        /// <summary>
+        /// 윈도우용으로 적어 둔 출력 경로를 리눅스용으로 바꾼다.
+        ///
+        /// <code>
+        ///   Builds/Server/AraAtti-Server.exe  →  Builds/Linux/Server/AraAtti-Server.x86_64
+        /// </code>
+        ///
+        /// <b>폴더를 나누는 이유.</b> 같은 자리에 쓰면 리눅스 빌드가 윈도우 빌드를 덮는다.
+        /// 로컬 QA 는 계속 윈도우 빌드로 하고 EC2 에는 리눅스 빌드를 올리므로, 둘이 동시에
+        /// 있어야 한다.
+        ///
+        /// <b>확장자.</b> 리눅스 플레이어의 실행 파일은 <c>.x86_64</c> 다. Unity 가 이 이름으로
+        /// 만들고 옆에 <c>&lt;이름&gt;_Data/</c> 를 같이 놓는다.
+        /// </summary>
+        private static string Retarget(string relativeOutput)
+        {
+            if (Platform != BuildTarget.StandaloneLinux64) return relativeOutput;
+
+            string folder = (Path.GetDirectoryName(relativeOutput) ?? string.Empty)
+                .Replace(Separator, '/');
+            string name = Path.GetFileNameWithoutExtension(relativeOutput);
+
+            const string Root = "Builds/";
+            if (folder.StartsWith(Root)) folder = Root + "Linux/" + folder.Substring(Root.Length);
+
+            return $"{folder}/{name}.x86_64";
+        }
+
+        /// <summary>윈도우 경로 구분자. 리터럴을 직접 쓰면 읽기 어려워 이름을 붙였다.</summary>
+        private const char Separator = '\\';
+
         private static BuildReport Build(string relativeOutput, StandaloneBuildSubtarget subtarget)
         {
             return Build(relativeOutput, subtarget, new[] { TestScenePath }, BuildOptions.None);
@@ -524,7 +585,7 @@ namespace UnderTheSea.Network.Editor
             System.DateTime buildMethodEnteredUtc = System.DateTime.UtcNow;
             // 프로젝트 폴더 기준 상대 경로를 절대 경로로 바꾼다.
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
-            string output = Path.Combine(projectRoot, relativeOutput);
+            string output = Path.Combine(projectRoot, Retarget(relativeOutput));
 
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 
@@ -547,7 +608,7 @@ namespace UnderTheSea.Network.Editor
             EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
 
             Debug.Log(
-                $"[FusionTestBuilds] 빌드 시작 — 서브타깃 {subtarget}\n" +
+                $"[FusionTestBuilds] 빌드 시작 — 서브타깃 {subtarget}, {Platform}\n" +
                 $"  씬 {scenes.Length}개, 첫 씬: {scenes[0]}\n" +
                 $"  출력: {output}");
 
@@ -574,7 +635,7 @@ namespace UnderTheSea.Network.Editor
                 {
                     scenes = scenes,
                     locationPathName = output,
-                    target = BuildTarget.StandaloneWindows64,
+                    target = Platform,
                     targetGroup = BuildTargetGroup.Standalone,
                     subtarget = (int)subtarget,
                     options = options
@@ -604,7 +665,7 @@ namespace UnderTheSea.Network.Editor
             if (summary.result == BuildResult.Succeeded)
             {
                 Debug.Log(
-                    $"[FusionTestBuilds] 빌드 성공 — 서브타깃 {subtarget} → {output}\n" +
+                    $"[FusionTestBuilds] 빌드 성공 — 서브타깃 {subtarget}, {Platform} → {output}\n" +
                     $"  크기 {summary.totalSize / (1024 * 1024)} MB, 걸린 시간 {summary.totalTime}");
             }
             else

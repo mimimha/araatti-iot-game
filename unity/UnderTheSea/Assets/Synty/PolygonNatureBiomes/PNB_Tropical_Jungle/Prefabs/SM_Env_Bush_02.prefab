@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 3685742513364672004}
   - component: {fileID: 7883258622382232603}
   - component: {fileID: 6816193722946339373}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Bush_02_Leaves_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49,7 +49,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8466759142495319089}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 3136931376375920099}
   - component: {fileID: 450796281114189784}
   - component: {fileID: 5547488162958698544}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Bush_02_Leaves_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -132,7 +132,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8550471732736140950}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -177,7 +177,7 @@ GameObject:
   - component: {fileID: 7537573425616490750}
   - component: {fileID: 8647206168947499621}
   - component: {fileID: 3668409860753204628}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Bush_02_Branches_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -215,7 +215,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8841594656529943256}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -259,7 +259,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8136416411474201417}
   - component: {fileID: 3940724678126648376}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Bush_02
   m_TagString: Untagged
   m_Icon: {fileID: 0}

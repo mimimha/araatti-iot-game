@@ -461,7 +461,7 @@ MonoBehaviour:
   sceneTransition: {fileID: 940157026649219138}
   resultPanel: {fileID: 2697829921123870100}
   suppressSceneLoad: 1
-  returnToLobbyOnCancel: 1
+  returnToLobbyOnCancel: 0
 --- !u!1 &567123739810500329
 GameObject:
   m_ObjectHideFlags: 0

@@ -126,7 +126,35 @@ namespace Warriors.Net
                 CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
             };
 
-            if (isServer) args.Address = NetAddress.Any(port);
+            if (!isServer)
+            {
+                // 이번 판의 인원을 서버에 들고 간다. 로비 서버와 미니게임 서버는 서로
+                // 말을 걸지 않으므로, 접속하는 사람이 나르는 것이 유일한 길이다.
+                args.ConnectionToken = MatchCrewToken.Write(MiniGameSessionRequest.Crew);
+            }
+
+            if (isServer)
+            {
+                args.Address = NetAddress.Any(port);
+
+                // 정원을 Photon 에게도 알린다. **동시에 두드리는 경쟁은 여기서만 막을 수 있다.**
+                // 우리 쪽 OnConnectRequest 는 승인됐지만 아직 합류하지 않은 사람을 세지 못한다.
+                //
+                // ⚠ 이것을 빼먹으면 세션이 Fusion 기본 정원(10)으로 열린다. 실측으로
+                //    warriors-1 · warriors-2 가 정원 11 로 보였다 — 검은 2인 게임인데도.
+                //    매칭은 세션 목록의 MaxPlayers 로 빈자리를 세므로 그대로 두면 틀린 값을 읽는다.
+                if (config != null)
+                {
+                    args.PlayerCount = config.MaxPlayers;
+                    Debug.Log($"[Warriors] 세션 정원을 {config.MaxPlayers}명으로 엽니다. ({config.DisplayName})");
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        "[Warriors] 설정 에셋이 비어 있어 정원을 정하지 못했습니다. " +
+                        "WarriorsBoot 씬의 WarriorsLauncher 에 MiniGame_Sword 를 연결해 주세요.");
+                }
+            }
 
             startedRunner = runner;
 

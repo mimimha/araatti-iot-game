@@ -144,10 +144,46 @@ namespace Warriors.Net
         {
             SyncPlayerId();
 
+            // 쓰러진 모습은 **모든 화면**이 그린다. 서버도 지나가지만 화면이 없어 아무 일이 없다.
+            SyncDownPose();
+
             if (HasStateAuthority || health == null || MaxHp <= 0) return;
 
             MirrorHealth();
         }
+
+        /// <summary>
+        /// **쓰러졌으면 실제로 바닥에 눕는다.**
+        ///
+        /// 예전에는 <see cref="IsDown"/> 이 규칙에만 쓰이고 화면에는 아무 표시가 없었다.
+        /// HP 가 0 이고 조작도 안 되는데 <b>선 채로 가만히 있어</b> 멈춘 것처럼 보였다.
+        ///
+        /// <b>복제된 값을 보고 각 화면이 그린다.</b> 서버에서 애니메이션을 재생해 봐야
+        /// 데디케이티드 서버에는 보여 줄 화면이 없다 — 이 프로젝트가 여러 번 겪은 함정이다.
+        ///
+        /// 되돌아가는 길도 같은 값이 연다. [다시 하기] 로 <see cref="IsDown"/> 이 풀리면
+        /// 애니메이터가 이동 상태로 나간다. 그래서 트리거가 아니라 bool 이다.
+        /// </summary>
+        private void SyncDownPose()
+        {
+            if (downAnimator == null)
+            {
+                downAnimator = GetComponent<Animator>();
+                if (downAnimator == null) return;
+            }
+
+            bool down = IsDown;
+            if (down == shownDown) return;
+
+            shownDown = down;
+            downAnimator.SetBool(DownHash, down);
+        }
+
+        private Animator downAnimator;
+
+        private bool shownDown;
+
+        private static readonly int DownHash = Animator.StringToHash("IsDown");
 
         /// <summary>
         /// **새 판을 위해 되살린다.** 결과 화면의 [다시 하기] 를 받은 서버가 부른다.

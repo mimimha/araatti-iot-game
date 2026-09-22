@@ -109,21 +109,35 @@ public class Squall : VoyageEvent
     /// </summary>
     public override string LiveHint()
     {
-        float power = _voyage != null ? _voyage.SailPower01 : 0f;
-
         if (IsWarning)
         {
             return "돛으로 가라 — 접어야 한다";
         }
 
         return IsFurled
-            ? $"J 로 계속 접어 둬라  (돛 {power:P0})"
-            : $"돛이 펴져 있다! 뒤로 밀린다 — J 로 접어라  (돛 {power:P0})";
+            ? "J 로 계속 접어 둬라"
+            : "돛이 펴져 있다! 뒤로 밀린다 — J 로 접어라";
     }
 
-    /// <summary>발생 중에도 띄운다. "지금 접지 않으면 뒤로 간다" 는 비상 신호다.</summary>
-    public override bool HintIsUrgent => !IsFurled;
+    /// <summary>
+    /// 발생 중에는 **늘** 띄운다. "지금 접지 않으면 뒤로 간다" 는 비상 신호다.
+    ///
+    /// 접은 뒤에도 띄웁니다. 예전에는 접는 순간 줄이 사라졌는데, 그게 "끝났다" 로 읽혀
+    /// 손을 떼면 돛이 도로 펴졌습니다. **돌풍은 계속 누르고 있어야 넘어가는 사건**이라
+    /// 접은 동안에도 "계속 접어 둬라" 가 떠 있어야 합니다.
+    /// </summary>
+    public override bool HintIsUrgent => true;
 
-    /// <summary>예전 이름. 디버그 오버레이가 쓰던 것이다.</summary>
-    public string SailHint() => LiveHint();
+    /// <summary>
+    /// 디버그 오버레이가 띄우는 한 줄. (F1)
+    ///
+    /// 돛이 실제로 얼마나 접혔는지는 여기서만 봅니다. 카드에서는 뺐습니다 —
+    /// 돛은 눈앞에서 펄럭이는 게 보이므로 숫자로 읽을 것이 아닙니다.
+    /// </summary>
+    public string SailHint()
+    {
+        float power = _voyage != null ? _voyage.SailPower01 : 0f;
+
+        return $"{LiveHint()}  (돛 {power:P0})";
+    }
 }

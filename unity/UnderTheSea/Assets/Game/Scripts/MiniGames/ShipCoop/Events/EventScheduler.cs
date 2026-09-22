@@ -58,6 +58,30 @@ public class EventScheduler : MonoBehaviour
              "이 값이 출항 구간보다 길면 출항 계획이 한 번도 돌지 않는다.")]
     [SerializeField, Min(0f)] private float graceSeconds = 6f;
 
+    // ------------------------------------------------------------
+    // ⚠ **같은 사건이 내리 나오면 고장으로 보입니다.**
+    //
+    //    후보에서 균등하게 뽑기만 했더니 실제로 같은 것이 세 번, 네 번씩
+    //    이어졌습니다. 확률로는 당연한 일입니다 — 페이즈 1 은 후보가 둘뿐이라
+    //    세 번 연속이 나올 확률이 1/4 이고, 한 판에 사건이 열 번 넘게 뜨므로
+    //    **거의 매 판 한 번씩은 일어납니다.**
+    //
+    //    문제는 그게 무작위로 안 읽힌다는 것입니다. 사람은 같은 것이 세 번
+    //    이어지면 추첨이 아니라 **스크립트이거나 버그**라고 읽습니다.
+    //    5장이 "무작위로만 뿌리면 억울하게 지고, 스케줄만 있으면 외워진다" 고
+    //    한 것의 반대쪽 실패입니다. 외워지지도 않았는데 짜인 것처럼 보입니다.
+    //
+    //    그래서 **잇달아 나오는 횟수에만 뚜껑을 씌웁니다.** 그 외에는 그대로
+    //    균등 추첨입니다. 가중치를 주거나 순서를 돌리면 외워집니다.
+    // ------------------------------------------------------------
+
+    [Header("되풀이 막기")]
+    [Tooltip("같은 사건이 잇달아 나올 수 있는 최대 횟수.\n\n" +
+             "2 면 두 번까지는 이어져도 세 번째는 다른 것이 나온다.\n" +
+             "1 로 두면 같은 것이 연달아 나오는 일이 아예 없어지는데, 후보가\n" +
+             "둘뿐인 구간에서는 두 사건이 번갈아 나오는 것이 되어 오히려 외워진다.")]
+    [SerializeField, Min(1)] private int mostInARow = 2;
+
     [Header("무작위 고정 (선택)")]
     [Tooltip("0 이 아니면 이 값으로 무작위를 고정한다. 같은 순서를 다시 보고 싶을 때 쓴다.")]
     [SerializeField] private int randomSeed = 0;
@@ -81,6 +105,12 @@ public class EventScheduler : MonoBehaviour
     private float _nextEventTime;
     private int _lastPhaseIndex = -99;
     private System.Random _random;
+
+    /// <summary>직전에 뽑힌 사건. 몇 번 이어졌는지 세려고 들고 있는다.</summary>
+    private VoyageEvent _lastPicked;
+
+    /// <summary>그 사건이 잇달아 뽑힌 횟수.</summary>
+    private int _sameInARow;
 
     private void Awake()
     {
@@ -125,6 +155,10 @@ public class EventScheduler : MonoBehaviour
     {
         _elapsed = 0f;
         _nextEventTime = graceSeconds;
+
+        // 지난 판에서 이어지던 것을 물고 가면 안 된다. 새 판은 아무것도 안 나온 상태다.
+        _lastPicked = null;
+        _sameInARow = 0;
     }
 
     private void Update()
@@ -177,11 +211,19 @@ public class EventScheduler : MonoBehaviour
         }
 
         VoyageEvent picked = PickFrom(CurrentPlan);
-        if (picked != null)
+
+        // 고를 것이 없었다. 후보가 전부 벌어지는 중이거나, 되풀이를 막느라 비켰거나.
+        //
+        // ⚠ 여기서 간격을 통째로 다시 세면 안 됩니다. 아무것도 안 뿌리고 10초를
+        //    더 기다리게 되어, 되풀이를 막은 대가로 갑판이 조용해집니다.
+        //    위 동시최대에 걸렸을 때와 똑같이 2초 뒤에 다시 봅니다.
+        if (picked == null)
         {
-            picked.Begin();
+            _nextEventTime = _elapsed + 2f;
+            return;
         }
 
+        picked.Begin();
         ScheduleNext(CurrentPlan);
     }
 
@@ -241,22 +283,81 @@ public class EventScheduler : MonoBehaviour
         _nextEventTime = _elapsed + min + (float)_random.NextDouble() * (max - min);
     }
 
-    /// <summary>이 구간의 사건 후보 중 지금 쓸 수 있는 것을 하나 고른다.</summary>
+    /// <summary>
+    /// 이 구간의 사건 후보 중 지금 쓸 수 있는 것을 하나 고른다.
+    ///
+    /// **잇달아 <see cref="mostInARow"/> 번 나온 사건은 후보에서 뺍니다.** (위 주석)
+    ///
+    /// ⚠ **뺄 수가 없을 때가 있습니다.** 후보가 그것 하나뿐인 경우입니다.
+    ///    출항 구간은 후보가 둘인데 동시최대가 1 이라, 하나가 벌어지고 있으면
+    ///    남는 것이 되풀이될 그 사건뿐입니다.
+    ///
+    ///    그때는 <b>뽑지 않고 null 을 돌려줍니다.</b> 이미 다른 사건이 굴러가고
+    ///    있으니 갑판이 조용해지지 않고, 조금 뒤에 다시 보면 그쪽이 끝나 있어
+    ///    규칙을 지킨 채로 고를 수 있습니다.
+    ///
+    ///    ⛔ 다만 **아무것도 안 굴러가는데** 후보가 그것뿐이면 (후보가 사실상
+    ///       하나인 구간) 규칙을 지킬 방법이 없습니다. 그대로 두면 사건이 영영
+    ///       안 뜨므로, 그때는 되풀이를 허용하고 로그를 남깁니다.
+    ///       조용한 갑판이 되풀이보다 나쁩니다. (5장)
+    /// </summary>
     private VoyageEvent PickFrom(PhasePlan plan)
     {
         // 이미 벌어지고 있는 사건은 다시 시작할 수 없으므로 후보에서 뺀다.
         var candidates = new List<VoyageEvent>();
 
+        // 잇달아 나온 것을 뺀 나머지. 웬만하면 여기서 고른다.
+        var fresh = new List<VoyageEvent>();
+
+        bool worn = _lastPicked != null && _sameInARow >= mostInARow;
+
         for (int i = 0; i < plan.pool.Count; i++)
         {
             VoyageEvent candidate = plan.pool[i];
-            if (candidate != null && !candidate.IsActive)
+
+            if (candidate == null || candidate.IsActive)
             {
-                candidates.Add(candidate);
+                continue;
+            }
+
+            candidates.Add(candidate);
+
+            if (!worn || candidate != _lastPicked)
+            {
+                fresh.Add(candidate);
             }
         }
 
-        return candidates.Count == 0 ? null : candidates[_random.Next(candidates.Count)];
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        if (fresh.Count > 0)
+        {
+            return Remember(fresh[_random.Next(fresh.Count)]);
+        }
+
+        // 되풀이될 그 사건 하나만 남았다. 다른 것이 굴러가고 있으면 기다린다.
+        if (VoyageEvent.Active.Count > 0)
+        {
+            return null;
+        }
+
+        Debug.LogWarning(
+            $"[스케줄러] {plan.label} 에서 '{_lastPicked.name}' 이 {_sameInARow + 1}번째 잇달아 나옵니다. " +
+            $"고를 수 있는 사건이 이것뿐이라 막지 못했습니다. 이 구간의 후보를 늘리세요.", this);
+
+        return Remember(candidates[_random.Next(candidates.Count)]);
+    }
+
+    /// <summary>뽑은 것을 적어 둔다. 몇 번 이어졌는지 세는 것이 전부다.</summary>
+    private VoyageEvent Remember(VoyageEvent picked)
+    {
+        _sameInARow = picked == _lastPicked ? _sameInARow + 1 : 1;
+        _lastPicked = picked;
+
+        return picked;
     }
 
     private PhasePlan PlanFor(int phaseIndex)
