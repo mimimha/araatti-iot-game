@@ -15,27 +15,31 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 
     public void SetMovementLocked(bool locked)
     {
+        if (IsMovementLocked == locked)
+        {
+            return;
+        }
+
         IsMovementLocked = locked;
     }
 
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         NetworkInputData data = new NetworkInputData();
+        Vector2 rawDirection = Vector2.zero;
 
         // 이 창에 포커스가 있을 때만 입력을 보낸다.
         // Editor Host와 standalone Client를 한 PC에서 같이 띄워도 서로 간섭하지 않는다.
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && Application.isFocused)
         {
-            Vector2 direction = Vector2.zero;
-
-            if (keyboard.wKey.isPressed) direction.y += 1f;
-            if (keyboard.sKey.isPressed) direction.y -= 1f;
-            if (keyboard.dKey.isPressed) direction.x += 1f;
-            if (keyboard.aKey.isPressed) direction.x -= 1f;
-
-            data.Direction = ApplyMovementLock(direction);
+            if (keyboard.wKey.isPressed) rawDirection.y += 1f;
+            if (keyboard.sKey.isPressed) rawDirection.y -= 1f;
+            if (keyboard.dKey.isPressed) rawDirection.x += 1f;
+            if (keyboard.aKey.isPressed) rawDirection.x -= 1f;
         }
+
+        data.Direction = ApplyMovementLock(rawDirection);
 
         // 이동을 카메라 기준으로 돌리기 위해 로컬 카메라의 Y 각도를 함께 보낸다.
         // 서버에는 카메라가 없어서 이 값을 스스로 알 수 없다. (NetworkPlayerMover 가 쓴다)

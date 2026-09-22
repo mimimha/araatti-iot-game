@@ -16,6 +16,8 @@ namespace FishingMiniGame.Runtime
         private const string InteractActionPath = "Player/Interact";
 
         [SerializeField] private FishingModeController fishingModeController;
+        [SerializeField] private FishingV3FishVisualPresenter fishVisualPresenter;
+        [SerializeField] private FishingV3PlayerPresentation playerPresentation;
         [SerializeField] private FishingSpot[] fishingSpots = new FishingSpot[0];
         [SerializeField, Min(0f)] private float interactionDistance = 2.5f;
         [SerializeField] private bool ignoreHeight = true;
@@ -44,12 +46,16 @@ namespace FishingMiniGame.Runtime
         private void Awake()
         {
             ResolveModeController();
+            ResolveFishVisualPresenter();
+            ResolvePlayerPresentation();
         }
 
         private void OnEnable()
         {
             _tearingDown = false;
             ResolveModeController();
+            ResolveFishVisualPresenter();
+            ResolvePlayerPresentation();
             SubscribeLocalPlayer();
             SubscribeInteractAction();
 
@@ -94,6 +100,32 @@ namespace FishingMiniGame.Runtime
             {
                 fishingModeController = GetComponent<FishingModeController>();
             }
+        }
+
+        private void ResolveFishVisualPresenter()
+        {
+            if (fishVisualPresenter == null)
+            {
+                fishVisualPresenter = GetComponent<FishingV3FishVisualPresenter>();
+            }
+        }
+
+        private void ResolvePlayerPresentation()
+        {
+            if (playerPresentation == null)
+            {
+                playerPresentation = GetComponent<FishingV3PlayerPresentation>();
+            }
+
+            if (playerPresentation == null)
+            {
+                playerPresentation = gameObject.AddComponent<FishingV3PlayerPresentation>();
+            }
+
+            playerPresentation.Configure(
+                GetComponent<FishingMiniGameFacade>(),
+                fishingModeController,
+                fishVisualPresenter);
         }
 
         private void SubscribeLocalPlayer()
@@ -170,6 +202,15 @@ namespace FishingMiniGame.Runtime
 
             _localPlayer = player;
             _localPlayerGameObject = player.gameObject;
+            ResolveFishVisualPresenter();
+            ResolvePlayerPresentation();
+            fishVisualPresenter?.ConfigureCaughtPresentation(
+                _localPlayerGameObject.transform);
+            playerPresentation?.ConfigureLocalPlayer(
+                _localPlayerGameObject.transform,
+                fishVisualPresenter != null
+                    ? fishVisualPresenter.PresentationAnchor
+                    : null);
             _inputProvider = null;
             TryBindInputProvider();
         }
@@ -339,6 +380,8 @@ namespace FishingMiniGame.Runtime
 
         private void ClearLocalPlayerBinding()
         {
+            playerPresentation?.ConfigureLocalPlayer(null, null);
+            fishVisualPresenter?.ConfigureCaughtPresentation(null);
             _localPlayer = null;
             _localPlayerGameObject = null;
             _inputProvider = null;

@@ -20,7 +20,12 @@ namespace FishingMiniGame.Tests
                 FishingMiniGameFacade facade = host.AddComponent<FishingMiniGameFacade>();
                 CountingInputSource input = new CountingInputSource();
                 controller.SetInputSource(input);
-                controller.ConfigureV3Runtime(StableTuning(), new FishingV3ReelInputTuning());
+                controller.ConfigureV3Runtime(
+                    StableTuning(),
+                    new FishingV3ReelInputTuning
+                    {
+                        VirtualReelSpeedRevolutionsPerSecond = 1f
+                    });
                 controller.SetV3FishState(FishingV3FishState.Fight);
 
                 GameObject hudRoot = new GameObject("HudRoot", typeof(RectTransform));
@@ -29,6 +34,7 @@ namespace FishingMiniGame.Tests
                 Image captureFill = CreateImage("CaptureFill", hudRoot.transform);
                 FishingV3HudPresenter presenter = host.AddComponent<FishingV3HudPresenter>();
                 presenter.Configure(facade, hudRoot, tensionFill, captureFill);
+                presenter.ConfigureResultDisplayDuration(0.1f);
                 controller.enabled = false;
                 controller.BeginRound();
 
@@ -36,6 +42,8 @@ namespace FishingMiniGame.Tests
 
                 Assert.That(presenter.IsHudVisible, Is.True);
                 Assert.That(tensionFill.fillAmount, Is.EqualTo(0.5f).Within(0.000001f));
+                Assert.That(presenter.DisplayedTensionMarkerNormalized,
+                    Is.EqualTo(0.5f).Within(0.000001f));
                 Assert.That(captureFill.fillAmount, Is.Zero);
                 Assert.That(input.ReadCount, Is.Zero);
 
@@ -56,10 +64,39 @@ namespace FishingMiniGame.Tests
                 yield return null;
                 Assert.That(presenter.IsHudVisible, Is.True);
 
+                controller.TickRuntime(0.5f);
+                yield return null;
+                Assert.That(controller.V3Snapshot.Result, Is.EqualTo(FishingV3Result.Caught));
+                Assert.That(controller.V3Snapshot.RuntimeState,
+                    Is.EqualTo(FishingV3RuntimeState.Completed));
+                Assert.That(presenter.IsHudVisible, Is.True);
+                Assert.That(presenter.AreFightGaugesVisible, Is.False);
+                Assert.That(presenter.IsTensionStatusVisible, Is.False);
+                Assert.That(presenter.IsResultOverlayVisible, Is.True);
+                Assert.That(presenter.DisplayedResultTitle, Is.EqualTo("CAUGHT!"));
+                Assert.That(tensionFill.fillAmount, Is.Zero);
+                Assert.That(presenter.DisplayedTensionMarkerNormalized, Is.Zero);
+                Assert.That(captureFill.fillAmount, Is.Zero);
+
+                yield return new WaitForSecondsRealtime(0.15f);
+                Assert.That(presenter.IsResultOverlayVisible, Is.False);
+                Assert.That(presenter.IsHudVisible, Is.False);
+
+                controller.BeginRound();
+                controller.SetV3FishState(FishingV3FishState.Fight);
+                yield return null;
+                Assert.That(presenter.IsHudVisible, Is.True);
+                Assert.That(presenter.IsResultOverlayVisible, Is.False);
+                Assert.That(presenter.DisplayedTensionMarkerNormalized,
+                    Is.EqualTo(controller.V3Snapshot.TensionNormalized).Within(0.000001f));
+                Assert.That(captureFill.fillAmount, Is.Zero);
+
                 controller.AbortRound();
                 yield return null;
                 Assert.That(presenter.IsHudVisible, Is.False);
+                Assert.That(presenter.IsResultOverlayVisible, Is.False);
                 Assert.That(tensionFill.fillAmount, Is.Zero);
+                Assert.That(presenter.DisplayedTensionMarkerNormalized, Is.Zero);
                 Assert.That(captureFill.fillAmount, Is.Zero);
             }
             finally

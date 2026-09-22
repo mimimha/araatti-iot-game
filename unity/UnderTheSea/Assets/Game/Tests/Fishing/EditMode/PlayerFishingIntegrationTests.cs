@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FishingMiniGame.Core;
 using FishingMiniGame.Runtime;
 using NUnit.Framework;
@@ -60,7 +62,7 @@ namespace FishingMiniGame.Tests.EditMode
                 "Assets/Game/Scripts/Network/PlayerInputProvider.cs");
             Assert.That(script, Is.Not.Null);
             Assert.That(script.text, Does.Contain("input.Set(data);"));
-            Assert.That(script.text, Does.Contain("data.Direction = ApplyMovementLock(direction);"));
+            Assert.That(script.text, Does.Contain("data.Direction = ApplyMovementLock(rawDirection);"));
             Assert.That(script.text, Does.Not.Contain("if (IsMovementLocked) return"));
             Assert.That(script.text, Does.Not.Contain("if (IsMovementLocked)\n            return"));
         }
@@ -79,6 +81,9 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(script.text, Does.Contain("LocalPlayer.Registered"));
             Assert.That(script.text, Does.Contain("LocalPlayer.Unregistered"));
             Assert.That(script.text, Does.Contain("_localPlayer.Runner"));
+            Assert.That(script.text, Does.Contain("!player.HasInputAuthority"));
+            Assert.That(script.text,
+                Does.Contain("fishVisualPresenter?.ConfigureCaughtPresentation"));
 
             string[] forbiddenTokens =
             {
@@ -102,6 +107,34 @@ namespace FishingMiniGame.Tests.EditMode
             {
                 Assert.That(script.text, Does.Not.Contain(token), token);
             }
+        }
+
+        [Test]
+        public void FishingKeyboardBindings_UseCForInteractAndJForSemanticActions()
+        {
+            string inputActionsPath = Path.GetFullPath(Path.Combine(
+                Application.dataPath,
+                "..",
+                "Assets/InputSystem_Actions.inputactions"));
+            string inputActions = File.ReadAllText(inputActionsPath);
+            MonoScript keyboardSource = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Game/Scripts/Fishing/Runtime/Infrastructure/KeyboardFishingInputSource.cs");
+
+            Assert.That(Regex.Matches(
+                    inputActions,
+                    "\\\"path\\\": \\\"<Keyboard>/c\\\"").Count,
+                Is.EqualTo(1));
+            Assert.That(Regex.IsMatch(
+                    inputActions,
+                    "\\\"path\\\": \\\"<Keyboard>/c\\\".*?\\\"action\\\": \\\"Interact\\\"",
+                    RegexOptions.Singleline),
+                Is.True);
+            Assert.That(inputActions, Does.Not.Contain("\"path\": \"<Keyboard>/e\""));
+            Assert.That(keyboardSource, Is.Not.Null);
+            Assert.That(keyboardSource.text, Does.Contain("KeyCode.J"));
+            Assert.That(keyboardSource.text, Does.Not.Contain("KeyCode.F"));
+            Assert.That(keyboardSource.text, Does.Contain("HookPressed = fishingActionDown"));
+            Assert.That(keyboardSource.text, Does.Contain("TimingPressed = fishingActionDown"));
         }
 
         [Test]

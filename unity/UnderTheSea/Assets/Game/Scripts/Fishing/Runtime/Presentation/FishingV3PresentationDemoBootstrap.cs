@@ -17,7 +17,9 @@ namespace FishingMiniGame.Runtime
         private void Start()
         {
             if (facade == null) facade = GetComponent<FishingMiniGameFacade>();
-            facade.ConfigureV3Runtime();
+            facade.ConfigureV3Runtime(
+                reelControlMode: FishingV3ReelControlMode.Timing,
+                sessionFlowMode: FishingV3SessionFlowMode.BiteHook);
             facade.SetV3FishState(initialFishState);
             facade.BeginRound();
         }
