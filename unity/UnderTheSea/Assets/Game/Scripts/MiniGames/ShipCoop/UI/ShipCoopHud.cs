@@ -235,6 +235,13 @@ public class ShipCoopHud : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float courseAlphaMax = 0.52f;
 
+    [Tooltip("암초가 지나간 뒤 뱃머리를 되돌릴 틈. 이 시간 동안은 경고를 켜지 않는다. (초)\n" +
+             "0 이면 바위가 사라지는 순간 바로 붉어져서, 아직 꺾여 있는 배를 두고 혼내게 된다.")]
+    [SerializeField, Min(0f)] private float courseWarnGraceSeconds = 2f;
+
+    /// <summary>이 시각까지는 항로 이탈 경고를 켜지 않는다. 암초를 피하는 중이었다.</summary>
+    private float _courseGraceUntil;
+
     [Header("사건 알림 (상단 가운데)")]
     [Tooltip("동시 발생 상한보다 넉넉하게 준비한다. 남는 줄은 꺼진다.")]
     [SerializeField] private EventRow[] eventRows;
@@ -285,6 +292,11 @@ public class ShipCoopHud : MonoBehaviour
     [SerializeField] private TextMeshProUGUI interactKeycap;
 
     [Tooltip("\"길게 누르세요\" 같은 홀드 안내. 꾹 누르고 있어야 하는 동작에서만 켠다.")]
+    /// <summary>
+    /// 옛 "길게 누르세요" 줄. **지금은 비워 둔다** — 안내 문구가 이미 그 말을 한다.
+    ///
+    /// 다시 띄우고 싶으면 여기에 글자를 꽂으면 그때부터 <c>isHold</c> 에 맞춰 켜진다.
+    /// </summary>
     [SerializeField] private TextMeshProUGUI interactHoldHint;
 
     [Header("상호작용 — 캐릭터 옆구리에 띄운다")]
@@ -295,11 +307,15 @@ public class ShipCoopHud : MonoBehaviour
     // ⚠ **이름을 새로 짓습니다.** 예전 필드(interactWorldLift · interactSideOffset ·
     //    interactScreenLift)는 이미 씬에 값이 박혀 있어서, 코드 기본값을 고쳐도
     //    씬에 남은 옛 값이 이깁니다. 새 필드는 처음 붙는 것이라 코드 기본값을 제대로 받습니다.
+    // ⚠ **205.4 / 17.8 은 Play 모드에서 눈으로 맞춰서 찾은 값입니다.** (링이 커지면서
+    //    130 으로는 캐릭터 몸통과 겹쳤습니다 — RingSize(104) × ActionScale(1.2) 로 반지름이
+    //    이미 62px 라 130 으로는 절반 넘게 파고듭니다.) `ShipCoopHud.prefab` 에도 같은 값을
+    //    직접 넣어 뒀습니다 — 여기 기본값만 고쳐서는 프리팹의 저장된 값을 못 이깁니다.
     [Tooltip("사람의 화면 좌표에서 오른쪽으로 이만큼(px) 민다. 옆구리 쪽으로 보이게 한다.")]
-    [SerializeField] private float interactBadgeRightPx = 130f;
+    [SerializeField] private float interactBadgeRightPx = 205.4f;
 
     [Tooltip("사람의 화면 좌표에서 위로 이만큼(px) 민다. 발밑이 아니라 몸통 높이로 올린다.")]
-    [SerializeField] private float interactBadgeUpPx = 40f;
+    [SerializeField] private float interactBadgeUpPx = 17.8f;
 
     /// <summary>지금 위에 떠 있어야 할 대상. 없으면 패널이 꺼져 있다.</summary>
     private Transform _interactAnchor;
@@ -489,6 +505,27 @@ public class ShipCoopHud : MonoBehaviour
             return;
         }
 
+        // ⚠ **암초를 피하는 중에는 끈다.** 암초는 꺾어서 피하는 사건이라(Reef), 시키는
+        //    대로 꺾으면 **반드시** 항로를 벗어난다. 그때 화면을 붉게 물들이면 잘하고
+        //    있는 사람을 혼내는 꼴이고, 경고가 늘 켜져 있으면 정작 진짜로 항로를
+        //    놓쳤을 때 아무도 안 본다. (파도는 반대라 그대로 둔다 — BigWave)
+        //
+        //    바위가 사라져도 배는 아직 꺾여 있으므로, 뱃머리를 되돌릴 틈을 주고 켠다.
+        if (IsDodgingByLeavingCourse())
+        {
+            _courseGraceUntil = Time.time + courseWarnGraceSeconds;
+        }
+
+        if (Time.time < _courseGraceUntil)
+        {
+            if (courseWarningRoot.activeSelf)
+            {
+                courseWarningRoot.SetActive(false);
+            }
+
+            return;
+        }
+
         // 1 이면 정면, 0.5 면 60° 로 최대까지 틀어진 상태다.
         float course = Mathf.Clamp01(voyage.CourseFactor);
 
@@ -524,6 +561,28 @@ public class ShipCoopHud : MonoBehaviour
                 ? "항로를 크게 벗어났다\n<size=65%>조타를 가운데로 — 속도가 절반 가까이 떨어진다</size>"
                 : "뱃머리가 틀어졌다\n<size=65%>조타를 가운데로</size>";
         }
+    }
+
+    /// <summary>
+    /// 지금 **꺾어서 피해야 하는** 사건이 떠 있는가. (예고 중에도 참이다)
+    ///
+    /// 암초가 그렇다. 이 동안에는 항로를 벗어나는 것이 정답이므로 경고를 끈다.
+    /// 어느 사건이 그런지는 사건 스스로가 안다.
+    /// (<see cref="VoyageEvent.DodgedByLeavingCourse"/>)
+    /// </summary>
+    private static bool IsDodgingByLeavingCourse()
+    {
+        var active = VoyageEvent.Active;
+
+        for (int i = 0; i < active.Count; i++)
+        {
+            if (active[i] != null && active[i].DodgedByLeavingCourse)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -764,7 +823,9 @@ public class ShipCoopHud : MonoBehaviour
                 return "돛을 당겨!";
             }
 
-            if (voyage.CourseFactor < courseWarnBelow)
+            // 항로도 같은 이유로 걸러 낸다 — 암초를 피하느라 꺾은 사람에게
+            // "키를 잡아" 라고 하면 안 된다. (UpdateCourseWarning 의 주석 참고)
+            if (voyage.CourseFactor < courseWarnBelow && !IsDodgingByLeavingCourse())
             {
                 return "키를 잡아!";
             }
@@ -1053,7 +1114,7 @@ public class ShipCoopHud : MonoBehaviour
             DroppedCargo lying = carry.FindReachableDrop();
             if (lying != null)
             {
-                Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "꾹 누른 채로 들고 간다"),
+                Show(WithHint($"{CarryTask.NameOf(lying.Kind)} 줍기", "길게 눌러서 들고 가기"),
                      -1f, IconOfCargo(lying.Kind), LocalWorker.transform, isHold: true);
                 return;
             }
@@ -1074,8 +1135,16 @@ public class ShipCoopHud : MonoBehaviour
         _interactAnchor = null;
     }
 
-    /// <summary>붙기 · 집기 · 놓기. 자리에 붙기 전에는 언제나 이 키다.</summary>
-    private const string KeyInteract = "Space";
+    /// <summary>
+    /// 붙기 · 집기 · 놓기. 자리에 붙기 전에는 언제나 이 키다.
+    ///
+    /// ⚠ **&lt;size&gt; 로 한 번 줄여서 쓴다.** 다른 키캡은 글자 한두 개(<c>K</c> ·
+    ///    <c>J · L</c>)인데 이것만 다섯 글자다. 자동 크기는 상한(KeyFontMax)까지 키우고
+    ///    멈추는데, "Space" 는 그 상한에서도 칸에 들어가 버려서 <b>결국 "K" 와 같은
+    ///    크기로 그려진다.</b> 그러면 도넛 구멍을 가로로 꽉 채워 답답하다.
+    ///    이 태그가 그 한 글자짜리 상한을 이것에만 80% 로 낮춘다.
+    /// </summary>
+    private const string KeyInteract = "<size=80%>Space</size>";
 
     private void Show(string text, float gauge01, Sprite icon, Transform anchor, bool isHold)
     {
@@ -1094,8 +1163,8 @@ public class ShipCoopHud : MonoBehaviour
         {
             case CannonTask _: return "K";
             case RepairTask _: return "K";
-            case HelmTask _: return "J  L";
-            case SailTask _: return "J  L";
+            case HelmTask _: return "J · L";
+            case SailTask _: return "J · L";
             default: return KeyInteract;
         }
     }
@@ -1243,7 +1312,10 @@ public class ShipCoopHud : MonoBehaviour
 
         // ⚓ 셋 다 누르고 있어야 들려 있다. 집는 순간 그 말을 해줘야 한다.
         //    한 번 누르고 손을 떼면 그 자리에 도로 떨어져서 고장 난 줄 안다.
-        return "꾹 누른 채로 들고 간다";
+        //
+        // 아래 "길게 누르세요" 줄은 뺐다. 이 줄이 이미 같은 말을 하고 있어서
+        // 한 화면에 두 번 적혀 있었다. (ShipCoopHudV2Art.BuildAction)
+        return "길게 눌러서 들고 가기";
     }
 
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
@@ -1255,13 +1327,18 @@ public class ShipCoopHud : MonoBehaviour
             //    "싣기 · 건네기 · 버리기" 가 아니라 **손을 떼라**고 말해줘야 한다.
             //    누르라고 적으면 이미 누르고 있는 사람에게 누르라고 말하는 셈이다.
             //
-            // ⚠ "빨간 지점으로" 가 아니라 "**자재가 필요한** 빨간 지점으로" 다.
+            // ⚠ "수리 지점으로" 가 아니라 "**자재가 필요한** 수리 지점으로" 다.
             //    이미 자재를 받은 지점 앞에서 손을 떼면 건네기가 안 되고 갑판에 떨어진다.
-            //    그냥 "빨간 지점으로" 라고 하면 이미 그 앞에 서 있는 사람에게
+            //    그냥 "수리 지점으로" 라고 하면 이미 그 앞에 서 있는 사람에게
             //    거기로 가라고 말하는 셈이라 고장 난 줄 안다.
             //
-            //    이 문구만 두 줄이 된다. `<nobr>` 로 묶지 않으면 한글은 아무 데서나
-            //    잘려서 "빨간 지점으 / 로" 가 된다. 묶어 두면 띄어쓴 자리에서 끊긴다.
+            //    이 문구만 두 줄이 된다. **줄바꿈을 직접 넣는다.** 자동 줄바꿈에
+            //    맡겼더니 칸 폭이 아슬아슬해서 "자재가 필요한 수리 지점으" 에서
+            //    잘렸다. 어디서 끊길지는 글꼴 · 화면 크기에 따라 달라지므로,
+            //    끊길 자리를 문구가 직접 정한다.
+            //
+            //    둘째 줄은 `<nobr>` 로 묶는다. 안 묶으면 한글은 아무 데서나 잘려서
+            //    "수리 지점으 / 로" 가 된다.
             case Cargo.Ammo:
                 return carry.FindLoadableCannon() != null
                     ? "손 떼서 싣기"
@@ -1270,12 +1347,12 @@ public class ShipCoopHud : MonoBehaviour
             case Cargo.Plank:
                 return carry.FindPointWantingPlank() != null
                     ? "손 떼서 건네기"
-                    : "꾹 누른 채로 · <nobr>자재가 필요한</nobr> <nobr>빨간 지점으로</nobr>";
+                    : "꾹 누른 채로 ·\n<nobr>자재가 필요한 수리 지점으로</nobr>";
 
             case Cargo.Water:
                 return carry.FindReachableDump() != null
                     ? "손 떼서 버리기"
-                    : "꾹 누른 채로 · 파란 뱃전으로";
+                    : "꾹 누른 채로 · 노란색 뱃전으로";
 
             default:
                 return null;
