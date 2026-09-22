@@ -2832,8 +2832,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea767eb8579ef38428a1f4521c65ade5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerMover
-  walkSpeed: 5
-  runSpeed: 8
+  walkSpeed: 5.75
+  runSpeed: 9.2
   rotateSpeed: 720
   gravity: -20
   jumpHeight: 1.2

@@ -21,10 +21,10 @@ using UnityEngine;
 public class NetworkPlayerMover : NetworkBehaviour
 {
     [Header("이동")]
-    [SerializeField] private float walkSpeed = 5f;
+    [SerializeField] private float walkSpeed = 5.75f;
 
     [Tooltip("Shift 를 누르고 있는 동안의 속도. 걷기보다 빨라야 의미가 있다.")]
-    [SerializeField] private float runSpeed = 8f;
+    [SerializeField] private float runSpeed = 9.2f;
 
     [SerializeField] private float rotateSpeed = 720f;
 
