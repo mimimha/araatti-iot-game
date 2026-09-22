@@ -21,6 +21,13 @@ using UnityEngine;
 ///    이동 코드를 붙잡고 "지금 달리는 중?" 을 물어보면, 서버가 붙어서 이동이
 ///    `PlayerMovement` 로 넘어갈 때 이 파일도 같이 고쳐야 합니다. (11장)
 ///    대신 **실제로 움직인 거리**를 재서 씁니다. 누가 움직였든 상관없습니다.
+///
+/// ⚠ 다만 **네트워크에서는 재는 것만으로 모자랍니다.**
+///
+///    원격 캐릭터의 자리는 Fusion 이 보간해서 채웁니다. 이 스크립트가 재는 프레임 간
+///    차이가 실제 이동과 어긋나서, 남의 화면에서는 자리만 움직이고 다리는 가만히 있습니다.
+///    그래서 네트워크 쪽에서는 `DriveMotion` 으로 **서버가 확정한 속도**를 넣어 줍니다.
+///    넣어 주지 않으면 예전처럼 스스로 잽니다. 혼자 하는 씬은 하나도 안 바뀝니다.
 /// </summary>
 public class ShipCoopCharacter : MonoBehaviour
 {
@@ -42,6 +49,15 @@ public class ShipCoopCharacter : MonoBehaviour
 
     [SerializeField] private string verticalId = "Vert";
     [SerializeField] private string stateId = "State";
+    [SerializeField] private string isRepairingId = "IsRepairing";
+
+    [Tooltip("수리 자세일 때 몸을 이만큼 더 띄운다 (m).\n\n" +
+             "이 캐릭터는 몸통이 유난히 크고 둥글어서, 무릎을 깊이 굽히는 수리 자세를 그대로 두면\n" +
+             "몸통이 갑판을 파고들어 보인다. 그만큼 보정해서 띄운다.")]
+    [SerializeField, Range(0f, 0.6f)] private float repairLift = 0.3f;
+
+    /// <summary>지금 수리 자세인지. SinkModel 이 이걸 보고 몸을 더 띄운다.</summary>
+    private bool _repairing;
 
     [Header("부드럽게 섞는 속도")]
     [Tooltip("값이 확 바뀌면 다리가 튄다. 에셋 쪽과 같은 4.5 를 쓴다.")]
@@ -96,6 +112,15 @@ public class ShipCoopCharacter : MonoBehaviour
     /// <summary>지금 내려가 있는 깊이. 목표를 향해 천천히 간다.</summary>
     private float _sink;
 
+    /// <summary>보이는 몸. 자리 자세(<c>ShipCoopStationPose</c>)가 몸만 돌려 대포 · 조타륜을 보게 할 때 쓴다.</summary>
+    public Transform Model => model;
+
+    /// <summary>
+    /// 보이는 몸을 잠깐 밀어 두는 양 (로컬). 대포가 튈 때 몸이 같이 덜컹하는 데 쓴다.
+    /// 몸의 로컬 위치는 매 프레임 여기(SinkModel)서 덮어쓰므로, 밖에서 직접 옮기면 지워진다 — 이 값으로 넣는다.
+    /// </summary>
+    public Vector3 ModelJolt { get; set; }
+
     [Header("발밑 그림자")]
     [Tooltip("발밑에 깔 둥근 판. 비워두면 이 기능을 쓰지 않는다.")]
     [SerializeField] private Transform footShadow;
@@ -111,6 +136,39 @@ public class ShipCoopCharacter : MonoBehaviour
 
     private Vector2 _axis;
     private float _state;
+
+    /// <summary>밖에서 넣어 준 속도와 그 프레임. 안 들어오면 스스로 잰다.</summary>
+    private Vector3 _drivenVelocity;
+
+    private int _drivenFrame = -1;
+
+    /// <summary>
+    /// **이 캐릭터가 지금 어디로 얼마나 빨리 가는지**를 밖에서 알려준다. (m/s, 월드 기준)
+    ///
+    /// 네트워크에서 쓴다. 서버가 확정한 속도를 모든 화면이 그대로 받아 애니메이션을 굴리면,
+    /// 내 화면과 남의 화면에서 같은 사람이 같은 걸음을 걷는다.
+    ///
+    /// 매 프레임 불러야 한다. 끊기면 다음 프레임부터 스스로 재는 쪽으로 돌아간다.
+    /// </summary>
+    public void DriveMotion(Vector3 worldVelocity)
+    {
+        worldVelocity.y = 0f;
+        _drivenVelocity = worldVelocity;
+        _drivenFrame = Time.frameCount;
+    }
+
+    /// <summary>
+    /// 수리 자세(웅크려 망치질)를 켜고 끈다. <c>RepairTask</c>가 붙고 뗄 때 부른다.
+    /// </summary>
+    public void SetRepairing(bool repairing)
+    {
+        _repairing = repairing;
+
+        if (animator != null)
+        {
+            animator.SetBool(isRepairingId, repairing);
+        }
+    }
 
     private void Awake()
     {
@@ -147,10 +205,23 @@ public class ShipCoopCharacter : MonoBehaviour
         moved.y = 0f;
         _wasAt = transform.position;
 
-        float speed = moved.magnitude / deltaTime;
+        Vector3 heading;
+        float speed;
+
+        // 넣어 준 값이 있으면 그것을 믿는다. 없으면 예전처럼 잰 값을 쓴다.
+        if (_drivenFrame >= Time.frameCount - 1)
+        {
+            heading = _drivenVelocity.sqrMagnitude > 0.0001f ? _drivenVelocity.normalized : Vector3.zero;
+            speed = _drivenVelocity.magnitude;
+        }
+        else
+        {
+            heading = moved.normalized;
+            speed = moved.magnitude / deltaTime;
+        }
 
         // 몸 기준으로 바꾼다. 우리 캐릭터는 가는 쪽을 보고 걸으므로 거의 앞(+z)이다.
-        Vector3 local = transform.InverseTransformDirection(moved.normalized) * Mathf.Clamp01(speed / walkSpeed);
+        Vector3 local = transform.InverseTransformDirection(heading) * Mathf.Clamp01(speed / walkSpeed);
 
         Vector2 wantAxis = new Vector2(local.x, local.z);
         float wantState = speed > runSpeed ? 1f : 0f;
@@ -188,18 +259,28 @@ public class ShipCoopCharacter : MonoBehaviour
         }
 
         float want = modelSink;
-        float deck;
 
-        if (FindDeckUnderFoot(out deck))
+        // ⚠ **수리 중에는 갑판 찾기를 아예 끈다.**
+        //    대포 · 조타륜처럼 자리 근처에 물건이 많은 곳(앞갑판 · 뒷갑판)에서는 발밑 레이가
+        //    그 물건에 걸려 자리마다 다른 값을 낸다. 서 있을 때는 안 보이던 차이가, 웅크려서
+        //    한참 붙어 있는 수리 자세에서는 그대로 자리 잡아 파고들어 보였다.
+        //    수리 중엔 항상 같은 기본값(modelSink)에서 repairLift 만큼만 띄운다.
+        if (!_repairing)
         {
-            // 발(캡슐 밑바닥)은 이 오브젝트의 원점에 있다. 갑판까지의 거리가 곧 내릴 깊이다.
-            want = transform.position.y - deck;
+            float deck;
+
+            if (FindDeckUnderFoot(out deck))
+            {
+                // 발(캡슐 밑바닥)은 이 오브젝트의 원점에 있다. 갑판까지의 거리가 곧 내릴 깊이다.
+                want = transform.position.y - deck;
+            }
         }
 
         // 갑판이 갑자기 바뀌어도 몸이 순간이동하지 않게 천천히 따라간다.
         _sink = Mathf.MoveTowards(_sink, want, sinkSpeed * Time.deltaTime);
 
-        model.localPosition = new Vector3(0f, -_sink, 0f);
+        float lift = _repairing ? repairLift : 0f;
+        model.localPosition = new Vector3(0f, -_sink + lift, 0f) + ModelJolt;
     }
 
     /// <summary>발밑에서 배의 갑판을 찾는다. 걷는 큐브와 내 몸은 빼고 본다.</summary>

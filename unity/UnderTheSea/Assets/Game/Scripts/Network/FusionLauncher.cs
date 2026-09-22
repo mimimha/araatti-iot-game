@@ -210,7 +210,10 @@ public class FusionLauncher : MonoBehaviour
             GameMode = ToGameMode(resolvedMode),
             SessionName = resolvedSession,
             Scene = SceneRef.FromPath(scenePath),
-            SceneManager = GetComponent<NetworkSceneManagerDefault>()
+            SceneManager = GetComponent<NetworkSceneManagerDefault>(),
+
+            // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+            CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
         };
 
         if (isDedicatedServer)
@@ -218,6 +221,18 @@ public class FusionLauncher : MonoBehaviour
             // 서버는 들어오는 연결을 받을 주소를 직접 연다.
             // 공식 샘플과 같은 방식이다. (Photon/Fusion/Runtime/FusionBootstrap.cs)
             args.Address = NetAddress.Any(resolvedPort);
+
+            // NAT 뒤에 있으면 자기 주소를 스스로 알 수 없다. 밖에서 쓸 주소를 직접 준다.
+            // 자세한 이유는 FusionLaunchArguments.PublicAddressKey 에 적어 두었다.
+            string publicIp = FusionLaunchArguments
+                .GetString(FusionLaunchArguments.PublicAddressKey, string.Empty)
+                ?.Trim();
+
+            if (!string.IsNullOrEmpty(publicIp))
+            {
+                args.CustomPublicAddress = NetAddress.CreateFromIpPort(publicIp, resolvedPort);
+                Debug.Log($"[Fusion] 바깥에 알릴 주소: {publicIp}:{resolvedPort}");
+            }
         }
 
         // 씬 재로드는 StartGame 안에서 일어난다. 복사본의 Awake 가 돌기 전에 표시해 둬야 한다.
@@ -243,6 +258,12 @@ public class FusionLauncher : MonoBehaviour
             Debug.Log(
                 $"[Fusion] Dedicated Server 준비 완료. 세션 \"{resolvedSession}\", 포트 {resolvedPort}. " +
                 "클라이언트를 기다립니다.");
+
+            // 미니게임 서버들이 몇 명을 데리고 있는지 지켜본다. 매칭이 빈 방을 고를 때 쓴다.
+            //
+            // ⚠ 러너를 하나 더 쓴다. 지금 이 러너는 방(lobby-ch1) 안에 들어가 있어서
+            //    세션 목록을 받지 못한다 — Photon 피어는 로비에 있거나 방에 있거나 둘 중 하나다.
+            DsPoolWatcher.Begin();
         }
         else
         {

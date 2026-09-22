@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>
 /// 배 위의 작업 한 자리. 조타 · 돛 · 대포 · 수리가 모두 이것을 상속한다.
@@ -89,6 +90,16 @@ public abstract class TaskBase : MonoBehaviour
     // 그런 사고를 막기 위해 virtual 로 열어둔다. 오버라이드할 때는 반드시 base.Update() 를 부른다.
     protected virtual void Update()
     {
+        // ⚠ **작업 내용은 계산하는 쪽에서만 돈다.** (SHIPCOOP.md 11장)
+        //
+        //    조타 각도 · 발사 · 물 퍼내는 양은 판정이다. 4대가 각자 계산하면
+        //    내 화면에선 물을 다 퍼냈는데 옆 사람 화면엔 아직 차 있게 된다.
+        //    혼자 하는 씬에는 Runner 가 없어 늘 참이므로 예전 그대로 돈다.
+        if (!ShipCoopNet.IsAuthorityHere)
+        {
+            return;
+        }
+
         if (_workers.Count > 0)
         {
             Work(Time.deltaTime);

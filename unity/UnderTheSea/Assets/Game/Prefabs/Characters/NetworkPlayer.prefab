@@ -1339,7 +1339,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4027799897945942615}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -2478,7 +2478,7 @@ SkinnedMeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5750252758484118130}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -2624,6 +2624,11 @@ GameObject:
   - component: {fileID: 6977053469386830287}
   - component: {fileID: 8538979805706242742}
   - component: {fileID: 560222595692780822}
+  - component: {fileID: 8617005968481719764}
+  - component: {fileID: 3198784943384249776}
+  - component: {fileID: 9055123758217843492}
+  - component: {fileID: 8340026935150668341}
+  - component: {fileID: 8781997664107607958}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -2770,6 +2775,10 @@ MonoBehaviour:
   - {fileID: 5914260661426472076}
   - {fileID: 6977053469386830287}
   - {fileID: 560222595692780822}
+  - {fileID: 8617005968481719764}
+  - {fileID: 3198784943384249776}
+  - {fileID: 8340026935150668341}
+  - {fileID: 8781997664107607958}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
 MonoBehaviour:
@@ -2824,12 +2833,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerMover
   walkSpeed: 5
+  runSpeed: 8
   rotateSpeed: 720
   gravity: -20
+  jumpHeight: 1.2
   horizontalId: Hor
   verticalId: Vert
   stateId: State
   _AnimAxis: {x: 0, y: 0}
+  _Running: 0
 --- !u!114 &6977053469386830287
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2842,6 +2854,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dfef390d1317dc64bb9eb45ac10cbf26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerView
+  settleWindow: 0.5
+  settleStreak: 2
+  settleTimeout: 5
+  giveUpAfter: 15
   mouseX: Mouse X
   mouseY: Mouse Y
   mouseScroll: Mouse ScrollWheel
@@ -2907,6 +2923,84 @@ MonoBehaviour:
   hiddenUntilReady: []
   _AppearanceReady:
     RawValue: 0
+--- !u!114 &8617005968481719764
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+--- !u!114 &3198784943384249776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9d385fbe8465e5429ab4547894c7a97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.LobbyChatRelay
+--- !u!114 &9055123758217843492
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bc1bea1e2fa6e143b208119f978d324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.PlayerSpeechBubble
+  bodySprite: {fileID: 21300000, guid: ae3a627063e33b54faa495af5b7b4d5d, type: 3}
+  tailSprite: {fileID: 21300000, guid: 4b6df6b11cd69c945bb4b7b1755bfdbc, type: 3}
+  namePlateSprite: {fileID: 21300000, guid: 5e5c3fd5b08d11b47b581dac7aa601f4, type: 3}
+  height: 1.5
+  scale: 0.003
+  maxWidth: 400
+  bodyBorderShrink: 6
+  plateBorderShrink: 8
+  fontSize: 26
+  nameFontSize: 22
+  tailSize: {x: 58, y: 36}
+  tailOverlap: 13
+  showSeconds: 8
+  fadeSeconds: 0.4
+--- !u!114 &8340026935150668341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3d699190aa94bd438dadc16d8100276, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferingRelay
+--- !u!114 &8781997664107607958
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d060330750216c4b97a6f1b30b45871, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMatchRelay
 --- !u!1 &6448122823236699881
 GameObject:
   m_ObjectHideFlags: 0

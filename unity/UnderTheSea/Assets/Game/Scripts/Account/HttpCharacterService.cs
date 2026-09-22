@@ -19,7 +19,7 @@ namespace UnderTheSea.Account
     public class HttpCharacterService : MonoBehaviour, ICharacterService
     {
         [Header("서버")]
-        [Tooltip("비워 두면 http://localhost:5080 을 쓴다. (HttpApiConfig.DefaultBaseUrl)")]
+        [Tooltip("비워 두면 실행 인자 -api 를 쓰고, 그것도 없으면 http://localhost:5080 을 쓴다.")]
         [SerializeField] private string baseUrl = string.Empty;
 
         [Header("로그")]
@@ -48,7 +48,7 @@ namespace UnderTheSea.Account
         }
 
         private string ResolvedBaseUrl =>
-            string.IsNullOrWhiteSpace(baseUrl) ? HttpApiConfig.DefaultBaseUrl : baseUrl.Trim().TrimEnd('/');
+            string.IsNullOrWhiteSpace(baseUrl) ? HttpApiConfig.EffectiveBaseUrl : baseUrl.Trim().TrimEnd('/');
 
         /// <summary>지금 쓸 수 있는 토큰. 로그인 전이면 빈 문자열.</summary>
         private static string AccessToken

@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnderTheSea.Inventory;
+using UnderTheSea.Lobby;
 
 namespace UnderTheSea.Account
 {
@@ -24,6 +26,12 @@ namespace UnderTheSea.Account
 
         /// <summary>현재 등록된 캐릭터 서비스. 없으면 null.</summary>
         public static ICharacterService Characters { get; private set; }
+
+        /// <summary>인벤토리 조회. 등록 전이면 null.</summary>
+        public static IInventoryService Inventory { get; private set; }
+
+        /// <summary>제단 조회 · 봉헌. 등록 전이면 null.</summary>
+        public static IAltarService Altar { get; private set; }
 
         /// <summary>둘 다 준비되었는지.</summary>
         public static bool IsReady => Auth != null && Characters != null;
@@ -52,6 +60,30 @@ namespace UnderTheSea.Account
             Characters = service;
         }
 
+        public static void Register(IInventoryService service)
+        {
+            if (service == null)
+            {
+                Debug.LogWarning("[AccountServiceLocator] null 은 등록할 수 없습니다.");
+                return;
+            }
+
+            WarnIfReplacing(Inventory, service);
+            Inventory = service;
+        }
+
+        public static void Register(IAltarService service)
+        {
+            if (service == null)
+            {
+                Debug.LogWarning("[AccountServiceLocator] null 은 등록할 수 없습니다.");
+                return;
+            }
+
+            WarnIfReplacing(Altar, service);
+            Altar = service;
+        }
+
         /// <summary>
         /// 로그아웃. 인증 세션과 그 세션에 딸린 캐시를 **함께** 비운다.
         ///
@@ -68,6 +100,11 @@ namespace UnderTheSea.Account
 
             Auth?.LogOut();
             Characters?.ClearSessionCache();
+
+            // 인벤토리·제단 캐시도 함께 비운다. 남겨 두면 다음 사람이 로그인하기 전까지
+            // 이전 계정의 조각 수와 기여도가 화면에 남는다.
+            PlayerInventory.Clear();
+            AltarState.Clear();
 
             Debug.Log(
                 $"[AccountServiceLocator] 로그아웃: {(string.IsNullOrEmpty(email) ? "(로그인 상태 아님)" : email)} " +
@@ -89,6 +126,24 @@ namespace UnderTheSea.Account
             if (ReferenceEquals(Characters, service))
             {
                 Characters = null;
+            }
+        }
+
+        /// <summary>등록을 해제한다. 구현체가 OnDestroy 에서 호출한다.</summary>
+        public static void Unregister(IInventoryService service)
+        {
+            if (ReferenceEquals(Inventory, service))
+            {
+                Inventory = null;
+            }
+        }
+
+        /// <summary>등록을 해제한다. 구현체가 OnDestroy 에서 호출한다.</summary>
+        public static void Unregister(IAltarService service)
+        {
+            if (ReferenceEquals(Altar, service))
+            {
+                Altar = null;
             }
         }
 

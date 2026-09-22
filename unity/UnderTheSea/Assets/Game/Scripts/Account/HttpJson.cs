@@ -6,7 +6,16 @@ using UnityEngine.Networking;
 
 namespace UnderTheSea.Account
 {
-    /// <summary>한 번의 HTTP 요청 결과. 성공이면 Body, 실패면 화면에 보여줄 FailureMessage 가 채워진다.</summary>
+    /// <summary>
+    /// 한 번의 HTTP 요청 결과.
+    ///
+    /// <see cref="Body"/> 는 <b>성공·실패 모두</b> 서버가 보낸 본문 그대로다.
+    /// 응답 자체가 오지 않은 경우(연결 실패)에만 null 이다.
+    ///
+    /// ⚠ 실패 본문을 버리지 않는 이유: 제단 봉헌 API 는 409 응답에도 최신 상태를 전부 싣는다.
+    ///    본문을 버리면 클라이언트가 그 상태를 받을 방법이 없다.
+    ///    (docs/prd/lobby_altar_inventory_system_design.md 9.2절)
+    /// </summary>
     internal readonly struct HttpJsonResult
     {
         public readonly bool IsSuccess;
@@ -29,9 +38,13 @@ namespace UnderTheSea.Account
             return new HttpJsonResult(true, statusCode, body, string.Empty);
         }
 
-        public static HttpJsonResult Failure(long statusCode, string failureMessage)
+        /// <param name="body">
+        /// 서버가 보낸 본문. 응답이 오지 않았으면 null.
+        /// 실패 응답에 딸린 구조화된 정보(code · 최신 상태 …)를 부르는 쪽이 읽을 수 있게 그대로 넘긴다.
+        /// </param>
+        public static HttpJsonResult Failure(long statusCode, string failureMessage, string body = null)
         {
-            return new HttpJsonResult(false, statusCode, null, failureMessage);
+            return new HttpJsonResult(false, statusCode, body, failureMessage);
         }
     }
 
@@ -127,12 +140,13 @@ namespace UnderTheSea.Account
             string serverMessage = TryReadErrorMessage(body);
             if (!string.IsNullOrWhiteSpace(serverMessage))
             {
-                return HttpJsonResult.Failure(request.responseCode, serverMessage);
+                return HttpJsonResult.Failure(request.responseCode, serverMessage, body);
             }
 
             return HttpJsonResult.Failure(
                 request.responseCode,
-                $"요청을 처리하지 못했습니다. (HTTP {request.responseCode})");
+                $"요청을 처리하지 못했습니다. (HTTP {request.responseCode})",
+                body);
         }
 
         /// <summary>오류 본문에서 message 를 꺼낸다. 형태가 다르면 null.</summary>

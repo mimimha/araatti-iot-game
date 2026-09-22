@@ -62,6 +62,24 @@ public class HelmTask : TaskBase
     public float Steer { get; private set; }
 
     /// <summary>
+    /// **뱃머리 각도를 밖에서 정해 준다.** 네트워크에서 서버가 정한 결과를 화면에 옮길 때 쓴다.
+    ///
+    /// 클라이언트의 <see cref="TaskBase.Update"/> 는 권위 가드로 막혀 <see cref="Work"/> 가 돌지 않는다.
+    /// 그대로 두면 조타 게이지 · 조타륜 · 배의 기울기가 클라이언트 화면에서 0 에 멈춰 있다.
+    /// <c>ShipCoopStateSync</c> 가 서버 값을 받아 이 함수로 넣는다.
+    /// </summary>
+    public void ShowHeading(float heading, float steer)
+    {
+        Heading = Mathf.Clamp(heading, -maxHeading, maxHeading);
+        Steer = steer;
+
+        if (shipToRotate != null)
+        {
+            shipToRotate.rotation = Quaternion.Euler(0f, _baseYaw + Heading, 0f);
+        }
+    }
+
+    /// <summary>
     /// 바깥에서 뱃머리를 미는 힘 (도/초). 양수면 우현으로 밀린다. 0 이면 없다.
     ///
     /// **파도가 이 값을 켭니다.** 파도가 치는 동안 뱃머리가 계속 한쪽으로 밀리고,
@@ -86,6 +104,32 @@ public class HelmTask : TaskBase
     }
 
     private float _baseYaw;
+
+    /// <summary>
+    /// **뱃머리를 똑바로 되돌린다.** 판을 치울 때 부른다.
+    ///
+    /// <see cref="Heading"/> 은 씬에 고정된 키의 상태라 판이 끝나도 사라지지 않는다. 그래서
+    /// 지난 판이 키를 꺾은 채 끝나면 <b>다음 판이 그 각도에서 시작한다.</b> 서버가 그 값을
+    /// 그대로 복제하므로 갓 들어온 사람의 화면에서도 배가 시작하자마자 옆으로 쏠린다.
+    ///
+    /// <c>VoyageSea</c> 가 옆으로 밀리는 양을 <c>SmoothDamp</c> 로 따라가게 해 둔 탓에
+    /// 그 쏠림이 한 번에 나타나지 않고 <b>출렁이듯</b> 보인다. 대포(<c>ResetCannon</c>)와
+    /// 같은 이유, 같은 처방이다.
+    /// </summary>
+    public void ResetHelm()
+    {
+        Heading = 0f;
+        Steer = 0f;
+
+        // 사건이 밀어붙이던 힘도 지운다. 사건은 ClearBoard 가 이미 껐지만,
+        // 끄는 순서에 기대지 않는 편이 안전하다.
+        ExternalPushPerSecond = 0f;
+
+        if (shipToRotate != null)
+        {
+            shipToRotate.rotation = Quaternion.Euler(0f, _baseYaw, 0f);
+        }
+    }
 
     private void Awake()
     {

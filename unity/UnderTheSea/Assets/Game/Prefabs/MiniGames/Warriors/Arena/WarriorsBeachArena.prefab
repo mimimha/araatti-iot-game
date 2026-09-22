@@ -20131,6 +20131,7 @@ MonoBehaviour:
   followSharpness: 12
   yaw: 0
   pitch: 15
+  playerControllerSource: {fileID: 0}
 --- !u!1 &3726278156114146338
 GameObject:
   m_ObjectHideFlags: 0

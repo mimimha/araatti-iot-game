@@ -168,7 +168,7 @@ PrefabInstance:
     - target: {fileID: 877225837851298894, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 1030473830946173913, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
@@ -228,7 +228,7 @@ PrefabInstance:
     - target: {fileID: 3296373341653321172, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 3376119990960100509, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: GunPortCap_01_R
@@ -272,11 +272,11 @@ PrefabInstance:
     - target: {fileID: 4839159977021093334, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 4899843294402328369, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 4982830455326681941, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: MastAft
@@ -304,7 +304,7 @@ PrefabInstance:
     - target: {fileID: 5799161569940238756, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 5825649365006218380, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
@@ -332,7 +332,7 @@ PrefabInstance:
     - target: {fileID: 6527537729205942131, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 6603522694710932468, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: MastMid
@@ -396,7 +396,7 @@ PrefabInstance:
     - target: {fileID: 7907389495241661795, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: e5d4995e4c271fe4f85e8fd67da7a05d, type: 2}
+      objectReference: {fileID: 2100000, guid: 4433afd8fdb2a1242b1dc83dccd6e5b2, type: 2}
     - target: {fileID: 7944351521576922507, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       propertyPath: m_Name
       value: Hull
@@ -503,13 +503,88 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 9036149285931199850, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5437454639087541535}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3439928479352633853}
+    - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7245739346762732199}
+    - targetCorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2892758700845870231}
   m_SourcePrefab: {fileID: 100100000, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
 --- !u!4 &6208141969911704542 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 9036149285931199850, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
   m_PrefabInstance: {fileID: 3116800853467711156}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &6731773780071788900 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8515472688152868816, guid: a1dcd447bfbb3bc45821f8b436c031d2, type: 3}
+  m_PrefabInstance: {fileID: 3116800853467711156}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &3439928479352633853
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6731773780071788900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef4be58c4f7c5fc46ae72a396c1affac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSail
+  voyage: {fileID: 0}
+  furledHeight: 0.12
+  furledWidth: 0.9
+  followPerSecond: 3
+--- !u!114 &7245739346762732199
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6731773780071788900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4ff5d72e23c4764faab2d43cadbfc36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopCannonRecoil
+  cannon: {fileID: 0}
+  task: {fileID: 0}
+  kickDistance: 0.28
+  kickTilt: 5
+  kickSeconds: 0.06
+  returnSeconds: 0.45
+  muzzleLocal: {x: 0, y: 0, z: 0}
+  smokePrefab: {fileID: 3442817712699613745, guid: c5d84bb5cd4148b78a9c805f51d3f6ea, type: 3}
+  smokeSeconds: 0.35
+  ballMaterial: {fileID: 2100000, guid: 88e2da6f08e43ce45bc99c617bd2718c, type: 2}
+  ballDiameter: 0.5
+  ballSpeed: 30
+  ballLoft: 3
+  ballGravity: 14
+  ballLife: 2.5
+  ballDropBelowMuzzle: 6
+--- !u!114 &2892758700845870231
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6731773780071788900}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b61e733b00b94f04a8ce679fc12a897f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopSailRope
+  sail: {fileID: 0}
+  ropeMaterial: {fileID: 2100000, guid: bba266568c841437db30b20724ecf0ce, type: 2}
+  thickness: 0.09
+  anchorOut: 0.45
+  idleTailLift: 0.9
 --- !u!1001 &5278085161591403746
 PrefabInstance:
   m_ObjectHideFlags: 0

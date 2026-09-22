@@ -30,13 +30,28 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 
         // 이 창에 포커스가 있을 때만 입력을 보낸다.
         // Editor Host와 standalone Client를 한 PC에서 같이 띄워도 서로 간섭하지 않는다.
+        //
+        // ⚠ **글자를 치는 동안에는 아무것도 보내지 않는다.** 채팅창에 "안녕" 을 치면
+        //    그 사이 W · A · S · D · Space 가 그대로 조작으로 들어가 캐릭터가 걸어가고 뛴다.
+        //    채팅이 있는지는 여기서 몰라도 된다. ChatFocus 한 곳만 본다.
         Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && Application.isFocused)
+        if (keyboard != null && Application.isFocused && !ChatFocus.Typing)
         {
             if (keyboard.wKey.isPressed) rawDirection.y += 1f;
             if (keyboard.sKey.isPressed) rawDirection.y -= 1f;
             if (keyboard.dKey.isPressed) rawDirection.x += 1f;
             if (keyboard.aKey.isPressed) rawDirection.x -= 1f;
+
+            // 눌린 순간이 아니라 **누르고 있는 상태**를 보낸다.
+            // 순간을 보내면 그 한 틱이 유실될 때 점프가 통째로 사라진다.
+            // 서버가 GetPressed(직전) 로 순간을 스스로 만들어 낸다. (NetworkPlayerMover)
+            data.Buttons.Set((int)LobbyButton.Jump,
+                !IsMovementLocked && keyboard.spaceKey.isPressed);
+
+            // 달리기는 누르고 있는 내내 유효하다. 서버가 그대로 속도에 쓴다.
+            data.Buttons.Set((int)LobbyButton.Sprint,
+                !IsMovementLocked &&
+                (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed));
         }
 
         data.Direction = ApplyMovementLock(rawDirection);

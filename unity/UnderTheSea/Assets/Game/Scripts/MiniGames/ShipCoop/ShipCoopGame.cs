@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnderTheSea.MiniGames.ShipCoop.Net;
 
 /// <summary>게임의 진행 상태</summary>
 public enum ShipCoopState
@@ -58,6 +59,13 @@ public class ShipCoopGame : MonoBehaviour
     [Tooltip("비워두면 씬에서 자동으로 찾는다. 없으면 침수가 굴러가지 않는다.")]
     [SerializeField] private ShipFlooding flooding;
 
+    [Tooltip("비워두면 씬에서 자동으로 찾는다. 없으면 적선 포격을 맞아도 배가 안 흔들린다.")]
+    [SerializeField] private ShipCoopShipTurn shipTurn;
+
+    [Header("충격 흔들림")]
+    [Tooltip("적선을 못 막아 포격을 맞았을 때 배가 흔들리는 세기(도).")]
+    [SerializeField, Min(0f)] private float enemyBreachShakeDegrees = 6f;
+
     [Header("제한시간 (초)")]
     [SerializeField] private float timeLimit = 180f;
 
@@ -109,14 +117,36 @@ public class ShipCoopGame : MonoBehaviour
     private int _enemiesDestroyed;
     private int _leaksSealed;
     private int _obstaclesAvoided;
+    private int _enemyBreaches;
 
     /// <summary>지금 상태</summary>
     public ShipCoopState State { get; private set; } = ShipCoopState.Ready;
 
     /// <summary>
-    /// **이 컴퓨터가 게임을 계산하는 쪽인가.** (SHIPCOOP.md 11장)
+    /// 씬에 있는 그 판. 배 협동 게임 씬에는 하나만 두므로 static 으로 잡아도 안전하다.
     ///
-    /// 지금은 혼자 하므로 늘 참입니다. 네트워크가 붙으면 **호스트에서만 참**이 됩니다.
+    /// <see cref="ShipCoopInput"/> 처럼 씬 참조가 없는 곳에서 "출항했는가" 만 물어볼 때 쓴다.
+    /// </summary>
+    public static ShipCoopGame Current { get; private set; }
+
+    private void Awake()
+    {
+        Current = this;
+    }
+
+    private void OnDestroy()
+    {
+        if (Current == this)
+        {
+            Current = null;
+        }
+    }
+
+    /// <summary>끝났을 때의 점수. 끝나기 전에는 0. 네트워크에서 이 값을 복제한다.</summary>
+    public int FinalScore { get; private set; }
+
+    /// <summary>
+    /// **이 컴퓨터가 게임을 계산하는 쪽인가.** (SHIPCOOP.md 11장)
     ///
     /// 판정을 4대가 각자 하면 서로 다른 답이 나옵니다. 내 화면에선 물을 다 퍼냈는데
     /// 옆 사람 화면에선 아직 차 있고, 둘 다 자기가 맞다고 믿습니다.
@@ -126,10 +156,12 @@ public class ShipCoopGame : MonoBehaviour
     /// 보는 것은 **공유 상태를 바꾸는 쪽**뿐입니다.
     ///
     /// <code>
-    /// 붙일 때   =&gt; Runner.IsServer
+    /// Runner 없음 (ShipCoopTest.unity)  =&gt; 참    — 예전 그대로 혼자 다 계산한다
+    /// Dedicated Server                  =&gt; 참
+    /// Client                            =&gt; 거짓
     /// </code>
     /// </summary>
-    public bool IsAuthority => true;
+    public bool IsAuthority => ShipCoopNet.IsAuthorityHere;
 
     /// <summary>출항 후 지난 시간 (초)</summary>
     public float Elapsed => _elapsed;
@@ -168,6 +200,14 @@ public class ShipCoopGame : MonoBehaviour
     /// <summary>게임이 끝났다. (성공 여부, 점수) — 결과 화면이 이걸 듣는다.</summary>
     public event Action<bool, int> Finished;
 
+    /// <summary>
+    /// 판이 **새로 시작됐다.** 결과 화면처럼 끝났을 때 떠 있던 것들이 이걸 듣고 스스로 닫는다.
+    ///
+    /// <see cref="Finished"/> 의 짝이다. 끝났을 때 켜는 것이 있으면 다시 시작할 때 끄는 것도 있어야 한다.
+    /// 이게 없어서 개발자 모드로 다시 시작해도 "침몰" 글자가 화면에 그대로 남아 있었다.
+    /// </summary>
+    public event Action Restarted;
+
     private void Start()
     {
         if (autoStart)
@@ -204,6 +244,184 @@ public class ShipCoopGame : MonoBehaviour
         CheckEnd();
     }
 
+    /// <summary>
+    /// 🛠 **판을 처음부터 다시 시작한다.** 개발자 모드의 R 이 부른다. (10장)
+    ///
+    /// <see cref="StartVoyage"/> 만으로는 다시 시작되지 않는다. 두 가지 때문이다.
+    /// <code>
+    ///   항해 중이면  State 가 Sailing 이라 그대로 되돌아 나간다 — 아무 일도 안 일어난다
+    ///   침몰한 뒤면  HP 가 0 인 채로 다시 뜬다 (Repair 는 가라앉은 배를 일부러 안 고친다)
+    /// </code>
+    /// 게다가 떠 있던 사건 · 뚫려 있던 구멍이 그대로 남아 새 판이 이미 망가진 채로 시작한다.
+    ///
+    /// 그래서 여기서 **먼저 치우고** 다시 시작한다 — 사건을 전부 끄고, 구멍을 치우고, HP 를 채운다.
+    /// 물 · 진행도 · 시간은 <see cref="StartVoyage"/> 가 되돌린다.
+    /// </summary>
+    public void RestartVoyage()
+    {
+        ClearBoard();
+
+        // 이미 항해 중이면 StartVoyage 가 그냥 되돌아 나간다. 끝난 것으로 만들어 두고 다시 시작한다.
+        State = ShipCoopState.Ready;
+
+        StartVoyage();
+    }
+
+    /// <summary>
+    /// 다음 판을 받을 수 있는 **대기 상태**로 되돌린다. 출항은 하지 않는다.
+    ///
+    /// <b>왜 필요한가.</b> 한 판이 끝나면 배가 <c>침몰</c> · <c>시간 초과</c> 로 굳어 버린다.
+    /// 그 상태의 서버에 새로 들어오면 <b>들어오자마자 종료 화면</b>이 뜨고 아무것도 할 수 없다.
+    /// 그래서 QA 때마다 Dedicated Server 를 손으로 껐다 켰다. 판이 한 번밖에 안 돌아간다.
+    ///
+    /// <c>RestartVoyage</c> 와 치우는 것은 같지만 <b>끝을 다르게 둔다.</b>
+    ///
+    /// <code>
+    ///   RestartVoyage    치우고 → 바로 출항   (개발자 모드의 R)
+    ///   ResetToWaiting   치우고 → 대기        (사람이 다 나갔을 때)
+    /// </code>
+    ///
+    /// ⚠ <b>사람이 남아 있을 때 부르면 안 된다.</b> 결과를 보고 있는 사람의 화면을 빼앗는다.
+    ///    부르는 쪽(<c>ShipCoopStateSync</c>)이 아무도 없을 때만 부른다.
+    /// </summary>
+    public void ResetToWaiting()
+    {
+        ClearBoard();
+
+        // 출항 전 화면이 지난 판의 진행도와 시간을 들고 있으면 안 된다.
+        _elapsed = 0f;
+        _phaseIndex = -1;
+        _enemiesDestroyed = 0;
+        _leaksSealed = 0;
+        _obstaclesAvoided = 0;
+        _enemyBreaches = 0;
+        FinalScore = 0;
+
+        if (voyage != null)
+        {
+            voyage.ResetVoyage();
+        }
+
+        if (flooding == null)
+        {
+            flooding = FindAnyObjectByType<ShipFlooding>(FindObjectsInactive.Include);
+        }
+
+        if (flooding != null)
+        {
+            flooding.ResetFlooding();
+        }
+
+        State = ShipCoopState.Ready;
+
+        // 결과 화면은 이 신호를 듣고 스스로 닫는다. 안 부르면 "침몰" 글자가 남는다.
+        Restarted?.Invoke();
+
+        Debug.Log("[ShipCoopGame] 대기 상태로 되돌렸습니다. 다음 판을 받을 수 있습니다.", this);
+        UpdatePhase();
+    }
+
+    /// <summary>
+    /// 판을 치운다 — 떠 있던 사건, 뚫린 구멍, 깎인 HP.
+    ///
+    /// <see cref="RestartVoyage"/> 와 <see cref="ResetToWaiting"/> 가 함께 쓴다.
+    /// 둘의 차이는 치운 **뒤에 무엇을 하느냐**뿐이다.
+    /// </summary>
+    private void ClearBoard()
+    {
+        // 떠 있던 사건을 전부 끈다. 바다에 띄운 바위 · 적선도 각 사건의 OnHide 가 치운다.
+        VoyageEvent[] running = new VoyageEvent[VoyageEvent.Active.Count];
+        for (int i = 0; i < running.Length; i++)
+        {
+            running[i] = VoyageEvent.Active[i];
+        }
+
+        for (int i = 0; i < running.Length; i++)
+        {
+            if (running[i] != null)
+            {
+                running[i].Cancel();
+            }
+        }
+
+        // 뚫려 있던 구멍을 치운다. 씬에 미리 놓인 수리 지점은 없고 전부 사건이 만든 것이라 다 치워도 된다.
+        TaskBase[] tasks = new TaskBase[TaskBase.All.Count];
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            tasks[i] = TaskBase.All[i];
+        }
+
+        int holes = 0;
+
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            if (tasks[i] is not RepairTask hole)
+            {
+                continue;
+            }
+
+            holes++;
+
+            if (RepairTask.Remover != null)
+            {
+                RepairTask.Remover(hole);
+            }
+            else
+            {
+                Destroy(hole.gameObject);
+            }
+        }
+
+        // 가라앉았어도 되살린다. 이건 개발 도구라 "실패는 실패로 남는다" 규칙의 예외다.
+        if (health == null)
+        {
+            health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
+        }
+
+        if (health != null)
+        {
+            health.ResetHealth();
+        }
+
+        // 갑판에 떨어져 있던 물건을 치운다. 안 치우면 지난 판의 양동이와 포탄이 그대로 남는다.
+        // AllDropped 는 Take() 안에서 줄어드므로 복사본을 돌아야 순회가 깨지지 않는다.
+        DroppedCargo[] lying = new DroppedCargo[DroppedCargo.All.Count];
+
+        for (int i = 0; i < lying.Length; i++)
+        {
+            lying[i] = DroppedCargo.All[i];
+        }
+
+        for (int i = 0; i < lying.Length; i++)
+        {
+            if (lying[i] != null)
+            {
+                Destroy(lying[i].gameObject);
+            }
+        }
+
+        // 대포는 씬에 고정된 물건이라 사라지지 않는다. 장전해 둔 포탄이 다음 판으로 넘어간다.
+        CannonTask[] cannons = FindObjectsByType<CannonTask>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        for (int i = 0; i < cannons.Length; i++)
+        {
+            cannons[i].ResetCannon();
+        }
+
+        // 키도 마찬가지다. 꺾어 둔 각도가 남으면 다음 판이 그 각도에서 시작해
+        // 출항하자마자 배가 옆으로 쏠린다.
+        HelmTask[] helms = FindObjectsByType<HelmTask>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        for (int i = 0; i < helms.Length; i++)
+        {
+            helms[i].ResetHelm();
+        }
+
+        Debug.Log(
+            $"[ShipCoopGame] 판을 치웠다 — 사건 {running.Length}개, 구멍 {holes}개, " +
+            $"떨어진 물건 {lying.Length}개, 대포 {cannons.Length}문, 키 {helms.Length}개.", this);
+    }
+
     /// <summary>출항한다.</summary>
     public void StartVoyage()
     {
@@ -223,6 +441,7 @@ public class ShipCoopGame : MonoBehaviour
         _enemiesDestroyed = 0;
         _leaksSealed = 0;
         _obstaclesAvoided = 0;
+        _enemyBreaches = 0;
 
         voyage.ResetVoyage();
 
@@ -237,6 +456,7 @@ public class ShipCoopGame : MonoBehaviour
         }
 
         State = ShipCoopState.Sailing;
+        Restarted?.Invoke();
 
         Debug.Log($"[ShipCoopGame] 출항. 제한시간 {timeLimit:0}초", this);
         UpdatePhase();
@@ -287,6 +507,52 @@ public class ShipCoopGame : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// **진행 상태를 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// 판정은 하지 않는다. 시간을 세지도, 승패를 가리지도 않는다.
+    /// 다만 <b>바뀐 것을 알리는 일</b>은 한다 — HUD 와 결과 화면이 그 알림을 듣고 있어서
+    /// 조용히 값만 바꾸면 페이즈 표시와 결과창이 뜨지 않는다.
+    /// </summary>
+    public void ShowState(ShipCoopState state, float elapsed, int phaseIndex, int score)
+    {
+        _elapsed = elapsed;
+
+        if (phaseIndex != _phaseIndex)
+        {
+            _phaseIndex = phaseIndex;
+            PhaseChanged?.Invoke(CurrentPhase, _phaseIndex);
+        }
+
+        if (state == State)
+        {
+            return;
+        }
+
+        State = state;
+        FinalScore = score;
+
+        bool ended = state == ShipCoopState.Cleared
+                     || state == ShipCoopState.Sunk
+                     || state == ShipCoopState.TimeOver;
+
+        // ⚠ "항해 중이었다가 끝났을 때" 로 좁히지 않는다.
+        //    이미 끝난 판에 뒤늦게 들어온 사람은 항해 중인 적이 없다.
+        //    그 사람도 결과를 봐야 무슨 일이 있었는지 안다.
+        if (ended)
+        {
+            Finished?.Invoke(state == ShipCoopState.Cleared, score);
+        }
+        else if (state == ShipCoopState.Sailing || state == ShipCoopState.Ready)
+        {
+            // 끝났다가 항해 중 또는 대기로 돌아왔다 — 서버가 판을 되돌린 것이다.
+            //   Sailing  개발자 모드의 R
+            //   Ready    사람이 다 나가 다음 판을 받으려고 (ResetToWaiting)
+            // 이 화면은 그 함수들을 부르지 않으니 여기서 알리지 않으면 "침몰" 글자가 안 사라진다.
+            Restarted?.Invoke();
+        }
+    }
+
     private void Finish(ShipCoopState result)
     {
         State = result;
@@ -304,6 +570,7 @@ public class ShipCoopGame : MonoBehaviour
 
         Debug.Log($"[ShipCoopGame] 종료 — {reason} / 성공: {success} / 점수: {score}", this);
 
+        FinalScore = score;
         Finished?.Invoke(success, score);
         Report(success, score);
     }
@@ -347,6 +614,28 @@ public class ShipCoopGame : MonoBehaviour
     public void ReportEnemyDestroyed()
     {
         _enemiesDestroyed++;
+    }
+
+    /// <summary>
+    /// 적선을 못 막아서 포격을 맞은 횟수. 배가 한 번 흔들리는 연출을 클라이언트까지
+    /// 옮기려고 늘어나는 값으로 잡아둔다. (<c>ShipCoopStateSync</c>가 복제한다)
+    /// </summary>
+    public int EnemyBreaches => _enemyBreaches;
+
+    /// <summary>흔들리는 세기(도). <c>ShipCoopStateSync</c>가 클라이언트에서 같은 세기로 흔들 때 쓴다.</summary>
+    public float EnemyBreachShakeDegrees => enemyBreachShakeDegrees;
+
+    /// <summary>적선을 못 막았다. 이 컴퓨터(권위 있는 쪽)에서 바로 배를 흔든다.</summary>
+    public void ReportEnemyBreached()
+    {
+        _enemyBreaches++;
+
+        if (shipTurn == null)
+        {
+            shipTurn = FindAnyObjectByType<ShipCoopShipTurn>(FindObjectsInactive.Include);
+        }
+
+        shipTurn?.Shake(enemyBreachShakeDegrees);
     }
 
     /// <summary>침수를 막았다.</summary>

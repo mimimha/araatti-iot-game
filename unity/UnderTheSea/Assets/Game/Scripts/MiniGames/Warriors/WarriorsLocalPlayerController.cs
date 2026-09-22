@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace Warriors
 {
@@ -9,6 +8,8 @@ namespace Warriors
         [SerializeField, Min(0.1f)] private float moveSpeed = 5f;
         [SerializeField, Min(0f)] private float rotationSpeed = 720f;
         [SerializeField] private Transform cameraTransform;
+        [Tooltip("IPlayerController 구현체. 비우면 같은 오브젝트와 부모에서 찾는다.")]
+        [SerializeField] private MonoBehaviour playerControllerSource;
 
         // Anything under this is treated as no input at all, so a stick resting slightly
         // off centre - or a single frame of leftover input - cannot flicker the blend tree
@@ -17,6 +18,7 @@ namespace Warriors
 
         private CharacterController controller;
         private Animator animator;
+        private IPlayerController playerController;
 
         public Vector2 LastMoveInput { get; private set; }
 
@@ -25,18 +27,13 @@ namespace Warriors
             controller = GetComponent<CharacterController>();
             animator = GetComponent<Animator>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            ResolvePlayerController();
         }
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null) return;
-
-            LastMoveInput = new Vector2(
-                (keyboard.dKey.isPressed ? 1f : 0f) - (keyboard.aKey.isPressed ? 1f : 0f),
-                (keyboard.wKey.isPressed ? 1f : 0f) - (keyboard.sKey.isPressed ? 1f : 0f));
-
-            ApplyMovement(LastMoveInput, Time.deltaTime);
+            if (playerController == null) ResolvePlayerController();
+            ApplyMovement(playerController != null ? playerController.Move : Vector2.zero, Time.deltaTime);
         }
 
         public void ApplyMovement(Vector2 input, float deltaTime)
@@ -69,6 +66,35 @@ namespace Warriors
         }
 
         public void ConfigureCamera(Transform value) => cameraTransform = value;
+
+        public void ConfigurePlayerController(MonoBehaviour source)
+        {
+            playerControllerSource = source;
+            ResolvePlayerController();
+        }
+
+        private void ResolvePlayerController()
+        {
+            playerController = playerControllerSource as IPlayerController
+                ?? GetComponent<IPlayerController>()
+                ?? GetComponentInParent<IPlayerController>();
+
+            // 완드가 꽂혀 있으면 무쌍 배치를 알려준다. 기본값(Shared)은 왼손 버튼 2 를
+            // 달리기 토글로 잠그는데, 그 조작은 배에만 있다. 무쌍은 누른 그대로 내보낸다.
+            (playerController as IotPlayerController)?.SetControlProfile(IotControlProfile.Warriors);
+
+            if (playerController != null || !Application.isPlaying) return;
+
+            // WarriorsTest처럼 SceneBootstrap 없이 기존 플레이어가 씬에 직접 배치된
+            // 테스트 씬도 동작해야 한다. 실제 IoT 컨트롤러가 붙어 있으면 위에서
+            // 선택되므로, 아무 구현체도 없을 때에만 키보드 폴백을 생성한다.
+            KeyboardPlayerController keyboardController =
+                GetComponent<KeyboardPlayerController>()
+                ?? gameObject.AddComponent<KeyboardPlayerController>();
+            keyboardController.SetControlProfile(KeyboardControlProfile.Warriors);
+            playerControllerSource = keyboardController;
+            playerController = keyboardController;
+        }
 
         public void RespawnAt(Transform point)
         {

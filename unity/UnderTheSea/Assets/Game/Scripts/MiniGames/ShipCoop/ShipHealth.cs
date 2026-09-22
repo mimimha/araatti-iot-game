@@ -51,6 +51,32 @@ public class ShipHealth : MonoBehaviour
     /// </summary>
     public bool Invincible { get; set; }
 
+    /// <summary>
+    /// **남은 체력을 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// <c>TakeDamage</c> 로 맞추지 않는 이유: 그쪽은 피해량을 받아 스스로 빼고 연출까지 낸다.
+    /// 복제는 <b>결과만</b> 옮겨야 한다. 안 그러면 같은 피해가 두 번 계산된다.
+    /// </summary>
+    public void ShowHp(float current)
+    {
+        float clamped = Mathf.Clamp(current, 0f, maxHp);
+
+        if (Mathf.Approximately(clamped, CurrentHp))
+        {
+            return;
+        }
+
+        bool wasAlive = !IsSunk;
+        CurrentHp = clamped;
+
+        Changed?.Invoke(CurrentHp, maxHp);
+
+        if (wasAlive && IsSunk)
+        {
+            Sunk?.Invoke();
+        }
+    }
+
     public void TakeDamage(float amount, string reason = null)
     {
         if (IsSunk || Invincible || amount <= 0f)
@@ -71,6 +97,19 @@ public class ShipHealth : MonoBehaviour
             Debug.Log("[ShipHealth] 배가 침몰했습니다.", this);
             Sunk?.Invoke();
         }
+    }
+
+    /// <summary>
+    /// HP 를 가득 채워 **가라앉은 것도 되돌린다.** 판을 다시 시작할 때만 쓴다.
+    ///
+    /// ⚠ <see cref="Repair"/> 와 다르다. 수리는 가라앉은 배를 일부러 안 고친다 — 되살아나면
+    ///    실패가 실패가 아니게 되기 때문이다. 그래서 침몰한 뒤에 다시 시작하려면 이쪽이 필요하다.
+    ///    (개발자 모드의 R · <c>ShipCoopGame.RestartVoyage</c>)
+    /// </summary>
+    public void ResetHealth()
+    {
+        CurrentHp = maxHp;
+        Changed?.Invoke(CurrentHp, maxHp);
     }
 
     /// <summary>수리한다. 최대치를 넘지 않는다.</summary>

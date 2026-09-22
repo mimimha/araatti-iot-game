@@ -719,6 +719,31 @@ Hierarchy
 
 미니게임을 어떻게 만들든 이 두 가지만 나오면 Lobby에 연결할 수 있습니다.
 
+**3) 소리는 `AudioHub` 하나로 냅니다.** (`Scripts/Audio/` — 넣는 법 전체는 `AUDIO.md`)
+
+씬마다 AudioSource 를 두면 씬이 바뀔 때 음악이 끊깁니다. 로비 → 미니게임 → 로비로 오가는 게임이라
+음악이 씬을 따라 이어져야 하므로, 소리를 내는 것은 **씬을 넘어 살아남는 허브 하나**뿐입니다.
+처음 `AudioHub.Instance` 를 부르는 순간 스스로 생기고, 씬에 미리 놓을 것이 없습니다.
+
+```text
+씬 배경음악만 필요하면     SceneMusic 컴포넌트를 씬에 하나 놓고 클립을 꽂는다
+                           앞 씬과 같은 곡이면 이어지고, 다른 곡이면 교차 페이드된다
+상태에 따라 곡이 바뀌면    자기 미니게임 폴더에 "연출가" 스크립트를 두고 (예: ShipCoopAudio)
+                           게임 상태를 보며 AudioHub.PlayMusic · PlayOneShot · Loop 를 부른다
+UI 효과음                  AudioHub.Instance.PlayOneShot(clip)
+```
+
+> 허브는 **공용**이라 미니게임 타입을 몰라야 합니다. "내 게임에서 언제 무슨 소리" 는 자기 폴더의
+> 연출가에 씁니다. 허브에 게임별 규칙을 넣으면 다른 담당자가 공용 파일을 고쳐야 하고(9장 규칙),
+> 씬이 끝나도 감시자가 살아남습니다.
+
+볼륨은 타이틀 설정(`StartMenuController` · `SettingsPanelView`)과 같은 PlayerPrefs 키
+(`AraAtti.Audio.MasterVolume` · `MusicVolume` · `EffectsVolume` · `Muted`)를 씁니다. 허브가 켤 때 복원하고,
+설정이 바뀌면 그쪽 static 이벤트로 받습니다. 마스터는 `AudioListener.volume` 그대로입니다 — 믹서는 없습니다.
+
+클립 파일은 `Assets/Game/Audio/<게임 또는 Common>/` 에 둡니다 (`CONVENTION.md` 6장). 서버(Dedicated Server)에서는
+허브가 소스를 만들지 않아 모든 호출이 조용히 빠집니다. 부르는 쪽은 서버인지 신경 쓰지 않습니다.
+
 ---
 
 ## 9. 스크립트 폴더 구조
@@ -726,6 +751,7 @@ Hierarchy
 ```text
 Assets/Game/Scripts/
 ├── Core/             씬 전환, 게임 상태 관리        (민화)
+├── Audio/            AudioHub · SceneMusic — 소리는 여기 하나로 (공용, 8장) (민화)
 ├── Account/          계정 인증, 캐릭터 저장 경계    (서버 — 4장)
 ├── Network/          접속, 매칭, 동기화             (서버)
 ├── IoT/              IoT 컨트롤러 경계              (공용 — 아래 참고)
@@ -751,8 +777,11 @@ Assets/Game/Scripts/
 
 ### `IoT/` 는 세 명이 함께 쓰는 폴더입니다
 
+> 배 협동 게임(ShipCoop) 쪽 입력 규격은 `IOT_INPUT.md` 에 따로 정리했습니다.
+> 지금 키보드가 하는 일 · 손마다 필요한 센서 · 진동 · 하지 말아야 할 것이 들어 있습니다.
+
 **미니게임 세 개가 같은 IoT 컨트롤러 하나를 씁니다.**
-같은 센서(IMU · 압력센서 · 버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
+같은 센서(IMU · 면버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
 플레이어가 손에 쥐는 장치는 하나입니다.
 
 그래서 컨트롤러 인터페이스는 특정 미니게임의 것이 아니라 **공용 경계**입니다.
@@ -765,22 +794,43 @@ Assets/Game/Scripts/IoT/
 ```
 
 ```csharp
-// 컨트롤러 1대 = 플레이어 1명
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing, // 실제 가로 휘두르기
+    VerticalSwing,   // 실제 세로 휘두르기
+    Thrust,          // 실제 찌르기
+}
+
+// 기기 1대 = 손 하나
+public interface IHandDevice
+{
+    Vector2 Stick { get; }
+    float Tilt { get; }
+    float Rotation { get; }
+    bool Button1 { get; }
+    bool Button2 { get; }
+    bool ConsumeButton1Press();                   // 누른 순간만 한 번
+    bool ConsumeButton2Press();
+    bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 동작 + 세기
+    void Vibrate(float strength, float seconds);
+}
+
+// 플레이어 1명 = 왼손 + 오른손
 public interface IPlayerController
 {
-    // 입력 (장치 → 게임)
-    float Tilt      { get; }   // IMU 기울기  -1 ~ +1
-    float Rotation  { get; }   // IMU 회전    -1 ~ +1
-    bool  Button    { get; }   // 물리 버튼 (누르고 있는지)
-    bool  Grip      { get; }   // 압력센서 HOLD 판정
-    bool  ConsumeButtonPress();// 버튼이 새로 눌렸는지 1회
-    bool  ConsumeSwing();      // IMU 제스처(휘두르기) 1회
-
-    // 출력 (게임 → 장치)
-    void Vibrate(float strength, float seconds);   // 진동 모터
-    void SetLed(Color color);                      // LED
+    IHandDevice Left { get; }
+    IHandDevice Right { get; }
+    bool HasTwoDevices { get; }                   // 1대만 들면 거짓. 게임이 조작을 줄인다
+    Vector2 Move { get; }
+    Vector2 Look { get; }
+    void VibrateBoth(float strength, float seconds);
 }
 ```
+
+> ⚠ **압력센서(`Grip`)는 없앴습니다.** 기기가 면버튼 4개 + 스틱 2개로 정해지면서
+> 쥐기를 살리려면 버튼 하나를 내줘야 했습니다. 하던 일은 "집기 우선" 규칙과
+> "상호작용 한 번 더" 로 나눠 처리합니다. 자세한 것은 `IOT_INPUT.md` 2장.
 
 **규칙**
 

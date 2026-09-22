@@ -1,0 +1,59 @@
+{
+  "reference": "../event-icon-style-sheet-v1.png",
+  "importSettings": {
+    "textureType": "Sprite (2D and UI)",
+    "spriteMode": "Single",
+    "alphaIsTransparency": true,
+    "mipmaps": false,
+    "wrapMode": "Clamp",
+    "filterMode": "Bilinear",
+    "compression": "None"
+  },
+  "assets": [
+    {
+      "name": "reef",
+      "label": "암초",
+      "file": "icons/event-reef.png",
+      "width": 512,
+      "height": 512,
+      "clearPixels": 179477,
+      "partialAlphaPixels": 81862
+    },
+    {
+      "name": "enemy-ship",
+      "label": "적선",
+      "file": "icons/event-enemy-ship.png",
+      "width": 512,
+      "height": 512,
+      "clearPixels": 152227,
+      "partialAlphaPixels": 108803
+    },
+    {
+      "name": "hull-damage",
+      "label": "선체 파손·침수",
+      "file": "icons/event-hull-damage.png",
+      "width": 512,
+      "height": 512,
+      "clearPixels": 183021,
+      "partialAlphaPixels": 77930
+    },
+    {
+      "name": "big-wave",
+      "label": "거대한 파도",
+      "file": "icons/event-big-wave.png",
+      "width": 512,
+      "height": 512,
+      "clearPixels": 166146,
+      "partialAlphaPixels": 94923
+    },
+    {
+      "name": "squall",
+      "label": "돌풍",
+      "file": "icons/event-squall.png",
+      "width": 512,
+      "height": 512,
+      "clearPixels": 149663,
+      "partialAlphaPixels": 111163
+    }
+  ]
+}

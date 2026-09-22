@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fusion;
 using Fusion.Sockets;
+using MiniGames.Common;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnderTheSea.Account;
@@ -160,7 +161,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
             GameMode = GameMode.Client,
             SessionName = sessionName,
             Scene = lobby,
-            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>()
+            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+
+            // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+            CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
         });
 
         isConnecting = false;
@@ -181,6 +185,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         }
 
         connectedChannelId = serverId;
+
+        // ⚠ 미니게임에 들어가려면 이 세션을 반드시 끊어야 하고, 끊으면 위 값이 지워진다.
+        //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
+        LobbyReturnInfo.Remember(nickname, serverId);
 
         // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
         SceneFlow.LobbyLoadedByNetwork = true;
@@ -209,7 +217,20 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         connectedChannelId = null;
 
         SceneFlow.LobbyLoadedByNetwork = false;
-        TransitionStatus.SetReady();
+
+        // ⚠ **여기서 화면을 사용자에게 돌려주지 않는다.** 끊는 것과 "이제 놀아도 된다" 는 다르다.
+        //
+        //    미니게임으로 넘어가려면 반드시 Lobby Runner 를 먼저 끊어야 한다. 그때 여기서
+        //    SetReady 를 부르면 **로딩 화면이 씬을 열기도 전에 걷힌다.** 그러면 씬 로드의
+        //    프레임 멈춤과 그 뒤 틱 따라잡기가 사용자 눈앞에서 벌어진다. 로그로 실측했다.
+        //
+        //        Loading - 게임에 입장 중...
+        //        Ready                        ← 여기서 걷혔다
+        //        Runner 가 종료됐습니다.
+        //        씬 이동: → ShipCoopBoot   ← 멈춤은 이 뒤에 온다
+        //
+        //    그래서 화면을 언제 넘길지는 **부르는 쪽**이 정한다. 끊은 뒤 무엇을 할지 아는 것은
+        //    그쪽뿐이다. (MiniGameTransition 은 계속 가리고, 복구 경로는 스스로 SetReady 한다)
 
         OnDisconnected?.Invoke("접속을 종료했습니다.");
     }
@@ -299,7 +320,7 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
     }
 
     // ------------------------------------------------------------
-    // 미니게임 — 이번 단계 범위 밖
+    // 미니게임 — 서버 패킷 연결 지점
     // ------------------------------------------------------------
 
     public void JoinMiniGameQueue(string miniGameName)
@@ -314,7 +335,51 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
 
     public void ReportMiniGameResult(bool success, int score)
     {
-        Debug.LogWarning($"[FusionNetworkService] 미니게임 결과 보고는 아직 구현되지 않았습니다. ({success}, {score})");
+        MiniGameConfig config = PlayerRoster.CurrentGame;
+        ReportMiniGameResult(new MiniGameResult(
+            config != null ? config.GameId : MiniGameId.Sword,
+            success,
+            score,
+            0f,
+            config != null ? config.ExtraStatLabel : null,
+            string.Empty,
+            config != null ? config.FragmentId : null,
+            fragmentObtained: false,
+            playerCount: PlayerRoster.ActivePlayerCount));
+    }
+
+    /// <summary>
+    /// 미니게임 담당자는 전체 결과를 여기로 보고한다. 서버 담당자는 이 본문을 결과 패킷/RPC로 연결한다.
+    /// </summary>
+    public void ReportMiniGameResult(MiniGameResult result)
+    {
+        Debug.LogWarning(
+            $"[FusionNetworkService] 전체 미니게임 결과 패킷 연결이 필요합니다. " +
+            $"({result.GameId}, 성공={result.IsClear}, 점수={result.Score})");
+    }
+
+    /// <summary>
+    /// 서버 결과 패킷 수신 콜백의 최종 연결 지점. UI를 직접 찾지 말고 이 함수만 호출한다.
+    /// 결과 화면 씬이 아직 없어도 Gateway가 결과를 보관한다.
+    /// </summary>
+    public void ApplyMiniGameResult(MiniGameResult settledResult)
+    {
+        MiniGameResultGateway.SubmitAuthoritative(settledResult);
+    }
+
+    /// <summary>
+    /// 서버의 대기열 스냅샷 처리기가 호출하는 UI 경계.
+    /// 패킷에 담긴 플레이어들은 먼저 PlayerRoster에 반영한 뒤 이 함수를 호출한다.
+    /// </summary>
+    public void ApplyMiniGameQueueSnapshot(string miniGameName, int currentPlayers, int requiredPlayers)
+    {
+        OnQueueUpdated?.Invoke(miniGameName, currentPlayers, requiredPlayers);
+    }
+
+    /// <summary>서버의 매칭 완료/게임 시작 패킷 처리기가 호출하는 UI 경계.</summary>
+    public void ApplyMiniGameStarting(string miniGameName)
+    {
+        OnMiniGameStarting?.Invoke(miniGameName);
     }
 
     // ------------------------------------------------------------

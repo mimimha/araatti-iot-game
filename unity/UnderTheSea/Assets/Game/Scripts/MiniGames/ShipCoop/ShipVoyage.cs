@@ -61,16 +61,16 @@ public class ShipVoyage : MonoBehaviour
     // 지금은 ShipFlooding 이 배 HP 를 직접 깎는다. (SHIPCOOP.md 2장)
 
     /// <summary>
-    /// 해류가 뒤집혔는지. **돌풍이 부는 동안 참**이다. (Squall 이 켜고 끈다)
+    /// 돌풍이 부는 중인지. (Squall 이 켜고 끈다)
     ///
-    /// 평소에는 아무도 돛을 안 잡아도 해류가 최저 속도만큼 밀어줍니다.
-    /// 돌풍 중에는 그 해류가 반대로 붑니다. 돛을 잡고 있으면 느리게라도 앞으로 가지만,
-    /// **손을 놓는 순간 뒤로 밀립니다.**
+    /// 돌풍 중에는 **돛이 바람을 거꾸로 받습니다.** 펴 놓은 만큼 배가 뒤로 밀리고,
+    /// 접으면 평소 최저 속도로 앞으로 갑니다. 그래서 돌풍이 오면 돛을 접는 것이 답이고,
+    /// 지나가면 바로 다시 펴야 빠릅니다.
     ///
-    /// 진행도를 숫자로 깎지 않는 이유는 그것이 화면에 안 보이기 때문입니다.
-    /// 뒤로 밀리면 섬이 멀어지고 항로선이 거꾸로 흐릅니다. 그건 보입니다.
+    /// 벌칙이 속도식 안에 들어 있어서 실패 판정이 따로 없습니다. 뒤로 밀리면 섬이
+    /// 멀어지고 항로선이 거꾸로 흐릅니다. 그건 게이지 안 봐도 보입니다.
     /// </summary>
-    public bool CurrentReversed { get; set; }
+    public bool SquallBlowing { get; set; }
 
     /// <summary>최저 속도 (m/s). 아무도 아무것도 안 해도 이만큼은 간다.</summary>
     public float MinSpeed => maxSpeed * minSpeedRatio;
@@ -89,10 +89,11 @@ public class ShipVoyage : MonoBehaviour
             float sailed = Mathf.Lerp(MinSpeed, maxSpeed, Mathf.Clamp01(SailPower01));
             float kept = Mathf.Clamp01(CourseFactor);
 
-            // 해류. 돌풍 중에는 반대로 분다.
-            float drift = CurrentReversed ? -MinSpeed : MinSpeed;
+            // 돌풍 중에는 돛이 바람을 거꾸로 받는다 — 펴 놓은 만큼 뒤로 간다.
+            // 최저 속도(해류)는 그대로라, 접으면 평소처럼 느리게 앞으로 간다.
+            float sailSign = SquallBlowing ? -1f : 1f;
 
-            return drift + (sailed - MinSpeed) * kept;
+            return MinSpeed + (sailed - MinSpeed) * kept * sailSign;
         }
     }
 
@@ -138,6 +139,6 @@ public class ShipVoyage : MonoBehaviour
         Distance = 0f;
         SailPower01 = 0f;
         CourseFactor = 1f;
-        CurrentReversed = false;
+        SquallBlowing = false;
     }
 }

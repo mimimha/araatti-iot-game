@@ -45,8 +45,10 @@ public class ShipFlooding : MonoBehaviour
     [SerializeField, Min(0f)] private float risePerPointPerSecond = 0.025f;
 
     [Header("퍼냈을 때")]
-    [Tooltip("양동이 하나를 뱃전에 비우면 이만큼 줄어든다.")]
-    [SerializeField, Range(0f, 1f)] private float dumpAmount = 0.2f;
+    [Tooltip("양동이 하나를 뱃전에 비우면 이만큼 줄어든다.\n\n" +
+             "0.5 면 **두 번이면 끝**이다. 잘게 나눠도 화면에 게이지가 없으니\n" +
+             "'몇 번 더 해야 하나' 를 셀 방법이 없다. 두 번은 세지 않아도 안다.")]
+    [SerializeField, Range(0f, 1f)] private float dumpAmount = 0.5f;
 
     /// <summary>지금 찬 물의 양. 0 ~ 1</summary>
     public float Level01 { get; private set; }
@@ -85,6 +87,17 @@ public class ShipFlooding : MonoBehaviour
     }
 
     /// <summary>ShipCoopGame 이 항해 중일 때만 불러준다.</summary>
+    /// <summary>
+    /// **물이 찬 정도와 새는 곳 수를 밖에서 정해 준다.** 서버가 정한 값을 화면에 옮길 때만 쓴다.
+    ///
+    /// <c>Tick</c> · <c>Add</c> · <c>Dump</c> 는 스스로 계산하는 쪽이라 복제에 쓰면 두 번 센다.
+    /// </summary>
+    public void ShowState(float level01, int leakingPoints)
+    {
+        Level01 = Mathf.Clamp01(level01);
+        LeakingPoints = Mathf.Max(0, leakingPoints);
+    }
+
     public void Tick(float deltaTime)
     {
         LeakingPoints = CountLeakingPoints();

@@ -12,8 +12,10 @@ using UnityEngine;
 /// "적선 포격 → 갑판 파손 + 돛 손상" 이 만들어져 두 명이 동시에 필요해집니다.
 ///
 /// ⚠ 지금은 **대포가 쏜 것을 모두 명중으로 봅니다.**
-///    조준(오른손 스틱)이 판정에 들어가는 것은 적선을 실제 위치에 띄운 뒤입니다.
-///    지금 조준을 판정에 넣으면 큐브를 상대로 각도를 맞추는 이상한 작업이 됩니다.
+///    적선은 이제 우현 바다에 실제 위치가 있습니다 (<c>EnemyShipVisual</c> — 우리 배와 같은 모델, 검은 해골 돛).
+///    조준(오른손 스틱)을 판정에 넣는 것은 **다음 작업**입니다. 이 파일의 Hits 로직은 아직 그대로입니다.
+///
+/// ⚠ <c>Hits</c> 는 서버가 세고 <c>SyncExtra</c> 로 복제됩니다. 클라이언트의 적선 모양이 휘청 · 격파를 값으로 그립니다. (11장)
 /// </summary>
 public class EnemyShip : VoyageEvent
 {
@@ -26,6 +28,15 @@ public class EnemyShip : VoyageEvent
 
     /// <summary>격파까지 필요한 발수</summary>
     public int HitsToDestroy => hitsToDestroy;
+
+    /// <summary>복제할 값 — 맞힌 발수. 클라이언트의 <c>EnemyShipVisual</c> 이 휘청 · 격파를 이걸로 그린다.</summary>
+    public override int SyncExtra => Hits;
+
+    /// <summary>클라이언트 — 서버가 센 발수를 그대로 받는다. 판정은 하지 않는다.</summary>
+    public override void ShowExtra(int value)
+    {
+        Hits = value;
+    }
 
     /// <summary>격파 진행도 0 ~ 1</summary>
     public float Progress01 => Mathf.Clamp01((float)Hits / hitsToDestroy);
@@ -70,6 +81,7 @@ public class EnemyShip : VoyageEvent
     protected override void OnFail()
     {
         Unsubscribe();
+        Game?.ReportEnemyBreached();
     }
 
     protected override void OnCancel()
@@ -86,24 +98,14 @@ public class EnemyShip : VoyageEvent
         }
     }
 
-    /// <summary>HUD 문구. 지금 무엇이 모자란지 알려준다.</summary>
-    public override string LiveHint() => CannonHint();
-
-    /// <summary>HUD 문구</summary>
-    public string CannonHint()
-    {
-        if (_cannon == null)
-        {
-            return "대포가 없다";
-        }
-
-        if (_cannon.Ammo <= 0)
-        {
-            return $"포탄이 없다! 상자에서 날라라  ({Hits}/{hitsToDestroy} 맞힘)";
-        }
-
-        return $"대포로 쏴라  ({Hits}/{hitsToDestroy} 맞힘, 포탄 {_cannon.Ammo}/{_cannon.MaxAmmo})";
-    }
+    /// <summary>
+    /// HUD 둘째 줄. **적선에는 안 띄운다.**
+    ///
+    /// 예고 단계에서는 아직 <c>OnBegin</c> 이 돌기 전이라 대포를 잡아 두지 않았고,
+    /// 그래서 갑판에 대포가 멀쩡히 있는데도 "대포가 없다" 가 떴다.
+    /// 문구 자체를 뺀다 — 적선은 무슨 일인지(WarningLine)만 알려주면 충분하다.
+    /// </summary>
+    public override string LiveHint() => null;
 
     private static CannonTask FindCannon()
     {

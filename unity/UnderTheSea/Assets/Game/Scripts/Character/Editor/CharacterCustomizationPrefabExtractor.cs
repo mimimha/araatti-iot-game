@@ -34,11 +34,37 @@ namespace UnderTheSea.Character.Editor
 
         private static void ExtractIfMissing()
         {
+            // ⚠ 가상 플레이어(MPPM 클론)에서는 돌지 않는다.
+            //    클론은 Assets 를 심링크로 공유하는 별도 프로젝트이고 AssetDatabase 가
+            //    읽기 전용이라, 프리팹을 저장하려다 실패하면서
+            //    "Asset Database is set to Read Only" 가 쏟아지고 Fusion 설정까지 못 읽게 된다.
+            //    프리팹은 이미 저장소에 있으므로 클론은 읽기만 하면 된다.
+            //
+            //    ⚠ 메뉴(Rebuild Prefab)는 막지 않는다. 사람이 일부러 누른 것이다.
+            if (UnderTheSea.Editor.VirtualPlayer.IsClone) return;
+
             if (!File.Exists(PrefabPath)) Extract(false);
             else EnsureNicknameInPrefab();
             EnsureTestSceneUsesPrefab();
         }
 
+        /// <summary>
+        /// 프리팹이 갖춰야 할 UI 를 보장한다. **실제로 바뀐 것이 있을 때만 저장한다.**
+        ///
+        /// ⚠ <b>예전에는 조건 없이 저장했다.</b> 이 함수는 에디터를 열 때와 <b>Play 를 멈출
+        ///    때마다</b> 불리므로, 내용이 그대로여도 프리팹 파일이 계속 다시 쓰였다.
+        ///    그 쓰기가 Multiplayer Play Mode 가상 플레이어에게 에셋 갱신을 일으키고,
+        ///    거기 AssetDatabase 는 읽기 전용이라 이렇게 터진다.
+        ///
+        /// <code>
+        ///   Asset Database is set to Read Only, but it has found out-of-date assets.
+        ///      → 심하면 클론이 Fusion 설정을 못 읽어 세션 접속까지 실패한다.
+        /// </code>
+        ///
+        /// ⚠ <c>AssetDatabase.SaveAssets()</c> 는 뺐다. <c>SaveAsPrefabAsset</c> 이 이미 이
+        ///    프리팹을 디스크에 쓴다. 그 호출은 <b>다른 더러운 에셋까지</b> 함께 쓰기 때문에
+        ///    여기서 부를 이유가 없고, 가상 플레이어에게 보낼 갱신만 늘린다.
+        /// </summary>
         private static void EnsureNicknameInPrefab()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
@@ -48,9 +74,10 @@ namespace UnderTheSea.Character.Editor
             {
                 CharacterCustomizationController controller = root.GetComponentInChildren<CharacterCustomizationController>(true);
                 if (controller == null) return;
-                controller.EnsureReusableUiLayout();
+
+                if (!controller.EnsureReusableUiLayout()) return;
+
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-                AssetDatabase.SaveAssets();
                 Debug.Log("Nickname input and validation guide added to character customization prefab: " + PrefabPath);
             }
             finally

@@ -12,12 +12,17 @@ namespace Warriors
         public readonly float Travel;
         public readonly bool IsSuccessfulHit;
 
-        public WarriorsRhythmNoteView(WarriorsAttackDirection type, int playerIndex, float travel, bool isSuccessfulHit = false)
+        /// <summary>판정선을 놓쳤거나 틀린 공격으로 실패한 노트. 네트워크 3페이즈가 채운다. (기본 false)</summary>
+        public readonly bool IsMissed;
+
+        public WarriorsRhythmNoteView(
+            WarriorsAttackDirection type, int playerIndex, float travel, bool isSuccessfulHit = false, bool isMissed = false)
         {
             Type = type;
             PlayerIndex = playerIndex;
             Travel = travel;
             IsSuccessfulHit = isSuccessfulHit;
+            IsMissed = isMissed;
         }
     }
 

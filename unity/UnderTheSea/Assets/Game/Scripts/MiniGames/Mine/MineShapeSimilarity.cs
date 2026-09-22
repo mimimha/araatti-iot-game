@@ -73,6 +73,15 @@ public class MineShapeSimilarity : IMineSimilarity
 
         // ① 무게중심으로 대강 맞춘 뒤, 한 칸씩 흔들어 가장 잘 맞는 자리를 고른다.
         //    중심만 쓰면 엉뚱한 데 판 몇 칸 때문에 중심이 끌려갈 수 있다.
+        //
+        // ⚠ **이건 부분 탐색이다.** 무게중심 언저리 아홉 자리만 본다.
+        //   무게중심이 2칸 넘게 빗나가면 원점(0,0)이 후보에 아예 안 들어가서,
+        //   **안 미는 것보다 못한 자리를 고를 수 있다.** 실제로 그런 판이 나왔다 —
+        //   보정 없이 71.5% 인 판을 (1,0) 으로 밀어 70.9% 로 재는 경우.
+        //
+        //   지금은 maxAlign 이 0 이라 ClampShift 가 전부 (0,0) 으로 눌러서
+        //   이 문제가 잠들어 있다. **maxAlign 을 다시 켜려면 탐색 범위부터
+        //   maxAlign 전체로 넓혀야 한다.** (MINE.md 7장·12장)
         Vector2Int guess = ClampShift(Center(targetCells) - Center(dugCells));
 
         float best = -1f;

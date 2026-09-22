@@ -65,6 +65,39 @@ namespace UnderTheSea.Character
 
         public CharacterPartCatalog Catalog => catalog;
 
+        /// <summary>모델 전체가 감춰져 있는가. 두 이유 중 하나라도 걸리면 참이다.</summary>
+        public bool ModelHidden => modelHidden || presenceHidden;
+
+        /// <summary>
+        /// 모델 전체를 감추거나 보인다. <b>자리별 규칙과 한 곳에서 계산된다.</b>
+        ///
+        /// 바깥(<c>NetworkPlayerAppearance</c>)이 렌더러를 직접 만지지 않고 이걸 부르는 이유는,
+        /// "전체 감추기" 와 "자리별 감추기" 가 <b>같은 스위치</b>를 쓰기 때문이다.
+        /// 두 곳에서 따로 쓰면 서로를 덮는다.
+        /// </summary>
+        public void SetModelHidden(bool hidden)
+        {
+            modelHidden = hidden;
+            RefreshVisibility();
+        }
+
+        /// <summary>
+        /// <b>지금 이 자리에 있어도 되는 사람인가.</b> 아니면 감춘다.
+        ///
+        /// <see cref="SetModelHidden"/> 과 <b>이유가 다르다.</b> 저쪽은 "외형이 아직 안 왔다",
+        /// 이쪽은 "지금 네 차례가 아니다" 다. 광산에서 대기 중인 사람을 감출 때 쓴다.
+        ///
+        /// ⚠ <b>두 이유를 한 스위치에 담지 않는다.</b> 둘 다 <c>forceRenderingOff</c> 하나를
+        ///    쓰는데, 각자 <c>SetModelHidden</c> 을 부르면 <b>나중에 부른 쪽이 앞의 판단을
+        ///    지운다.</b> 외형이 도착하는 순간 대기 중인 사람이 도로 나타나는 식이다.
+        ///    그래서 이유를 따로 들고 있다가 <b>하나라도 걸리면 감춘다.</b>
+        /// </summary>
+        public void SetPresenceHidden(bool hidden)
+        {
+            presenceHidden = hidden;
+            RefreshVisibility();
+        }
+
         /// <summary>
         /// 지금 입고 있는 파츠의 키.
         ///
@@ -95,6 +128,17 @@ namespace UnderTheSea.Character
         private Material runtimeSkinMaterial;
         private Texture2D runtimeSkinTexture;
         private bool skinAssetsCached;
+
+        /// <summary>
+        /// 모델 전체가 감춰져 있는가. <b>자리별 규칙보다 이것이 먼저다.</b>
+        ///
+        /// 외형이 도착하기 전에 잠깐 기본 옷을 보여 주면 "옷이 바뀌는 버그" 처럼 보인다.
+        /// 그래서 준비되기 전에는 통째로 감춰 두고, 준비된 뒤에 자리별 규칙을 입힌다.
+        /// </summary>
+        private bool modelHidden;
+
+        /// <summary>"지금 차례가 아니라서" 감춘 상태인가. <see cref="modelHidden"/> 과 따로 센다.</summary>
+        private bool presenceHidden;
 
         // ------------------------------------------------------------
         // 스냅샷 적용 — 바깥에서 부르는 입구
@@ -373,17 +417,46 @@ namespace UnderTheSea.Character
         // ------------------------------------------------------------
 
         /// <summary>
-        /// 모델에 원래 들어 있는 메시 중 무엇을 그릴지 다시 정한다.
+        /// 무엇을 그릴지 다시 정한다. <b>이 컴포넌트가 가시성을 정하는 유일한 곳이다.</b>
         ///
-        /// ⚠ <b>이것이 없으면 파츠가 겹쳐 보인다.</b> 프리팹의 기본 메시(예: Outwear)가 켜진 채로
+        /// ⚠ <b>이것이 없으면 파츠가 겹쳐 보인다.</b> 프리팹의 기본 메시(예: Outwear)가 보이는 채로
         ///    그 위에 입은 상의가 덧그려져 서로 뚫고 나온다.
         ///
-        /// 규칙은 두 가지다.
-        ///   1. 몸 · 얼굴 · 상의 · 하의 · 신발은 **기본으로 보인다.** 단 그 자리를 덮는 파츠를 입으면 끈다
-        ///   2. 그 밖(머리 · 모자 · 안경 · 장갑 · 양말 · 귀 …)은 **고르기 전에는 비어 있다**
+        /// <b>순서가 규칙이다.</b>
+        /// <code>
+        ///   모델 전체가 감춰져 있으면   관련 렌더러 전부 감춘다. 자리별 규칙은 보지 않는다
+        ///   모델 전체가 보이면
+        ///       기본 슬롯 렌더러         그 자리를 덮는 파츠를 입었으면 감춘다
+        ///       빈 기본 슬롯 렌더러      프리팹 기본 메시가 그대로 보인다
+        ///       런타임 Equipped 파츠     보인다
+        /// </code>
+        ///
+        /// ⚠ <b><c>enabled</c> 가 아니라 <see cref="Renderer.forceRenderingOff"/> 를 쓴다.</b>
+        ///    <c>PeerMode.Multiple</c> 에서 Fusion 의 <c>RunnerVisibilityLink</c> 가
+        ///    <b><c>enabled</c> 를 자기 것으로 여긴다.</b> 스폰 순간의 값(= 파츠가 오기 전이라 전부 켜짐)을
+        ///    기억해 두었다가, <b>다른 NetworkObject 가 스폰될 때마다</b> 그 값으로 되돌려 놓는다.
+        ///    그래서 여기서 <c>enabled = false</c> 로 감추면 구멍 하나만 생겨도 기본 얼굴이 도로 나타난다.
+        ///    실측으로 확인했다 — 커마 얼굴 위에 프리팹 기본 얼굴이 겹쳐 보였다.
+        ///    <c>forceRenderingOff</c> 는 Fusion 이 건드리지 않으므로 우리 판단이 그대로 남는다.
         /// </summary>
         public void RefreshVisibility()
         {
+            // 1) 먼저 전체 규칙을 깐다. 감춰야 하면 여기서 끝난다.
+            foreach (Renderer draw in GetComponentsInChildren<Renderer>(true))
+            {
+                if (draw != null)
+                {
+                    draw.forceRenderingOff = ModelHidden;
+                }
+            }
+
+            if (ModelHidden)
+            {
+                return;
+            }
+
+            // 2) 보이는 상태에서만 자리별 규칙을 덧씌운다.
+            //    위에서 전부 false 로 깔았으므로, 런타임 Equipped 파츠는 그대로 보인다.
             WearSlot occupied = 0;
             foreach (CharacterPartCatalog.Entry entry in equippedParts.Values)
             {
@@ -397,13 +470,15 @@ namespace UnderTheSea.Character
                     continue;
                 }
 
-                bool core = binding.slot == WearSlot.Body
-                    || binding.slot == WearSlot.Face
-                    || binding.slot == WearSlot.Top
-                    || binding.slot == WearSlot.Bottom
-                    || binding.slot == WearSlot.Shoes;
-
-                binding.renderer.enabled = core && (occupied & binding.slot) == 0;
+                // ⚠ **허용 목록을 두지 않는다.** 예전에는 몸·얼굴·상의·하의·신발만
+                //    보이게 했는데, 세 캐릭터 프리팹(ShipCoopPlayer · NetworkPlayer ·
+                //    P_JaeYoung) 모두 **머리카락 · 귀 · 안경 · 얼굴장식까지 아홉 개**에
+                //    기본 메시가 들어 있다. 목록에 없던 넷은 파츠를 입었든 말든 늘 꺼져서,
+                //    커마를 안 거친 사람이 민머리에 귀도 안경도 없는 채로 나왔다.
+                //
+                //    규칙은 원래 이 한 줄이면 된다 — **그 자리를 파츠가 차지했을 때만 감춘다.**
+                //    메시가 없는 슬롯(모자 · 장갑 · 양말 등)은 켜 둬도 그릴 것이 없다.
+                binding.renderer.forceRenderingOff = (occupied & binding.slot) != 0;
             }
         }
 

@@ -38,12 +38,37 @@ namespace Warriors
         public event Action<bool, int> BattleFinished;
         private enum BattleState { Playing, Cleared, Failed }
 
-        private void OnEnable()
+        private void OnEnable() => ResetForNewMatch();
+
+        /// <summary>
+        /// <b>새 판을 위해 처음 값으로 돌린다.</b>
+        ///
+        /// 예전에는 <c>OnEnable</c> 안에만 있었다. 그런데 이 부품은 한 번 켜지면 계속 켜져
+        /// 있으므로, <b>한 판이 끝나면 다시 처음으로 돌아갈 방법이 없었다.</b>
+        ///
+        /// 1라운드 목표를 채우면 <see cref="Finish"/> 가 <c>state</c> 를 <c>Cleared</c> 로
+        /// 바꾸고, <see cref="IsRunning"/> 은 그때부터 영영 거짓이다. 그러면
+        /// <c>WarriorsEnemySpawner</c> 의 스폰 루프가 이 줄에서 계속 건너뛴다.
+        ///
+        /// <code>
+        ///     if (score != null &amp;&amp; !score.IsRunning) continue;
+        /// </code>
+        ///
+        /// 서버를 다시 띄우기 전까지 <b>두 번째 판부터는 몬스터가 한 마리도 나오지 않았다.</b>
+        /// 예외도 로그도 없이 조용히 그랬다. 실측으로 240초 동안 0마리였다.
+        ///
+        /// 그래서 판을 되돌리는 쪽(<c>WarriorsMatchState.ResetToWaiting</c>)이 부를 수 있게
+        /// 밖으로 꺼낸다. <c>OnEnable</c> 은 이제 이것을 부르기만 한다.
+        /// </summary>
+        public void ResetForNewMatch()
         {
             Kills = 0; Score = 0; scoreMultiplier = 1f; remainingSeconds = timeLimitSeconds; totalElapsedSeconds = 0f; state = BattleState.Playing; clockRunning = true;
             if (rhythmBattle == null) rhythmBattle = UnityEngine.Object.FindFirstObjectByType<WarriorsRhythmBattle>(FindObjectsInactive.Include);
         }
-        private void Update() { if (!Application.isPlaying || !clockRunning) return; totalElapsedSeconds += Time.deltaTime; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
+        private void Update() { if (!Application.isPlaying || !clockRunning) return;
+            // ⚠ 네트워크 Warriors 는 **시간 제한으로 지지 않는다.** 승패는 목표 수치로만 갈린다.
+            //    싱글 씬(Runner 없음)에서는 이 줄이 거짓이라 예전 그대로 시계가 돈다.
+            if (Warriors.Net.WarriorsNet.IsNetworked) return; totalElapsedSeconds += Time.deltaTime; remainingSeconds = Mathf.Max(0f, remainingSeconds - Time.deltaTime); if (remainingSeconds <= 0f) { clockRunning = false; state = BattleState.Failed; BattleFinished?.Invoke(false, Score); } }
         public void RegisterKill(int points) { if (!IsRunning) return; Kills++; Score += Mathf.RoundToInt(Mathf.Max(0, points) * scoreMultiplier); if (Kills >= targetKills) Finish(true); }
         public void RegisterBossHit(int points) { Score += Mathf.Max(0, points); }
         public void SetScoreMultiplier(float value) => scoreMultiplier = Mathf.Max(1f, value);

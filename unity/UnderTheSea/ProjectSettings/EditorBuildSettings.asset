@@ -26,5 +26,23 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Game/Scenes/Main/MiniGames/Warriors.unity
     guid: c5d9d2bc801680547b98675e05f1ca55
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/WarriorsBoot.unity
+    guid: 0e301d808658eea45b73adff8f4709c2
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity
+    guid: cf627a38332115240acb25b4e3950a6a
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity
+    guid: 9bf32db0f3cb26a47b4c7b14f5fda6be
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity
+    guid: ce15162c4adf5ea43be8d14523953b3d
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/MineBoot.unity
+    guid: 97d734dacf18e7a4f9078ca82dc16df6
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/MineNet.unity
+    guid: 1460c6c5f166d5b4197a0c8bc85f5d53
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
