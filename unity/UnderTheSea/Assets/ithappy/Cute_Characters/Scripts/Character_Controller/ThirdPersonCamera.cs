@@ -4,6 +4,12 @@ namespace ithappy.Cute_Characters.Controller
 {
     public class ThirdPersonCamera : PlayerCamera
     {
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 카메라가 <b>플레이어 발 높이 기준</b>으로 유지해야 하는 최소 높이(m).
+        /// 계산된 자리가 이보다 낮으면 리그를 그만큼 위로 올린다. <see cref="SetInput"/> 참고.
+        /// </summary>
+        private const float MIN_HEIGHT = 0.3f;
+
         [SerializeField, Range(0f, 2f)]
         private float m_Offset = 1.5f;
         [SerializeField, Range(0f, 360f)]
@@ -68,6 +74,22 @@ namespace ithappy.Cute_Characters.Controller
             var playerPos = (m_Player == null) ? Vector3.zero : m_Player.position;
             m_LookPoint = playerPos + m_Offset * Vector3.up;
             m_TargetPos = m_LookPoint + rot * dir;
+
+            // ⚠ 아라아띠 수정 — 올려다볼 때 카메라가 지면·수면 아래로 내려가는 것을 막는다.
+            //
+            // <b>각도는 깎지 않는다.</b> 카메라와 주시점을 같은 높이만큼 함께 올린다.
+            // 둘의 차(= 시선 벡터)가 그대로라 m_Angles 가 만든 시선 방향이 보존되고,
+            // 리그 전체가 평행이동할 뿐이다. 하늘은 원하는 만큼 보이면서 카메라만 발밑에 남는다.
+            //
+            // 각을 깎는 방식과의 차이: 깎으면 올려다보는 것 자체가 막히지만,
+            // 올리면 올려다보되 보는 지점이 플레이어 머리 위로 옮겨간다.
+            // 그래서 플레이어는 화면 아래쪽으로 내려간다 — 그것이 올려다보기의 대가다.
+            float lift = (playerPos.y + MIN_HEIGHT) - m_TargetPos.y;
+            if (lift > 0f)
+            {
+                m_TargetPos.y += lift;
+                m_LookPoint.y += lift;
+            }
         }
 
         private void Move(float deltaTime)

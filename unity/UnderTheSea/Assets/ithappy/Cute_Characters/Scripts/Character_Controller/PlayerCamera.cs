@@ -22,7 +22,13 @@ namespace ithappy.Cute_Characters.Controller
         [SerializeField, Range(0f, 1f)]
         private float m_SensetivityZoom = 0.1f;
 
-        [SerializeField, Range(0, 90f)]
+        // ⚠ 아라아띠 수정 — 하한을 음수까지 열었다. 이 카메라는 항상 주시점을 LookAt 하므로
+        // 하늘을 보려면 카메라가 주시점보다 아래로 내려가야 한다. 원본의 Range(0, 90) 은
+        // 인스펙터에서 0 미만을 넣을 수 없어 그 자체로 막혀 있었다.
+        //
+        // 이 값이 그대로 실제 하한이다. 지면을 뚫는 문제는 각도를 깎아서가 아니라
+        // ThirdPersonCamera 가 리그를 통째로 들어올려서 해결한다. (MIN_HEIGHT)
+        [SerializeField, Range(-90f, 90f)]
         private float m_MinAngle = 0f;
         [SerializeField, Range(0, 90f)]
         private float m_MaxAngle = 50f;
