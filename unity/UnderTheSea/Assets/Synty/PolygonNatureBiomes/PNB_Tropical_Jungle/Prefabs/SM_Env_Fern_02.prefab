@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1583923853860955276}
   - component: {fileID: 6026139503069549565}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Fern_02
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -73,7 +73,7 @@ GameObject:
   - component: {fileID: 5337999181447706205}
   - component: {fileID: 1123031125193674446}
   - component: {fileID: 3301717919832819855}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Fern_02_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -111,7 +111,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4348932186748038030}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -156,7 +156,7 @@ GameObject:
   - component: {fileID: 3410954753991971014}
   - component: {fileID: 819210252591499156}
   - component: {fileID: 1740576173854242637}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Fern_02_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -194,7 +194,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5838012549444954703}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -239,7 +239,7 @@ GameObject:
   - component: {fileID: 3441346582965831122}
   - component: {fileID: 973780234490828999}
   - component: {fileID: 8950126706769016395}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Fern_02_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -277,7 +277,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8275975070334852097}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
