@@ -64,11 +64,15 @@ namespace UnderTheSea.Network
         /// <summary>
         /// 9-slice 테두리를 몇 분의 1 로 그릴까.
         ///
-        /// ⚠ <b>이것이 없으면 말풍선이 거대해진다.</b> 말풍선 그림의 테두리는 107px 인데
-        ///    그대로 그리면 사방 107칸이 최소 크기가 되어, 글자가 한 자여도
-        ///    가로세로 214칸(약 2m)짜리 판이 뜬다. 실제로 그렇게 떴다.
+        /// ⚠ <b>말풍선의 최소 크기를 정하는 값이다.</b> 9-slice 는 테두리를 안 늘리므로
+        ///    사방 테두리를 더한 만큼이 최소 크기가 된다. 지금 그림(speech-bubble-body-v2)은
+        ///    좌우 54px · 위아래 45px 이라, 1 이면 글자가 한 자여도 108 x 90 칸짜리 판이 뜬다.
+        ///    1.35 로 나눠 80 x 66 칸으로 맞춰 두었다 — 짧은 말이 딱 붙게 나오는 크기다.
+        ///
+        ///    너무 키우면 반대로 테두리가 얇아져 모서리가 뭉개진다. 그림을 바꾸면
+        ///    <c>.meta</c> 의 <c>spriteBorder</c> 를 보고 이 값을 다시 잡는다.
         /// </summary>
-        [SerializeField, Min(1f)] private float bodyBorderShrink = 4f;
+        [SerializeField, Min(1f)] private float bodyBorderShrink = 1.35f;
 
         [SerializeField, Min(1f)] private float plateBorderShrink = 8f;
 
