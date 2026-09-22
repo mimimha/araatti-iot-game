@@ -807,41 +807,134 @@ F 를 골랐다면 **"가장 가까운 것 하나만 반응한다"** 를 코드�
 > HUD 이미지는 사용자가 따로 주신다고 하셨으므로, **디자인은 만들지 않습니다.**
 > 여기서는 **어떤 요소가 필요하고, 그것들이 코드와 어떻게 이어지는지**만 정합니다.
 
+> **[확정] 봉헌 HUD 간소화** (2026-09-21)
+>
+> 목업을 실제로 만들어 보니 한 화면에 정보가 너무 많았습니다. 봉헌 HUD 의 역할을
+> 다음 한 줄로 좁힙니다.
+>
+> ```text
+> 봉헌 HUD 는 제단의 전체 상태를 보여주는 정보 HUD 가 아니다.
+>
+> 플레이어가 봉헌할 수량을 선택하고
+> 등록 또는 취소하는 데 필요한 조작 UI 다.
+> ```
+>
+> ⚠ **화면에서 빠지는 것은 표시뿐입니다. 값과 규칙은 그대로입니다.** 보유 조각 ·
+> 누적 봉헌량 · 남은 칸(`remainingToTarget`) 은 여전히 조회하고, 여전히
+> `maxOfferAmount` 계산과 서버 검증의 재료입니다 (11.1절 · 8.6절).
+> 전체 누적 봉헌량은 13장의 섬 회복도 HUD 가 따로 보여 줍니다.
+
 ### 6.1 필요한 UI 요소와 대응하는 데이터
 
 | UI 요소 | 타입 | 값의 출처 | 비고 |
 |---|---|---|---|
-| 아이콘 | `Image` | `SeaHeartGem.png` | 이미 있는 에셋 |
-| 아이템명 | `TMP_Text` | 상수 `"바다의 심장 조각"` | |
-| 현재 보유 수량 | `TMP_Text` | `PlayerInventory.Get(sea_heart_fragment)` | **서버가 채운 캐시** |
-| 봉헌할 수량 | `TMP_Text` 또는 `TMP_InputField` | 로컬 UI 상태 | **범위는 `1 ~ maxOfferAmount`** |
+| 조각 장식 | `Image` | 민트색 바다의 심장 조각 이미지 | **장식이다.** 수량을 나타내지 않는다 |
 | `-` / `+` | `Button` | | `+` 는 `maxOfferAmount` 에서 멈춘다. 길게 누르면 가속 |
+| 선택 수량 | `TMP_Text` | 로컬 UI 상태 | **범위는 `1 ~ maxOfferAmount`.** 읽기 전용 (6.3절) |
 | `MAX` | `Button` | **`maxOfferAmount`** | ⚠ 보유량이 아니다. 11.1절 |
-| 봉헌 확인 | `Button` | | 요청 중 · `maxOfferAmount == 0` 이면 `interactable = false` |
-| 취소 | `Button` | | |
-| 오류 메시지 | `TMP_Text` | 서버 `code` + `message` (+ `remainingToTarget`) | 9.2절의 문구 조합 규칙 |
-| **남은 칸 안내** | `TMP_Text` | `remainingToTarget` | **`maxOfferAmount < 보유량` 일 때만 띄운다.** 아래 |
-| (전체 진행) | `Slider` / `TMP_Text` | `AltarState.TotalOffered / Target` | 선택 — 13장 HUD 와 겹칠 수 있다 |
+| `등록` | `Button` | | 요청 중 · `maxOfferAmount == 0` 이면 `interactable = false` |
+| `취소` | `Button` | | |
+| Toast | `TMP_Text` (평소 비활성) | 서버 `message` | **예외 상황에만 잠깐 뜬다.** 아래 |
 
-#### 남은 칸 안내 문구
-
-플레이어의 보유량보다 제단의 남은 칸이 적을 때만 보여 줍니다. 그때만 사용자가
-**"왜 내가 가진 만큼 못 고르지?"** 라고 느끼기 때문입니다.
+HUD 가 **직접 보여주지 않는 것**입니다. 값이 없어진 것이 아니라 **이 창이 안 그릴 뿐**입니다.
 
 ```text
-조건   maxOfferAmount < myFragments      (즉 remainingToTarget 이 병목일 때)
-문구   "섬 회복까지 {remainingToTarget}개만 더 필요합니다."
-
-예     보유 5, 남은 칸 1  →  "섬 회복까지 1개만 더 필요합니다."   MAX = 1
-       보유 5, 남은 칸 3  →  "섬 회복까지 3개만 더 필요합니다."   MAX = 3
-       보유 5, 남은 칸 9  →  (안내 없음)                          MAX = 5
+"바다의 심장 봉헌" 제목       아이콘과 맥락으로 충분하다
+누적 봉헌량 (999 / 1000)      13장 섬 회복도 HUD 가 보여 준다
+보유 조각                     maxOfferAmount 안에 이미 반영돼 있다
+"봉헌 수량" 라벨              [-] 수량 [+] 배치가 스스로 설명한다
+남은 칸 안내                  버튼이 막으므로 설명할 일이 없다 (아래)
+상시 오류 메시지 영역         필요할 때만 toast 로 띄운다 (아래)
 ```
 
-`maxOfferAmount == 0` 이면 안내를 회복 완료 문구로 바꾸고 봉헌 버튼을 잠급니다.
+#### UI 구조
 
 ```text
-"섬 회복이 완료되어 더 이상 봉헌할 수 없습니다."
+AltarOfferingUI
+└─ Panel
+   ├─ HeartFragmentDecoration
+   ├─ Controls
+   │  ├─ MinusButton
+   │  ├─ AmountValue
+   │  ├─ PlusButton
+   │  └─ MaxButton
+   ├─ ActionArea
+   │  ├─ RegisterButton
+   │  └─ CancelButton
+   └─ ToastMessage
 ```
+
+⚠ **이번 변경은 화면에 보이는 문구와 구성이지 코드 이름이 아닙니다.**
+`Offer` · `Offering` · `AltarOffering` 같은 내부 개념과 API 이름은 그대로 둡니다.
+이미 만들어 둔 `Assets/Game/Resources/AltarOfferingUI.prefab` 과
+`AltarOfferingUIController` 의 직렬화 필드도 이름을 바꾸지 않습니다.
+
+| 새 구조의 이름 | 기존 프리팹 / 필드 | 이번에 하는 일 |
+|---|---|---|
+| `HeartFragmentDecoration` | (신규 — 기존 조각 `Icon` 재사용 가능) | 민트색 조각 이미지를 상단에 둔다 |
+| `Controls` / `MinusButton` / `AmountValue` / `PlusButton` / `MaxButton` | 같은 이름으로 이미 있다 | 그대로 |
+| `ActionArea` / `RegisterButton` | `ActionArea` / `OfferButton` (`offerButton`) | **라벨만** `등록` 으로 |
+| `ActionArea` / `CancelButton` | `CloseButton` (`closeButton`) | **라벨만** `취소` 로 |
+| `ToastMessage` | `MessageArea` / `MessageText` (`messageText`) | 상시 표시 → **평소 비활성** |
+| (삭제) | `Title` · `TotalOfferedRow` · `OwnedFragmentsRow` · `AmountSection` | 프리팹에서 뺀다 |
+
+⚠ 프리팹에서 오브젝트를 빼고 스프라이트를 갈아 끼우는 일은 **Unity Editor 에서** 합니다
+(`CONVENTION.md` §8).
+
+⚠ **UI 에셋은 RectTransform 수치만 맞추지 말고 `spriteBorder` · Image Type ·
+Pixels Per Unit Multiplier · 투명 여백 · Raycast 영역까지 함께 확인합니다.**
+이전 봉헌 UI 작업에서 9-slice 모서리가 과하게 두꺼워지거나, 형제 버튼의 Raycast 영역이
+겹치거나, 투명 여백이 비대칭인 스프라이트를 RectTransform 중심만 보고 배치해
+시각적 중심이 어긋나는 문제가 있었습니다.
+
+#### 남은 칸은 안내하지 않고 버튼으로 막습니다
+
+`maxOfferAmount` 를 넘는 선택은 **애초에 불가능**하게 만듭니다.
+막혀 있는 것을 다시 글로 설명하지 않습니다.
+
+```text
+보유 10, 누적 999 / 1000  →  remainingToTarget = 1,  maxOfferAmount = 1
+
+  [+] 를 눌러도 1 에서 멈춘다
+  [MAX] → 1
+  안내 문구 없음
+```
+
+⚠ 예전 설계의 **"섬 회복까지 N개만 더 필요합니다."** 안내와 그 전용 `TMP_Text` 는
+**없앴습니다.** 다만 `remainingToTarget` **값 자체는 그대로 씁니다.**
+`maxOfferAmount = min(playerOwnedAmount, remainingToTarget)` 의 재료이고,
+서버 검증의 기준입니다 (11.1절 · 8.6절).
+
+```text
+남은 수량을 보여주는 UI    삭제
+남은 수량을 계산하는 로직   유지
+```
+
+#### Toast — 필요할 때만, 잠깐
+
+평소에는 **자리를 차지하지 않습니다.**
+
+```text
+기본값   ToastMessage.SetActive(false)
+띄울 때  문구를 채우고 켠다 → 몇 초 뒤 다시 끈다
+자리     봉헌 HUD 아래
+```
+
+**toast 는 수량 제한을 설명하는 용도가 아닙니다.** 정상적인 제한은 버튼이 막습니다.
+`maxOfferAmount = 1` 일 때 `"1개만 더 봉헌할 수 있습니다."` 같은 문구는 띄우지 않습니다.
+사용자가 **알아야 하는 예외**에만 씁니다.
+
+| 상황 | 계기 | 문구 |
+|---|---|---|
+| 창을 열었는데 보유 조각이 0 | 로컬 판정 | "보유한 조각이 없습니다." |
+| 창을 열었는데 이미 회복 완료 | 로컬 판정 (`altarActivated`) | "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다." |
+| 응답을 기다리는 중 | — | "봉헌하는 중..." ⚠ 결과가 덮어쓸 때까지 남긴다 |
+| 봉헌 성공 | — | "봉헌이 완료되었습니다." (`duplicate` 면 "이미 반영된 봉헌입니다.") |
+| 봉헌 실패 | `NOT_ENOUGH_FRAGMENTS` · `OFFERING_AMOUNT_CHANGED` · `OFFERING_CLOSED` | **서버 `message` 그대로** |
+| 그 밖의 오류 · 연결 실패 | `4xx` / `5xx` / `ConnectionError` | `HttpJson` 의 기존 문구 그대로 (15.2절) |
+
+⚠ **새 문구를 만들지 않습니다.** 서버가 이미 화면에 그대로 띄울 수 있는 한국어를 보냅니다
+(`CharacterEndpoints.cs:17`, 9.2절). toast 는 그 문구를 잠깐 보여 주는 그릇일 뿐입니다.
 
 ### 6.2 UI 를 어디에 두는가 — 씬에 올리지 않습니다
 
@@ -1056,7 +1149,7 @@ if (!ChatFocus.HeldByOther(this) && Keyboard.current.escapeKey.wasPressedThisFra
 
 ```text
 UI 를 열 때 조회한 995 / 1000 이
-[봉헌] 을 누르는 순간까지 그대로라는 보장이 없다.
+[등록] 을 누르는 순간까지 그대로라는 보장이 없다.
 그 사이 다른 플레이어가 봉헌할 수 있다.
 ```
 
@@ -1078,16 +1171,16 @@ UI 를 열 때 조회한 995 / 1000 이
 ```text
 서버가 OFFERING_AMOUNT_CHANGED 를 돌려준다 (응답에 최신 상태가 들어 있다)
   ↓
-보유량 · 전체 진행도 · maxOfferAmount 를 응답값으로 덮어쓴다
-  ↓
+보유량 · 전체 봉헌량 · maxOfferAmount 를 **내부 캐시에** 응답값으로 덮어쓴다
+  ↓                       ↑ 화면에 숫자로 그리지 않는다. 선택 범위가 이 값으로 좁혀진다
 선택 수량이 새 maxOfferAmount 보다 크면 그 값으로 낮춘다   (5 → 2)
   ↓
-"다른 플레이어가 먼저 봉헌했습니다. 섬 회복까지 2개 남았습니다." 를 띄운다
+서버 message 를 toast 로 잠깐 띄운다
   ↓
-봉헌 버튼을 다시 활성화한다
+등록 버튼을 다시 활성화한다
 ```
 
-⚠ **자동으로 다시 봉헌하지 않습니다.** 사용자가 바뀐 수량을 보고 스스로 `[봉헌]` 을
+⚠ **자동으로 다시 봉헌하지 않습니다.** 사용자가 바뀐 수량을 보고 스스로 `[등록]` 을
 다시 눌러야 합니다. 자동 재시도는 "내가 5개를 내려 했는데 2개가 나갔다" 와 같아지고,
 그건 10.3.2절에서 배제한 부분 수락과 결과가 같습니다.
 
@@ -1132,25 +1225,26 @@ if (LobbyTutorial.IsRunning) Hide();
       여기서 받은 값은 **스냅샷**이다 (6.4.2).
 
    [로딩]  불러오는 중...
+   선택 수량을 초기화한다 (maxOfferAmount > 0 이면 1, 아니면 0)
               ↓
 
 ③  ┌────────────────────────────────────┐        보유 5, 남은 칸 1 인 경우
-    │  🔷  바다의 심장 조각                │
-    │      보유량  5                      │        maxOfferAmount = min(5, 1) = 1
     │                                    │
-    │   봉헌 수량                          │        [+] 를 눌러도 1 에서 멈춘다
-    │   [ - ]    1    [ + ]  [MAX]        │        [MAX] 도 1 이다
+    │                🔷                  │        maxOfferAmount = min(5, 1) = 1
     │                                    │
-    │   섬 회복까지 1개만 더 필요합니다.      │        ← maxOfferAmount < 보유량일 때만
-    │                                    │
-    │        [ 봉헌 ]   [ 취소 ]           │        maxOfferAmount == 0 이면 잠긴다
+    │     [ - ]    1    [ + ]   [MAX]    │        [+] 를 눌러도 1 에서 멈춘다
+    │                                    │        [MAX] 도 1 이다
+    │        [ 등록 ]   [ 취소 ]           │        maxOfferAmount == 0 이면 [등록] 이 잠긴다
     └────────────────────────────────────┘
+              (toast 는 평소 비어 있다)
 
-              ↓ [봉헌]
+    ⚠ 보유량 5 도 999 / 1000 도 이 창에는 없다. 선택 범위로만 드러난다 (6.1절)
+
+              ↓ [등록]
 
 ④ 요청 중
-   · 봉헌 · 취소 · -/+/MAX 전부 interactable = false
-   · "봉헌하는 중..." 표시
+   · 등록 · 취소 · -/+/MAX 전부 interactable = false
+   · toast "봉헌하는 중..." (결과가 덮어쓸 때까지 남긴다)
    · requestId (Guid) 를 만들어 함께 보낸다 → 10.4
               ↓
         서버 응답 (성공이든 실패든 최신 상태가 함께 온다 — 9.2)
@@ -1159,23 +1253,22 @@ if (LobbyTutorial.IsRunning) Hide();
    ▼                                             ▼
 ⑤-성공  (요청한 수량이 그대로)              ⑤-실패  (아무것도 바뀌지 않았다)
 
- "1개를 봉헌했습니다"                        code 에 따라 문구를 띄운다
+ toast "봉헌이 완료되었습니다."              toast 로 서버 message 를 잠깐 띄운다
                                             · OFFERING_AMOUNT_CHANGED
- 보유량   5 → 4     (서버가 준 값)             "다른 플레이어가 먼저 봉헌했습니다.
- 전체   999 → 1000  (서버가 준 값)              섬 회복까지 2개 남았습니다."
- 섬 회복도 HUD 갱신                          · OFFERING_CLOSED
-                                              "섬 회복이 완료되어 더 이상
- ⚠ 부분 수락은 없다. 1개를 냈으면              봉헌할 수 없습니다."
-    정확히 1개가 나갔다.                     · NOT_ENOUGH_FRAGMENTS
-                                              서버 문구 그대로
+ 보유량   5 → 4     (서버가 준 값)             "다른 플레이어가 먼저 봉헌했습니다."
+ 전체   999 → 1000  (서버가 준 값)           · OFFERING_CLOSED
+ 섬 회복도 HUD 갱신 (13장)                     "섬 회복이 완료되어 더 이상
+                                               봉헌할 수 없습니다."
+ ⚠ 두 숫자는 내부 캐시와 13장 HUD 로         · NOT_ENOUGH_FRAGMENTS
+    가고 이 창에는 그리지 않는다 (6.1절)        서버 문구 그대로
 
-                                            보유량 · 전체 · maxOfferAmount 를
-                                            응답값으로 덮어쓴다
+ ⚠ 부분 수락은 없다. 1개를 냈으면            보유량 · 전체 · maxOfferAmount 를
+    정확히 1개가 나갔다.                     응답값으로 덮어쓴다 (내부 상태)
                                             선택 수량이 새 최대치보다 크면 낮춘다 (5 → 2)
                                             버튼 다시 활성화
                                             ⚠ UI 를 닫지 않는다
                                             ⚠ 자동으로 다시 봉헌하지 않는다.
-                                               사용자가 [봉헌] 을 다시 누른다
+                                               사용자가 [등록] 을 다시 누른다
 
               ↓ 봉헌이 성공했으므로 (amount 와 무관하게)
 
@@ -1188,7 +1281,7 @@ if (LobbyTutorial.IsRunning) Hide();
               ↓ 그 결과 totalOffered == targetOffering 이 되었다면
 
 ⑦ 회복 완료 상태로 들어간다
-   · altarActivated = true, recoveryPercent = 100, 봉헌 버튼 잠금 (11.3절)
+   · altarActivated = true, recoveryPercent = 100, [등록] 잠금 (11.3절)
    · ⚠ 완료 전용 VFX 는 없다. ⑥ 의 일반 pulse 1회로 끝이다
 ```
 
@@ -1675,28 +1768,25 @@ POST /api/altar/offer → 409
 ⚠ `duplicate: true` 는 "같은 `(user_id, requestId)` 를 다시 받아서 **아무것도 하지 않고**
 지금 상태를 돌려줬다" 는 뜻입니다. 클라이언트는 이걸 성공으로 다뤄야 합니다 (10.4절).
 
-#### 화면 문구는 클라이언트가 조합합니다
+#### 화면 문구는 서버 `message` 를 그대로 씁니다
 
 기존 서버 오류 규약은 `message` 를 **그대로 화면에 띄울 수 있는 한국어**로 보냅니다
-(`CharacterEndpoints.cs:17`). 그런데 이번 문구에는 **수량이 들어갑니다.**
-
-```text
-"다른 플레이어가 먼저 봉헌했습니다. 섬 회복까지 2개 남았습니다."
-                                    ↑ remainingToTarget
-```
-
-서버 `message` 에 숫자를 박아 넣으면 그 값이 응답의 `remainingToTarget` 과 어긋날 수
-있는 자리가 하나 더 생깁니다. 그래서 **서버는 앞 문장까지만 보내고, 클라이언트가
-`remainingToTarget` 으로 뒷 문장을 붙입니다.**
+(`CharacterEndpoints.cs:17`). 봉헌 HUD 도 그 규약을 그대로 따릅니다.
 
 ```csharp
 // AltarOfferingUIController
-string text = error.Code == "OFFERING_AMOUNT_CHANGED"
-    ? $"{error.Message} 섬 회복까지 {state.RemainingToTarget}개 남았습니다."
-    : error.Message;     // 다른 오류는 서버 문구를 그대로 쓴다 (기존 규약)
+ShowToast(error.Message);     // 서버 문구를 그대로 toast 에 띄운다 (6.1절)
 ```
 
-최종 사용자에게 보이는 문구는 11.3절의 세 가지로 통일합니다.
+⚠ **클라이언트가 숫자를 덧붙이지 않습니다.** 예전 설계는 `OFFERING_AMOUNT_CHANGED` 일 때
+`remainingToTarget` 으로 `"… 섬 회복까지 2개 남았습니다."` 를 조합했지만, 새 HUD 는
+**남은 칸을 사용자에게 알리지 않습니다** (6.1절).
+
+⚠ **서버 계약은 그대로입니다.** `message` 에 숫자를 박지 않는 것도, 응답이
+`remainingToTarget` 을 싣고 오는 것도 바뀌지 않습니다. 그 값은 화면 문구가 아니라
+`maxOfferAmount` 와 선택 범위를 맞추는 데 씁니다.
+
+최종 사용자에게 보이는 문구는 11.3절로 통일합니다.
 
 ### 9.3 Fusion RPC — 봉헌 성공 알림
 
@@ -1949,7 +2039,7 @@ await tx.CommitAsync(ct);
 2. **응답 계약이 단순해집니다.** 성공이면 요청한 수량 그대로, 실패면 아무 일도 없음.
    UI 가 "얼마가 나갔는지" 를 다시 계산할 필요가 없습니다.
 
-실패한 뒤에는 **최신 상태로 UI 를 맞추고, 사용자가 다시 `[봉헌]` 을 누릅니다.**
+실패한 뒤에는 **최신 상태로 UI 를 맞추고, 사용자가 다시 `[등록]` 을 누릅니다.**
 자동 재시도하지 않습니다 (12장 §7 UX 흐름).
 
 ⚠ **`altar_state` 는 행이 하나뿐이라 모든 봉헌이 그 한 행에서 직렬화됩니다.**
@@ -1961,7 +2051,7 @@ await tx.CommitAsync(ct);
 **클라이언트가 요청마다 Guid 를 만들고, 재전송할 때는 같은 값을 씁니다.**
 
 ```csharp
-// 봉헌 버튼을 누른 순간 한 번만 만든다. 재시도해도 이 값을 바꾸지 않는다.
+// [등록] 을 누른 순간 한 번만 만든다. 재시도해도 이 값을 바꾸지 않는다.
 _pendingRequestId = System.Guid.NewGuid().ToString();
 ```
 
@@ -2053,13 +2143,13 @@ X 에 대한 VFX 를 이미 발생시켰다          → 추가 발생 없음
 서버가 막아 주지만, 클라이언트도 막습니다. **서버 방어가 있어도 UI 는 응답해야 합니다.**
 
 ```text
-봉헌 버튼 누름 → 즉시 interactable = false
+[등록] 누름   → 즉시 interactable = false
                  requestId 생성 (이후 재시도해도 유지)
-                 "봉헌하는 중..." 표시
+                 toast "봉헌하는 중..." (결과가 덮어쓸 때까지 남긴다)
 
 응답 도착     → 버튼 다시 활성화
 타임아웃      → HttpJson.TimeoutSeconds 는 10초 (HttpJson.cs:56)
-                "서버가 응답하지 않습니다. 다시 시도해 주세요." + 버튼 활성화
+                toast "서버가 응답하지 않습니다. 다시 시도해 주세요." + 버튼 활성화
                 ⚠ 이때 requestId 를 새로 만들지 않는다.
                   타임아웃은 "서버가 처리했는데 응답만 유실" 일 수 있다.
                   같은 requestId 로 재시도하면 서버가 duplicate 로 안전하게 처리한다
@@ -2233,16 +2323,21 @@ float recoveryPercent   = state.TargetOffering <= 0
 
 #### 사용자에게 보이는 문구
 
+전부 **봉헌 HUD 아래 toast** 로만 나갑니다. 고정 문구 영역은 없습니다 (6.1절).
+
 ```text
-회복 완료 후 봉헌을 시도했을 때
+회복 완료 후 봉헌을 시도했을 때 (또는 창을 연 시점에 이미 완료였을 때)
   "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다."
 
-남은 칸보다 많이 고르려 할 때 (UI 가 미리 막는다)
-  "섬 회복까지 N개만 더 필요합니다."
-
 다른 플레이어가 먼저 봉헌해서 요청이 실패했을 때
-  "다른 플레이어가 먼저 봉헌했습니다. 섬 회복까지 N개 남았습니다."
+  "다른 플레이어가 먼저 봉헌했습니다."
+
+보유한 조각이 없을 때
+  "보유한 조각이 없습니다."
 ```
+
+**남은 칸보다 많이 고르려는 경우에는 문구가 없습니다.** `+` 와 `MAX` 가
+`maxOfferAmount` 에서 멈추므로 설명할 상황 자체가 생기지 않습니다 (6.1절).
 
 문구는 문서 전체에서 이 세 가지로 통일합니다. 9.2절·6.1절·15장이 같은 문장을 씁니다.
 
@@ -2253,8 +2348,13 @@ altarActivated == true 인 동안
   · 제단에 다가가도 [E] 조각 봉헌 안내를 띄우지 않는다
     (또는 "섬이 모두 회복되었습니다" 로 문구를 바꾼다 — 연출 선택)
   · 섬 회복도 HUD 는 100% 고정
-  · 혹시 UI 가 열려 있었다면 maxOfferAmount = 0 이므로 봉헌 버튼이 잠긴다
+  · 혹시 UI 가 열려 있었다면 maxOfferAmount = 0 이므로
+      [+] · [MAX] · [등록] 이 전부 잠긴다
 ```
+
+⚠ **HUD 안에 "더 이상 봉헌할 수 없습니다" 고정 영역을 만들지 않습니다.** 누를 수 없는
+상태는 **버튼 상태로 드러납니다.** 이미 열려 있던 창에서 서버 상태가 바뀌어 완료되는
+경우처럼 **설명이 필요한 순간에만** toast 로 한 번 알립니다 (6.1절).
 
 ⚠ **완료 상태에 묶인 Blue VFX 는 없습니다** (결정 #9). 마지막 1개를 봉헌한 그 순간에
 **그 봉헌이 성공했기 때문에** 일반 pulse 가 1회 나갈 뿐이고, 완료 전용 연출이 따로
@@ -3750,14 +3850,14 @@ Fusion 프리팹·리베이크를 건드릴 일이 그만큼 줄어듭니다.
 
 | 입력 | 클라이언트 | 서버 |
 |---|---|---|
-| `0` | `-` 버튼이 1 아래로 안 내려간다. 봉헌 버튼 비활성 | `400 AMOUNT_INVALID` |
+| `0` | `-` 버튼이 1 아래로 안 내려간다. 등록 버튼 비활성 | `400 AMOUNT_INVALID` |
 | 음수 | UI 상 불가능 | `400 AMOUNT_INVALID` |
 | 문자 | InputField 를 안 쓰면 불가능. 쓴다면 `contentType = IntegerNumber` | JSON 파싱 실패 → `400` |
 | 소수 | 위와 같음 | `int` 로 받으므로 파싱 실패 → `400` |
 | 보유량 초과 | `MAX` · `+` 가 `maxOfferAmount` 에서 멈춘다 | `409 NOT_ENOUGH_FRAGMENTS` (10.3.1 의 `WHERE quantity >= amount`) |
-| **남은 칸 초과** | `MAX` · `+` 가 `maxOfferAmount` 에서 멈춘다. "섬 회복까지 N개만 더 필요합니다." | `409 OFFERING_AMOUNT_CHANGED` — **전체 실패, 차감 0** (8.6.2) |
-| 보유량 0 | UI 를 열되 "보유한 조각이 없습니다" + 봉헌 버튼 비활성 | `409 NOT_ENOUGH_FRAGMENTS` |
-| **남은 칸 0 (회복 완료)** | 봉헌 버튼 비활성 + "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다." | `409 OFFERING_CLOSED` |
+| **남은 칸 초과** | `MAX` · `+` 가 `maxOfferAmount` 에서 멈춘다. **안내 문구 없음** (6.1절) | `409 OFFERING_AMOUNT_CHANGED` — **전체 실패, 차감 0** (8.6.2) |
+| 보유량 0 | UI 를 열되 toast "보유한 조각이 없습니다." + 등록 버튼 비활성 | `409 NOT_ENOUGH_FRAGMENTS` |
+| **남은 칸 0 (회복 완료)** | `+` · `MAX` · 등록 버튼 비활성. 설명이 필요하면 toast "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다." | `409 OFFERING_CLOSED` |
 | 빈 입력 | 기본값 1 (또는 마지막 값, `maxOfferAmount` 로 자름) | — |
 | 지나치게 큰 숫자 | `+` 가 `maxOfferAmount` 에서 멈춘다 | `int` 범위 초과 시 `400`. 남은 칸·보유량 검증이 또 걸러낸다 |
 
@@ -3768,15 +3868,15 @@ Fusion 프리팹·리베이크를 건드릴 일이 그만큼 줄어듭니다.
 
 | 상황 | 처리 |
 |---|---|
-| 봉헌 버튼 연속 클릭 | 첫 클릭에 `interactable = false`. 응답 전까지 잠금 (10.5) |
+| 등록 버튼 연속 클릭 | 첫 클릭에 `interactable = false`. 응답 전까지 잠금 (10.5) |
 | 같은 요청 중복 전송 | `requestId` UNIQUE → `duplicate: true` 로 **이전 결과 반환.** 두 번 안 깎인다 (10.4) |
 | 응답 전에 UI 재클릭 | 위와 같음 |
-| 네트워크 지연 | `HttpJson.TimeoutSeconds = 10` (`HttpJson.cs:56`). "봉헌하는 중..." 유지 |
+| 네트워크 지연 | `HttpJson.TimeoutSeconds = 10` (`HttpJson.cs:56`). toast "봉헌하는 중..." 유지 |
 | 서버 오류 (5xx) | `HttpJson` 이 `message` 를 꺼내거나 "요청을 처리하지 못했습니다. (HTTP 500)" (`HttpJson.cs:133-135`) |
 | 서버 연결 끊김 | `ConnectionError` → "서버에 연결할 수 없습니다..." (`HttpJson.cs:118-123`). **보유량을 건드리지 않는다** |
 | 응답 유실 (봉헌) | 같은 `requestId` 로 재시도 → 서버가 `duplicate` 로 안전 처리 (10.4) |
 | **응답 유실 (미니게임 보상)** | 같은 `matchKey` 로 1~2회 재시도. **응답 없음을 "보상 없음" 으로 읽지 않는다** (11.4.8) |
-| JWT 만료 (401) | 로그인 화면으로 보내지 말고 "로그인이 필요합니다" 표시 + UI 닫기. 재로그인은 별도 흐름 |
+| JWT 만료 (401) | 로그인 화면으로 보내지 말고 toast "로그인이 필요합니다" + UI 닫기. 재로그인은 별도 흐름 |
 
 ⚠ **실패했을 때 로컬 캐시를 지우지 않습니다.** `CharacterSessionCache.cs:21-24` 가
 같은 판단을 이미 적어 뒀습니다 — "실패했을 때 캐시를 지우면, 잠깐 서버가 죽은 것 때문에
@@ -3932,7 +4032,7 @@ Assets/Game/Scripts/Network/LocalPlayer.cs       그대로 쓴다
 | `HttpAltarService.cs` | `Lobby/` | HTTP 구현 | |
 | `FakeAltarService.cs` | `Lobby/` | 가짜 구현 | |
 | `AltarInteraction.cs` | `Lobby/` | 거리 판정 + 키 입력 + 안내 토글 | `MiniGamePortal` 패턴. **재사용 가능한 기존 클래스 없음** (5.1) |
-| `AltarOfferingUIController.cs` | `Lobby/` | 봉헌 UI 흐름 (수량 · 버튼 · 오류) | |
+| `AltarOfferingUIController.cs` | `Lobby/` | 봉헌 UI 흐름 (수량 · 버튼 · toast) | |
 | `AltarOfferingInstaller.cs` | `Lobby/` | UI 프리팹 설치 | `LobbyChatInstaller` 패턴 (6.2) |
 | `AltarOfferingRelay.cs` | `Lobby/` | 봉헌 성공 event 전달 + 상태 refresh 신호 (`NetworkBehaviour`) | `LobbyChatRelay` 패턴 (9.3). 받은 event 를 `AltarVfxController` 에 넘긴다 |
 | `AltarVfxController.cs` | `Lobby/` | 봉헌 성공 event 마다 Blue VFX one-shot 재생 | 네트워크와 연출 분리 (12.3). `AltarState.Changed` 를 트리거로 쓰지 않는다 |
@@ -4219,12 +4319,27 @@ Console 에 서버 값이 찍힌다. **컴파일 에러 0, 새 Console Error 0.*
 **확인할 파일** `UI/LobbyChatView.cs` (ChatFocus 연결 패턴)
 **신규 파일** `Lobby/AltarOfferingUIController.cs`, `Assets/Game/Resources/AltarOfferingUI.prefab`
 
+**⚠ 사용자 작업 (프리팹, Unity Editor)** — 6.1절의 구조를 따른다.
+
+```text
+배치하고 컨트롤러 슬롯에 연결한다
+  HeartFragmentDecoration
+  Controls / MinusButton · AmountValue · PlusButton · MaxButton
+  ActionArea / RegisterButton (라벨 "등록") · CancelButton (라벨 "취소")
+  ToastMessage                      ← 평소 SetActive(false)
+
+빼낸다
+  Title · TotalOfferedRow · OwnedFragmentsRow · AmountSection · 고정 MessageArea
+```
+
 **완료 조건**
 - `maxOfferAmount = min(playerOwnedAmount, remainingToTarget)` 를 넘는 선택이 **불가능하다**
   - 보유 5 · 남은 칸 1 → `MAX` 가 1, `[+]` 가 1 에서 멈춘다
-  - 안내 "섬 회복까지 1개만 더 필요합니다."
-- `maxOfferAmount == 0` 이면 봉헌 버튼이 잠긴다 (보유량 0 이거나 회복 완료)
-- 실패 응답을 받으면 보유량 · 전체 · `maxOfferAmount` 를 응답값으로 덮어쓰고,
+  - **안내 문구는 없다.** 버튼이 막는 것으로 끝이다 (6.1절)
+- `maxOfferAmount == 0` 이면 등록 버튼이 잠긴다 (보유량 0 이거나 회복 완료)
+- **HUD 에 누적 봉헌량 · 보유 조각이 그려지지 않는다.** 두 값은 내부 캐시로만 쓴다
+- **`ToastMessage` 는 평소 꺼져 있다.** 6.1절 표의 상황에만 켜졌다가 다시 꺼진다
+- 실패 응답을 받으면 보유량 · 전체 · `maxOfferAmount` 를 **내부 캐시에** 덮어쓰고,
   선택 수량이 새 최대치보다 크면 그 값으로 낮춘다 (5 → 2)
 - 실패 후 **자동으로 다시 봉헌하지 않는다**
 - 봉헌 중 버튼이 잠긴다
@@ -4871,7 +4986,7 @@ STEP 3 의 PowerShell 병렬 스크립트로 20건까지 부하를 올려 확인
 기대  maxOfferAmount = min(5, 1) = 1
       [+] 를 눌러도 값이 1 에서 증가하지 않는다
       [MAX] → 1
-      안내  "섬 회복까지 1개만 더 필요합니다."
+      ⚠ 안내 문구는 없다. toast 도 뜨지 않는다 (6.1절)
 ```
 
 #### 테스트 B — 정확히 목표 달성
@@ -5002,7 +5117,7 @@ A 성공 / B 실패(409)
 A 가 UI 를 연다        전체 995 / 1000  →  A 화면 maxOfferAmount = 5
 A 가 5 를 고른다       (아직 누르지 않았다)
 그 사이 B 가 3개 봉헌   전체 998 / 1000
-A 가 [봉헌] 을 누른다   amount = 5
+A 가 [등록] 을 누른다   amount = 5
 
 기대
   A 요청 전체 실패          ⚠ 2개만 받으면 실패다
@@ -5013,12 +5128,13 @@ A 가 [봉헌] 을 누른다   amount = 5
         remainingToTarget = 2, maxOfferAmount = 2
 
   A 화면
-    전체 진행도   995 → 998
     선택 수량      5 → 2
     최대 선택량    5 → 2
-    메시지 "다른 플레이어가 먼저 봉헌했습니다. 섬 회복까지 2개 남았습니다."
+    toast  "다른 플레이어가 먼저 봉헌했습니다."    ← 숫자를 덧붙이지 않는다 (9.2절)
 
-  ⚠ 자동으로 다시 봉헌되지 않는다. A 가 [봉헌] 을 다시 눌러야 한다.
+  ⚠ 전체 봉헌량 995 → 998 은 내부 캐시에 들어가고 13장 섬 회복도 HUD 에 반영된다.
+     봉헌 HUD 에는 그리지 않는다 (6.1절).
+  ⚠ 자동으로 다시 봉헌되지 않는다. A 가 [등록] 을 다시 눌러야 한다.
 ```
 
 #### 테스트 E — 목표 초과 요청 (조작된 클라이언트 / 낡은 UI)
@@ -5074,7 +5190,7 @@ API 를 직접 호출해 amount = 5 요청
 이미 전체 1000 / 1000
 새 클라이언트 접속
 → 섬 회복도 HUD 가 처음부터 100%
-→ 봉헌 안내가 뜨지 않거나 봉헌 버튼이 잠겨 있다 (altarActivated = true)
+→ 봉헌 안내가 뜨지 않거나 등록 버튼이 잠겨 있다 (altarActivated = true)
 → "0% 였다가 1초 뒤 100% 가 되는" 것도 실패다 (12.5 의 Apply() 즉시 호출)
 
 → ⚠ Blue VFX 는 재생되지 않는다 (결정 #9)
@@ -5097,7 +5213,10 @@ API 를 직접 호출해 amount = 5 요청
 ### 19.7 UI
 
 ```text
-maxOfferAmount 가 0 이면 봉헌 버튼이 잠겨 있다
+maxOfferAmount 가 0 이면 등록 버튼이 잠겨 있다
+창을 열었을 때 toast 가 보이지 않는다   ← 보유 조각이 있고 회복이 안 끝난 정상 상태
+누적 봉헌량 · 보유 조각이 창에 없다     ← 6.1절
+봉헌에 실패하면 toast 가 잠깐 떴다가 사라진다
 봉헌 UI 를 연 채 WASD → 캐릭터가 안 움직인다
 UI 를 닫고 WASD       → 움직인다
 봉헌 중 버튼 연타      → 요청이 1번만 나간다 (네트워크 로그로 확인)
@@ -5646,9 +5765,9 @@ A 가 클리어 → clear-reward 요청
      NOT_ENOUGH_FRAGMENTS / OFFERING_AMOUNT_CHANGED / OFFERING_CLOSED
      message 는 전부 한국어.
        OFFERING_AMOUNT_CHANGED  "다른 플레이어가 먼저 봉헌했습니다."
-                                 ⚠ 뒤에 붙는 "섬 회복까지 N개 남았습니다." 는
-                                   클라이언트가 remainingToTarget 으로 조합한다 (9.2절).
-                                   서버 message 에 숫자를 박지 마라.
+                                 ⚠ 서버 message 에 숫자를 박지 마라 (9.2절).
+                                   클라이언트는 이 문구를 그대로 toast 로 띄우고,
+                                   remainingToTarget 은 선택 범위를 맞추는 데만 쓴다.
        OFFERING_CLOSED          "섬 회복이 완료되어 더 이상 봉헌할 수 없습니다."
        NOT_ENOUGH_FRAGMENTS     실제 수치를 넣는다.
 
@@ -5803,12 +5922,18 @@ A 가 클리어 → clear-reward 요청
   Assets/Game/Scripts/Lobby/AltarOfferingUIController.cs
 
 UI 요소는 설계 문서 6.1절 표를 따른다.
+  ⚠ 봉헌 HUD 는 정보 HUD 가 아니라 조작 UI 다.
+    조각 장식 / [-] 수량 [+] [MAX] / [등록] [취소] / toast 가 전부다.
+    제목 · 누적 봉헌량 · 보유 조각 · "봉헌 수량" 라벨 · 남은 칸 안내 ·
+    고정 오류 메시지 영역은 만들지 않는다.
+    ⚠ 그린다고 값을 버리는 게 아니다. 누적 봉헌량과 보유 조각은 내부 캐시로 계속 쓴다.
+
 수량 입력은 - / + / MAX 버튼 + 읽기 전용 표시로 만든다 (6.3절의 이유).
   · 선택 범위는 1 ~ maxOfferAmount 다.
     maxOfferAmount = min(playerOwnedAmount, remainingToTarget)  ← 서버가 계산해서 준다
     ⚠ MAX 는 보유량이 아니라 maxOfferAmount 다. + 도 거기서 멈춘다.
-  · maxOfferAmount < 보유량이면 "섬 회복까지 {remainingToTarget}개만 더 필요합니다." 를 띄운다
-  · maxOfferAmount == 0 이면 봉헌 버튼을 잠근다
+  · 남은 칸이 병목이어도 안내 문구를 띄우지 않는다. 버튼이 막는 것으로 끝이다.
+  · maxOfferAmount == 0 이면 등록 버튼을 잠근다
   · + 를 길게 누르면 가속한다 (0.4초 후 초당 10 → 50)
 
 반드시 지킬 것
@@ -5819,25 +5944,29 @@ UI 요소는 설계 문서 6.1절 표를 따른다.
     PlayerInputProvider 는 고치지 않는다.
   · Esc 판정은 ChatFocus.Typing 이 아니라 ChatFocus.HeldByOther(this) 로 한다.
     제단 UI 자신이 보유자라서 Typing 은 언제나 참이다.
-  · 봉헌 버튼을 누르면 즉시 모든 버튼을 interactable = false.
+  · [등록] 을 누르면 즉시 모든 버튼을 interactable = false.
   · requestId 는 버튼을 누른 순간 한 번 만들고, 재시도해도 바꾸지 않는다.
   · 서버 응답의 remainingFragments / totalOffered 를 그대로 대입한다.
     ⚠ 로컬에서 빼거나 더하지 않는다. 한 줄도.
-  · 실패 응답의 message 를 오류 영역에 띄운다. 새로 문구를 만들지 않는다.
-    ⚠ 예외가 하나 있다. code == "OFFERING_AMOUNT_CHANGED" 일 때만
-      뒤에 "섬 회복까지 {remainingToTarget}개 남았습니다." 를 붙인다 (9.2절).
-      최종 문구: "다른 플레이어가 먼저 봉헌했습니다. 섬 회복까지 2개 남았습니다."
+  · 실패 응답의 message 를 toast 로 띄운다. 새로 문구를 만들지 않는다.
+    ⚠ 클라이언트가 숫자를 덧붙이지 않는다. 서버 문구 그대로다 (9.2절).
+      최종 문구: "다른 플레이어가 먼저 봉헌했습니다."
+  · toast 는 평소 SetActive(false) 다. 띄울 때만 켰다가 몇 초 뒤 끈다.
+    ⚠ 수량 제한을 설명하는 데 쓰지 않는다. 6.1절 표의 상황에만 쓴다.
   · 실패해도 UI 를 닫지 않는다.
   · 실패 응답에 최신 상태가 들어 있다. 그것으로 보유량 · 전체 · maxOfferAmount 를 덮어쓰고,
     선택 수량이 새 maxOfferAmount 보다 크면 그 값으로 낮춘다 (5 → 2).
+    ⚠ 화면에 숫자로 그리지는 않는다. 선택 범위를 좁히는 데 쓴다.
     ⚠ 여기서 GET /api/altar/state 를 다시 부르지 마라. 응답에 이미 다 있다.
-  · ⚠ 실패 후 자동으로 다시 봉헌하지 마라. 사용자가 [봉헌] 을 다시 눌러야 한다.
+  · ⚠ 실패 후 자동으로 다시 봉헌하지 마라. 사용자가 [등록] 을 다시 눌러야 한다.
     자동 재시도는 부분 수락과 결과가 같아진다 (10.3.2절).
   · Esc 는 ChatFocus.Typing 이 false 일 때만 읽는다 (채팅이 우선이다).
 
 하지 말 것
   · UI 프리팹의 최종 디자인을 만들지 않는다. 사용자가 HUD 이미지를 준다.
     코드가 기대하는 슬롯(필드) 목록만 정확히 알려준다.
+  · 내부 이름을 등록/취소로 바꾸지 않는다. Offer · Offering · AltarOffering 은 그대로다.
+    바뀌는 것은 사용자에게 보이는 버튼 라벨뿐이다.
   · 씬을 고치지 않는다.
 
 완료 조건
@@ -6112,6 +6241,12 @@ abuse 완화 (11.4.15)
 
 > **[확정] 보상 abuse 완화** (2026-09-20) — 결정 번호를 붙이지 않은 부속 정책입니다.
 > 동일 사용자의 성공 지급 후 **60초 쿨다운**만 적용하고, **일일 지급 상한은 쓰지 않습니다** (11.4.15).
+
+> **[확정] 봉헌 HUD 간소화** (2026-09-21) — 결정 번호를 붙이지 않은 부속 정책입니다.
+> 봉헌 HUD 는 **조각 장식 · `-` / 수량 / `+` / `MAX` · `등록` · `취소` · toast** 만 둡니다.
+> 제목 · 누적 봉헌량 · 보유 조각 · "봉헌 수량" 라벨 · 남은 칸 안내 · 고정 오류 영역을
+> 화면에서 뺐고, 버튼 문구를 `봉헌` → `등록`, `닫기` → `취소` 로 바꿨습니다.
+> **표시만 바뀌었고 데이터와 서버 규칙은 그대로입니다** (6.1절 · 11.3절).
 
 > **[결정 #9 — Blue VFX 정책]** (2026-09-20 확정. 기존 "1000 달성 시 지속 활성화" 를 폐기합니다)
 >
