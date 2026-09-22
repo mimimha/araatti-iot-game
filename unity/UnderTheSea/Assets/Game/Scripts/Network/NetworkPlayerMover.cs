@@ -31,6 +31,19 @@ public class NetworkPlayerMover : NetworkBehaviour
     [Tooltip("접지 상태를 유지하기 위해 매 tick 아래로 눌러 주는 힘. 경사면에서 튀지 않게 한다.")]
     [SerializeField] private float gravity = -20f;
 
+    [Header("바다 빠짐 구조")]
+    [Tooltip("이 높이보다 아래로 내려가면 마지막으로 안전하게 서 있던 자리로 되돌린다.\n\n" +
+             "로비 바다는 물이 아니라 아래로 계속 내려가는 지형이라, 한 번 걸어 들어가면 " +
+             "넓은 분지와 바위 절벽에 막혀 되돌아 나오지 못한다. 해안선 투명벽이 1차로 막지만 " +
+             "그래도 넘어간 경우를 위한 마지막 안전장치다.\n\n" +
+             "해수면은 y=0 이고, 물이 어깨까지 차기 전(대략 y=-1)까지는 걸어서 건널 수 있는 " +
+             "정상 구간이다. 거기보다 넉넉히 아래여야 개울을 건너다 잘못 끌려오지 않는다.")]
+    [SerializeField] private float rescueBelowY = -2.5f;
+
+    [Tooltip("안전한 자리로 기억할 최소 높이. 해수면(0) 보다 조금 위여야 " +
+             "물가에서 기억한 자리로 되돌렸다가 다시 빠지는 일이 없다.")]
+    [SerializeField] private float safeGroundMinY = 0.5f;
+
     [Header("점프")]
     [Tooltip("최고점 높이(m). 솟는 속도는 중력에서 거꾸로 계산한다.\n\n" +
              "속도를 직접 두지 않는 이유는 중력을 바꾸면 높이가 같이 변해서다. " +
@@ -44,6 +57,15 @@ public class NetworkPlayerMover : NetworkBehaviour
     ///    평범한 필드에 두면 되돌려 계산하는 사이에 값이 어긋난다.
     /// </summary>
     [Networked] private NetworkButtons PreviousButtons { get; set; }
+
+    /// <summary>
+    /// 마지막으로 **땅에 발을 붙이고 서 있던 안전한 자리.** 바다로 떨어지면 여기로 되돌린다.
+    ///
+    /// ⚠ <b>[Networked] 여야 한다.</b> <see cref="PreviousButtons"/> 와 같은 이유다.
+    ///    Fusion 은 같은 틱을 여러 번 굴리므로 평범한 필드에 두면 되돌려 계산하는 사이에
+    ///    값이 어긋나, 엉뚱한 자리로 되돌리게 된다.
+    /// </summary>
+    [Networked] private Vector3 SafePosition { get; set; }
 
     [Header("애니메이터")]
     [Tooltip("CharacterMover 가 쓰던 이름과 같아야 한다. 다르면 애니메이션이 재생되지 않는다.")]
@@ -110,6 +132,13 @@ public class NetworkPlayerMover : NetworkBehaviour
         if (!HasStateAuthority && controller != null)
         {
             controller.enabled = false;
+        }
+
+        // 스폰 지점은 언제나 안전한 자리다. 첫 구조 지점으로 삼는다.
+        // [Networked] 라 값을 정하는 것은 서버뿐이다.
+        if (HasStateAuthority)
+        {
+            SafePosition = transform.position;
         }
 
         lastLoggedPosition = transform.position;
@@ -193,8 +222,48 @@ public class NetworkPlayerMover : NetworkBehaviour
 
         controller.Move(velocity * Runner.DeltaTime);
 
+        UpdateSafePositionOrRescue();
+
         AnimAxis = axis;
         Running = running;
+    }
+
+    /// <summary>
+    /// 안전한 자리를 갱신하거나, 바다에 빠졌으면 거기로 되돌린다.
+    /// <b>서버에서만 부른다.</b> 위치를 정하는 것은 서버이기 때문이다.
+    ///
+    /// 로비 바다에는 물 콜라이더가 없어서 해변에서 걸어 들어가면 y=-9.8 까지 그냥
+    /// 걸어 내려간다. 분지가 넓고 바위 절벽에 막혀 되돌아 나오지 못한다.
+    /// 해안선 투명벽(<c>Tools/아라아띠/로비 해안선 투명벽 세우기</c>)이 1차로 막지만,
+    /// 벽에 틈이 있거나 밀려 넘어가는 경우를 위해 여기서 한 번 더 건진다.
+    /// </summary>
+    private void UpdateSafePositionOrRescue()
+    {
+        Vector3 now = transform.position;
+
+        // 바다 아래로 내려갔으면 마지막 안전한 자리로 되돌린다.
+        if (now.y < rescueBelowY)
+        {
+            // ⚠ CharacterController 는 활성화된 순간의 좌표를 내부에 따로 들고 있다.
+            //    transform 만 옮기면 다음 Move() 에서 원래 자리로 끌려 돌아간다.
+            //    껐다 켜야 지금 좌표를 다시 읽는다. Spawned() 와 같은 이유다.
+            controller.enabled = false;
+            transform.position = SafePosition;
+            controller.enabled = true;
+
+            // 떨어지며 붙은 속도를 지운다. 안 지우면 도착하자마자 땅으로 처박힌다.
+            verticalVelocity = 0f;
+
+            Debug.Log($"[구조] 바다에 빠져 {SafePosition.ToString("F2")} 로 되돌렸다.");
+            return;
+        }
+
+        // 땅에 발을 붙이고 해수면 위에 있을 때만 안전한 자리로 기억한다.
+        // 공중이나 물가에서 기억하면 되돌린 직후 다시 빠진다.
+        if (controller.isGrounded && now.y >= safeGroundMinY)
+        {
+            SafePosition = now;
+        }
     }
 
     /// <summary>
