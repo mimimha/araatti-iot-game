@@ -129,6 +129,15 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     /// </summary>
     private const int ReadTimeoutMs = 100;
 
+    /// <summary>
+    /// 쓰기가 걸려 있을 수 있는 최대 시간(ms).
+    ///
+    /// 진동 명령은 14바이트뿐이라 115200baud 에서 1.2ms 면 나간다. 그래도 무한 대기로
+    /// 두지 않는다. 쓰는 쪽은 <b>메인 스레드</b>라, 동글이 멈춰 출력 버퍼가 차면
+    /// 게임이 통째로 언다. 진동은 한 번 놓쳐도 되는 신호다.
+    /// </summary>
+    private const int WriteTimeoutMs = 20;
+
     [Header("시리얼 포트")]
     [Tooltip("동글이 잡힌 포트 이름. 장치 관리자에서 확인한다. 예: COM3")]
     [SerializeField] private string portName = "COM3";
@@ -171,6 +180,17 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "SetControlProfile 로 덮어쓸 수 있다.")]
     [SerializeField] private IotControlProfile controlProfile = IotControlProfile.Shared;
 
+    [Header("조타 (양손 휠)")]
+    [Tooltip("양손이 완드를 서로 마주 보게 잡는지.\n\n" +
+             "조타륜을 잡듯 손바닥을 마주 보게 쥐면 두 완드가 180도 돌아간 상태가 된다. " +
+             "휠을 한 방향으로 돌려도 각 완드가 재는 roll 은 **부호가 반대로** 나오고, " +
+             "ShipCoopInput.Steer 가 둘을 평균 내는 순간 서로 상쇄돼 조타가 죽는다.\n\n" +
+             "켜면 왼손 완드의 Tilt 부호를 뒤집어 둘을 같은 방향으로 맞춘다. " +
+             "두 완드를 같은 방향으로 쥐는 배치라면 끈다.\n\n" +
+             "⚠ 어느 쪽인지는 눈으로 알 수 없다. firmware/tools/steer_verify.ps1 로 " +
+             "실제로 돌려본 기록을 재생해서 정한다.")]
+    [SerializeField] private bool mirroredGrip = false;
+
     [Header("달리기")]
     [Tooltip("왼손 버튼 2 를 토글로 바꾼다. 한 번 눌러 켜고 다시 눌러 끈다.\n\n" +
              "기기에서 엄지는 스틱과 면버튼 중 하나만 잡는다. 누르고 있는 방식으로는 " +
@@ -202,7 +222,9 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "원본 줄 로그와 달리 동작이 있을 때만 찍어서 조용하다.")]
     [SerializeField] private bool logMotions = false;
 
-    [Tooltip("진동 호출을 찍는다. 역방향 프로토콜이 아직 없어서 실제로 울리지는 않는다.")]
+    [Tooltip("진동 호출을 찍는다. 완드로 'V,번호,세기,지속ms' 한 줄이 나간다.\n\n" +
+             "⚠ 아직 모터가 안 달려 있어 실제로 울리지는 않는다. 명령이 닿았는지는 " +
+             "동글 로그의 #ECHO 로 본다.")]
     [SerializeField] private bool logDeviceOutput = false;
 
     /// <summary>완드 4대분의 상태. 고유번호가 곧 첨자다.</summary>
@@ -361,6 +383,9 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
                 // ⚠ 무한 대기로 두면 포트를 닫을 때 읽기 스레드가 안 빠져나온다.
                 ReadTimeout = ReadTimeoutMs,
+
+                // ⚠ 메인 스레드에서 쓴다. 무한 대기로 두면 동글이 멈췄을 때 게임이 통째로 언다.
+                WriteTimeout = WriteTimeoutMs,
             };
 
             port.Open();
@@ -728,6 +753,28 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         }
 
         ApplySprintToggle();
+        ApplyGripMirror();
+    }
+
+    /// <summary>
+    /// 마주 잡기 보정을 **왼손 완드에만** 건다.
+    ///
+    /// 펌웨어는 자기가 어느 손인지 모릅니다. 완드는 중력으로 잰 roll 을 그대로 올릴 뿐이고,
+    /// 두 완드가 서로 마주 보게 쥐였는지는 손 배정을 아는 이 스크립트만 압니다.
+    /// 달리기 토글을 브리지에서 거는 것과 같은 이유입니다.
+    ///
+    /// 1대만 들었을 때는 걸지 않습니다. 상쇄될 짝이 없고,
+    /// <c>ShipCoopInput.Steer</c> 도 1대면 왼손 값을 그대로 씁니다.
+    /// 여기서 뒤집으면 혼자 들었을 때만 조타가 거꾸로 돕니다.
+    /// </summary>
+    private void ApplyGripMirror()
+    {
+        bool enabled = mirroredGrip && _hasTwoDevices;
+
+        for (int i = 0; i < _wands.Length; i++)
+        {
+            _wands[i].SetTiltMirrored(enabled && ReferenceEquals(_wands[i], _left));
+        }
     }
 
     /// <summary>
@@ -907,6 +954,9 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         /// <summary>토글이 켜져 있는지. 장치가 들고 있어야 하는 상태다. (IOT_INPUT.md 3장)</summary>
         private bool _sprintOn;
 
+        /// <summary>Tilt 부호를 뒤집어 내놓을지. 마주 잡기일 때 왼손에만 켜진다.</summary>
+        private bool _mirrorTilt;
+
         /// <summary>직전 줄의 동작 카운터. 늘어난 만큼이 동작 횟수다.</summary>
         private int _lastCounter;
 
@@ -937,7 +987,13 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
         public Vector2 Stick => _stick;
 
-        public float Tilt => _tilt;
+        /// <summary>
+        /// IMU roll. 마주 잡기로 배정된 손이면 부호를 뒤집어 내놓는다.
+        ///
+        /// 원값(<c>_tilt</c>)은 그대로 두고 **내놓을 때만** 뒤집는다.
+        /// 손 배정이 바뀌어도 받아둔 값을 다시 계산할 필요가 없다.
+        /// </summary>
+        public float Tilt => _mirrorTilt ? -_tilt : _tilt;
 
         public float Rotation => _rotation;
 
@@ -1134,6 +1190,17 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
             _useSprintToggle = enabled;
             _sprintOn = false;
+        }
+
+        /// <summary>
+        /// 이 완드의 Tilt 를 뒤집어 내놓을지 정한다. 마주 잡기의 왼손일 때만 켜진다.
+        ///
+        /// 상태가 아니라 해석 방식이라 <see cref="Clear"/> 가 건드리지 않는다.
+        /// 끊겼다 다시 붙어도 잡는 방식은 그대로다.
+        /// </summary>
+        internal void SetTiltMirrored(bool enabled)
+        {
+            _mirrorTilt = enabled;
         }
 
         /// <summary>
