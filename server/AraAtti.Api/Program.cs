@@ -169,6 +169,14 @@ app.MapAuthEndpoints();
 
 app.MapCharacterEndpoints();
 
+// ------------------------------------------------------------
+// 인벤토리 · 제단 조회 (로그인 필요)
+// ------------------------------------------------------------
+
+app.MapInventoryEndpoints();
+
+app.MapAltarEndpoints();
+
 app.Run();
 
 static async Task<IResult> CheckHealthAsync(AraAttiDbContext database, CancellationToken cancellationToken)

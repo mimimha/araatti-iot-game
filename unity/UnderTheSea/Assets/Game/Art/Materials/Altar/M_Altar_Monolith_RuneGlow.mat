@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_Altar_Monolith_RuneGlow
+  m_Shader: {fileID: 4800000, guid: 99a8430fe3717b940a571a7f76d4b7c9, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _RuneMask:
+        m_Texture: {fileID: 2800000, guid: 824cfe1f2bb7f14458827081923361f6, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _RuneFrontBoost: 1.35
+    - _RuneFrontWidth: 0.05
+    - _RuneGlowFeather: 0.07
+    - _RuneGlowMaxY: 7.591467
+    - _RuneGlowMinY: 2.320778
+    - _RuneGlowProgress: 0
+    m_Colors:
+    - _RuneGlowColor: {r: 0, g: 0, b: 0, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

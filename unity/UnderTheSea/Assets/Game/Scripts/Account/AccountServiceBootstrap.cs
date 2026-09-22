@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnderTheSea.Inventory;
+using UnderTheSea.Lobby;
 
 namespace UnderTheSea.Account
 {
@@ -62,11 +64,18 @@ namespace UnderTheSea.Account
             {
                 host.AddComponent<FakeAuthService>();
                 host.AddComponent<FakeCharacterService>();
+
+                // ⚠ 제단을 먼저 만든다. 가짜 인벤토리가 제단이 들고 있는 조각 수를 읽는다.
+                host.AddComponent<FakeAltarService>();
+                host.AddComponent<FakeInventoryService>();
             }
             else
             {
                 host.AddComponent<HttpAuthService>();
                 host.AddComponent<HttpCharacterService>();
+
+                host.AddComponent<HttpAltarService>();
+                host.AddComponent<HttpInventoryService>();
             }
         }
     }

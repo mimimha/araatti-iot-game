@@ -44,6 +44,15 @@ namespace UnderTheSea.Account
         public const string LogInPath = "/api/auth/login";
         public const string CharactersPath = "/api/characters";
 
+        /// <summary>내 인벤토리. 가진 것이 없으면 200 + 빈 배열이다 (404 아님).</summary>
+        public const string InventoryPath = "/api/inventory";
+
+        /// <summary>제단 상태. 파생값(남은 칸 · 최대 봉헌량 · 회복률)까지 서버가 계산해서 준다.</summary>
+        public const string AltarStatePath = "/api/altar/state";
+
+        /// <summary>봉헌. 409 실패에도 최신 상태가 함께 온다.</summary>
+        public const string AltarOfferPath = "/api/altar/offer";
+
         /// <summary>
         /// <b>지금 실제로 쓸 서버 주소.</b> 정하는 순서는 하나뿐이다.
         ///
