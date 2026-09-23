@@ -59,6 +59,10 @@ namespace Mine.Net
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 3f;
 
+        [Tooltip("접속한 사람의 '화면 준비' 알림을 이만큼(초) 기다린다. 넘기면 준비된 것으로 치고 경고를 남긴다.\n" +
+                 "알림이 끊겨도 판이 멈추지 않게 하는 안전장치다. 정상이면 1초 안에 온다.")]
+        [SerializeField, Min(1f)] private float readyTimeoutSeconds = 10f;
+
         [Tooltip("카운트다운이 켜질 때 판 위에 흩뿌릴 자리를 고르면서, 가장자리 몇 칸을 비울 것인가.\n" +
                  "0 이면 판 끝 칸까지 나온다. 테두리에 바짝 붙어 떨어지는 것을 막는 값이다.")]
         [SerializeField, Min(0)] private int spawnEdgeMargin = 2;
@@ -412,10 +416,16 @@ namespace Mine.Net
         ///
         /// <code>
         ///   인원 부족       기다린다. 들어온 순서대로 자리를 다시 나눈다
-        ///   인원이 모임     3초를 센다
+        ///   인원이 모임     모두의 화면이 준비될 때까지 기다린다
+        ///   모두 준비됨     3초를 센다
         ///   세는 중에 이탈  센 것을 버리고 다시 대기로 돌아간다
         ///   다 셈           참가자 목록을 굳히고 첫 턴을 연다
         /// </code>
+        ///
+        /// <b>인원과 준비를 따로 센다.</b> 인원(<see cref="Crew"/>)은 접속한 순간 늘지만
+        /// 그 사람의 화면은 아직 씬을 불러오는 중이다. 인원만 보고 세면 마지막 사람은
+        /// 3 을 못 본다. 그래서 세기 시작하는 것은 **준비된 사람**(<see cref="MineNetPlayer.SceneReady"/>)이
+        /// 다 찼을 때다. 취소는 그대로 인원으로 본다 — 나가면 준비도 같이 사라진다.
         /// </summary>
         private void UpdateStartGate()
         {
@@ -434,11 +444,27 @@ namespace Mine.Net
                     Countdown = 0f;
                 }
 
+                _readyLogged = -1;
                 return;
             }
 
             if (Phase == MineMatchPhase.Waiting)
             {
+                int ready = CountReadyCrew();
+
+                if (ready < required)
+                {
+                    if (ready != _readyLogged)
+                    {
+                        _readyLogged = ready;
+                        Debug.Log($"[MineMatch] {Crew}명이 모였습니다. 화면 준비 {ready}/{required} — 다 준비되면 셉니다.");
+                    }
+
+                    return;
+                }
+
+                _readyLogged = -1;
+
                 Phase = MineMatchPhase.Countdown;
                 Countdown = countdownSeconds;
 
@@ -447,7 +473,7 @@ namespace Mine.Net
                 //   그림이 된다. 나타나면서 흩어지는 것이 보여야 한다.
                 ScatterCrew();
 
-                Debug.Log($"[MineMatch] {Crew}명이 모였습니다. {countdownSeconds:F0}초 뒤 시작합니다.");
+                Debug.Log($"[MineMatch] {Crew}명이 모두 준비됐습니다. {countdownSeconds:F0}초 뒤 시작합니다.");
                 return;
             }
 
@@ -456,6 +482,26 @@ namespace Mine.Net
 
             Countdown = 0f;
             BeginMatch();
+        }
+
+        /// <summary>같은 준비 인원을 매 틱 다시 적지 않으려고 마지막에 남긴 값. 서버에서만 쓴다.</summary>
+        private int _readyLogged = -1;
+
+        /// <summary>
+        /// 화면이 준비된 사람 수. 알림이 <see cref="readyTimeoutSeconds"/> 안에 안 온 사람은
+        /// 준비된 것으로 치고 경고를 남긴다 (<see cref="MineNetPlayer.ServerReadyOrTimedOut"/>).
+        /// </summary>
+        private int CountReadyCrew()
+        {
+            int ready = 0;
+
+            foreach (MineNetPlayer one in FindObjectsByType<MineNetPlayer>(FindObjectsInactive.Include))
+            {
+                if (one == null || one.Object == null || !one.Object.IsValid) continue;
+                if (one.ServerReadyOrTimedOut(readyTimeoutSeconds)) ready++;
+            }
+
+            return ready;
         }
 
         /// <summary>
