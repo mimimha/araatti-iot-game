@@ -174,9 +174,10 @@ public class MineHud : MonoBehaviour
     // 필드를 직렬화하는 순간 프리팹의 임포트 결과에 값이 한 번 박히고 그 값이 이긴다.
     // 여기 적은 초기값을 고쳐도 프리팹을 다시 저장하지 않는 한 무시된다 —
     // 실제로 알파를 세 번 바꿨는데 화면은 계속 첫 값(검정 불투명)이었다.
-    private const float CenterNoticeFontSize = 90f;
+    private const float CenterNoticeFontSize = 45f;
+    private const float CenterNoticeFontSizeMin = 16f;
     private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
-    private static readonly Color CenterNoticeLabelColor = new Color(1f, 0.92f, 0.78f, 1f);
+    private static readonly Color CenterNoticeLabelColor = Color.white;
 
     /// <summary>
     /// 참가자 이름. 아직 로스터가 없어서 P1~P4 로 둔다.
@@ -652,11 +653,11 @@ public class MineHud : MonoBehaviour
         label.color = CenterNoticeLabelColor;
         label.raycastTarget = false;
 
-        // ⚠ **자동 크기로 둔다.** 한마디가 늘 짧지는 않다. "힌트타임" 은 90pt 로 크게
-        //   나오지만 "동료를 기다리는 중 (1 / 2)" 는 그 크기로 화면을 넘친다.
+        // ⚠ **자동 크기로 둔다.** 한마디가 늘 짧지는 않다. 45pt 가 기본이고, 화면이 좁아
+        //   "동료를 기다리는 중 (1 / 2)" 같은 긴 한마디가 넘치면 여기까지 줄어든다.
         //   좌우 여백은 글자가 화면 끝에 닿지 않게 하려는 것이다.
         label.enableAutoSizing = true;
-        label.fontSizeMin = 32f;
+        label.fontSizeMin = CenterNoticeFontSizeMin;
         label.fontSizeMax = CenterNoticeFontSize;
         label.fontSize = CenterNoticeFontSize;
         label.margin = new Vector4(80f, 0f, 80f, 0f);
