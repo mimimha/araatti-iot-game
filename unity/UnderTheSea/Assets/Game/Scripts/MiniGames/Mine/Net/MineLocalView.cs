@@ -400,7 +400,7 @@ namespace Mine.Net
             // 화면 한가운데 덮개에 띄울 한마디. **이 칸을 쓰는 곳이 둘이다.**
             //
             //   동료 기다리는 중  이 단계에는 화면에 아무 말도 없어서 멈춘 것처럼 보인다
-            //   힌트타임          남이 힌트를 보는 동안 관전자에게. 시점은 그대로 둔다
+            //   누군가 컨닝 중!   남이 힌트를 보는 동안 관전자에게. 시점은 그대로 둔다
             //
             // ⚠ 둘을 **한 자리에서** 정한다. 여기서 매 프레임 덮어쓰기 때문에, 다른 데서
             //   따로 넣으면 어느 쪽이 이길지 실행 순서에 달리게 된다.
@@ -408,7 +408,7 @@ namespace Mine.Net
             {
                 _hud.NetworkCenterNotice =
                     match.Phase == MineMatchPhase.Waiting ? match.WaitingLine
-                    : match.HintLeft > 0f && !showTarget ? "힌트타임"
+                    : match.HintLeft > 0f && !showTarget ? "누군가 컨닝 중!"
                     : string.Empty;
             }
 
