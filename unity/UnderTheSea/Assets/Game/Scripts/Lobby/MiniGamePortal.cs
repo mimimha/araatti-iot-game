@@ -84,6 +84,10 @@ public sealed class MiniGamePortal : MonoBehaviour
 
         if (!PlayerIsNear || entering) return;
 
+        // 도감 · 제단 창이 열려 있거나 채팅을 치는 중이면 들어가지 않는다.
+        // 그 화면들이 이동을 막을 때 거는 잠금을 그대로 본다.
+        if (ChatFocus.Typing) return;
+
         Keyboard keys = Keyboard.current;
         if (keys == null || !keys[interactKey].wasPressedThisFrame) return;
 
