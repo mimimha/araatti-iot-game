@@ -17,16 +17,20 @@ namespace Mine.Net
     /// (AUDIO.md 4.2). 그래서 <b>복제되는 값이 바뀐 순간</b>을 매 프레임 잡는다.
     ///
     /// <code>
-    ///   카운트다운 3·2·1  MineMatchState.Countdown 의 정수 초가 바뀜
+    ///   카운트다운 3·2·1  MineMatchState.Countdown 의 정수 초가 3 이 됨 — 한 번만 (아래)
     ///   시작              Phase 가 Countdown → Reveal (도안이 뜨는 순간)
     ///   턴 시작           Turn 중 CurrentSlot 이 바뀜 (첫 턴 포함)
-    ///   시간 경고         Turn 중 TurnTimeLeft 의 정수 초가 warnFromSeconds 이하에서 바뀜
+    ///   시간 경고         Turn 중 TurnTimeLeft 가 warnFromSeconds 이하인 동안 루프 (아래)
     ///   돌 금 · 깨짐      MineGrid.OnCellHit — 서버는 Hit, 클라이언트는 ShowCell 에서 똑같이 울린다
     ///   복구              RestoresLeft 가 줄어듦
     ///   힌트              HintLeft 가 0 에서 커짐
     ///   스팅어            ShowingMineResult 가 켜짐 · ResultSuccess 로 성공/실패
     ///   헛스윙            MineInputProvider.LocalSwing — 내 화면에서만 (아래)
     /// </code>
+    ///
+    /// <b>카운트다운과 시간 경고는 매초 틀지 않는다.</b> 받은 클립이 이미 여러 박을 담고 있다
+    /// (삑·삑·삑·삐— 한 벌, 째깍이 이어지는 7초). 매초 틀면 앞 소리 위에 겹겹이 쌓인다.
+    /// 그래서 카운트다운은 "3" 에서 한 번 틀어 박자를 그대로 흘려보내고, 시간 경고는 루프로 켰다가 끈다.
     ///
     /// <b>헛스윙은 로컬 사건이다.</b> 서버는 턴이 아닌 사람의 휘두름과 도안이 떠 있는 동안의 휘두름을
     /// 조용히 버리므로 복제되는 값이 없다. 누른 사람 본인만 들으면 되므로 입력 순간에 내 화면에서 바로 낸다.
@@ -77,7 +81,7 @@ namespace Mine.Net
         // ------------------------------------------------------------
 
         [Header("💥 효과음 — 판 진행")]
-        [Tooltip("시작 카운트다운 3 · 2 · 1.")]
+        [Tooltip("시작 카운트다운. \"3\" 이 되는 순간 한 번 튼다 — 3 · 2 · 1 박자가 담긴 클립 하나를 그대로 흘려보낸다.")]
         [SerializeField] private AudioClip countTick;
 
         [Tooltip("카운트다운이 끝나고 도안이 뜨는 순간.")]
@@ -86,10 +90,10 @@ namespace Mine.Net
         [Tooltip("누군가의 턴이 시작되는 순간. 첫 턴 포함.")]
         [SerializeField] private AudioClip turnStart;
 
-        [Tooltip("턴 시간이 얼마 안 남았을 때 초마다.")]
+        [Tooltip("턴 시간이 얼마 안 남았을 때 루프로 깔린다. 째깍이 이어지는 클립을 쓴다.")]
         [SerializeField] private AudioClip timeWarn;
 
-        [Tooltip("몇 초 남았을 때부터 경고음을 낼 것인가.")]
+        [Tooltip("몇 초 남았을 때부터 경고음을 켤 것인가.")]
         [SerializeField, Range(1, 10)] private int warnFromSeconds = 5;
 
         [Header("💥 효과음 — 채굴")]
@@ -132,6 +136,7 @@ namespace Mine.Net
 
         private AudioHub _hub;
         private AudioHub.LoopHandle _cave;
+        private AudioHub.LoopHandle _warn;
 
         private MineMatchState _match;
         private MineNetPlayer _me;
@@ -149,7 +154,6 @@ namespace Mine.Net
         private bool _phaseInit;
         private int _countdownSeen = -1;
         private int _slotSeen = -1;
-        private int _secondsSeen = -1;
         private int _restoresSeen = -1;
         private bool _hintSeen;
         private bool _stingerPlayed;
@@ -171,6 +175,10 @@ namespace Mine.Net
 
             // 이름은 "게임.용도" 로. 다른 미니게임의 루프와 겹치면 서로 클립을 빼앗는다.
             _cave = _hub.Loop("mine.cave", caveLoop, 1.2f);
+
+            // 짧게 페이드 — 켜는 순간 째깍이 바로 들려야 하고, 턴이 넘어가면 바로 멎어야 한다.
+            // 꺼졌다 다시 켜지면 클립 처음부터 튼다 (AudioSource.Stop → Play).
+            _warn = _hub.Loop("mine.warn", timeWarn, 0.1f);
         }
 
         private void OnEnable()
@@ -244,6 +252,7 @@ namespace Mine.Net
             {
                 // 네트워크 판이 아직 없거나(부트 중) 1인 검증 씬이다. 조용히 기다린다.
                 _cave.Target = 0f;
+                _warn.Target = 0f;
                 return;
             }
 
@@ -264,7 +273,10 @@ namespace Mine.Net
         // 판 진행
         // ------------------------------------------------------------
 
-        /// <summary>시작 카운트다운 3 · 2 · 1. 1초마다 한 번씩만 낸다.</summary>
+        /// <summary>
+        /// 시작 카운트다운. **"3" 이 되는 순간 한 번만** 낸다 — 클립 하나에 3 · 2 · 1 박자가 들어 있다.
+        /// 3 을 지나서 들어온 사람은 못 듣는다. 중간부터 박자가 어긋나게 트는 것보다 낫다.
+        /// </summary>
         private void WatchCountdown(MineMatchPhase phase)
         {
             if (phase != MineMatchPhase.Countdown)
@@ -277,7 +289,7 @@ namespace Mine.Net
             if (left == _countdownSeen) return;
 
             _countdownSeen = left;
-            if (left >= 1 && left <= 3) Play(countTick);
+            if (left == 3) Play(countTick);
         }
 
         /// <summary>카운트다운이 끝나 도안이 뜨는 순간.</summary>
@@ -304,7 +316,7 @@ namespace Mine.Net
             if (phase != MineMatchPhase.Turn)
             {
                 _slotSeen = -1;
-                _secondsSeen = -1;
+                _warn.Target = 0f;
                 return;
             }
 
@@ -313,15 +325,12 @@ namespace Mine.Net
             if (slot != _slotSeen)
             {
                 _slotSeen = slot;
-                _secondsSeen = -1;
                 Play(turnStart);
             }
 
-            int seconds = Mathf.CeilToInt(_match.TurnTimeLeft);
-            if (seconds == _secondsSeen) return;
-
-            _secondsSeen = seconds;
-            if (seconds >= 1 && seconds <= warnFromSeconds) Play(timeWarn);
+            // 목표만 정한다. 다음 턴이 열려 시간이 다시 차면 스스로 꺼진다.
+            float left = _match.TurnTimeLeft;
+            _warn.Target = left > 0f && left <= warnFromSeconds ? sfxLevel : 0f;
         }
 
         /// <summary>복구 블록이 하나 줄어든 순간. 새 판에서 다시 채워질 때는 조용히 따라간다.</summary>
