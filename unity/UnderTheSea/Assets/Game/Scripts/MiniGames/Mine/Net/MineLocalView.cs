@@ -133,6 +133,10 @@ namespace Mine.Net
 
             TransitionStatus.SetReady();
 
+            // 서버는 이 알림을 받은 사람만 "모였다" 로 센다. 그래야 카운트다운 3 을 모두가 본다.
+            // (MineNetPlayer.SceneReady · MineMatchState.UpdateStartGate)
+            if (_who != null) _who.RPC_ReportReady();
+
             Debug.Log("[MineLocalView] 준비가 끝나 화면을 넘깁니다.");
         }
 
