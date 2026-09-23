@@ -103,8 +103,10 @@ public class ShipCoopDevMode : MonoBehaviour
     [Header("표시")]
     [SerializeField] private int fontSize = 14;
 
-    [Tooltip("패널을 화면 어디에 둘지. F1 디버그 오버레이와 겹치지 않게 오른쪽에 둔다.")]
-    [SerializeField] private Vector2 panelOffset = new Vector2(-360f, 10f);
+    [Tooltip("기본 자리(HP 알약 바로 밑)에서 더 옮기고 싶을 때만 쓴다.\n\n" +
+             "HUD 기준(1920×1080) 픽셀이고, 화면 크기에 맞춰 같이 줄고 늘어난다.\n" +
+             "0, 0 이면 HP 알약 바로 밑에 붙는다.")]
+    [SerializeField] private Vector2 panelNudge = Vector2.zero;
 
     [Header("한 번에 바꾸는 양")]
     [Tooltip("진행도를 이만큼씩 옮긴다. (0 ~ 1)")]
@@ -396,6 +398,44 @@ public class ShipCoopDevMode : MonoBehaviour
 
     // ------------------------------------------------------------------ 화면
 
+    /// <summary>
+    /// 패널 왼쪽 위 모서리. **HP 알약 바로 밑**이다.
+    ///
+    /// 오른쪽 위에 있었는데 사건 카드가 그리로 오면서 겹쳤습니다. 왼쪽 위는 HP 알약
+    /// 한 줄뿐이라 그 밑이 통째로 비어 있고, 아래쪽은 항해 바가 화면 맨 밑에 붙어
+    /// 있어서 그 사이가 이 패널이 쓸 수 있는 가장 넓은 빈 자리입니다.
+    ///
+    /// ⚠ **HUD 는 캔버스 스케일러로 줄었다 늘었다 한다.**(1920×1080 기준, Match 0.5)
+    ///    이쪽은 IMGUI 라 화면 실제 픽셀을 쓰므로, 같은 배율을 직접 곱해야 화면
+    ///    크기가 달라져도 HP 알약 밑에 그대로 붙어 있습니다.
+    /// </summary>
+    private Vector2 PanelAnchor()
+    {
+        // ShipCoopHudV2Art 의 값. 왼쪽 여백 28, 위 여백 24, 알약 높이 90.
+        const float Margin = 28f;
+        const float TopMargin = 24f;
+        const float PillHeight = 90f;
+
+        float scale = HudScale();
+
+        return new Vector2(
+            (Margin + panelNudge.x) * scale,
+            (TopMargin + PillHeight + TopMargin + panelNudge.y) * scale);
+    }
+
+    /// <summary>
+    /// HUD 캔버스가 지금 몇 배로 그려지고 있는지. (ScaleWithScreenSize · 1920×1080 · Match 0.5)
+    ///
+    /// 유니티 CanvasScaler 가 쓰는 식 그대로입니다 — 가로 · 세로 배율을 로그로 섞습니다.
+    /// </summary>
+    private static float HudScale()
+    {
+        float logWidth = Mathf.Log(Screen.width / 1920f, 2f);
+        float logHeight = Mathf.Log(Screen.height / 1080f, 2f);
+
+        return Mathf.Pow(2f, Mathf.Lerp(logWidth, logHeight, 0.5f));
+    }
+
     private void OnGUI()
     {
         EnsureStyle();
@@ -404,8 +444,11 @@ public class ShipCoopDevMode : MonoBehaviour
         // 이게 없으면 "켜는 키가 뭐였지" 로 매번 돌아오게 된다.
         if (!IsOn)
         {
+            // 안내 줄도 패널과 **같은 자리**에 둔다. 오른쪽 위는 사건 카드 자리다.
+            Vector2 hint = PanelAnchor();
+
             GUI.color = new Color(1f, 1f, 1f, 0.35f);
-            GUI.Label(new Rect(Screen.width - 220f, 8f, 210f, 20f), "` 또는 F9 — 개발자 모드", _style);
+            GUI.Label(new Rect(hint.x, hint.y, 260f, 20f), "` 또는 F9 — 개발자 모드", _style);
             GUI.color = Color.white;
             return;
         }
@@ -420,10 +463,9 @@ public class ShipCoopDevMode : MonoBehaviour
         string text = _sb.ToString();
         Vector2 size = _style.CalcSize(new GUIContent(text));
 
-        // panelOffset 의 x 가 음수면 오른쪽 끝에서부터 잡는다.
-        float x = panelOffset.x < 0f ? Screen.width + panelOffset.x : panelOffset.x;
+        Vector2 at = PanelAnchor();
 
-        var box = new Rect(x, panelOffset.y, Mathf.Max(size.x + 16f, 340f), size.y + 16f);
+        var box = new Rect(at.x, at.y, Mathf.Max(size.x + 16f, 340f), size.y + 16f);
 
         GUI.color = new Color(0f, 0f, 0f, 0.75f);
         GUI.DrawTexture(box, Texture2D.whiteTexture);

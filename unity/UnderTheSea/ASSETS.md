@@ -29,6 +29,7 @@
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/`, 셰이더는 `Art/Shaders/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 · 판 테두리 화로(`Mine_BridgeProp`) | 효진 | 2026-09-18 |
 | Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
 | 광산 HUD 그림 12종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 · 채굴 결과 판(성공·실패) | 효진 | 2026-09-20 |
+| Fredoka | fonts.google.com/specimen/Fredoka | 무료 (SIL Open Font License 1.1) | `Assets/Game/Fonts/Fredoka-Bold.ttf` (Bold 굵기 한 벌만. 라이선스 전문은 같은 폴더 `Fredoka-OFL.txt`) | 배 협동 — 상호작용 링 안 키캡 글자(Space · K · J · L) 전용. 본문 글꼴은 NotoSansKR 그대로 | 민화 | 2026-09-22 |
 | Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
 | 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
@@ -40,7 +41,7 @@
 | Set Sail (Forgotten-Hero-Records) | pixabay.com/music/main-title-set-sail-350596/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmReady.mp3` | 배 협동 배경음악 — 대기 | 민화 | 2026-09-21 |
 | Pirate Tavern (Full Version!) (Magiksolo) | pixabay.com/music/main-title-pirate-tavern-full-version-167990/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmSailing.mp3` | 배 협동 배경음악 — 항해 | 민화 | 2026-09-21 |
 | Pirate Adventure Loop (Ebunny) | pixabay.com/music/orchestral-pirate-adventure-loop-557984/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmResult.mp3` | 배 협동 배경음악 — 결과 | 민화 | 2026-09-21 |
-| ~~Exploration Fantasy Free Pack~~ | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | ⛔ 2026-09-21 에 위 Pixabay 곡으로 교체. 저장소에서 제거 | (이전) 배 협동 배경음악 | 민화 | 2026-09-20 |
+| Exploration Fantasy Free Pack (Eugene Des) | Unity Asset Store | 무료 (Standard Unity Asset Store EULA) | `Assets/Audio/Music/Exploration Fantasy Free Pack/` (10곡 중 쓰는 2곡만 담음 — 나머지는 에셋 스토어에서 다시 받는다) | 로비 배경음악 — `6. The Tavern Keeper` · 게임 시작 ~ 채널 선택 배경음악 — `8. The Apothecary`. 배 협동은 2026-09-21 에 위 Pixabay 곡으로 갈아탔다 | 민화 | 2026-09-22 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
 > 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —
