@@ -225,8 +225,9 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
         bool warriors = controlProfile == KeyboardControlProfile.Warriors;
 
         // ⚠ 광산은 왼손 면버튼 2 가 **힌트**다. 배처럼 달리기 토글로 밀어 넣으면
-        //   Shift 를 누를 때마다 힌트가 나간다. 광산의 달리기는 이 부품을 안 거치고
-        //   MineMoveInput.runKey 가 따로 읽는다.
+        //   Shift 를 누를 때마다 힌트가 나간다. 광산의 달리기는 **오른손 면버튼 2**
+        //   이고, MineMoveInput 이 Right.Button2 로 이 부품을 거쳐 읽는다.
+        //   (IOT_INPUT.md 3장 — 배와 달리 토글이 아니라 누르고 있기)
         bool mine = controlProfile == KeyboardControlProfile.Mine;
 
         // 키보드로는 두 손을 따로 기울일 수 없다. 한 쌍을 양손이 함께 쓴다.
