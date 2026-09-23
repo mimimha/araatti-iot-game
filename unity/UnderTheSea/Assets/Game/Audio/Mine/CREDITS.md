@@ -31,7 +31,7 @@ Old Mine Ambience 를 `caveLoop` 로 같이 깔았는데, 동굴 울림만 두�
 | timeWarn | Clock Ticking | Universfield | https://pixabay.com/sound-effects/film-special-effects-clock-ticking-149907/ |
 | stoneCrack | Hit Rock 01 | u_xjrmmgxfru | https://pixabay.com/sound-effects/film-special-effects-hit-rock-01-266301/ |
 | stoneBreak | Hit Rock 03 | u_xjrmmgxfru | https://pixabay.com/sound-effects/film-special-effects-hit-rock-03-266305/ |
-| restorePlace | Appear Sound | freesound_gamestudio | https://pixabay.com/sound-effects/film-special-effects-appear-sound-384912/ |
+| restorePlace | UI Sound 01 | juniorsoundays | https://pixabay.com/sound-effects/film-special-effects-ui-sound-01-527815/ |
 | hintOpen | UI Sound 70 | juniorsoundays | https://pixabay.com/sound-effects/film-special-effects-ui-sound-70-527837/ |
 | swingMiss | Item swing SFX 2 | OxidVideos | https://pixabay.com/sound-effects/film-special-effects-item-swing-sfx-2-409076/ |
 
