@@ -1272,9 +1272,9 @@ HUD 가 매 프레임 값을 보고 바뀔 때만 다시 그립니다. 이미 �
 | 필드 | 언제 | 잡는 값 |
 | --- | --- | --- |
 | `bgmWaiting` | 대기 | `Phase == Waiting` |
-| `bgmPlaying` | 카운트다운 ~ 마지막 턴 | `Phase` 가 Countdown · Reveal · Turn |
+| `bgmPlaying` | 카운트다운 ~ 마지막 턴. 지금은 곡 대신 동굴 울림 녹음(Old Mine Ambience)을 쓴다 | `Phase` 가 Countdown · Reveal · Turn |
 | `stingerClear` · `stingerFail` | 성적표가 뜰 때 한 번 | `ShowingMineResult` 가 켜짐 · `ResultSuccess` |
-| `caveLoop` | 판이 끝날 때까지 | 루프 `mine.cave` |
+| `caveLoop` | 판이 끝날 때까지. 지금은 비어 있다 — 동굴 울림이 `bgmPlaying` 으로 옮겨 갔다 | 루프 `mine.cave` |
 | `countTick` | "3" 에서 한 번 (클립에 3 · 2 · 1 박자가 들어 있다) | `Countdown` 정수 초가 3 |
 | `countGo` | 도안이 뜨는 순간 | Countdown → Reveal |
 | `turnStart` | 턴 시작 (첫 턴 포함) | Turn 중 `CurrentSlot` 이 바뀜 |
