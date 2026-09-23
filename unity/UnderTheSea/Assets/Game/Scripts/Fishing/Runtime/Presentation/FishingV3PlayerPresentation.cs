@@ -51,9 +51,9 @@ namespace FishingMiniGame.Runtime
     }
 
     /// <summary>
-    /// Local-only V3 angler presentation. It reuses the NetworkPlayer hand anchor
-    /// and the existing V2 three-segment rod idea without touching network movement,
-    /// gameplay input, the player prefab, or the Animator controller.
+    /// V3 angler presentation. Local sessions read their facade; replicated remote
+    /// players can feed explicit presentation frames. Both paths reuse the player
+    /// hand anchor without touching movement, input, or the Animator controller.
     /// </summary>
     [DefaultExecutionOrder(-50)]
     [DisallowMultipleComponent]
@@ -142,6 +142,7 @@ namespace FishingMiniGame.Runtime
         private float _strugglePhaseSeconds;
         private float _strugglePhaseRadians;
         private int _struggleActivationCount;
+        private bool _externalPresentationDriven;
 
         public bool HasRodVisual => _rodRoot != null && _rodRoot.activeSelf;
         public bool IsFishingPoseActive => HasRodVisual;
@@ -166,6 +167,7 @@ namespace FishingMiniGame.Runtime
         public float StrugglePhaseRadians => _strugglePhaseRadians;
         public int StruggleActivationCount => _struggleActivationCount;
         public Transform StruggleTarget => _struggleTarget;
+        public bool IsExternalPresentationDriven => _externalPresentationDriven;
 
         private void Awake()
         {
@@ -174,6 +176,7 @@ namespace FishingMiniGame.Runtime
 
         private void Update()
         {
+            if (_externalPresentationDriven) return;
             RefreshLive(Time.unscaledDeltaTime);
         }
 
@@ -226,6 +229,16 @@ namespace FishingMiniGame.Runtime
             _targetAnchor = targetAnchor;
         }
 
+        /// <summary>
+        /// Configures this presenter for a replicated remote player. The caller
+        /// supplies semantic frames explicitly, so the local facade is not read.
+        /// </summary>
+        public void ConfigureRemotePlayer(Transform playerRoot, Transform targetAnchor)
+        {
+            _externalPresentationDriven = true;
+            ConfigureLocalPlayer(playerRoot, targetAnchor);
+        }
+
         public void RefreshNow()
         {
             RefreshLive(0f);
@@ -236,6 +249,35 @@ namespace FishingMiniGame.Runtime
             float deltaTime)
         {
             Refresh(frame, deltaTime);
+        }
+
+        public void StepRemotePresentation(
+            FishingV3RemotePresentationFrame frame,
+            float deltaTime)
+        {
+            _externalPresentationDriven = true;
+            StepPresentation(
+                new FishingV3PlayerPresentationFrame(
+                    frame.IsFishing,
+                    frame.IsPaused,
+                    frame.GameplayPhase,
+                    frame.Result,
+                    FishingV3NetworkPresentationState.RepresentativeTensionFor(
+                        frame.TensionZone),
+                    0,
+                    FishingV3TimingGrade.None,
+                    frame.TensionZone),
+                deltaTime);
+        }
+
+        public void ClearRemotePresentation()
+        {
+            StopStruggle(true);
+            CleanupRodVisual();
+            ReleaseOwnedHandAnchor();
+            ReleaseStruggleTarget();
+            _localPlayerRoot = null;
+            _targetAnchor = null;
         }
 
         public void CleanupForCaughtPresentation()

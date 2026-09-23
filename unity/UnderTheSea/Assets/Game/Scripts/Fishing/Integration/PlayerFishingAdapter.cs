@@ -26,7 +26,9 @@ namespace FishingMiniGame.Runtime
         private GameObject _localPlayerGameObject;
         private PlayerInputProvider _inputProvider;
         private PlayerInputProvider _lockedProvider;
+        private NetworkPlayerFishingPresentation _networkPresentation;
         private FishingGameController _fishingGameController;
+        private FishingMiniGameFacade _fishingFacade;
         private InputAction _interactAction;
         private FishingSpot _currentFishingSpot;
         private bool _interactSubscribed;
@@ -72,6 +74,7 @@ namespace FishingMiniGame.Runtime
 
             RefreshCurrentSpot();
             SynchronizeMovementLock();
+            PublishNetworkPresentation();
         }
 
         private void Update()
@@ -88,6 +91,7 @@ namespace FishingMiniGame.Runtime
 
             RefreshCurrentSpot();
             SynchronizeMovementLock();
+            PublishNetworkPresentation();
         }
 
         private void OnDisable()
@@ -135,6 +139,7 @@ namespace FishingMiniGame.Runtime
 
         private void HandleFishingSessionEnded()
         {
+            PublishNetworkPresentation();
             RestoreMovementLock();
         }
 
@@ -261,6 +266,12 @@ namespace FishingMiniGame.Runtime
 
             _localPlayer = player;
             _localPlayerGameObject = player.gameObject;
+            _networkPresentation = player.GetComponent<
+                NetworkPlayerFishingPresentation>();
+            if (_fishingFacade == null)
+            {
+                _fishingFacade = GetComponent<FishingMiniGameFacade>();
+            }
             ResolveFishVisualPresenter();
             ResolvePlayerPresentation();
             fishVisualPresenter?.ConfigureCaughtPresentation(
@@ -272,6 +283,7 @@ namespace FishingMiniGame.Runtime
                     : null);
             _inputProvider = null;
             TryBindInputProvider();
+            PublishNetworkPresentation();
         }
 
         private void TryBindInputProvider()
@@ -316,6 +328,7 @@ namespace FishingMiniGame.Runtime
                 fishingModeController.Bind(_currentFishingSpot);
                 bool requested = _currentFishingSpot.TryInteract(_localPlayerGameObject);
                 SynchronizeMovementLock();
+                PublishNetworkPresentation();
                 return requested;
             }
             finally
@@ -438,6 +451,25 @@ namespace FishingMiniGame.Runtime
             _ownsMovementLock = false;
         }
 
+        private void PublishNetworkPresentation()
+        {
+            if (_networkPresentation == null || _localPlayerGameObject == null)
+            {
+                return;
+            }
+
+            if (_fishingFacade == null)
+            {
+                _fishingFacade = GetComponent<FishingMiniGameFacade>();
+            }
+
+            bool ownsSession = IsOwnFishingSession();
+            _networkPresentation.PublishLocalSnapshot(
+                ownsSession,
+                ownsSession && fishingModeController.IsPaused,
+                _fishingFacade != null ? _fishingFacade.V3Current : null);
+        }
+
         private void ClearLocalPlayerBinding()
         {
             playerPresentation?.ConfigureLocalPlayer(null, null);
@@ -445,6 +477,7 @@ namespace FishingMiniGame.Runtime
             _localPlayer = null;
             _localPlayerGameObject = null;
             _inputProvider = null;
+            _networkPresentation = null;
         }
 
         private void Teardown()

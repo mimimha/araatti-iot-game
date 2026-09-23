@@ -2629,6 +2629,7 @@ GameObject:
   - component: {fileID: 9055123758217843492}
   - component: {fileID: 8340026935150668341}
   - component: {fileID: 8781997664107607958}
+  - component: {fileID: 7458302194861527801}
   m_Layer: 0
   m_Name: NetworkPlayer
   m_TagString: Untagged
@@ -2779,6 +2780,7 @@ MonoBehaviour:
   - {fileID: 3198784943384249776}
   - {fileID: 8340026935150668341}
   - {fileID: 8781997664107607958}
+  - {fileID: 7458302194861527801}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
 MonoBehaviour:
@@ -3001,6 +3003,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d060330750216c4b97a6f1b30b45871, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMatchRelay
+--- !u!114 &7458302194861527801
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4e981cc2c1b4fc2b8e89f77a4cd21e4, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FishingMiniGame.Runtime.NetworkPlayerFishingPresentation
+  remoteFishAnchorLocalPosition: {x: 0, y: -0.63, z: 2.4}
+  remoteFishAnchorLocalEulerAngles: {x: 0, y: 90, z: 0}
 --- !u!1 &6448122823236699881
 GameObject:
   m_ObjectHideFlags: 0
