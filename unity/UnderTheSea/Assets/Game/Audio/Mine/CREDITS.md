@@ -23,8 +23,8 @@ Old Mine Ambience 를 `caveLoop` 로 같이 깔았는데, 동굴 울림만 두�
 
 | 파일 | 원본 | 작성자 | 출처 |
 | --- | --- | --- | --- |
-| stingerClear | Reveal Stinger | Universfield | https://pixabay.com/sound-effects/film-special-effects-reveal-stinger-153300/ |
-| stingerFail | Creepy Piano Stinger | Universfield | https://pixabay.com/sound-effects/film-special-effects-creepy-piano-stinger-153296/ |
+| stingerClear | Great Success | freesound_gamestudio | https://pixabay.com/sound-effects/film-special-effects-great-success-384935/ |
+| stingerFail | Error Fail | freesound_gamestudio | https://pixabay.com/sound-effects/film-special-effects-error-fail-408419/ |
 | countTick | Race Start Beeps | transcendedlifting | https://pixabay.com/sound-effects/film-special-effects-race-start-beeps-125125/ |
 | countGo | Sacred Rune Lock 02 – Arcane Seal Activation | Coghezzi | https://pixabay.com/sound-effects/film-special-effects-sacred-rune-lock-02-arcane-seal-activation-536458/ |
 | turnStart | New Notification 040 | Universfield | https://pixabay.com/sound-effects/technology-new-notification-040-493469/ |
