@@ -68873,21 +68873,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineAudio
   bgmWaiting: {fileID: 8300000, guid: 2cf163d7c4eff534eb651ab0e66e900d, type: 3}
   bgmPlaying: {fileID: 8300000, guid: 452a988457062d541b58a3ddfaf15cd7, type: 3}
-  stingerClear: {fileID: 0}
-  stingerFail: {fileID: 0}
+  stingerClear: {fileID: 8300000, guid: 0e62e22bbb7f3194dbc842a4c87f3aaf, type: 3}
+  stingerFail: {fileID: 8300000, guid: 08842d378e0ec20488233ee5f63fe201, type: 3}
   crossfadeSeconds: 1.5
-  caveLoop: {fileID: 0}
+  caveLoop: {fileID: 8300000, guid: 5435ed431bd04bf45977e64a2ad98b91, type: 3}
   loopLevel: 0.45
-  countTick: {fileID: 0}
+  countTick: {fileID: 8300000, guid: d0384c2b399cc1543a6b0f9f168cf8dc, type: 3}
   countGo: {fileID: 0}
-  turnStart: {fileID: 0}
-  timeWarn: {fileID: 0}
+  turnStart: {fileID: 8300000, guid: 57b9b414a22645a4b84711c4d98faab2, type: 3}
+  timeWarn: {fileID: 8300000, guid: 707dce1c45c62464ebbca201e735fbfc, type: 3}
   warnFromSeconds: 5
-  stoneCrack: {fileID: 0}
-  stoneBreak: {fileID: 0}
-  restorePlace: {fileID: 0}
-  hintOpen: {fileID: 0}
-  swingMiss: {fileID: 0}
+  stoneCrack: {fileID: 8300000, guid: 3a7262a03494a4741966756321e3cba9, type: 3}
+  stoneBreak: {fileID: 8300000, guid: ee5f6a671cd13b748916f44d00cc1ccd, type: 3}
+  restorePlace: {fileID: 8300000, guid: 9d16c0d067b6d2748b626432f93ddd80, type: 3}
+  hintOpen: {fileID: 8300000, guid: b7324400804f1e24b8a4cbd84271c662, type: 3}
+  swingMiss: {fileID: 8300000, guid: dd29ff597ca7fca4ba1aeb8d55902616, type: 3}
   sfxLevel: 0.85
   stoneLevel: 0.8
   swingMissLevel: 0.5

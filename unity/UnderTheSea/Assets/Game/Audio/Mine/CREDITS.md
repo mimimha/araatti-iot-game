@@ -16,6 +16,24 @@
 같은 작곡가의 두 곡이라 대기 → 본편으로 넘어갈 때 톤이 이어진다. 카운트다운 "3" 에서 1.5초 교차하고,
 "채굴 종료" 에서 멈춘다 (`MineAudio`).
 
-## 효과음 · 루프
+## 스팅어 · 효과음 · 루프 (Pixabay, 무료 · Pixabay Content License)
 
-아직 없다. 필드 이름 목록은 `MINE.md` 10장 "소리" 절.
+받은 날: 2026-09-23. 필드 이름 목록은 `MINE.md` 10장 "소리" 절.
+
+| 파일 | 원본 | 작성자 | 출처 |
+| --- | --- | --- | --- |
+| stingerClear | Reveal Stinger | Universfield | https://pixabay.com/sound-effects/film-special-effects-reveal-stinger-153300/ |
+| stingerFail | Creepy Piano Stinger | Universfield | https://pixabay.com/sound-effects/film-special-effects-creepy-piano-stinger-153296/ |
+| caveLoop | Old Mine Ambience (10:03) | JoelFazhari | https://pixabay.com/sound-effects/film-special-effects-old-mine-ambience-200677/ |
+| countTick | Race Start Beeps | transcendedlifting | https://pixabay.com/sound-effects/film-special-effects-race-start-beeps-125125/ |
+| turnStart | New Notification 040 | Universfield | https://pixabay.com/sound-effects/technology-new-notification-040-493469/ |
+| timeWarn | Clock Ticking | Universfield | https://pixabay.com/sound-effects/film-special-effects-clock-ticking-149907/ |
+| stoneCrack | Hit Rock 01 | u_xjrmmgxfru | https://pixabay.com/sound-effects/film-special-effects-hit-rock-01-266301/ |
+| stoneBreak | Hit Rock 03 | u_xjrmmgxfru | https://pixabay.com/sound-effects/film-special-effects-hit-rock-03-266305/ |
+| restorePlace | Appear Sound | freesound_gamestudio | https://pixabay.com/sound-effects/film-special-effects-appear-sound-384912/ |
+| hintOpen | Sacred Rune Lock 02 – Arcane Seal Activation | Coghezzi | https://pixabay.com/sound-effects/film-special-effects-sacred-rune-lock-02-arcane-seal-activation-536458/ |
+| swingMiss | Item swing SFX 2 | OxidVideos | https://pixabay.com/sound-effects/film-special-effects-item-swing-sfx-2-409076/ |
+
+`countGo` 는 비워 두었다. 카운트다운 마지막 "1" 과 겹쳐 들려서다.
+
+`caveLoop` 는 10분짜리라 Load Type 을 `Streaming` 으로 둔다. 통째로 풀면 메모리를 100MB 가까이 쓴다.
