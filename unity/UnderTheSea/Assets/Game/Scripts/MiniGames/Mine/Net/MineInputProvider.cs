@@ -34,6 +34,16 @@ namespace Mine.Net
 
         private bool _reported;
 
+        /// <summary>직전에 휘두름 키가 눌려 있었는가. 여기서 "새로 눌린 순간" 을 만든다.</summary>
+        private bool _swingHeld;
+
+        /// <summary>
+        /// 이 PC 의 사람이 방금 휘두름 키를 눌렀다. 서버 판정과 무관한 **입력 순간**의 신호다.
+        /// 헛스윙 소리가 쓴다(<see cref="MineAudio"/>) — 서버는 턴이 아닌 사람의 휘두름을 조용히 버리므로
+        /// 복제되는 값으로는 이 순간을 알 수 없다.
+        /// </summary>
+        public static event Action LocalSwing;
+
         public void OnInput(NetworkRunner runner, NetworkInput input)
         {
             // 입력이 안 먹을 때 원인을 바로 가리도록 한 번만 남긴다.
@@ -55,6 +65,10 @@ namespace Mine.Net
             //    Lobby · ShipCoop · Warriors 가 모두 이 경로로 수동 QA 를 통과했으므로
             //    광산도 같은 길을 쓴다. `Keyboard.current` 는 창이 없으면 null 이다.
             Keyboard keys = Keyboard.current;
+
+            bool swing = keys != null && Application.isFocused && keys.spaceKey.isPressed;
+            if (swing && !_swingHeld) LocalSwing?.Invoke();
+            _swingHeld = swing;
 
             if (keys != null && Application.isFocused)
             {
