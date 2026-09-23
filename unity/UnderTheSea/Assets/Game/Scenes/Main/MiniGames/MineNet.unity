@@ -68871,8 +68871,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6028b5108557c834197db5045b8ddf58, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineAudio
-  bgmWaiting: {fileID: 0}
-  bgmPlaying: {fileID: 0}
+  bgmWaiting: {fileID: 8300000, guid: 2cf163d7c4eff534eb651ab0e66e900d, type: 3}
+  bgmPlaying: {fileID: 8300000, guid: 452a988457062d541b58a3ddfaf15cd7, type: 3}
   stingerClear: {fileID: 0}
   stingerFail: {fileID: 0}
   crossfadeSeconds: 1.5
