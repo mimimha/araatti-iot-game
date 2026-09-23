@@ -1,0 +1,279 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &577202240
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 577202245}
+  - component: {fileID: 577202244}
+  - component: {fileID: 577202243}
+  - component: {fileID: 577202242}
+  - component: {fileID: 577202241}
+  - component: {fileID: 577202246}
+  - component: {fileID: 577202251}
+  - component: {fileID: 577202249}
+  - component: {fileID: 577202250}
+  m_Layer: 0
+  m_Name: FishingLobbyIntegration
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &577202245
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1603581097}
+  - {fileID: 577202248}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &577202244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d17f1ef9ffe8f1441a2f756f4a8fb73d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingGameController
+  config: {fileID: 0}
+  autoStartRound: 0
+  logStateChanges: 1
+--- !u!114 &577202243
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e34a1f46eb47104eaa99b62b5c7d875, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingMiniGameFacade
+  controller: {fileID: 577202244}
+--- !u!114 &577202242
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 982cb4bd41e34ed68c9115cebc2f929f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingModeController
+  facade: {fileID: 577202243}
+  fishingSpot: {fileID: 0}
+  initialFishState: 1
+  fishProfileSelectionMode: 0
+  fishProfileSelectionSeed: 731
+--- !u!114 &577202241
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3f1c2d870f14a03bf7623a4096a6bb1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FishingMiniGame.Runtime.PlayerFishingAdapter
+  fishingModeController: {fileID: 577202242}
+  fishVisualPresenter: {fileID: 577202246}
+  playerPresentation: {fileID: 577202251}
+  fishingSpots: []
+  interactionDistance: 3
+  ignoreHeight: 1
+--- !u!114 &577202246
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a6c1d2e3b748f9a0c1d2e3f4a5b6c7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingV3FishVisualPresenter
+  facade: {fileID: 577202243}
+  modeController: {fileID: 577202242}
+  fishingSpot: {fileID: 0}
+  visualSet: {fileID: 11400000, guid: 51cc3010c0f9c544f830414aefce1c0e, type: 2}
+  presentationAnchor: {fileID: 577202248}
+  spotLocalPosition: {x: 0, y: -0.55, z: 3}
+  spotLocalEulerAngles: {x: 0, y: 90, z: 0}
+  visualScale: {x: 1, y: 1, z: 1}
+  caughtLiftSeconds: 0.7
+  caughtHoldSeconds: 1.05
+  caughtArcHeight: 0.6
+  caughtLocalPosition: {x: 0, y: 0, z: 0}
+  caughtLocalEulerAngles: {x: 0, y: 0, z: 0}
+  caughtSmallScale: 0.55
+  caughtNormalScale: 0.7
+  caughtStrongScale: 0.85
+  fallbackAnchorLocalPosition: {x: 0.35, y: 1.15, z: 0.3}
+  fallbackAnchorLocalEulerAngles: {x: 0, y: 90, z: 0}
+  lineBrokenMotionSeconds: 0.42
+  fishEscapedMotionSeconds: 0.7
+  lineBrokenLocalTravel: {x: 0.8, y: 0.35, z: 1.75}
+  fishEscapedLocalTravel: {x: -0.55, y: -0.55, z: 2.6}
+  lineBrokenRotationDegrees: {x: 10, y: 45, z: -35}
+  fishEscapedRotationDegrees: {x: -12, y: -20, z: 8}
+--- !u!114 &577202251
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 688c79d51cf84c398413c153339c720a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingV3PlayerPresentation
+  facade: {fileID: 577202243}
+  modeController: {fileID: 577202242}
+  fishVisualPresenter: {fileID: 577202246}
+  handGripWorldOffset: {x: 0, y: 0, z: 0}
+  targetHeightOffset: 0.35
+  baseRodUpwardAngleDegrees: 15
+  rodLength: 2.15
+  rodBaseRadius: 0.035
+  maximumRodBendMeters: 0.48
+  timingReactionSeconds: 0.22
+  timingPullDegrees: 16
+  rodColor: {r: 0.08, g: 0.12, b: 0.1, a: 1}
+  reelColor: {r: 0.82, g: 0.52, b: 0.14, a: 1}
+  fallbackAnchorLocalPosition: {x: 0.24, y: 1.05, z: 0.28}
+  minimumStruggleLeanDegrees: 3.5
+  maximumStruggleLeanDegrees: 15
+  struggleIntensityCurveExponent: 2.2
+  struggleIntensityResponsePerSecond: 3.5
+  minimumStruggleFrequencyHz: 0.7
+  maximumStruggleFrequencyHz: 1.55
+  struggleFrequencyCurveExponent: 1.5
+  struggleFrequencyResponsePerSecond: 3
+  minimumStrugglePositionMeters: 0.007
+  maximumStrugglePositionMeters: 0.035
+  minimumStruggleRollDegrees: 0.7
+  maximumStruggleRollDegrees: 4.2
+--- !u!114 &577202249
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d53054e7457544c2a3703b55f917242d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishingV3AudioPresenter
+  facade: {fileID: 577202243}
+  biteClip: {fileID: 8300000, guid: b42895a3e82446e3a8e78e4d5af0e4c7, type: 3}
+  hookSuccessClip: {fileID: 8300000, guid: 392031e514db4731a3a3386f3956843c, type: 3}
+  perfectClip: {fileID: 8300000, guid: 0963f639b7f840eda710887c59701a5f, type: 3}
+  goodClip: {fileID: 8300000, guid: 37017b18f2ec4571a23002f49f0c6bbd, type: 3}
+  missClip: {fileID: 8300000, guid: 4499df63a642423fb2258815293f2dd9, type: 3}
+  caughtClip: {fileID: 8300000, guid: 3684904e9672439baa8e3c894959929a, type: 3}
+  lineBrokenClip: {fileID: 8300000, guid: 60aa2301e3c7438597fe327d2434668f, type: 3}
+  fishEscapedClip: {fileID: 8300000, guid: e3265f1c71394cf3a8d0c9406ea0740c, type: 3}
+  biteVolume: 0.7
+  hookSuccessVolume: 0.75
+  perfectVolume: 0.75
+  goodVolume: 0.6
+  missVolume: 0.5
+  caughtVolume: 0.85
+  lineBrokenVolume: 0.8
+  fishEscapedVolume: 0.75
+--- !u!114 &577202250
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202240}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab52f2a07e274bc6a09a4db5f553d88a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FishingMiniGame.Runtime.FishingV3AudioHubAdapter
+  presenter: {fileID: 577202249}
+--- !u!1 &577202247
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 577202248}
+  m_Layer: 0
+  m_Name: FishVisualAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &577202248
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577202247}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 2.1, y: -1.67, z: 0.81}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 577202245}
+  m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
+--- !u!1001 &1603581096
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 577202245}
+    m_Modifications:
+    - target: {fileID: 64441113119771705, guid: eaccefb6e18261b469f4a544145c2fd4, type: 3}
+      propertyPath: m_Name
+      value: FishingV3Hud
+      objectReference: {fileID: 0}
+    - target: {fileID: 1871324606994107986, guid: eaccefb6e18261b469f4a544145c2fd4, type: 3}
+      propertyPath: facade
+      value:
+      objectReference: {fileID: 577202243}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: eaccefb6e18261b469f4a544145c2fd4, type: 3}
+--- !u!224 &1603581097 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 6018153760834783990, guid: eaccefb6e18261b469f4a544145c2fd4, type: 3}
+  m_PrefabInstance: {fileID: 1603581096}
+  m_PrefabAsset: {fileID: 0}

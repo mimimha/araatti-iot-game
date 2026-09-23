@@ -186,14 +186,14 @@ namespace FishingMiniGame.Runtime
             if (_controlsText != null)
             {
                 _controlsText.text = singleSession
-                    ? "SPACE  Cast   •   F  Hook   •   R / LMB  Reel\nARROWS  Rod pose / follow fish   •   T  Recenter"
-                    : "SPACE  Cast   •   F  Hook   •   R / LMB  Reel\nARROWS  Rod pose   •   T  Recenter\nQ / E  Lower / Raise tension";
+                    ? "SPACE  Cast   •   J  Hook   •   R / LMB  Reel\nARROWS  Rod pose / follow fish   •   T  Recenter"
+                    : "SPACE  Cast   •   J  Hook   •   R / LMB  Reel\nARROWS  Rod pose   •   T  Recenter\nQ / E  Lower / Raise tension";
             }
             if (_howToText != null)
             {
                 _howToText.text = singleSession
-                    ? "1   Hold and release SPACE to cast\n2   Press F only on BITE to set the hook\n3   Follow RUN direction with ARROWS\n4   Reel during safe pressure; stop in danger"
-                    : "1   Hold and release SPACE to cast\n2   Press F only on BITE to set the hook\n3   Use ARROWS against runs\n4   Use Q / E for tension and R to reel";
+                    ? "1   Hold and release SPACE to cast\n2   Press J only on BITE to set the hook\n3   Follow RUN direction with ARROWS\n4   Reel during safe pressure; stop in danger"
+                    : "1   Hold and release SPACE to cast\n2   Press J only on BITE to set the hook\n3   Use ARROWS against runs\n4   Use Q / E for tension and R to reel";
             }
 
             UpdateGuidance(snapshot, singleSession);
@@ -249,7 +249,7 @@ namespace FishingMiniGame.Runtime
                         SetGuidance("WATCH THE FLOAT", "Wait for the bite signal — do not press early");
                     break;
                 case FishingPlayerState.BiteWindow:
-                    SetGuidance("BITE!", "Press F now to set the hook");
+                    SetGuidance("BITE!", "Press J now to set the hook");
                     break;
                 case FishingPlayerState.Hooked:
                     SetGuidance("HOOK SET", singleSession
@@ -313,7 +313,7 @@ namespace FishingMiniGame.Runtime
             if (snapshot.State != _lastState)
             {
                 _lastState = snapshot.State;
-                if (snapshot.State == FishingPlayerState.BiteWindow) ShowAlert("BITE!  PRESS F", Gold, 1.2f);
+                if (snapshot.State == FishingPlayerState.BiteWindow) ShowAlert("BITE!  PRESS J", Gold, 1.2f);
                 else if (snapshot.State == FishingPlayerState.Hooked) ShowAlert("HOOK SET!", Aqua, 0.9f);
                 else if (snapshot.State == FishingPlayerState.Caught) ShowAlert("FISH CAUGHT!", Aqua, 1.5f);
                 else if (snapshot.State == FishingPlayerState.Escaped) ShowAlert("THE FISH ESCAPED", Coral, 1.5f);
@@ -583,7 +583,7 @@ namespace FishingMiniGame.Runtime
             RectTransform controlsCard = CreatePanel("ControlsCard", _gameplayRoot.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(28f, 34f), new Vector2(430f, 176f), PanelNavy);
             AddAccent(controlsCard, Gold);
             CreateTextAt("ControlsTitle", controlsCard, "QUICK CONTROLS", 14, FontStyle.Bold, Gold, TextAnchor.UpperLeft, new Vector2(24f, -15f), new Vector2(380f, 24f));
-            _controlsText = CreateTextAt("Controls", controlsCard, "SPACE  Cast   •   F  Hook   •   R / LMB  Reel\nARROWS  Rod pose   •   T  Recenter", 16, FontStyle.Normal, TextPrimary, TextAnchor.UpperLeft, new Vector2(24f, -47f), new Vector2(380f, 112f));
+            _controlsText = CreateTextAt("Controls", controlsCard, "SPACE  Cast   •   J  Hook   •   R / LMB  Reel\nARROWS  Rod pose   •   T  Recenter", 16, FontStyle.Normal, TextPrimary, TextAnchor.UpperLeft, new Vector2(24f, -47f), new Vector2(380f, 112f));
 
             RectTransform gaugeCard = CreatePanel("GaugeCard", _gameplayRoot.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-28f, 34f), new Vector2(500f, 326f), PanelNavy);
             AddAccent(gaugeCard, Aqua);
@@ -600,7 +600,7 @@ namespace FishingMiniGame.Runtime
 
             _centerAlertPanel = CreatePanel("CenterAlert", _gameplayRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 110f), new Vector2(690f, 100f), DeepNavy).gameObject;
             AddOutline(_centerAlertPanel, new Color(1f, 0.75f, 0.25f, 0.7f));
-            _centerAlertText = CreateText("Alert", _centerAlertPanel.transform, "BITE!  PRESS F", 36, FontStyle.Bold, Gold, TextAnchor.MiddleCenter);
+            _centerAlertText = CreateText("Alert", _centerAlertPanel.transform, "BITE!  PRESS J", 36, FontStyle.Bold, Gold, TextAnchor.MiddleCenter);
             Stretch(_centerAlertText.rectTransform, 16f);
             _centerAlertPanel.SetActive(false);
 
@@ -630,7 +630,7 @@ namespace FishingMiniGame.Runtime
 
             RectTransform howTo = CreatePanel("HowTo", card, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -50f), new Vector2(650f, 166f), SoftPanel);
             CreateTextAt("HowToTitle", howTo, "HOW TO PLAY", 14, FontStyle.Bold, Aqua, TextAnchor.UpperCenter, new Vector2(0f, -14f), new Vector2(600f, 26f));
-            _howToText = CreateTextAt("HowToText", howTo, "1   Hold and release SPACE to cast\n2   Press F only on BITE to set the hook\n3   Follow RUN direction with ARROWS\n4   Reel during safe pressure; stop in danger", 16, FontStyle.Normal, TextPrimary, TextAnchor.UpperLeft, new Vector2(34f, -46f), new Vector2(582f, 112f));
+            _howToText = CreateTextAt("HowToText", howTo, "1   Hold and release SPACE to cast\n2   Press J only on BITE to set the hook\n3   Follow RUN direction with ARROWS\n4   Reel during safe pressure; stop in danger", 16, FontStyle.Normal, TextPrimary, TextAnchor.UpperLeft, new Vector2(34f, -46f), new Vector2(582f, 112f));
 
             Button startButton = CreateButton("StartButton", card, "START FISHING", new Vector2(0f, -202f), new Vector2(360f, 66f), Aqua);
             startButton.onClick.AddListener(() =>
