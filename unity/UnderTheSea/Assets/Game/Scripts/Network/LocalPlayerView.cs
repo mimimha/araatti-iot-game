@@ -402,8 +402,14 @@ public class LocalPlayerView : NetworkBehaviour
             ? new Vector2(Input.GetAxis(mouseX), -Input.GetAxis(mouseY))
             : Vector2.zero;
 
-        // 확대·축소는 버튼과 무관하다. 휠은 언제나 그대로 넘긴다.
-        boundCamera.SetInput(in delta, Input.GetAxis(mouseScroll));
+        // 확대·축소는 버튼과 무관하다. 휠은 누르지 않고도 늘 먹는다.
+        //
+        // ⚠ 다만 **화면이 휠을 쓰고 있으면 비켜 준다.** 채팅 기록 위에서 지난 대화를
+        //    올려 읽는 동안 화면까지 줌되면 둘 다 제대로 안 된다.
+        //    채팅이 있는지는 여기서 몰라도 된다. ChatFocus 한 곳만 본다.
+        float zoom = ChatFocus.WheelHeld ? 0f : Input.GetAxis(mouseScroll);
+
+        boundCamera.SetInput(in delta, zoom);
 
         if (LogCamera && Time.time >= nextCameraLogTime)
         {

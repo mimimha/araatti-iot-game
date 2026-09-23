@@ -133,6 +133,10 @@ namespace Mine.Net
 
             TransitionStatus.SetReady();
 
+            // 서버는 이 알림을 받은 사람만 "모였다" 로 센다. 그래야 카운트다운 3 을 모두가 본다.
+            // (MineNetPlayer.SceneReady · MineMatchState.UpdateStartGate)
+            if (_who != null) _who.RPC_ReportReady();
+
             Debug.Log("[MineLocalView] 준비가 끝나 화면을 넘깁니다.");
         }
 
@@ -324,6 +328,13 @@ namespace Mine.Net
             // 늦게 들어온 사람도 Phase 가 복제되므로 같은 화면을 받는다.
             if (match.Phase == MineMatchPhase.Finished)
             {
+                // ⚠ **한가운데 한마디를 여기서 비운다.** 그 칸은 아래(판이 도는 동안)에서 매 프레임
+                //   정하는데, 판이 끝나면 이 블록에서 돌아가 버려 그 줄까지 가지 않는다.
+                //   그러면 끝나기 직전 프레임의 값이 그대로 남는다 — 마지막 턴에 누가 힌트를
+                //   켜고 판이 끝나면 관전자 화면에 "힌트타임" 이 성적표 위에 박혀 있었다.
+                //   서버는 끝날 때 HintLeft 를 0 으로 지운다(EnterFinished). 화면이 안 읽었을 뿐이다.
+                if (_hud != null) _hud.NetworkCenterNotice = string.Empty;
+
                 _camera.AcceptsMouse = false;
 
                 if (_shownTarget != null)

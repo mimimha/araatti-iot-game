@@ -31,7 +31,7 @@ namespace Warriors
     ///   협동 세트       WarriorsPhase2Director.ComboSetSerial
     ///   노트 정타       WarriorsPhase3Director.HitSerial · HitLane · HitStrength
     ///   노트 미스       WarriorsPhase3Director.Notes[i].State 가 2
-    ///   크라켄 포효     WarriorsPhase3Director.FinishSerial · FinishKind
+    ///   콤보 피니시     WarriorsPhase3Director.FinishSerial · FinishKind (포효가 아니라 완성 보상음)
     ///   라운드·결과     WarriorsMatchState.Phase · Countdown
     /// </code>
     ///
@@ -130,7 +130,7 @@ namespace Warriors
         [Tooltip("내게 협동 마무리 창이 열림 — \"지금! 이어서 베세요\".")]
         [SerializeField] private AudioClip finishWindow;
 
-        [Tooltip("두 사람이 창 안에서 이어 잘라 협동 세트가 완성됨.")]
+        [Tooltip("완성 보상음. 2R 협동 세트와 3R 콤보 피니시에 함께 쓴다 — 둘 다 \"묶음을 다 채웠다\" 는 순간.")]
         [SerializeField] private AudioClip comboSet;
 
         // ------------------------------------------------------------
@@ -138,8 +138,14 @@ namespace Warriors
         // ------------------------------------------------------------
 
         [Header("💥 효과음 — 3라운드 (리듬)")]
-        [Tooltip("내 레인 노트를 정확히 받아 냄.")]
-        [SerializeField] private AudioClip noteHit;
+        [Tooltip("내 레인 노트를 가로베기로 받아 냄 — 도(C5).")]
+        [SerializeField] private AudioClip noteHitHorizontal;
+
+        [Tooltip("세로베기로 받아 냄 — 레(D5).")]
+        [SerializeField] private AudioClip noteHitVertical;
+
+        [Tooltip("찌르기로 받아 냄 — 미(E5).")]
+        [SerializeField] private AudioClip noteHitThrust;
 
         [Tooltip("내 레인 노트를 놓침.")]
         [SerializeField] private AudioClip noteMiss;
@@ -147,7 +153,7 @@ namespace Warriors
         [Tooltip("크라켄이 맞음. 누구 노트든 정타가 들어가면 난다.")]
         [SerializeField] private AudioClip krakenHurt;
 
-        [Tooltip("크라켄의 포효. 3라운드가 시작될 때와 콤보 피니시가 터질 때.")]
+        [Tooltip("크라켄의 포효. 3라운드가 열릴 때 한 번만 — 피니시마다 내면 반복돼 질린다.")]
         [SerializeField] private AudioClip krakenRoar;
 
         // ------------------------------------------------------------
@@ -179,14 +185,19 @@ namespace Warriors
         [Tooltip("효과음의 기본 크기(0~1). 효과음 볼륨이 곱해진다.")]
         [SerializeField, Range(0f, 1f)] private float sfxLevel = 0.85f;
 
-        [Tooltip("베기. 가장 자주 나므로 작게.")]
-        [SerializeField, Range(0f, 2f)] private float swingLevel = 0.5f;
+        [Tooltip("베기. 자주 나지만 **너무 낮추면 2 · 3라운드에서 사라진다** — 그쪽은 타격음과 노트음이 " +
+                 "매번 겹쳐서 이 소리를 덮는다. 다른 소리와 비슷한 크기로 깔아 둔다.")]
+        [SerializeField, Range(0f, 2f)] private float swingLevel = 1f;
 
-        [Tooltip("몬스터 정타 · 처치.")]
+        [Tooltip("몬스터 정타.")]
         [SerializeField, Range(0f, 2f)] private float monsterLevel = 0.8f;
 
-        [Tooltip("노트 정타 · 미스.")]
-        [SerializeField, Range(0f, 2f)] private float noteLevel = 0.9f;
+        [Tooltip("몬스터 처치. 정타와 클립이 달라 크기도 따로 잡는다 — 한 값으로 묶으면 한쪽이 튄다.")]
+        [SerializeField, Range(0f, 2f)] private float killLevel = 0.4f;
+
+        [Tooltip("노트 정타 · 미스. 정타는 krakenHurt 와 **겹쳐** 난다 — 둘이 합쳐 \"치는 맛\" 이 되므로 " +
+                 "너무 낮추면 리듬 타격이 가벼워진다.")]
+        [SerializeField, Range(0f, 2f)] private float noteLevel = 0.8f;
 
         [Tooltip("크라켄 피격 · 포효. 가장 큰 소리.")]
         [SerializeField, Range(0f, 2f)] private float krakenLevel = 1.15f;
@@ -253,6 +264,17 @@ namespace Warriors
                 return;
             }
 
+            // 소리가 안 들릴 때 원인을 가른다 — **재생 요청이 아예 없는지**, 요청은 갔는데 안 들리는지.
+            // AUDIO.md 8장이 켜라는 AudioHub.logPlays 는 허브가 런타임에 스스로 생겨 빌드에서 켤 길이 없다.
+            foreach (string arg in System.Environment.GetCommandLineArgs())
+            {
+                if (arg != "-audiolog") continue;
+
+                _hub.logPlays = true;
+                Debug.Log("[WarriorsAudio] -audiolog — 재생 요청을 전부 로그로 찍습니다.", this);
+                break;
+            }
+
             // 이름은 "게임.용도" 로. 다른 미니게임의 루프와 겹치면 서로 클립을 빼앗는다.
             _wave = _hub.Loop("warriors.wave", waveLoop, 1.2f);
             _kraken = _hub.Loop("warriors.kraken", krakenLoop, 1.0f);
@@ -291,7 +313,7 @@ namespace Warriors
                          waveLoop, krakenLoop,
                          swingHorizontal, swingVertical, swingThrust, monsterHit, comboUp, monsterKill,
                          tentacleHit, tentacleCut, finishWindow, comboSet,
-                         noteHit, noteMiss, krakenHurt, krakenRoar,
+                         noteHitHorizontal, noteHitVertical, noteHitThrust, noteMiss, krakenHurt, krakenRoar,
                          playerHurt, playerDown, roundChange, countdownTick, countdownGo,
                      })
             {
@@ -445,7 +467,7 @@ namespace Warriors
             if (kills <= _killsSeen) { _killsSeen = kills; return; }
 
             _killsSeen = kills;
-            Play(monsterKill, monsterLevel);
+            Play(monsterKill, killLevel);
         }
 
         // ------------------------------------------------------------
@@ -563,6 +585,18 @@ namespace Warriors
         // 3라운드 — 리듬
         // ------------------------------------------------------------
 
+        /// <summary>
+        /// 그 노트를 어떤 공격으로 받았는지에 따라 음을 고른다 — **가로 도 · 세로 레 · 찌르기 미.**
+        /// 화살표가 음계로 읽혀 박자감이 생긴다.
+        /// </summary>
+        private AudioClip NoteClipFor(int type) => (WarriorsAttackDirection)type switch
+        {
+            WarriorsAttackDirection.HorizontalSlash => noteHitHorizontal,
+            WarriorsAttackDirection.VerticalSlash => noteHitVertical,
+            WarriorsAttackDirection.Thrust => noteHitThrust,
+            _ => noteHitHorizontal,
+        };
+
         /// <summary>노트 정타 · 미스 · 크라켄 피격 · 콤보 피니시.</summary>
         private void WatchNotes()
         {
@@ -579,10 +613,10 @@ namespace Warriors
 
                 if (!first)
                 {
+                    // 크라켄이 맞는 소리만 여기서. **내 노트 소리는 아래 칸 훑기에서 낸다** —
+                    // 거기서만 그 노트를 어떤 공격으로 받았는지(Type) 알 수 있어 음을 고를 수 있다.
                     bool strong = rhythm.HitStrength == 2;
                     Play(krakenHurt, krakenLevel * (strong ? 1f : 0.8f));
-
-                    if (rhythm.HitLane == _lane && _lane >= 0) Play(noteHit, noteLevel);
                 }
             }
 
@@ -603,17 +637,23 @@ namespace Warriors
                 int was = _noteState[i];
                 _noteState[i] = note.State;
 
-                // 0 떨어지는 중 · 1 성공 · 2 실패. 성공은 위의 HitSerial 이 이미 냈다.
-                if (was == 0 && note.State == 2 && note.Lane == _lane && _lane >= 0) Play(noteMiss, noteLevel);
+                // 0 떨어지는 중 · 1 성공 · 2 실패. 내 레인만 낸다.
+                if (was != 0 || note.Lane != _lane || _lane < 0) continue;
+
+                if (note.State == 2) Play(noteMiss, noteLevel);
+                else if (note.State == 1) Play(NoteClipFor(note.Type), noteLevel);
             }
 
-            // **콤보 피니시.** 묶음을 다 받아 낸 순간이 제일 센 순간이다. 둘이 함께면 더 크게.
+            // **콤보 피니시.** 묶음을 다 받아 낸 보상음. 둘이 함께면 조금 더 크게.
+            //
+            // ⚠ 여기서 krakenRoar 를 내지 않는다. 포효는 **3라운드가 열릴 때 한 번**이라야 무게가 산다 —
+            //   피니시마다 울리면 몇 초 간격으로 반복돼 금세 질린다. (실측 확인 2026-09-22)
             if (rhythm.FinishSerial != _finishSerialSeen)
             {
                 bool first = _finishSerialSeen < 0;
                 _finishSerialSeen = rhythm.FinishSerial;
 
-                if (!first) Play(krakenRoar, krakenLevel * (rhythm.FinishKind == 2 ? 1.2f : 1f));
+                if (!first) Play(comboSet, rhythm.FinishKind == 2 ? 1.2f : 1f);
             }
         }
 

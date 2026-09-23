@@ -61,9 +61,10 @@ public static class ShipCoopHurryCalloutPatch
             so.FindProperty("hurryArrow").objectReferenceValue = arrow;
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            // 글자는 빌더가 color 로만 칠한다. TMP 는 faceColor 를 따로 들고 있어서
-            // 이걸 맞춰 주지 않으면 에디터에서 다른 색으로 보인다. (HUD 빌더와 같은 처리)
-            label.faceColor = label.color;
+            // ⚠ **여기서 faceColor 를 건드리지 않는다.** HUD 를 통째로 짓는 쪽은
+            //    SyncTextColors 로 맞춰 주지만, 이 글자는 그림자용 **공유 머티리얼**을
+            //    쓰기 때문에 faceColor 를 쓰면 그 머티리얼 에셋의 _FaceColor 가 바뀐다.
+            //    글자색은 vertex color(label.color) 만으로 나온다.
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             Debug.Log($"[서두르기 팻말] {TrackPath} 아래에 붙였다 → {PrefabPath}");

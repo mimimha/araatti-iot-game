@@ -428,6 +428,9 @@ namespace Warriors.Net
         {
             if (!patternOpen)
             {
+                // 목표를 이미 채웠다 — 떨어지던 노트만 마저 치는 중이므로 새 묶음을 내지 않는다.
+                if (match.AwaitingLastNotes) return;
+
                 if (Runner.Tick < nextPatternTick) return;
 
                 SpawnPattern();
@@ -451,6 +454,12 @@ namespace Warriors.Net
 
             SettlePattern();
         }
+
+        /// <summary>
+        /// 아직 떨어지고 있는(판정되지 않은) 노트가 있는가.
+        /// <c>WarriorsMatchState</c> 가 목표를 채운 뒤 **이것이 false 가 될 때까지** 판을 닫지 않는다.
+        /// </summary>
+        public bool HasFallingNotes => !AllNotesResolved();
 
         /// <summary>떠 있는 노트 중 아직 판정되지 않은 것이 없는가.</summary>
         private bool AllNotesResolved()
@@ -660,6 +669,10 @@ namespace Warriors.Net
         /// <summary>노트를 놓친 사람에게만 피해를 준다.</summary>
         private void Punish(int lane)
         {
+            // 이미 목표를 채우고 남은 노트를 마저 치는 중이면 벌하지 않는다 —
+            // 이긴 판에서 마지막 화살표를 놓쳐 쓰러지면 이겼다가 지는 꼴이 된다.
+            if (match != null && match.AwaitingLastNotes) return;
+
             WarriorsPlayerLife life = FindLife(lane);
             if (life == null || !life.IsLive || life.IsDown) return;
 

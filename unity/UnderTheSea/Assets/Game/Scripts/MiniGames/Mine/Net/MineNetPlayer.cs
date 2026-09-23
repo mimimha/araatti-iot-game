@@ -48,6 +48,20 @@ namespace Mine.Net
         /// </summary>
         [Networked] public int FocusCell { get; private set; }
 
+        /// <summary>
+        /// 이 사람의 화면이 **판을 볼 수 있게 됐는가.** 서버가 카운트다운을 여는 조건이다.
+        ///
+        /// <b>왜 필요한가.</b> 서버는 접속한 순간(<c>Runner.ActivePlayers</c>) 인원에 넣는데,
+        /// 클라이언트는 그때부터 씬을 불러오고 판을 받는다. 인원만 보고 세면 마지막 사람은
+        /// 3 을 못 보고 2.2 쯤에서 들어온다(실측). 그래서 **로딩 화면을 걷는 순간**
+        /// (<c>MineLocalView.FinishLoadingWhenPlayable</c>) 자기 몸으로 서버에 알린다.
+        ///
+        /// 접속할 때 거짓으로 시작한다(<see cref="Spawned"/>). 판을 되돌리는 것은 아무도 없을 때뿐이라
+        /// (<c>MineMatchState.ResetToWaiting</c>) 다음 판의 사람은 늘 새 몸으로 들어온다 —
+        /// 지난 판의 참이 남을 자리가 없다.
+        /// </summary>
+        [Networked] public NetworkBool SceneReady { get; private set; }
+
         /// <summary>이번 판의 참가자인가. 늦게 들어온 사람은 거짓이다.</summary>
         public bool InRoster => Slot >= 0;
 
@@ -153,6 +167,46 @@ namespace Mine.Net
             Slot = -1;
             JoinTick = Runner.Tick;
             FocusCell = -1;
+            SceneReady = false;
+        }
+
+        /// <summary>
+        /// **내 화면이 준비됐다** 고 서버에 알린다. 로딩 화면을 걷는 순간 내 몸에서 한 번 부른다.
+        ///
+        /// 입력 권한이 있는 몸만 보낼 수 있다(<see cref="RpcSources.InputAuthority"/>).
+        /// 남의 복사본에서 불러도 Fusion 이 보내지 않으므로, 남의 준비를 대신 알릴 수 없다.
+        /// 두 번 와도 한 번만 적는다.
+        /// </summary>
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_ReportReady()
+        {
+            if (SceneReady) return;
+
+            SceneReady = true;
+            Debug.Log($"[MineNetPlayer] {Object.InputAuthority} 화면 준비 완료 — 접속 후 " +
+                      $"{SecondsSinceJoin:F2}초", this);
+        }
+
+        /// <summary>접속한 지 몇 초 지났는가. 서버의 틱으로 잰다.</summary>
+        public float SecondsSinceJoin => Runner != null ? Mathf.Max(0f, (Runner.Tick - JoinTick) * Runner.DeltaTime) : 0f;
+
+        /// <summary>
+        /// 준비 알림이 끝내 안 오면 **이만큼 기다린 뒤 준비된 것으로 친다.** 서버만 부른다.
+        ///
+        /// 알림이 빠지는 일은 없어야 하지만(로딩 화면 쪽에도 상한이 있다), 빠지면 판이 영영
+        /// 시작하지 않는다. 멈추는 것보다 3 을 놓치는 편이 낫다.
+        /// ⚠ 이 로그가 정상 테스트에서 나오면 알림이 어딘가에서 끊긴 것이다.
+        /// </summary>
+        public bool ServerReadyOrTimedOut(float timeoutSeconds)
+        {
+            if (!HasStateAuthority) return SceneReady;
+            if (SceneReady) return true;
+            if (SecondsSinceJoin < timeoutSeconds) return false;
+
+            SceneReady = true;
+            Debug.LogWarning($"[MineNetPlayer] {Object.InputAuthority} 준비 알림이 {timeoutSeconds:F0}초 안에 " +
+                             "오지 않아 timeout 으로 준비된 것으로 칩니다.", this);
+            return true;
         }
 
         /// <summary>서버가 자리를 정한다. 스포너와 매치 상태가 부른다.</summary>

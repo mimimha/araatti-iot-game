@@ -55,8 +55,43 @@ public static class ChatFocus
     /// </summary>
     private static readonly HashSet<object> Holders = new HashSet<object>();
 
+    /// <summary>
+    /// 지금 **휠**을 쓰고 있는 화면들.
+    ///
+    /// <see cref="Holders"/> 와 나눠 둔다. 둘은 세기가 다르다. 채팅 기록 위에 마우스만
+    /// 올려 둔 상태는 휠만 가져갈 뿐이고, 그동안에도 WASD 로는 걸어다닐 수 있어야 한다.
+    /// 하나로 합치면 기록 위에 마우스를 둔 채로는 못 움직이게 된다.
+    /// </summary>
+    private static readonly HashSet<object> WheelHolders = new HashSet<object>();
+
     /// <summary>하나라도 잠그고 있는지. 이동을 읽는 쪽이 이것만 본다.</summary>
     public static bool Typing => Holders.Count > 0;
+
+    /// <summary>
+    /// <b>휠을 화면이 쓰고 있는가.</b> 카메라 줌을 읽는 쪽이 이것만 본다.
+    ///
+    /// 채팅 기록을 되짚어 올리는 동안 화면까지 줌되면 안 된다. 그렇다고 카메라 쪽이
+    /// 채팅을 알 필요는 없다 — <see cref="Typing"/> 과 같은 이유로 여기 한 곳만 본다.
+    /// </summary>
+    public static bool WheelHeld => WheelHolders.Count > 0;
+
+    /// <summary>휠을 가져간다. 같은 주인이 여러 번 불러도 결과가 같다.</summary>
+    public static void BeginWheel(object owner)
+    {
+        if (owner != null)
+        {
+            WheelHolders.Add(owner);
+        }
+    }
+
+    /// <summary>휠을 돌려준다. 건 적이 없어도, 두 번 불러도 안전하다.</summary>
+    public static void EndWheel(object owner)
+    {
+        if (owner != null)
+        {
+            WheelHolders.Remove(owner);
+        }
+    }
 
     /// <summary>
     /// 입력 잠금을 건다. 같은 주인이 여러 번 불러도 결과가 같다.

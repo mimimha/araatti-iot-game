@@ -32,6 +32,13 @@ namespace MiniGames.Common.UI
         [Header("보여줄 결과 판")]
         [SerializeField] private ResultPanelPresenter panel;
 
+        [Header("보상 — 이 칸이 채워진 씬에서만 조각을 준다")]
+        [Tooltip("비워 두면 지금까지와 똑같이 보상 줄이 통째로 숨고 아무것도 적립하지 않는다.\n\n" +
+                 "채우면 클리어했을 때 그 설정의 조각을 적립하고 결과 판에 \"획득!\" 이 뜬다. " +
+                 "게임마다 씬에서 켜고 끄므로, 준비된 게임만 먼저 붙일 수 있다.\n\n" +
+                 "2026-09-22 현재 검 게임(MiniGame_Sword)만 채워져 있다.")]
+        [SerializeField] private MiniGameConfig rewardConfig;
+
         [Header("아직 갈 곳이 없어 숨기는 버튼")]
         [Tooltip("[다시 하기] 는 같은 미니게임을 다시 여는 경로가 아직 없다. " +
                  "보이기만 하고 눌러도 아무 일이 없으면 고장으로 보이므로 통째로 끈다.")]
@@ -117,9 +124,14 @@ namespace MiniGames.Common.UI
         /// <summary>
         /// 결과가 도착했다. 판을 열고 시계를 건다.
         ///
-        /// <b>보상 영역은 설정을 넘기지 않아 통째로 숨는다.</b> <c>ResultPanelPresenter</c> 는
-        /// 설정이 없으면 보상 줄을 <c>SetActive(false)</c> 한다. 화면 코드를 고칠 필요가 없다.
+        /// <b>보상은 <see cref="rewardConfig"/> 가 꽂힌 씬에서만 준다.</b> 비어 있으면 설정을
+        /// 넘기지 않으므로 <c>ResultPanelPresenter</c> 가 보상 줄을 <c>SetActive(false)</c> 한다 —
         /// 지급하지도 않은 보상을 "획득 실패" 처럼 보여주지 않기 위해서다.
+        ///
+        /// ⚠ <b>적립을 여기서 한다.</b> 원래 적립하는 곳은 로비의 <c>MatchFlowController</c> 인데,
+        ///    미니게임 씬에서는 이 오버레이가 결과를 먼저 소비해 거기까지 가지 않는다.
+        ///    그래서 조각을 주려면 여기서 줘야 한다. <c>RewardService.Grant</c> 는 이미 가진
+        ///    조각이면 false 를 돌려주므로, 결과 창을 다시 열어도 두 번 들어가지 않는다.
         /// </summary>
         private void Receive(MiniGameResult result, MiniGameResultOrigin origin)
         {
@@ -141,13 +153,33 @@ namespace MiniGames.Common.UI
 
             if (retryButtonRoot != null) retryButtonRoot.SetActive(canRestart);
 
-            panel.Show(result, null);
+            panel.Show(GrantReward(result), rewardConfig);
 
             StopCountdown();
 
             // ⚠ **다시 할 수 있으면 시계를 걸지 않는다.** 5초 뒤 혼자 로비로 가 버리면
             //    누를 틈이 없고, 단독 빌드에는 갈 로비도 없다(ChannelSelect 씬이 없다).
             if (!canRestart) countdown = StartCoroutine(ReturnWhenTimeIsUp());
+        }
+
+        /// <summary>
+        /// 클리어했으면 조각을 적립하고, 그 결과를 결과 판이 읽을 수 있게 결과에 실어 준다.
+        /// <see cref="rewardConfig"/> 가 비어 있으면 아무 일도 하지 않고 그대로 돌려준다.
+        /// </summary>
+        private MiniGameResult GrantReward(in MiniGameResult result)
+        {
+            if (rewardConfig == null || string.IsNullOrEmpty(rewardConfig.FragmentId)) return result;
+
+            // 실패한 판은 주지 않는다. 이미 가진 조각이면 Grant 가 false 를 돌려주고,
+            // 결과 판은 그때 "이미 보유 중" 으로 바꿔 그린다.
+            bool obtained = result.IsClear && RewardService.Grant(rewardConfig.FragmentId);
+
+            Debug.Log(
+                $"[결과 오버레이] 보상 '{rewardConfig.FragmentId}' — " +
+                $"{(obtained ? "새로 획득" : result.IsClear ? "이미 보유 중" : "실패라 지급 안 함")} " +
+                $"(보유 {RewardService.OwnedCount}/{RewardService.TotalFragmentCount})");
+
+            return result.WithReward(rewardConfig.FragmentId, obtained);
         }
 
         private IEnumerator ReturnWhenTimeIsUp()
