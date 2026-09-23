@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 5890276337606732686}
   - component: {fileID: 2269052395799463623}
   - component: {fileID: 6398749948350979917}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Seaweed_03_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49,7 +49,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1108746354141959991}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -93,7 +93,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2724300453241374572}
   - component: {fileID: 7175561855202357277}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Seaweed_03
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -156,7 +156,7 @@ GameObject:
   - component: {fileID: 4333249292305367437}
   - component: {fileID: 7353021142106275821}
   - component: {fileID: 7725753618053752994}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Seaweed_03_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -194,7 +194,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6959549050798195724}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -239,7 +239,7 @@ GameObject:
   - component: {fileID: 8666857280975086681}
   - component: {fileID: 6514582574784245312}
   - component: {fileID: 8802700454093653324}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Seaweed_03_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -277,7 +277,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7240980588555099245}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0

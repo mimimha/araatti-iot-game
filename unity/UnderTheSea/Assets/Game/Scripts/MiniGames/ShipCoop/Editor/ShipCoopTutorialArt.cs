@@ -29,6 +29,8 @@ using UnityEngine.UI;
 /// 글꼴 23 은 원본 1536 px 기준 26 px 을 표시 크기로 환산한 것이다 (26 × 1350/1536).
 ///
 /// 여러 번 돌려도 된다. 이미 바뀐 것은 그대로 두고 값만 다시 맞춘다.
+/// <b>팝업이 아예 없으면 뼈대부터 짓는다</b> — 그래서 <see cref="ShipCoopHudV2Art"/> 가
+/// HUD 를 다시 지은 직후에 이걸 부르면 팝업이 딸려 온다.
 ///
 /// Tools > 아라아띠 > 배 협동 안내 팝업에 그림 입히기
 /// </summary>
@@ -68,7 +70,7 @@ public static class ShipCoopTutorialArt
 
         try
         {
-            if (!Dress(root, sprite))
+            if (!Rebuild(root, sprite))
             {
                 return;
             }
@@ -80,6 +82,24 @@ public static class ShipCoopTutorialArt
         {
             PrefabUtility.UnloadPrefabContents(root);
         }
+    }
+
+    /// <summary>
+    /// 이미 열어 둔 프리팹 뿌리에 팝업을 **보장한다.** 없으면 짓고, 있으면 값만 다시 맞춘다.
+    ///
+    /// <see cref="ShipCoopHudV2Art"/> 가 HUD 를 다시 지을 때 마지막에 부른다. 그쪽은 캔버스
+    /// 자식을 전부 지우고 네 덩이만 다시 짓기 때문에, 이걸 안 부르면 팝업이 사라진다.
+    /// 실제로 그렇게 사라진 적이 있다 — 팝업은 손으로 만든 것이라 빌더가 지을 줄 몰랐다.
+    /// </summary>
+    internal static bool Rebuild(GameObject root)
+    {
+        return ImportSprite(out Sprite sprite) && Rebuild(root, sprite);
+    }
+
+    private static bool Rebuild(GameObject root, Sprite sprite)
+    {
+        EnsureBuilt(root);
+        return Dress(root, sprite);
     }
 
     /// <summary>PNG 를 Sprite 로 들여온다. 이미 맞게 돼 있으면 다시 들여오지 않는다.</summary>
@@ -130,6 +150,115 @@ public static class ShipCoopTutorialArt
         }
 
         return true;
+    }
+
+    /// <summary>#000000 55%. 팝업 뒤 갑판을 눌러 글이 읽히게 한다.</summary>
+    private static readonly Color DimBlack = new Color(0f, 0f, 0f, 0.55f);
+
+    /// <summary>
+    /// 팝업이 없으면 짓는다. 모양을 맞추는 것은 <see cref="Dress"/> 의 일이라 여기서는
+    /// **뼈대만** 세운다. 크기 · 스프라이트 · 글자색은 아래에서 어차피 다시 정해진다.
+    ///
+    /// <code>
+    /// Tutorial            (ShipCoopTutorialView)
+    /// └ Panel             화면 전체, 검정 0.55  ← 딤
+    ///   └ Box             그림 한 장
+    ///     ├ Body          옛 글자 본문 (Dress 가 끈다)
+    ///     └ Footer        카운트다운
+    /// </code>
+    /// </summary>
+    private static void EnsureBuilt(GameObject root)
+    {
+        Transform found = root.transform.Find("Tutorial");
+
+        if (found != null && root.transform.Find("Tutorial/Panel/Box") != null)
+        {
+            found.SetAsLastSibling();
+            return;
+        }
+
+        // 반쯤 남은 Tutorial 은 통째로 버린다. 어느 칸이 비었는지 따지는 것보다 싸다.
+        if (found != null)
+        {
+            Object.DestroyImmediate(found.gameObject);
+        }
+
+        TMP_FontAsset font = FindFont(root);
+
+        RectTransform tutorial = Rect("Tutorial", root.transform);
+        Stretch(tutorial);
+
+        RectTransform panel = Rect("Panel", tutorial);
+        Stretch(panel);
+
+        // ⚠ raycastTarget 을 켠 채로 둔다. 딤이 뒤를 막아야 팝업을 읽는 동안
+        //    갑판 UI 를 실수로 누르지 않는다.
+        var dim = panel.gameObject.AddComponent<Image>();
+        dim.color = DimBlack;
+
+        RectTransform box = Rect("Box", panel);
+        box.gameObject.AddComponent<Image>();
+
+        TextMeshProUGUI body = Label("Body", box, font);
+        body.alignment = TextAlignmentOptions.TopLeft;
+        body.fontSize = 28f;
+
+        TextMeshProUGUI footer = Label("Footer", box, font);
+
+        var view = tutorial.gameObject.AddComponent<ShipCoopTutorialView>();
+
+        // game 은 비워 둔다 — ShipCoopTutorialView.Awake 가 씬에서 스스로 찾는다.
+        var so = new SerializedObject(view);
+        so.FindProperty("panel").objectReferenceValue = panel.gameObject;
+        so.FindProperty("bodyLabel").objectReferenceValue = body;
+        so.FindProperty("footerLabel").objectReferenceValue = footer;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        // 팝업은 **맨 나중에** 그려져야 HUD 를 덮는다.
+        tutorial.SetAsLastSibling();
+
+        Debug.Log("[안내 팝업] 팝업이 없어서 새로 지었다.");
+    }
+
+    /// <summary>HUD 가 쓰던 글꼴을 그대로 받는다. 새로 고르면 한글이 네모로 깨진다.</summary>
+    private static TMP_FontAsset FindFont(GameObject root)
+    {
+        TextMeshProUGUI sample = root.GetComponentInChildren<TextMeshProUGUI>(true);
+        return sample != null ? sample.font : null;
+    }
+
+    private static RectTransform Rect(string name, Transform parent)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(parent, false);
+        rt.localScale = Vector3.one;
+        return rt;
+    }
+
+    private static void Stretch(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    private static TextMeshProUGUI Label(string name, Transform parent, TMP_FontAsset font)
+    {
+        RectTransform rt = Rect(name, parent);
+        Stretch(rt);
+
+        var tmp = rt.gameObject.AddComponent<TextMeshProUGUI>();
+
+        if (font != null)
+        {
+            tmp.font = font;
+        }
+
+        tmp.raycastTarget = false;
+        return tmp;
     }
 
     private static bool Dress(GameObject root, Sprite sprite)

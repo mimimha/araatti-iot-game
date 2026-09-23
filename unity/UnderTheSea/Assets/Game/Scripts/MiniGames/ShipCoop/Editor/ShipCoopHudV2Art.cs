@@ -19,7 +19,7 @@ using UnityEngine.UI;
 /// 항해        좌하단     620×211    voyage-track-white-from-blue-hq(바탕) +
 ///                                  voyage-track-filled-blue-v3-hq(Filled, 진행률만큼)
 /// 지연 경고   (지금은 안 띄웁니다. 항해 바 안의 붉은 구간이 대신 말해줍니다)
-/// 사건 목록   상단중앙(시간 밑) 608×101 씩, 간격 8    event-card-background + 픽토그램 5종
+/// 사건 목록   우상단             547×122 씩, 간격 8    event-card-background + 픽토그램 5종
 /// (팀원 4칸은 뺐습니다. 머리 위 이름표가 누가 어디 있는지를 대신 말해줍니다)
 /// 침수        (바를 뺐습니다. 사건 카드 맨 윗줄로 갑니다)
 /// 상호작용    화면 고정 자리 없음 — 사람 옆구리를 따라다니는 원형 버튼
@@ -168,19 +168,50 @@ public static class ShipCoopHudV2Art
     /// 바꾸면 모양이 그대로인 채 크기만 달라집니다.
     ///
     /// 1.0 이 가운데로 옮기면서 정한 크기(760 × 126)이고, 지금은 그 80% 입니다.
+    /// 가로 · 세로는 <see cref="EventCardWidthScale"/> · <see cref="EventCardHeightScale"/>
+    /// 로 한 번 더 손봅니다 (최종 547 × 122).
     /// </summary>
     private const float EventCardScale = 0.8f;
 
-    private const float EventCardWidth = 760f * EventCardScale;
-    private const float EventCardHeight = 126f * EventCardScale;
+    /// <summary>
+    /// **가로만** 따로 좁히는 값. 세로 · 글자 크기는 안 건드립니다.
+    ///
+    /// 0.7 까지 좁혔다가 1.0 으로 되돌렸고, 지금은 0.9 입니다. 가로로 너무 길어서
+    /// 오른쪽 위 구석에서 화면을 가로로 훑고 지나가는 것처럼 보였습니다.
+    ///
+    /// ⚠ 다시 좁히려면 <see cref="BuildEventRow"/> 의 안쪽 배치가
+    ///    **그림 · 배지는 세로 기준, 글줄은 남는 자리**로 잡혀 있는지 확인하세요.
+    ///    예전처럼 전부 폭의 비율로 잡으면 좁힐 때 그림이 글자를 파고듭니다.
+    /// </summary>
+    private const float EventCardWidthScale = 0.9f;
+
+    /// <summary>
+    /// **세로만** 따로 늘리는 값.
+    ///
+    /// 가로를 줄인 만큼 카드가 납작해 보여서 세로로 폈습니다. 10% 씩 두 번 — 1.21 입니다.
+    /// 안쪽에서 세로를 기준으로 재는 것들(<c>Pad</c> · 그림 · <c>Gap</c> · 배지)이
+    /// **이 값을 따라 같이 커집니다.**
+    /// </summary>
+    private const float EventCardHeightScale = 1.21f;
+
+    /// <summary>
+    /// 픽토그램이 카드 높이의 몇 할을 쓰는가.
+    ///
+    /// 0.58 에서 키웠습니다. 0.68 이면 위아래로 딱 <c>Pad</c>(0.16) 만큼만 남으므로
+    /// **이 이상 키우면 카드 테두리에 닿습니다.**
+    /// </summary>
+    private const float EventIconRatio = 0.68f;
+
+    private const float EventCardWidth = 760f * EventCardScale * EventCardWidthScale;
+    private const float EventCardHeight = 126f * EventCardScale * EventCardHeightScale;
     private const float EventCardGap = 10f * EventCardScale;
 
     /// <summary>
-    /// 첫 카드가 시작하는 높이. 목록이 상단 가운데로 왔으므로 **바로 위에 있는 것은
-    /// 시간 알약**이다. 그 높이(PillHeight) + 한 번 더 마진만큼 내려가 밑에 붙는다.
-    /// (왼쪽 위 체력 알약과도 같은 높이라 세 칸이 한 선에서 시작한다)
+    /// 첫 카드가 시작하는 높이. 오른쪽 위 구석은 **위에 아무것도 없다** — 체력은 왼쪽,
+    /// 시간은 가운데다. 그래서 그 둘과 같은 선(TopMargin)에서 바로 시작한다.
+    /// 세 칸이 화면 맨 윗줄을 왼쪽 · 가운데 · 오른쪽으로 나눠 갖는다.
     /// </summary>
-    private const float EventListTop = TopMargin + PillHeight + TopMargin;
+    private const float EventListTop = TopMargin;
 
     /// <summary>
     /// 상호작용 패널을 그림 원본(424 × 150) 의 몇 배로 띄우는가.
@@ -190,6 +221,46 @@ public static class ShipCoopHudV2Art
     /// 안쪽 배치 값도 전부 이 값을 곱하므로 **여기 하나만 바꾸면 통째로 커집니다.**
     /// </summary>
     private const float ActionScale = 1.2f;
+
+    // ── 상호작용 링(painterly) ──
+    //
+    // 링 칸의 한 변. 그림 두 장(interaction-ring-painterly · interaction-progress-painterly)이
+    // 정사각형 1254×1254 라서 여기도 정사각형이다.
+    private const float RingSize = 104f;
+
+    /// <summary>
+    /// 키 글자 칸이 링 칸의 몇 할을 쓰는가.
+    ///
+    /// 도넛(interaction-progress-painterly)의 안쪽 구멍이 그림 칸의 66.5% 다. 글자가 테두리에
+    /// 닿지 않도록 그보다 조금 안쪽인 0.60 으로 잡는다.
+    /// </summary>
+    private const float KeyInset = 0.60f;
+
+    /// <summary>키 글자 칸의 높이 비율. 글자는 한 줄이라 폭만큼 높을 필요가 없다.</summary>
+    private const float KeyLineHeight = 0.38f;
+
+    /// <summary>키 글자를 이 배로 줄인다. 1.0 이 도넛 구멍에 꽉 찼을 때의 크기다.</summary>
+    private const float KeyFontScale = 0.8f;
+
+    // 자동 크기 범위. "K" 는 위까지 커지고 "Space" · "J · L" 은 칸에 맞춰 줄어든다.
+    private const float KeyFontMin = 14f * KeyFontScale;
+    private const float KeyFontMax = 30f * KeyFontScale;
+
+    /// <summary>
+    /// 링 안 키캡 글꼴. **본문(NotoSansKR)과 일부러 다르게 쓴다.**
+    ///
+    /// 여기 찍히는 것은 <c>Space</c> · <c>K</c> · <c>J · L</c> 뿐이라 한글이 필요 없습니다.
+    /// 키캡은 읽는 "글" 이 아니라 **버튼에 새긴 각인**이라, 본문과 같은 글꼴일 이유가
+    /// 없습니다. 둥근 링(interaction-ring-painterly)에 맞춰 **둥근 글꼴(Fredoka)** 을 씁니다.
+    ///
+    /// 만화체(Bangers)를 먼저 대 봤다가 되돌렸습니다. 모서리가 뾰족하고 세로로 눌린
+    /// 글꼴이라 동그란 링과 따로 놀았습니다.
+    ///
+    /// ⚠ **<see cref="ShipCoopKeyFontInstaller"/> 가 구워 둔 에셋입니다.** 없으면
+    ///    경고만 남기고 쓰던 글꼴로 넘어갑니다 — 글자가 안 보이는 것보다 낫습니다.
+    ///    그 메뉴(배 협동 키캡 글꼴 굽기)를 한 번 돌리면 만들어집니다.
+    /// </summary>
+    private const string KeyFontPath = ShipCoopKeyFontInstaller.OutputPath;
 
     private static readonly Vector2 Half = new Vector2(0.5f, 0.5f);
     private static readonly Vector2 TopLeft = new Vector2(0f, 1f);
@@ -238,6 +309,16 @@ public static class ShipCoopHudV2Art
             BuildAction(canvas, wired);
 
             Connect(hud, wired);
+
+            // ⚠ 안내 팝업도 여기서 다시 짓습니다. 위에서 캔버스 자식을 **전부** 지웠으므로,
+            //    이 줄을 빼면 팝업이 조용히 사라집니다 — 실제로 그렇게 사라진 적이 있습니다.
+            //    팝업은 손으로 만든 것이라 오래도록 빌더가 지을 줄 몰랐습니다.
+            //    SyncTextColors 보다 **먼저** 불러야 팝업의 글자색까지 같이 맞춰집니다.
+            if (!ShipCoopTutorialArt.Rebuild(root))
+            {
+                Debug.LogWarning("[HUD V2] 안내 팝업을 다시 짓지 못했다. HUD 는 그대로 저장한다.");
+            }
+
             SyncTextColors(root);
 
             PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -285,7 +366,6 @@ public static class ShipCoopHudV2Art
         public Image InteractGauge;
         public Image InteractIcon;
         public TextMeshProUGUI InteractKeycap;
-        public TextMeshProUGUI InteractHoldHint;
         public ShipCoopHud.EventRow[] EventRows;
     }
 
@@ -355,9 +435,8 @@ public static class ShipCoopHudV2Art
         //
         // timer-panel.png 는 hp-panel.png 와 크롭한 크기까지 똑같아서(실측 1250×494)
         // 폭도 그대로 같이 쓴다(TimerPillWidth = HpPillWidth).
-        // 왼쪽 위는 체력이, 아래는 항해 바가 맡아 시간은 가장 눈에 잘 들어오는 한가운데
-        // 맨 위에 둔다. **사건 목록이 바로 이 밑에 붙으므로**(EventListTop) 이 판 높이를
-        // 바꾸면 목록도 같이 내려간다.
+        // 왼쪽 위는 체력이, 오른쪽 위는 사건 목록이, 아래는 항해 바가 맡는다. 시간은
+        // 가장 눈에 잘 들어오는 한가운데 맨 위에 홀로 둔다.
         RectTransform time = Rect("Time", canvas);
         Place(time, TopCenter,
               new Vector2(0f, -(TopMargin + PillHeight * 0.5f)),
@@ -460,13 +539,13 @@ public static class ShipCoopHudV2Art
     // ------------------------------------------------------------------ 사건 목록
 
     /// <summary>
-    /// **상단 가운데.** 이 게임에서 가장 중요한 UI 다. (9장)
+    /// **오른쪽 위.** 이 게임에서 가장 중요한 UI 다. (9장)
     ///
-    /// 왼쪽 위 구석에 있던 것을 시간 알약 바로 밑, 화면 한가운데로 옮겼습니다. 구석은
-    /// 눈이 잘 안 가는 자리인데 이 카드는 **가장 먼저 읽혀야 하는 글**입니다. 옮기면서
-    /// 양옆이 비므로 카드를 가로로 늘렸습니다(<see cref="EventCardWidth"/>).
+    /// 왼쪽 위 → 상단 가운데를 거쳐 오른쪽 위로 왔습니다. 가운데는 눈에는 잘 들어오지만
+    /// **갑판 한복판을 가로로 덮어서** 정작 일하러 갈 자리가 안 보였습니다. 오른쪽 위는
+    /// 체력(왼쪽) · 시간(가운데) 과 한 줄을 나눠 쓰면서 갑판을 비워 둡니다.
     /// 카드는 위에서부터 채우고 남는 줄은 꺼지므로(ShipCoopHud.UpdateEvents),
-    /// 보통 한두 장이라 갑판을 가리지 않습니다.
+    /// 보통 한두 장만 뜹니다.
     ///
     /// 목업(`art/hud/09-event-hud-mockup`)대로 한 장을 이렇게 나눕니다.
     /// <code>
@@ -483,8 +562,8 @@ public static class ShipCoopHudV2Art
     private static void BuildEventList(RectTransform canvas, Wiring wired)
     {
         RectTransform group = Rect("Events", canvas);
-        Place(group, TopCenter,
-              new Vector2(0f, -(EventListTop + EventCardHeight * 0.5f)),
+        Place(group, TopRight,
+              new Vector2(-(Margin + EventCardWidth * 0.5f), -(EventListTop + EventCardHeight * 0.5f)),
               new Vector2(EventCardWidth, EventCardHeight));
 
         wired.EventRows = new ShipCoopHud.EventRow[EventRowCount];
@@ -500,10 +579,24 @@ public static class ShipCoopHudV2Art
         const float W = EventCardWidth;
         const float H = EventCardHeight;
 
-        // 제목 · 보조 문구 · 타이머가 **같은 선에서 시작한다.** 셋이 제각각 시작하면
-        // 카드가 들쭉날쭉해 보이고, 눈이 줄마다 가로로 다시 자리를 찾아야 한다.
-        // 그림 오른쪽 끝(−W*0.40 ± H*0.29) 에서 한 뼘 띄운 자리다.
-        const float TextLeft = -W * 0.332f;
+        // ⚠ **그림과 배지는 세로(H) 기준으로 재고, 글줄이 남는 자리를 쓴다.**
+        //
+        //    예전에는 셋 다 폭(W)의 비율로 잡혀 있었다. 그러면 카드를 좁힐 때
+        //    그림은 (세로 기준이라) 크기가 그대로인데 자리만 안으로 밀려와
+        //    **글자를 파고든다.** 실제로 30% 줄였을 때 틈이 0 이 됐다.
+        const float Pad = H * 0.16f;        // 카드 테두리 안쪽 여백
+        const float IconSize = H * EventIconRatio;
+        const float Gap = H * 0.12f;        // 그림 · 글줄 · 배지 사이 틈
+        const float BadgeWidth = H * 0.62f;
+
+        const float IconCenter = -W * 0.5f + Pad + IconSize * 0.5f;
+        const float BadgeCenter = W * 0.5f - Pad - BadgeWidth * 0.5f;
+
+        // 제목 · 보조 문구 · 타이머가 **같은 선에서 시작해 같은 선에서 끝난다.**
+        // 제각각이면 카드가 들쭉날쭉해 보이고, 눈이 줄마다 자리를 다시 찾아야 한다.
+        const float TextLeft = -W * 0.5f + Pad + IconSize + Gap;
+        const float TextRight = BadgeCenter - BadgeWidth * 0.5f - Gap;
+        const float TextWidth = TextRight - TextLeft;
 
         RectTransform card = Rect($"Row_{index + 1}", group);
         Place(card, Half, new Vector2(0f, -index * (H + EventCardGap)), new Vector2(W, H));
@@ -517,25 +610,23 @@ public static class ShipCoopHudV2Art
         back.pixelsPerUnitMultiplier = 3f;
 
         // ── 그림 ─────────────────────────────
-        Image icon = Icon(card, "Icon", null, new Vector2(-W * 0.40f, 0f), H * 0.58f);
+        Image icon = Icon(card, "Icon", null, new Vector2(IconCenter, 0f), IconSize);
         icon.color = Color.white;   // 사건 그림은 채색이라 크림색을 곱하면 탁해진다
 
         // ── 제목 ─────────────────────────────
         //
         // 남은 초를 뺀 자리까지 가져와 **배지 바로 앞까지** 넓게 쓴다. 왼쪽 정렬이라
         // 넓혀도 글자 시작점은 그대로고, 긴 사건 이름이 줄어들지 않고 다 나온다.
-        const float TitleWidth = W * 0.63f;
         TextMeshProUGUI title = Text("Title", card, "사건", 27f * EventCardScale, TextAlignmentOptions.Left);
         Place((RectTransform)title.transform, Half,
-              new Vector2(TextLeft + TitleWidth * 0.5f, H * 0.23f), new Vector2(TitleWidth, H * 0.30f));
+              new Vector2(TextLeft + TextWidth * 0.5f, H * 0.23f), new Vector2(TextWidth, H * 0.30f));
         title.color = EventTitle;
         Shrink(title, 18f * EventCardScale, 27f * EventCardScale);
 
         // ── 보조 문구 · 갑판 ──────────────────
-        const float LabelWidth = W * 0.52f;
         TextMeshProUGUI label = Text("Label", card, "", 19f * EventCardScale, TextAlignmentOptions.Left);
         Place((RectTransform)label.transform, Half,
-              new Vector2(TextLeft + LabelWidth * 0.5f, 0f), new Vector2(LabelWidth, H * 0.24f));
+              new Vector2(TextLeft + TextWidth * 0.5f, 0f), new Vector2(TextWidth, H * 0.24f));
         label.color = EventSecondary;
         Shrink(label, 14f * EventCardScale, 19f * EventCardScale);
 
@@ -550,7 +641,7 @@ public static class ShipCoopHudV2Art
         //
         // 색만으로 단계를 말하면 색각 이상이 있을 때 안 읽힌다. 글자를 같이 둔다.
         RectTransform badge = Rect("Badge", card);
-        Place(badge, Half, new Vector2(W * 0.40f, H * 0.23f), new Vector2(W * 0.135f, H * 0.26f));
+        Place(badge, Half, new Vector2(BadgeCenter, H * 0.23f), new Vector2(BadgeWidth, H * 0.26f));
         Image badgeImage = Img(badge, Sprite4("event-state-badge"), WarnOrange);
         badgeImage.type = Image.Type.Sliced;
         badgeImage.pixelsPerUnitMultiplier = 3f;
@@ -564,13 +655,11 @@ public static class ShipCoopHudV2Art
         //
         // 셀 것이 없는 사건(선체 파손)에서는 바탕과 채움을 **둘 다** 끈다.
         // 채움만 끄면 빈 홈이 남아서 "0 초 남았다" 로 읽힌다.
-        // 오른쪽 끝은 그대로 두고 **왼쪽을 글줄에 맞춰** 늘렸다. 글 두 줄과 바가
-        // 한 선에서 시작하므로 바가 얼마나 줄었는지도 글 시작점과 견줘 읽힌다.
-        const float TrackWidth = W * 0.383f - TextLeft;
-
+        // 글 두 줄과 **같은 칸**을 쓴다. 한 선에서 시작하고 한 선에서 끝나므로
+        // 바가 얼마나 줄었는지가 글 시작점과 견줘 읽힌다.
         RectTransform track = Rect("Timer", card);
-        Place(track, Half, new Vector2(TextLeft + TrackWidth * 0.5f, -H * 0.31f),
-              new Vector2(TrackWidth, H * 0.09f));
+        Place(track, Half, new Vector2(TextLeft + TextWidth * 0.5f, -H * 0.31f),
+              new Vector2(TextWidth, H * 0.09f));
 
         Image trackImage = Img(track, Sprite4("event-timer-track"), Color.white);
         trackImage.type = Image.Type.Sliced;
@@ -635,64 +724,175 @@ public static class ShipCoopHudV2Art
         // ⚠ **네모 판(panel-action-plaque)도, 링 안의 작업 그림(icon-helm 등)도 없다.**
         //    이 링 자체가 "누를 버튼" 이다. 안에는 지금 누를 키만 적힌다 — K 면 K, Space 면
         //    Space. 무슨 작업인지는 옆 글자(Label)가 말하므로, 그림으로 또 말할 필요가 없다.
-        //
-        // ⚠ **바탕(ring-background)이 이제 테두리 · 트랙까지 한 장에 다 그려진 그림이다**
-        //    (interaction-base.png). 예전에는 Track · Frame 을 따로 그려 겹쳤지만, 이제
-        //    그 두 장은 필요 없다 — 겹치면 옛 그림이 새 그림을 덮어 오히려 어긋난다.
-        //    채움(ring-fill-white)도 마찬가지로 이미 초록으로 칠해진 그림
-        //    (interaction-progress-fill.png)이라 틴트를 걸지 않고 흰색(원본 그대로) 그린다.
 
         // ── 원형 버튼(진행 링) ─────────────────────
+        //
+        // 뼈대만 여기서 세우고, 어떤 그림을 쓰고 글자 칸을 어떻게 잡을지는
+        // DressInteractRing 이 정한다 — 프리팹을 통째로 다시 짓지 않고 그림만
+        // 갈아끼울 수 있게 갈라 두었다. (ShipCoopInteractRingPatch)
         RectTransform ring = Rect("Ring", group);
-        Place(ring, Half, new Vector2(-120f, 0f) * ActionScale, new Vector2(104f, 104f) * ActionScale);
-        Img(ring, Sprite("ring-background"), Color.white);
+        Place(ring, Half, new Vector2(-120f, 0f) * ActionScale, new Vector2(RingSize, RingSize) * ActionScale);
+        Image badge = Img(ring, null, Color.white);
 
         RectTransform ringFill = Rect("Fill", ring);
         Stretch(ringFill, 0f, 0f, 0f, 0f);
-        Image gauge = Img(ringFill, Sprite("ring-fill-white"), Color.white);
-        gauge.type = Image.Type.Filled;
-        gauge.fillMethod = Image.FillMethod.Radial360;
-        gauge.fillOrigin = (int)Image.Origin360.Top;
-        gauge.fillClockwise = true;
+        Image gauge = Img(ringFill, null, Color.white);
+
+        // 채움 정도는 런타임(ShipCoopHud.UpdateInteract)이 매 프레임 넣는다. 처음엔 비어 있다.
         gauge.fillAmount = 0f;
         wired.InteractGauge = gauge;
 
         // ⚠ **키 글자를 반드시 연결한다.** 여기서 자식을 새로 만들기 때문에
         //    연결하지 않으면 예전처럼 무엇을 하든 빈칸으로 굳는다.
-        // ⚠ 색은 흰색이다. OnBadge(짙은 남색)를 썼던 예전 키캡은 밝은 판 위였다.
-        //    지금은 이 글자가 interaction-base.png 의 어두운 안쪽 원 위에 바로 앉으므로
-        //    흰색이어야 보인다.
-        TextMeshProUGUI keyLabel = Text("Key", ring, "Space", 28f * ActionScale, TextAlignmentOptions.Center);
-        keyLabel.color = Color.white;
-        keyLabel.fontStyle = FontStyles.Bold;
-        Shrink(keyLabel, 12f * ActionScale, 12f * ActionScale);
+        TextMeshProUGUI keyLabel = Text("Key", ring, "Space", KeyFontMax * ActionScale,
+                                        TextAlignmentOptions.Center);
         wired.InteractKeycap = keyLabel;
+
+        DressInteractRing(badge, gauge, keyLabel);
 
         // ── 안내 문구 ────────────────────
         //
-        // 링 오른쪽 끝이 -68 이다. 그 옆부터 글자(위)와 홀드 안내(아래)가 세로로 나눠 쓴다.
+        // 링 오른쪽 끝이 -68 이다. 그 옆부터 안내 문구가 시작한다.
         const float TextLeft = -40f;
         const float TextWidth = 216f;
 
-        // ⚠ 세로는 **TopLeft 가 아니라 Left** 다. 안내 문구는 한 줄일 때도 두 줄일 때도
+        // 링 쪽으로 더 당기는 양. 10 → 20 → 30 으로 두 번 늘렸다.
+        // **ActionScale 을 곱하지 않는다** — 화면에서 눈으로 재서 정한 값이다.
+        const float LabelPullLeft = 30f;
+
+        // 안내 문구 크기. 원래 21 → 80% 로 줄였다가(16.8) 다시 6pt 올렸다.
+        // 아래 보조 문구는 <size=60%> 라 이 값을 따라 같이 움직인다.
+        const float LabelFontSize = 22.8f;
+
+        // ⚠ 세로는 **TopLeft 가 아니라 Left** 다. 안내 문구는 한 줄일 때도 세 줄일 때도
         //    있는데, 위로 붙여 두면 한 줄일 때 아래에 빈 띠가 크게 남는다.
         //    가운데 정렬로 두면 줄 수가 바뀌어도 덩어리가 제자리에 있다.
-        wired.InteractLabel = Text("Label", group, "", 21f * ActionScale, TextAlignmentOptions.Left);
+        //
+        // y 는 0 — 링과 같은 높이다. 예전 19 는 아래에 "길게 누르세요" 를 두려고
+        // 올려놨던 값이라, 그 줄이 빠진 지금 그대로 두면 글자만 붕 떠 보인다.
+        //
+        // 칸 높이는 66 → 88. 가장 긴 안내(자재를 들고 갈 때)가 **세 줄**이라 66 으로는
+        // 마지막 줄이 칸 밖으로 밀렸다. 홀드 안내가 빠지면서 아래가 비었으니 그만큼 쓴다.
+        wired.InteractLabel = Text("Label", group, "", LabelFontSize * ActionScale,
+                                   TextAlignmentOptions.Left);
         Place((RectTransform)wired.InteractLabel.transform, Half,
-              new Vector2(TextLeft + TextWidth * 0.5f, 19f) * ActionScale,
-              new Vector2(TextWidth, 66f) * ActionScale);
+              new Vector2(TextLeft + TextWidth * 0.5f, 0f) * ActionScale + Vector2.left * LabelPullLeft,
+              new Vector2(TextWidth, 88f) * ActionScale);
 
-        // "길게 누르세요" — 떼면 놓치는 동작(운반 · 집기)에서만 켠다. ShipCoopHud.Show 가 켜고 끈다.
-        // 예전에는 이 줄의 왼쪽 칸을 키캡 판이 차지했지만, 키가 링 안으로 들어가 이제 전부 쓴다.
-        TextMeshProUGUI holdHint = Text("HoldHint", group, "길게 누르세요", 14f * ActionScale, TextAlignmentOptions.Left);
-        holdHint.color = new Color(1f, 1f, 1f, 0.75f);
-        Place((RectTransform)holdHint.transform, Half,
-              new Vector2(TextLeft + TextWidth * 0.5f, -33f) * ActionScale,
-              new Vector2(TextWidth, 30f) * ActionScale);
-        wired.InteractHoldHint = holdHint;
+        // 링 안 키 글자와 같은 글꼴로. (한글은 대체 글꼴로 빠진다 — ApplyKeyFont 참고)
+        ApplyKeyFont(wired.InteractLabel);
+
+        // ── "길게 누르세요" 는 뺐다 ──────
+        //
+        // 안내 문구가 이미 "길게 눌러서 들고 가기" · "꾹 누른 채로 · 대포로" 라고
+        // 말하고 있어서, 같은 말이 한 화면에 두 번 적혀 있었다. 줄이 하나 빠지면서
+        // 안내 문구가 링 한가운데 높이로 올라온다.
+        //
+        // 되살리려면 여기서 글자를 짓고, Wiring 에 칸을 도로 만들어 Connect 에서
+        // 꽂으면 된다 (런타임의 interactHoldHint 와 isHold 는 남겨 뒀고,
+        //  비어 있으면 그냥 넘어간다).
 
         group.gameObject.SetActive(false);
         wired.InteractPanel = group.gameObject;
+    }
+
+
+    /// <summary>
+    /// 원형 버튼에 **손그림(painterly) 한 쌍**을 입히고 키 글자 칸을 잡는다.
+    ///
+    /// ⚠ **두 장은 같은 1254×1254 칸에 그려진 한 쌍이다.** 바깥 테두리가 둘 다 x=120 에서
+    ///    시작하도록 맞춰져 있어서, 같은 사각형에 꽉 채우면(Stretch) 중심과 크기가 저절로
+    ///    맞는다. 자리를 따로 재서 맞추려 들면 안 된다.
+    ///
+    /// <code>
+    /// interaction-ring-painterly      꽉 찬 원판. 가운데가 넓어 키 글자가 그 위에 앉는다.
+    /// interaction-progress-painterly  도넛. 테두리 90px, 안쪽 구멍 지름 834px (칸의 66.5%).
+    ///                                 Radial360 으로 쓸면 테두리만 12시부터 차오른다.
+    /// </code>
+    ///
+    /// 둘 다 이미 색이 칠해진 그림이라 틴트를 걸지 않고 흰색(원본 그대로) 그린다.
+    /// <c>preserveAspect</c> 는 나중에 링 칸이 정사각형이 아니게 되더라도 **두 장이 같이**
+    /// 줄어들어 서로 어긋나지 않게 하려고 켠다.
+    ///
+    /// ⚠ <c>fillAmount</c> 는 **건드리지 않는다.** 진행률은 런타임이 주인이라, 여기서
+    ///    손대면 이미 돌고 있는 작업의 게이지가 튄다.
+    ///
+    /// HUD 를 통째로 다시 짓지 않고 그림만 갈아끼울 수 있도록 갈라 두었다.
+    /// (<see cref="ShipCoopInteractRingPatch"/> — 전체 재생성은 씬 override 를 끊는다)
+    /// </summary>
+    /// <summary>
+    /// 키캡 글꼴(<see cref="KeyFontPath"/>)을 입힌다. 링 안 키 글자와 그 옆 안내 문구가
+    /// 같이 쓴다 — 둘이 다른 글꼴이면 한 덩어리로 안 읽힌다.
+    ///
+    /// ⚠ **한글은 이 글꼴에 없다.** Fredoka 는 라틴 전용이라 "돛" 같은 글자는 TMP 의
+    ///    기본 대체 글꼴(NotoSansKR-Bold, TMP Settings 에 걸려 있다)로 그려진다.
+    ///    그래서 안내 문구는 **한글은 NotoSansKR, 키 글자(J · L · K)는 Fredoka** 로
+    ///    섞여 나온다. 노린 것이다 — 문장 속 키 글자가 링 안 키캡과 같은 모양이 된다.
+    ///
+    /// ⚠ **재질도 같이 바꾼다.** font 만 갈면 프리팹에 구워진 옛 글꼴의 재질이 남아서,
+    ///    글자 모양은 바뀌었는데 아틀라스가 안 맞아 뭉개진 채로 나온다.
+    /// </summary>
+    private static void ApplyKeyFont(TextMeshProUGUI text)
+    {
+        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(KeyFontPath);
+
+        if (font == null)
+        {
+            Debug.LogWarning($"[배 협동 HUD] 키캡 글꼴을 못 찾았다 — {KeyFontPath}. 쓰던 글꼴로 남긴다. " +
+                             "Tools > 아라아띠 > 배 협동 키캡 글꼴 굽기 를 한 번 돌리세요.");
+            text.fontStyle = FontStyles.Bold;
+            return;
+        }
+
+        text.font = font;
+        text.fontSharedMaterial = font.material;
+
+        // ⚠ **Bold 를 주지 않는다.** 이미 굵기가 Bold 로 박힌 파일(Fredoka-Bold)이라,
+        //    여기서 또 Bold 를 주면 TMP 가 그 위에 가짜 굵기를 덧대 뭉개진다.
+        text.fontStyle = FontStyles.Normal;
+    }
+
+    internal static void DressInteractRing(Image badge, Image gauge, TextMeshProUGUI key)
+    {
+        // 손그림(painterly) 한 벌로 갈아입혔다. v4 와 **같은 1254×1254** 라 안쪽 배치
+        // (KeyInset · KeyLineHeight)를 그대로 쓴다. 옛 v4 두 장은 지우지 않고 남겨 뒀다.
+        badge.sprite = Sprite("interaction-ring-painterly");
+        badge.color = Color.white;
+        badge.preserveAspect = true;
+
+        gauge.sprite = Sprite("interaction-progress-painterly");
+        gauge.color = Color.white;
+        gauge.preserveAspect = true;
+
+        // 기존 동작 그대로 — 12시에서 시작해 시계 방향으로 도는 원형 게이지.
+        gauge.type = Image.Type.Filled;
+        gauge.fillMethod = Image.FillMethod.Radial360;
+        gauge.fillOrigin = (int)Image.Origin360.Top;
+        gauge.fillClockwise = true;
+
+        // 글자 칸은 **도넛 안쪽 구멍에 맞춰** 잡는다. 예전에는 링 전체를 덮고 글씨를
+        // 14pt 로 묶어 놨는데, 지금 그림은 가운데가 넓어져 그럴 이유가 없어졌다. 자동 크기를
+        // 넓게 열어 두면 "K" 는 크게, "Space" · "J · L" 은 칸에 맞춰 스스로 줄어든다.
+        Place(key.rectTransform, Half, Vector2.zero,
+              new Vector2(RingSize * KeyInset, RingSize * KeyLineHeight) * ActionScale);
+
+        // ⚠ **Center 가 아니라 Midline 이다.** 둘 다 "가운데" 지만 기준이 다르다.
+        //
+        //    Center 는 글자 그림이 아니라 **줄 상자(ascender~descender)** 의 한가운데를
+        //    맞춘다. 한글 글꼴(NotoSansKR)은 위 여백(ascender 104.4)이 아래(descender
+        //    25.92)보다 훨씬 커서, 그대로 두면 글자가 눈에 띄게 아래로 내려앉는다.
+        //    30pt 로 재보면 "Space" 가 −5.0px, "K" 가 −2.0px 내려가 있었다.
+        //
+        //    Midline 은 **실제 글자 덩어리**의 한가운데를 맞춘다. 같은 조건에서
+        //    "Space" · "K" · "J · L" 셋 다 0.00px — 도넛 구멍 정중앙에 앉는다.
+        key.alignment = TextAlignmentOptions.Midline;
+
+        ApplyKeyFont(key);
+
+        // ⚠ 흰색이다. OnBadge(짙은 남색)를 썼던 예전 키캡은 밝은 판 위였다.
+        //    지금은 어두운 원판 위에 바로 앉으므로 흰색이어야 보인다.
+        key.color = Color.white;
+        Shrink(key, KeyFontMin * ActionScale, KeyFontMax * ActionScale);
     }
 
     // ------------------------------------------------------------------ 늦었다는 알림
@@ -749,13 +949,20 @@ public static class ShipCoopHudV2Art
         // 글자는 런타임이 채웁니다 — 돛이 문제인지 조타가 문제인지에 따라 달라집니다.
         //
         // ⚠ **판을 깔지 않습니다.** 어두운 판을 뒤에 넣어 봤는데 팻말이 무거워 보였습니다.
-        //    밝은 갑판 위에서 읽기 힘들면 판을 되살리지 말고 글자에 얇은 외곽선을 주세요
-        //    (TMP outlineWidth — 머티리얼 인스턴스가 생기므로 프리팹에 굽기 전에 확인).
+        //    대신 글자 자체에 검정 그림자를 씌워서 밝은 갑판 위에서도 읽히게 합니다.
         label = Text("Label", hurry, "", HurryFontSize, TextAlignmentOptions.Center);
         Place((RectTransform)label.transform, BottomCenter,
               new Vector2(0f, HurryTextBottom), new Vector2(HurryWidth, HurryTextHeight));
         label.color = WarnOrange;
         label.fontStyle = FontStyles.Bold;
+
+        // 검정 그림자. TMP 는 UI 의 Shadow 컴포넌트를 무시하므로 제 Underlay 를 켠
+        // 머티리얼을 꽂습니다. 글꼴이 없으면 null 이 와서 그림자 없이 그대로 갑니다.
+        Material shadow = ShipCoopHurryTextShadow.Ensure(label.font);
+        if (shadow != null)
+        {
+            label.fontSharedMaterial = shadow;
+        }
 
         hurry.gameObject.SetActive(false);
         return hurry;
@@ -786,7 +993,9 @@ public static class ShipCoopHudV2Art
         Set(so, "interactGauge", w.InteractGauge);
         Set(so, "interactIcon", w.InteractIcon);
         Set(so, "interactKeycap", w.InteractKeycap);
-        Set(so, "interactHoldHint", w.InteractHoldHint);
+        // "길게 누르세요" 는 더 이상 짓지 않는다. null 을 넣어 프리팹에 남아 있던
+        // 옛 참조를 끊는다 — 안 끊으면 지워진 오브젝트를 가리킨 채로 남는다.
+        Set(so, "interactHoldHint", null);
 
         Set(so, "courseWarningRoot", w.CourseWarningRoot);
         Set(so, "courseWarningVignette", w.CourseWarningVignette);
@@ -797,14 +1006,14 @@ public static class ShipCoopHudV2Art
         //
         // 돌풍(Sail) 과 조타(Helm) 는 전용 그림이 따로 없다. 돌풍은 그대로 돌풍 그림을 쓰고,
         // 조타로 넘기는 사건은 암초와 파도뿐이라 각자 자기 그림으로 간다.
-        Set(so, "eventIconHull", Sprite4("event-hull-damage"));
-        Set(so, "eventIconSail", Sprite4("event-squall"));
-        Set(so, "eventIconCannon", Sprite4("event-enemy-ship"));
-        Set(so, "eventIconHelm", Sprite4("event-reef"));
-        Set(so, "eventIconReef", Sprite4("event-reef"));
-        Set(so, "eventIconWave", Sprite4("event-big-wave"));
-        Set(so, "eventIconEnemy", Sprite4("event-enemy-ship"));
-        Set(so, "eventIconFlood", Sprite("icon-water"));
+        Set(so, "eventIconHull", Sprite4("event-hull-damage-painterly"));
+        Set(so, "eventIconSail", Sprite4("event-squall-painterly"));
+        Set(so, "eventIconCannon", Sprite4("event-enemy-ship-painterly"));
+        Set(so, "eventIconHelm", Sprite4("event-reef-painterly"));
+        Set(so, "eventIconReef", Sprite4("event-reef-painterly"));
+        Set(so, "eventIconWave", Sprite4("event-big-wave-painterly"));
+        Set(so, "eventIconEnemy", Sprite4("event-enemy-ship-painterly"));
+        Set(so, "eventIconFlood", Sprite4("event-flood"));
 
         Set(so, "taskIconHelm", Sprite("icon-helm"));
         Set(so, "taskIconSails", Sprite("icon-sails"));
@@ -1075,4 +1284,3 @@ public static class ShipCoopHudV2Art
         return new Color(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
     }
 }
-

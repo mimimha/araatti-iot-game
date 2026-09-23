@@ -2627,6 +2627,7 @@ GameObject:
   - component: {fileID: 8617005968481719764}
   - component: {fileID: 3198784943384249776}
   - component: {fileID: 9055123758217843492}
+  - component: {fileID: 8340026935150668341}
   - component: {fileID: 8781997664107607958}
   m_Layer: 0
   m_Name: NetworkPlayer
@@ -2776,6 +2777,7 @@ MonoBehaviour:
   - {fileID: 560222595692780822}
   - {fileID: 8617005968481719764}
   - {fileID: 3198784943384249776}
+  - {fileID: 8340026935150668341}
   - {fileID: 8781997664107607958}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &21729067265443704
@@ -2830,8 +2832,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea767eb8579ef38428a1f4521c65ade5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerMover
-  walkSpeed: 5
-  runSpeed: 8
+  walkSpeed: 5.75
+  runSpeed: 9.2
   rotateSpeed: 720
   gravity: -20
   jumpHeight: 1.2
@@ -2961,20 +2963,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3bc1bea1e2fa6e143b208119f978d324, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.PlayerSpeechBubble
-  bodySprite: {fileID: 21300000, guid: ae3a627063e33b54faa495af5b7b4d5d, type: 3}
-  tailSprite: {fileID: 21300000, guid: 4b6df6b11cd69c945bb4b7b1755bfdbc, type: 3}
+  bodySprite: {fileID: 21300000, guid: 9c1f4a7b2e5d48f3ab06c9d71e284f50, type: 3}
+  tailSprite: {fileID: 21300000, guid: 3e8b56c0d1a74f26b9e3708c25da419f, type: 3}
   namePlateSprite: {fileID: 21300000, guid: 5e5c3fd5b08d11b47b581dac7aa601f4, type: 3}
   height: 1.5
   scale: 0.003
   maxWidth: 400
-  bodyBorderShrink: 6
+  bodyBorderShrink: 1.35
   plateBorderShrink: 8
   fontSize: 26
   nameFontSize: 22
-  tailSize: {x: 58, y: 36}
-  tailOverlap: 13
+  tailSize: {x: 50, y: 38}
+  tailOverlap: 8
   showSeconds: 8
   fadeSeconds: 0.4
+--- !u!114 &8340026935150668341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6175744461844398488}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3d699190aa94bd438dadc16d8100276, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferingRelay
 --- !u!114 &8781997664107607958
 MonoBehaviour:
   m_ObjectHideFlags: 0

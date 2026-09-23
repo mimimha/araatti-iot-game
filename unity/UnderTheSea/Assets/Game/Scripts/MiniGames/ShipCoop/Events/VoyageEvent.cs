@@ -161,6 +161,21 @@ public abstract class VoyageEvent : MonoBehaviour
     /// </summary>
     public virtual bool HintIsUrgent => false;
 
+    /// <summary>
+    /// 피하려면 **항로를 벗어나야 하는** 사건인가. 암초가 그렇다.
+    ///
+    /// 참이면 이 사건이 떠 있는 동안 HUD 의 항로 이탈 경고를 끕니다. 꺾어서 피하라고
+    /// 해 놓고 꺾은 사람에게 "항로를 벗어났다" 고 화면을 붉게 물들이면, **시키는 대로
+    /// 한 사람을 혼내는** 꼴이 됩니다. 경고가 늘 켜져 있으면 정작 진짜로 항로를 놓쳤을
+    /// 때 아무도 안 봅니다.
+    ///
+    /// ⚠ **파도는 반대라서 거짓입니다.** 파도는 꺾지 않고 정면으로 받아야 넘어가므로
+    ///    (<see cref="BigWave"/>), 그때 뱃머리가 틀어진 것은 진짜 경고입니다.
+    ///
+    /// 예고 중에도 참입니다. 바위가 수평선에 보이는 순간부터 이미 꺾기 시작하니까요.
+    /// </summary>
+    public virtual bool DodgedByLeavingCourse => false;
+
     /// <summary>사건이 지금 어느 단계인지. (5장 — 예고 → 발생 → 실패)</summary>
     public enum Stage
     {
@@ -185,13 +200,6 @@ public abstract class VoyageEvent : MonoBehaviour
 
     /// <summary>이미 터져서 제한 시간을 세는 중인지</summary>
     public bool IsRunning => CurrentStage == Stage.Running;
-
-    /// <summary>
-    /// 이 종류의 사건은 **항로를 벗어나서** 피하는가. 암초가 그렇다.
-    /// 그동안 HUD 는 항로 이탈 경고를 끈다 — 벗어나는 것이 정답이기 때문이다.
-    /// 이번에 피했는지가 아니라 사건의 성질이므로 예고 중에도 참이다.
-    /// </summary>
-    public virtual bool DodgedByLeavingCourse => false;
 
     /// <summary>지금 단계로 들어온 뒤 지난 시간 (초)</summary>
     public float Elapsed { get; private set; }

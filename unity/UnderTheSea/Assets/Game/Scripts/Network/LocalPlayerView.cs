@@ -392,12 +392,24 @@ public class LocalPlayerView : NetworkBehaviour
         //    좌클릭은 그 화면 요소들이 써야 하므로 우클릭으로 잡는다.
         bool dragging = Input.GetMouseButton(1);
 
+        // 상하는 부호를 뒤집어 넘긴다.
+        //
+        // ThirdPersonCamera 는 delta.y 를 그대로 pitch 에 더하는데, pitch 가 커지면
+        // 카메라가 주시점 **위로** 올라가 아래를 내려다본다. 그래서 그대로 넘기면
+        // 마우스를 위로 끌 때 화면이 아래를 향한다(비행 시뮬 방식).
+        // 끈 쪽을 보게 하려면 여기서 뒤집는 수밖에 없다.
         Vector2 delta = dragging
-            ? new Vector2(Input.GetAxis(mouseX), Input.GetAxis(mouseY))
+            ? new Vector2(Input.GetAxis(mouseX), -Input.GetAxis(mouseY))
             : Vector2.zero;
 
-        // 확대·축소는 버튼과 무관하다. 휠은 언제나 그대로 넘긴다.
-        boundCamera.SetInput(in delta, Input.GetAxis(mouseScroll));
+        // 확대·축소는 버튼과 무관하다. 휠은 누르지 않고도 늘 먹는다.
+        //
+        // ⚠ 다만 **화면이 휠을 쓰고 있으면 비켜 준다.** 채팅 기록 위에서 지난 대화를
+        //    올려 읽는 동안 화면까지 줌되면 둘 다 제대로 안 된다.
+        //    채팅이 있는지는 여기서 몰라도 된다. ChatFocus 한 곳만 본다.
+        float zoom = ChatFocus.WheelHeld ? 0f : Input.GetAxis(mouseScroll);
+
+        boundCamera.SetInput(in delta, zoom);
 
         if (LogCamera && Time.time >= nextCameraLogTime)
         {
