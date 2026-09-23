@@ -3003,8 +3003,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b3b6be4ac524bbeb77f57c077db58a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: ithappy.Cute_Characters::ithappy.Cute_Characters.Controller.CharacterMover
-  m_WalkSpeed: 1
-  m_RunSpeed: 4
+  m_WalkSpeed: 2
+  m_RunSpeed: 6
   m_RotateSpeed: 720
   m_Space: 1
   m_JumpHeight: 0.2
@@ -3103,6 +3103,8 @@ MonoBehaviour:
   _CameraYaw: 0
   _CameraPitch: 0
   _FocusCell: 0
+  _SceneReady:
+    RawValue: 0
 --- !u!114 &1334800601220584296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3117,7 +3119,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineNetPlayerMover
   lookAhead: 10
   lookHeight: 1
-  walkSpeed: 1
+  walkSpeed: 2
   animFlow: 4.5
   _MoveAxis: {x: 0, y: 0}
   _AnimAxis: {x: 0, y: 0}
