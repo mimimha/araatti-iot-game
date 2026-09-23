@@ -105685,6 +105685,10 @@ PrefabInstance:
       propertyPath: m_sharedMaterial
       value: 
       objectReference: {fileID: 977201312}
+    - target: {fileID: 6851222299454048407, guid: 6f53cf820ac62a24c9995df6b7e73ed5, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
