@@ -186,6 +186,13 @@ public abstract class VoyageEvent : MonoBehaviour
     /// <summary>이미 터져서 제한 시간을 세는 중인지</summary>
     public bool IsRunning => CurrentStage == Stage.Running;
 
+    /// <summary>
+    /// 이 종류의 사건은 **항로를 벗어나서** 피하는가. 암초가 그렇다.
+    /// 그동안 HUD 는 항로 이탈 경고를 끈다 — 벗어나는 것이 정답이기 때문이다.
+    /// 이번에 피했는지가 아니라 사건의 성질이므로 예고 중에도 참이다.
+    /// </summary>
+    public virtual bool DodgedByLeavingCourse => false;
+
     /// <summary>지금 단계로 들어온 뒤 지난 시간 (초)</summary>
     public float Elapsed { get; private set; }
 

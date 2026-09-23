@@ -179,6 +179,9 @@ public class Reef : VoyageEvent
     /// <summary>이번 암초를 피했는가.</summary>
     public bool WasDodged => _verdict == VerdictDodged;
 
+    /// <summary>암초는 항로를 꺾어서 피한다. 그동안 HUD 의 항로 이탈 경고를 끈다.</summary>
+    public override bool DodgedByLeavingCourse => true;
+
     /// <summary>클라이언트 — 서버가 내린 결론을 그대로 받는다. 다시 재지 않는다.</summary>
     public override void ShowExtra(int value)
     {
