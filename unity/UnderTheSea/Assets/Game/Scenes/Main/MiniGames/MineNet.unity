@@ -68889,7 +68889,7 @@ MonoBehaviour:
   hintOpen: {fileID: 8300000, guid: 648de108b017c1b409751d143597fa2e, type: 3}
   swingMiss: {fileID: 8300000, guid: dd29ff597ca7fca4ba1aeb8d55902616, type: 3}
   sfxLevel: 0.85
-  stoneLevel: 0.8
+  stoneLevel: 0.5
   swingMissLevel: 0.5
   quietSecondsOnJoin: 1.5
 --- !u!4 &1622559389
