@@ -152,7 +152,10 @@ namespace Mine.Net
         // 본 값들. -1 은 "아직 한 번도 안 봤다" 라 첫 스냅숏에 몰아 울리지 않는다.
         private MineMatchPhase _phaseSeen;
         private bool _phaseInit;
-        private int _countdownSeen = -1;
+        private bool _countTickPlayed;
+
+        /// <summary>늦게 봤을 때 앞을 잘라 만든 카운트다운 클립. 판마다 새로 만들고 앞의 것은 버린다.</summary>
+        private AudioClip _countTickCut;
         private int _slotSeen = -1;
         private int _restoresSeen = -1;
         private bool _hintSeen;
@@ -205,6 +208,7 @@ namespace Mine.Net
         private void OnDestroy()
         {
             if (_grid != null) _grid.OnCellHit -= HandleCellHit;
+            if (_countTickCut != null) Destroy(_countTickCut);
 
             // 씬을 떠난다. 루프는 끄고 음악은 페이드 아웃 — 다음 씬의 SceneMusic 이 새 곡을 올린다.
             if (_hub == null) return;
@@ -219,10 +223,12 @@ namespace Mine.Net
 
         private void Rescan(bool force)
         {
+            // 판은 정적 참조라 매 프레임 읽는다. 0.5초 간격에 묶어 두면 판이 생기자마자 시작하는
+            // 카운트다운(-crew 1 · 마지막 사람)을 최대 0.5초 늦게 보고, 3 · 2 · 1 소리가 화면보다 밀린다.
+            _match = MineMatchState.Current;
+
             if (!force && Time.time < _nextRescan) return;
             _nextRescan = Time.time + RescanSeconds;
-
-            _match = MineMatchState.Current;
 
             if (_me != null && _me.Object != null && _me.Object.IsValid) return;
 
@@ -274,26 +280,88 @@ namespace Mine.Net
         // ------------------------------------------------------------
 
         /// <summary>
-        /// 시작 카운트다운. **"3" 이 되는 순간 한 번만** 낸다 — 클립 하나에 3 · 2 · 1 박자가 들어 있다.
-        /// 3 을 지나서 들어온 사람은 못 듣는다. 중간부터 박자가 어긋나게 트는 것보다 낫다.
+        /// 시작 카운트다운. **판마다 한 번** 낸다 — 클립 하나에 3 · 2 · 1 박자가 들어 있다
+        /// (0 · 1 · 2초에 삑, 3초에 긴 삑). 남은 시간이 3 일 때 처음부터 틀면 화면과 맞는다.
+        ///
+        /// ⚠ **늦게 본 만큼 클립 중간부터 튼다.** 씬을 불러오는 동안 서버의 카운트다운이 먼저 흐르므로
+        ///   클라이언트는 3 을 못 보고 2.3 쯤에서 처음 본다(실측 0.69초). 그대로 처음부터 틀면 소리가 통째로 밀린다.
         /// </summary>
         private void WatchCountdown(MineMatchPhase phase)
         {
             if (phase != MineMatchPhase.Countdown)
             {
-                _countdownSeen = -1;
+                _countTickPlayed = false;
                 return;
             }
 
-            int left = Mathf.CeilToInt(_match.Countdown);
-            if (left == _countdownSeen) return;
+            if (_countTickPlayed || countTick == null) return;
 
-            _countdownSeen = left;
+            float late = 3f - _match.Countdown;
+            if (late < 0f) return;   // 카운트다운이 3초보다 길면 3 이 될 때까지 기다린다
+
+            _countTickPlayed = true;
 
             // ⚠ 접속 직후 조용한 시간(quietSecondsOnJoin)을 **무시한다.** 인원이 차는 순간 카운트다운이
-            //   시작되므로, 마지막 사람에게는 "3" 이 늘 접속 직후 1.5초 안에 온다 (-crew 1 이면 언제나).
-            //   조용한 시간은 쌓인 값이 한꺼번에 도착해 우르르 나는 것을 막는 것이고, 3 은 한 번뿐이라 상관없다.
-            if (left == 3) Play(countTick, ignoreQuiet: true);
+            //   시작되므로, 마지막 사람에게는 카운트다운이 늘 접속 직후 1.5초 안에 온다 (-crew 1 이면 언제나).
+            //   조용한 시간은 쌓인 값이 한꺼번에 도착해 우르르 나는 것을 막는 것이고, 이것은 한 번뿐이라 상관없다.
+            PlayCountTickFrom(late);
+
+            Debug.Log($"[MineAudio] 카운트다운 소리 — 남은 {_match.Countdown:F2}초에 봤다. 클립 {late:F2}초 지점부터 튼다", this);
+        }
+
+        /// <summary>
+        /// 카운트다운 클립을 <paramref name="offset"/> 초 지점부터 튼다.
+        ///
+        /// 허브의 <c>PlayOneShot</c> 은 시작 지점을 못 정한다. 그래서 앞을 잘라 낸 복사본을 만들어 넘긴다.
+        /// ⚠ 자른 자리가 삑 사이 무음이면 **다음 삑까지 기다렸다가** 그 삑부터 튼다 — 허브는 앞 무음을
+        ///   건너뛰고 트므로(<c>AudioHub.LeadInFor</c>), 무음째 넘기면 다음 삑이 앞당겨져 박자가 어긋난다.
+        /// </summary>
+        private void PlayCountTickFrom(float offset)
+        {
+            if (offset < 0.03f || countTick.loadType != AudioClipLoadType.DecompressOnLoad)
+            {
+                Play(countTick, ignoreQuiet: true);
+                return;
+            }
+
+            int channels = countTick.channels;
+            int frequency = countTick.frequency;
+            int start = Mathf.FloorToInt(offset * frequency);
+            if (start >= countTick.samples) return;
+
+            var rest = new float[(countTick.samples - start) * channels];
+            if (!countTick.GetData(rest, start))
+            {
+                Play(countTick, ignoreQuiet: true);
+                return;
+            }
+
+            // 다음 소리가 시작되는 표본. 허브가 "소리 시작" 으로 보는 크기와 같은 기준이다.
+            int first = -1;
+            for (int i = 0; i < rest.Length; i++)
+            {
+                if (Mathf.Abs(rest[i]) >= 0.02f) { first = i / channels; break; }
+            }
+            if (first < 0) return;   // 남은 부분에 소리가 없다
+
+            int length = rest.Length / channels - first;
+            var cut = new float[length * channels];
+            System.Array.Copy(rest, first * channels, cut, 0, cut.Length);
+
+            if (_countTickCut != null) Destroy(_countTickCut);
+            _countTickCut = AudioClip.Create(countTick.name + " (cut)", length, channels, frequency, false);
+            _countTickCut.SetData(cut, 0);
+
+            // 허브는 클립마다 크기를 재서 맞춘다. 자른 클립도 원본과 같은 크기로 들리도록 배율을 되돌려 준다.
+            float level = _hub.GainFor(countTick) / Mathf.Max(_hub.GainFor(_countTickCut), 1e-4f);
+
+            StartCoroutine(PlayCountTickAfter(_countTickCut, (float)first / frequency, level));
+        }
+
+        private System.Collections.IEnumerator PlayCountTickAfter(AudioClip clip, float wait, float level)
+        {
+            if (wait > 0f) yield return new WaitForSeconds(wait);
+            Play(clip, level, ignoreQuiet: true);
         }
 
         /// <summary>카운트다운이 끝나 도안이 뜨는 순간.</summary>
