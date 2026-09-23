@@ -1261,6 +1261,41 @@ HUD 가 매 프레임 값을 보고 바뀔 때만 다시 그립니다. 이미 �
 참가자 이름은 아직 `P1`~`P4` 입니다. 로스터가 없어서인데, 10단계에서
 `MineHud.SetPlayerNames()` 로 갈아끼웁니다.
 
+### 소리 — `MineAudio`
+
+구조는 `AUDIO.md` 그대로입니다. 소리는 공용 `AudioHub` 가 내고, `Mine/Net/MineAudio.cs` 는
+판 상태를 보고 "언제 무엇을" 만 정합니다. `MineNet.unity` 의 `Audio` 오브젝트에 붙습니다.
+
+**클립은 아직 없습니다.** `Assets/Game/Audio/Mine/` 에 아래 이름 그대로 파일을 넣고
+메뉴 `아라아띠/광산/소리 놓고 클립 채우기` 를 돌리면 채워집니다. 비어 있는 칸은 그 소리만 안 납니다.
+
+| 필드 | 언제 | 잡는 값 |
+| --- | --- | --- |
+| `bgmWaiting` | 대기 | `Phase == Waiting` |
+| `bgmPlaying` | 카운트다운 ~ 마지막 턴 | `Phase` 가 Countdown · Reveal · Turn |
+| `stingerClear` · `stingerFail` | 성적표가 뜰 때 한 번 | `ShowingMineResult` 가 켜짐 · `ResultSuccess` |
+| `caveLoop` | 판이 끝날 때까지 | 루프 `mine.cave` |
+| `countTick` | 3 · 2 · 1 | `Countdown` 정수 초 |
+| `countGo` | 도안이 뜨는 순간 | Countdown → Reveal |
+| `turnStart` | 턴 시작 (첫 턴 포함) | Turn 중 `CurrentSlot` 이 바뀜 |
+| `timeWarn` | 턴 5초 전부터 초마다 | `TurnTimeLeft` 정수 초 |
+| `stoneCrack` · `stoneBreak` | 돌에 금 · 깨짐 | `MineGrid.OnCellHit` |
+| `restorePlace` | 복구 블록 사용 | `RestoresLeft` 감소 |
+| `hintOpen` | 누군가 힌트를 켬 | `HintLeft` 가 0 에서 커짐 |
+| `swingMiss` | 팔 수 없을 때 휘두름 — **내 화면에서만** | `MineInputProvider.LocalSwing` |
+
+"채굴 종료" 부터는 배경음악을 멈춥니다. 결과 화면은 스팅어만 납니다 (AUDIO.md 4.3).
+
+> **`OnCellHit` 은 서버 판정 이벤트가 아닙니다.** 서버는 `Hit` 에서, 클라이언트는 서버 값을
+> 받아 적는 `ShowCell` 에서 똑같이 울립니다. 부스러기와 같은 신호라 모든 화면에서 납니다.
+
+> **헛스윙은 복제되는 값이 없습니다.** 서버는 턴이 아닌 사람과 도안이 떠 있는 동안의 휘두름을
+> 조용히 버립니다. 그래서 휘두름 키가 눌린 순간(`LocalSwing`)에 내 복사본으로
+> `IsMyTurn` · `ShowingTarget` 을 보고 판단합니다. 남에게는 들리지 않습니다.
+
+> ⚠ `광산 네트워크 씬 만들기` 로 씬을 다시 만들면 `Audio` 오브젝트도 사라집니다.
+> 그 뒤에 소리 메뉴를 한 번 더 돌립니다.
+
 ---
 
 ## 11. 만드는 순서
