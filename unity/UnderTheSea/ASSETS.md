@@ -40,6 +40,15 @@
 | Set Sail (Forgotten-Hero-Records) | pixabay.com/music/main-title-set-sail-350596/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmReady.mp3` | 배 협동 배경음악 — 대기 | 민화 | 2026-09-21 |
 | Pirate Tavern (Full Version!) (Magiksolo) | pixabay.com/music/main-title-pirate-tavern-full-version-167990/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmSailing.mp3` | 배 협동 배경음악 — 항해 | 민화 | 2026-09-21 |
 | Pirate Adventure Loop (Ebunny) | pixabay.com/music/orchestral-pirate-adventure-loop-557984/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmResult.mp3` | 배 협동 배경음악 — 결과 | 민화 | 2026-09-21 |
+| Swishes Sound Pack | opengameart.org/content/swishes-sound-pack (artisticdude) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (3개만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 무쌍 — 베기 3종(가로 · 세로 · 찌르기) | 서연 | 2026-09-22 |
+| Squish Sounds Effects | opengameart.org/content/squish-sounds-effects (EZduzziteh) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (1개만) | 무쌍 — 몬스터 처치 | 서연 | 2026-09-22 |
+| 80 CC0 creature SFX | opengameart.org/content/80-cc0-creature-sfx (rubberduck) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (1개만) | 무쌍 — 쓰러짐 | 서연 | 2026-09-22 |
+| Kenney Impact Sounds | kenney.nl/assets/impact-sounds | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (4개만. 팩 본체는 저장소에 없음) | 무쌍 타격음 전체 — 몬스터 정타 · 크라켄 피격 · 내 피격 · 촉수 타격 · 촉수 절단 (squish · 신음 계열이 "푸웩" 소리라 1 · 2 · 3라운드를 이 계열로 통일) | 서연 | 2026-09-22 |
+| Kenney Music Jingles | kenney.nl/assets/music-jingles | 무료 (CC0) | `Assets/Game/Audio/Warriors/stingerFail.ogg` (1개만. 팩 본체는 저장소에 없음) | 무쌍 — 실패 스팅어 | 서연 | 2026-09-22 |
+| 무쌍 카운트다운 톤 2개 | 직접 생성 (`art/tools/warriors_countdown_tones.py`) | 팀이 권리를 가짐 | `Assets/Game/Audio/Warriors/countdownTick.wav` · `countdownGo.wav` | 무쌍 — 레이싱 게임식 출발 카운트다운 (880Hz ×3 → 1760Hz 길게) | 서연 | 2026-09-22 |
+| 무쌍 합성 효과음 5개 | 직접 생성 (`art/tools/warriors_sfx_synth.py`) | 팀이 권리를 가짐 | `Assets/Game/Audio/Warriors/tentacleCut.wav` · `stingerClear.wav` · `noteHitHorizontal/Vertical/Thrust.wav` | 무쌍 — 촉수 베는 소리 · 클리어 팡파르 · 3라운드 노트 도레미(방향별 음정). **CC0 팩에 없어서 만들었다** | 서연 | 2026-09-22 |
+| Kenney Interface Sounds | kenney.nl/assets/interface-sounds | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (7개만. 팩 본체는 저장소에 없음) | 무쌍 — 노트 정타 · 미스 · 카운트다운 2종 · 마무리 창 · 협동 세트 · 라운드 전환 | 서연 | 2026-09-22 |
+| CC0 Deep Monster Roar | opengameart.org/content/cc0-deep-monster-roar | 무료 (CC0) | `Assets/Game/Audio/Warriors/krakenRoar.wav` | 무쌍 — 크라켄 포효. **원본 7.22초를 2.8초로 자르고 끝을 페이드 아웃** (CC0 는 수정 허용) | 서연 | 2026-09-22 |
 | ~~Exploration Fantasy Free Pack~~ | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | ⛔ 2026-09-21 에 위 Pixabay 곡으로 교체. 저장소에서 제거 | (이전) 배 협동 배경음악 | 민화 | 2026-09-20 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
