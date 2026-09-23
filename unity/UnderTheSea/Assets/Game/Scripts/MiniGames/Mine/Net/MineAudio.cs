@@ -289,7 +289,11 @@ namespace Mine.Net
             if (left == _countdownSeen) return;
 
             _countdownSeen = left;
-            if (left == 3) Play(countTick);
+
+            // ⚠ 접속 직후 조용한 시간(quietSecondsOnJoin)을 **무시한다.** 인원이 차는 순간 카운트다운이
+            //   시작되므로, 마지막 사람에게는 "3" 이 늘 접속 직후 1.5초 안에 온다 (-crew 1 이면 언제나).
+            //   조용한 시간은 쌓인 값이 한꺼번에 도착해 우르르 나는 것을 막는 것이고, 3 은 한 번뿐이라 상관없다.
+            if (left == 3) Play(countTick, ignoreQuiet: true);
         }
 
         /// <summary>카운트다운이 끝나 도안이 뜨는 순간.</summary>
@@ -425,9 +429,10 @@ namespace Mine.Net
 
         // ------------------------------------------------------------
 
-        private void Play(AudioClip clip, float level = 1f)
+        private void Play(AudioClip clip, float level = 1f, bool ignoreQuiet = false)
         {
-            if (clip == null || Time.time < _quietUntil) return;
+            if (clip == null) return;
+            if (!ignoreQuiet && Time.time < _quietUntil) return;
             _hub.PlayOneShot(clip, sfxLevel * level);
         }
     }
