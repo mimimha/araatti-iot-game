@@ -356,8 +356,8 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(IsLocked(fixture.Provider), Is.True);
 
             Assert.That(fixture.Mode.Abort(), Is.True);
-            Refresh(fixture.Adapter);
             Assert.That(IsLocked(fixture.Provider), Is.False);
+            Assert.That(ReadProperty<bool>(fixture.Adapter, "OwnsMovementLock"), Is.False);
             Assert.That(spot.IsBusy, Is.False);
         }
 
@@ -371,7 +371,6 @@ namespace FishingMiniGame.Tests.EditMode
 
             Assert.That(TryInteract(fixture.Adapter), Is.True);
             Assert.That(fixture.Mode.Abort(), Is.True);
-            Refresh(fixture.Adapter);
 
             Assert.That(IsLocked(fixture.Provider), Is.True);
             Assert.That(ReadProperty<bool>(fixture.Adapter, "OwnsMovementLock"), Is.False);
@@ -380,7 +379,8 @@ namespace FishingMiniGame.Tests.EditMode
         [TestCase(FishingV3Result.Caught)]
         [TestCase(FishingV3Result.LineBroken)]
         [TestCase(FishingV3Result.FishEscaped)]
-        public void TerminalResult_RestoresMovementAndReleasesSpot(FishingV3Result result)
+        public void TerminalResult_ImmediatelyRestoresMovementAndAllowsReentry(
+            FishingV3Result result)
         {
             FishingSpot spot = CreateObject("Spot").AddComponent<FishingSpot>();
             Fixture fixture = CreateFixture(new[] { spot }, 2f);
@@ -389,12 +389,18 @@ namespace FishingMiniGame.Tests.EditMode
 
             ConfigureTerminal(fixture, result);
             InvokeNonPublic(fixture.Mode, "Update");
-            Refresh(fixture.Adapter);
 
             Assert.That(fixture.Mode.State, Is.EqualTo(FishingModeLifecycleState.Inactive));
             Assert.That(fixture.Mode.LastResult, Is.EqualTo(result));
             Assert.That(IsLocked(fixture.Provider), Is.False);
+            Assert.That(ReadProperty<bool>(fixture.Adapter, "OwnsMovementLock"), Is.False);
+            Assert.That(FilterDirection(fixture.Provider, new Vector2(0.75f, -0.25f)),
+                Is.EqualTo(new Vector2(0.75f, -0.25f)));
             Assert.That(spot.IsBusy, Is.False);
+
+            Refresh(fixture.Adapter);
+            Assert.That(TryInteract(fixture.Adapter), Is.True);
+            Assert.That(IsLocked(fixture.Provider), Is.True);
         }
 
         [Test]

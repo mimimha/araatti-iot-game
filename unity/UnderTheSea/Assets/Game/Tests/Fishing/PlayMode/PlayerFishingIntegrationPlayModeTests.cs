@@ -31,6 +31,7 @@ namespace FishingMiniGame.Tests
             Assert.That(IsLocked(fixture.Provider), Is.True);
 
             Assert.That(fixture.Mode.Abort(), Is.True);
+            Assert.That(IsLocked(fixture.Provider), Is.False);
             yield return null;
 
             Assert.That(IsLocked(fixture.Provider), Is.False);

@@ -35,6 +35,13 @@ namespace FishingMiniGame.Runtime
         private FishingV3FishProfileSelector _fishProfileSelector;
         private FishingV3FishProfile _lastSelectedFishProfile;
 
+        /// <summary>
+        /// Raised after the active fishing context has been cleared and its spot
+        /// released. Integration code uses this boundary for immediate cleanup
+        /// instead of waiting for another polling frame.
+        /// </summary>
+        public event Action SessionEnded;
+
         public FishingModeLifecycleState State => _state;
 
         public bool IsFishing => _state != FishingModeLifecycleState.Inactive;
@@ -323,6 +330,7 @@ namespace FishingMiniGame.Runtime
             _currentSpot = null;
             _currentInteractor = null;
             spot?.Release();
+            SessionEnded?.Invoke();
         }
     }
 }

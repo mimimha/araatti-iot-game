@@ -36,6 +36,7 @@ namespace FishingMiniGame.Runtime
         private bool _movementLockBeforeFishing;
         private bool _chatFocusInputInstalled;
         private bool _tearingDown;
+        private FishingModeController _subscribedModeController;
 
         public FishingSpot CurrentFishingSpot => _currentFishingSpot;
 
@@ -57,6 +58,7 @@ namespace FishingMiniGame.Runtime
         {
             _tearingDown = false;
             ResolveModeController();
+            SubscribeModeControllerLifecycle();
             ResolveFishVisualPresenter();
             ResolvePlayerPresentation();
             EnsureChatFocusInputBoundary();
@@ -104,6 +106,36 @@ namespace FishingMiniGame.Runtime
             {
                 fishingModeController = GetComponent<FishingModeController>();
             }
+        }
+
+        private void SubscribeModeControllerLifecycle()
+        {
+            if (ReferenceEquals(_subscribedModeController, fishingModeController))
+            {
+                return;
+            }
+
+            UnsubscribeModeControllerLifecycle();
+            _subscribedModeController = fishingModeController;
+            if (_subscribedModeController != null)
+            {
+                _subscribedModeController.SessionEnded += HandleFishingSessionEnded;
+            }
+        }
+
+        private void UnsubscribeModeControllerLifecycle()
+        {
+            if (_subscribedModeController != null)
+            {
+                _subscribedModeController.SessionEnded -= HandleFishingSessionEnded;
+            }
+
+            _subscribedModeController = null;
+        }
+
+        private void HandleFishingSessionEnded()
+        {
+            RestoreMovementLock();
         }
 
         private void EnsureChatFocusInputBoundary()
@@ -428,6 +460,7 @@ namespace FishingMiniGame.Runtime
             _currentFishingSpot = null;
             AbortOwnSessionIfNecessary();
             RestoreMovementLock();
+            UnsubscribeModeControllerLifecycle();
             ClearLocalPlayerBinding();
             _handlingInteract = false;
         }
