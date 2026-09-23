@@ -22,16 +22,18 @@ using System.Threading;
 /// 게임별 행동 이름(힌트 · 발사 · 조타)은 여기에 없습니다. 그건 각 미니게임이 정하는
 /// 것이고, 이 프로필은 **장치가 값을 내놓는 방식**만 정합니다. (IOT_INPUT.md 3장)
 ///
-///   Shared    광산 · 배 협동. 왼손 버튼 2 를 달리기 토글로 잠근다
-///   Warriors  무쌍. 잠그지 않고 누르는 그대로 내놓는다
+///   Shared    배 협동. 왼손 버튼 2 를 달리기 토글로 잠근다
+///   Warriors  무쌍. 잠그지 않는다
+///   Mine      광산. 잠그지 않는다 — 그 자리가 힌트고, 달리기는 오른손 버튼 2 다
 ///
-/// <see cref="KeyboardControlProfile"/> 과 값이 1:1 입니다. 키보드로 확인한 것이
-/// 완드에서 그대로 되게 하려는 것입니다.
+/// <see cref="KeyboardControlProfile"/> 과 값이 **1:1 이어야 합니다.** 키보드로 확인한
+/// 것이 완드에서 그대로 되게 하려는 것입니다. 저쪽에 프로필이 늘면 여기도 늘립니다.
 /// </summary>
 public enum IotControlProfile
 {
     Shared,
     Warriors,
+    Mine,
 }
 
 /// <summary>
@@ -76,7 +78,8 @@ public enum IotControlProfile
 ///
 /// 키 배치 프로필
 ///   게임마다 같은 버튼이 다르게 나가야 하는 것이 **하나** 있습니다 — 달리기 토글입니다.
-///   배는 왼손 버튼 2 를 토글로 잠그고, 무쌍은 그 자리가 회피라서 누른 그대로 내놓아야 합니다.
+///   배만 왼손 버튼 2 를 토글로 잠급니다. 광산은 그 자리가 힌트라 단발이어야 하고,
+///   무쌍도 아직 안 정한 자리라 누른 그대로 내보냅니다.
 ///   <see cref="IotControlProfile"/> 로 가릅니다. 그 밖의 값은 네 게임이 똑같이 씁니다.
 ///
 ///   스틱 · IMU · Look 은 프로필이 없습니다. 카메라가 세로를 쓸지는 **받는 쪽**이 이미
@@ -187,9 +190,19 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "ShipCoopInput.Steer 가 둘을 평균 내는 순간 서로 상쇄돼 조타가 죽는다.\n\n" +
              "켜면 왼손 완드의 Tilt 부호를 뒤집어 둘을 같은 방향으로 맞춘다. " +
              "두 완드를 같은 방향으로 쥐는 배치라면 끈다.\n\n" +
-             "⚠ 어느 쪽인지는 눈으로 알 수 없다. firmware/tools/steer_verify.ps1 로 " +
-             "실제로 돌려본 기록을 재생해서 정한다.")]
+             "⚠ 어느 쪽인지는 눈으로 알 수 없다. firmware/tools/tilt_sign.ps1 로 " +
+             "실제로 돌려서 정한다.\n\n" +
+             "2026-09-23 실측(완드 0·1)에서는 두 손의 roll 이 같은 방향이라 " +
+             "**끔** 이 맞았다. 잡는 방식을 바꾸면 다시 재야 한다.")]
     [SerializeField] private bool mirroredGrip = false;
+
+    [Header("키보드 폴백")]
+    [Tooltip("완드가 하나도 안 붙어 있으면 키보드로 대신 논다.\n\n" +
+             "장치를 꽂으면 완드로, 빼면 키보드로 자동으로 넘어간다. 게임 코드는 " +
+             "이 컴포넌트 하나만 보므로 무엇이 값을 채우는지 모른다.\n\n" +
+             "끄면 완드가 없을 때 모든 값이 0 이다. 장치 없이 게임이 어떻게 보이는지 " +
+             "확인할 때만 끈다.")]
+    [SerializeField] private bool keyboardFallback = true;
 
     [Header("달리기")]
     [Tooltip("왼손 버튼 2 를 토글로 바꾼다. 한 번 눌러 켜고 다시 눌러 끈다.\n\n" +
@@ -227,6 +240,20 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "동글 로그의 #ECHO 로 본다.")]
     [SerializeField] private bool logDeviceOutput = false;
 
+    /// <summary>
+    /// 완드가 없을 때 대신 값을 채우는 키보드. <c>keyboardFallback</c> 이 켜져 있을 때만 만든다.
+    ///
+    /// ⚠ **자식 오브젝트에 만듭니다.** 같은 오브젝트에 두면 게임 코드의
+    ///   <c>GetComponent&lt;IPlayerController&gt;()</c> 가 완드 대신 이쪽을 집을 수 있습니다.
+    ///   어느 쪽이 잡힐지는 컴포넌트를 붙인 순서가 정하는데, 씬을 만지다 보면 쉽게 뒤집힙니다.
+    ///   자식은 <c>GetComponent</c> 도 <c>GetComponentInParent</c> 도 보지 못하므로
+    ///   **플레이어에 남는 구현체가 이것 하나뿐**이 됩니다.
+    /// </summary>
+    private KeyboardPlayerController _keyboard;
+
+    /// <summary>지금 값을 채우는 것이 키보드인가.</summary>
+    private bool _keyboardActive;
+
     /// <summary>완드 4대분의 상태. 고유번호가 곧 첨자다.</summary>
     private Wand[] _wands;
 
@@ -258,18 +285,18 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
     public IHandDevice Left
     {
-        get { EnsureWands(); return _left; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.Left : _left; }
     }
 
     /// <summary>오른손 완드. 끊겨 있으면 왼손과 같은 것을 돌려준다. 게임 코드는 개수를 몰라도 된다.</summary>
     public IHandDevice Right
     {
-        get { EnsureWands(); return _right; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.Right : _right; }
     }
 
     public bool HasTwoDevices
     {
-        get { EnsureWands(); return _hasTwoDevices; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.HasTwoDevices : _hasTwoDevices; }
     }
 
     public Vector2 Move => Left.Stick;
@@ -353,6 +380,7 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         // 값은 전부 0 · false 가 되고, 이는 완드를 안 꽂았을 때와 같은 상태다.
         RefreshConnections(now);
         ResolveHands();
+        RefreshKeyboardFallback();
     }
 
     // ------------------------------------------------------------
@@ -695,6 +723,102 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         }
 
         ResolveHands();
+        EnsureKeyboardFallback();
+    }
+
+    /// <summary>
+    /// 키보드 폴백을 만들어 둔다. 실행 중에만, 한 번만 만든다.
+    ///
+    /// 프로필은 이 컴포넌트의 것을 그대로 넘깁니다. 두 enum 은 값이 1:1 이라
+    /// 첨자를 그대로 바꿔 끼웁니다. 어긋나면 키보드가 다른 게임 배치로 돌아갑니다.
+    /// </summary>
+    private void EnsureKeyboardFallback()
+    {
+        if (!keyboardFallback || _keyboard != null || !Application.isPlaying)
+        {
+            return;
+        }
+
+        // 위 _keyboard 주석 참고. 반드시 자식이어야 한다.
+        GameObject host = new GameObject("[KeyboardFallback]");
+        host.transform.SetParent(transform, false);
+        host.hideFlags = HideFlags.DontSave;
+
+        _keyboard = host.AddComponent<KeyboardPlayerController>();
+        _keyboard.SetControlProfile((KeyboardControlProfile)(int)controlProfile);
+
+        // 쓰지 않는 동안에는 꺼 둔다. 켜 두면 아무도 안 가져가는 "눌린 순간" 이
+        // 그 안에 쌓이고, 완드가 끊기는 순간 그것이 한꺼번에 터진다.
+        _keyboard.enabled = false;
+        _keyboardActive = false;
+
+        RefreshKeyboardFallback();
+    }
+
+    /// <summary>
+    /// 완드가 하나라도 붙어 있으면 완드, 아니면 키보드로 넘긴다.
+    ///
+    /// **완드를 들고 있는 동안에는 키보드를 아예 끕니다.** 둘을 같이 켜 두면 한쪽이
+    /// 0 을 내놓는 프레임에 값이 튀고, 무엇이 값을 채웠는지 알 수 없게 됩니다.
+    /// </summary>
+    private void RefreshKeyboardFallback()
+    {
+        if (_keyboard == null)
+        {
+            return;
+        }
+
+        bool wanted = !AnyWandConnected();
+
+        if (wanted == _keyboardActive)
+        {
+            return;
+        }
+
+        _keyboardActive = wanted;
+        _keyboard.enabled = wanted;
+
+        // 넘어가는 순간 양쪽의 묵은 눌림을 버린다. 그러지 않으면 전환 직후에
+        // 쌓여 있던 것이 한꺼번에 나가 대포가 저절로 발사되거나 땅이 한 번 더 파인다.
+        DrainPending(_keyboard.Left);
+        DrainPending(_keyboard.Right);
+        DrainPending(_left);
+        DrainPending(_right);
+
+        if (logConnectionChanges)
+        {
+            Debug.Log($"[IotPlayerController] 입력 전환 — {(wanted ? "키보드" : "완드")}", this);
+        }
+    }
+
+    /// <summary>완드가 한 대라도 붙어 있는가.</summary>
+    private bool AnyWandConnected()
+    {
+        for (int i = 0; i < _wands.Length; i++)
+        {
+            if (_wands[i].Connected)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>한 손에 쌓여 있는 "눌린 순간" 과 동작을 읽어서 버린다.</summary>
+    private static void DrainPending(IHandDevice hand)
+    {
+        if (hand == null)
+        {
+            return;
+        }
+
+        hand.ConsumeButton1Press();
+        hand.ConsumeButton2Press();
+
+        while (hand.TryConsumeMotion(out _))
+        {
+        }
     }
 
     /// <summary>끊김을 시간으로 판정하고, 상태가 바뀐 완드만 로그로 알린다.</summary>
@@ -799,8 +923,13 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     ///   정해지기 전에는 **누른 그대로** 내보내는 쪽이 안전합니다. 토글로 잠가 두면
     ///   그 자리에 단발 조작이 오는 순간 한 번 걸러 먹힙니다.
     ///
-    /// 광산도 같은 자리를 힌트로 쓰지만 힌트는 <c>ConsumeButton2Press</c> 로만 읽어서
-    /// 잠겨도 눌리므로 Shared 로 둡니다.
+    /// **광산(<see cref="IotControlProfile.Mine"/>)에도 걸지 않습니다.** 거기는 왼손
+    /// 버튼 2 가 **힌트**고, 달리기는 **오른손 버튼 2** 입니다. (MINE.md 8장,
+    /// <c>KeyboardPlayerController</c> 의 Mine 프로필과 같은 배치)
+    ///
+    /// 힌트 자체는 <c>ConsumeButton2Press</c> 로만 읽어서 잠겨도 눌리지만, 잠가 두면
+    /// 힌트를 한 번 누른 뒤 <c>Button2</c> 가 계속 참으로 남습니다. 지금은 그 레벨을
+    /// 읽는 곳이 없어 표가 안 나지만, 생기는 순간 조용히 깨집니다.
     /// </summary>
     private void ApplySprintToggle()
     {
