@@ -44,3 +44,21 @@ MonoBehaviour:
     localEulerAngles: {x: 0, y: 0, z: 0}
     localScale: {x: 1.12, y: 0.92, z: 1}
     tint: {r: 1, g: 1, b: 1, a: 1}
+  - visualKey: small
+    prefab: {fileID: 5141747073210318293, guid: 0bc71c33a09590f40b834d9845e16570, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    localScale: {x: 0.6, y: 0.6, z: 0.6}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+  - visualKey: normal
+    prefab: {fileID: 370740198319482540, guid: e1a864a5ce62c0747b9d8a371e208b69, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    localScale: {x: 1, y: 1, z: 1}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+  - visualKey: strong
+    prefab: {fileID: 833768879061789989, guid: 387ae01dc4945b24498f47d457488ab0, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    localScale: {x: 1.15, y: 1.15, z: 1.15}
+    tint: {r: 1, g: 1, b: 1, a: 1}

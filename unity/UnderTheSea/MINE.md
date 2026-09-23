@@ -114,6 +114,7 @@ ReportMiniGameResult(similarity >= threshold, Mathf.RoundToInt(similarity));
 
 ```text
 1. 입장          모인 인원이 광산 바닥 주위에 배치된다
+                 **모두의 화면이 준비될 때까지** 기다린다 (아래 "모두 준비된 뒤에 셉니다")
         ↓
 2. 카운트다운    3 2 1 을 화면 가운데 크게 센다 (3초)
                  판은 보이되 **도안은 아직 안 나온다**
@@ -139,6 +140,22 @@ ReportMiniGameResult(similarity >= threshold, Mathf.RoundToInt(similarity));
 
 8번 탑뷰는 **플레이 중 탑뷰 금지의 예외**입니다. 플레이 내내 전체를 못 보다가
 마지막에 한 번에 공개하는 것이 이 게임의 하이라이트입니다.
+
+### 모두 준비된 뒤에 셉니다
+
+서버는 접속한 순간 인원에 넣지만, 그 사람의 화면은 그때부터 씬을 불러오고 판을 받습니다.
+인원만 보고 세면 **마지막으로 들어온 사람은 3 을 못 보고 2.2 쯤에서 들어옵니다** (실측 0.7~0.8초 늦음).
+
+그래서 인원과 준비를 따로 셉니다.
+
+| 값 | 늘어나는 때 | 쓰는 곳 |
+| --- | --- | --- |
+| `Crew` | 접속한 순간 (`Runner.ActivePlayers`) | 카운트다운 **취소** — 나가면 줄어든다 |
+| `MineNetPlayer.SceneReady` | 로딩 화면을 걷는 순간, 자기 몸이 `RPC_ReportReady` 로 알림 | 카운트다운 **시작** — 모두 참이어야 센다 |
+
+> ⚠ **알림이 끝내 안 오면 10초 뒤 준비된 것으로 칩니다** (`readyTimeoutSeconds`).
+> 판이 영영 안 시작하는 것보다 3 을 놓치는 편이 낫습니다. 이때 서버 로그에
+> `timeout 으로 준비된 것으로 칩니다` 가 남습니다. **정상 테스트에서 이 줄이 보이면 알림이 끊긴 것입니다.**
 
 ### 카운트다운이 공개 7초를 지켜줍니다
 
@@ -169,8 +186,13 @@ ReportMiniGameResult(similarity >= threshold, Mathf.RoundToInt(similarity));
 | 첫 사람 | 시작 칸을 정하고 거기서 판다 |
 | 나머지 | 앞사람이 정한 기준에 맞춰 이어간다 |
 
-**달려야 성립합니다.** 걷기 1m/s 로는 7초에 7m 라 판의 절반도 못 갑니다.
-달리기 4m/s 면 28m 라 어디든 갑니다. 그래서 키 안내에 `달리기 Shift` 를 넣었습니다.
+**달려야 성립합니다.** 걷기 2m/s 로는 7초에 14m 라 판 끝에서 끝까지 못 갑니다.
+달리기 6m/s 면 42m 라 어디든 갑니다. 그래서 키 안내에 `달리기 Shift` 를 넣었습니다.
+
+> 속도는 **걷기 2 · 달리기 6 m/s** 입니다 (2026-09-23, 처음에는 1 · 4). `MineNetPlayer.prefab` 의
+> `CharacterMover` 에 있고, 씬 생성 도구(`MineSceneSetup.TunedWalkSpeed` · `TunedRunSpeed`)가 같은 값을 넣습니다.
+> 로비(5.75 · 9.2)만큼은 올리지 않았습니다. 1m 칸을 겨누기 어렵고 한 턴에 파는 칸이 크게 늘기 때문입니다.
+> ⚠ 걷기를 바꾸면 `MineNetPlayerMover.walkSpeed`(애니메이션 기준)도 같이 바꿉니다. 다르면 발이 미끄러집니다.
 
 **발밑 칸이 보여야 성립합니다.** 탑뷰는 20m 위라 캐릭터가 몇 픽셀입니다.
 `MineCursor` 가 발밑 칸을 테두리로 그립니다 — 속을 채우면 하필 지금 고르는
@@ -257,6 +279,9 @@ IoT 쪽은 **세로로 휘둘렀는지**만 판정하면 됩니다. 가로 휘�
 > **병목은 팔이 아니라 이동입니다.** 한 칸을 파면 다음 칸으로 걸어가야 하므로
 > 팔을 아무리 빨리 움직여도 0.9회/초를 넘지 못합니다. 제자리 연타 6.1회/초는
 > 같은 칸을 계속 치는 것이라 실제 채굴에는 쓸모가 없습니다.
+>
+> ⚠ **이 실측은 걷기 1m/s 때 값입니다.** 걷기를 2m/s 로 올렸으므로(3장) 한 턴에 파는 칸이
+> 늘었을 것입니다. 다시 재기 전까지 이 표는 옛 속도 기준으로 읽습니다.
 >
 > 설계 전 추정치는 초당 1.5회 · 4명 180칸이었습니다. **실제는 그 60% 입니다.**
 >
@@ -1260,6 +1285,41 @@ HUD 가 매 프레임 값을 보고 바뀔 때만 다시 그립니다. 이미 �
 
 참가자 이름은 아직 `P1`~`P4` 입니다. 로스터가 없어서인데, 10단계에서
 `MineHud.SetPlayerNames()` 로 갈아끼웁니다.
+
+### 소리 — `MineAudio`
+
+구조는 `AUDIO.md` 그대로입니다. 소리는 공용 `AudioHub` 가 내고, `Mine/Net/MineAudio.cs` 는
+판 상태를 보고 "언제 무엇을" 만 정합니다. `MineNet.unity` 의 `Audio` 오브젝트에 붙습니다.
+
+**클립은 아직 없습니다.** `Assets/Game/Audio/Mine/` 에 아래 이름 그대로 파일을 넣고
+메뉴 `아라아띠/광산/소리 놓고 클립 채우기` 를 돌리면 채워집니다. 비어 있는 칸은 그 소리만 안 납니다.
+
+| 필드 | 언제 | 잡는 값 |
+| --- | --- | --- |
+| `bgmWaiting` | 대기 | `Phase == Waiting` |
+| `bgmPlaying` | 카운트다운 ~ 마지막 턴. 지금은 곡 대신 동굴 울림 녹음(Old Mine Ambience)을 쓴다 | `Phase` 가 Countdown · Reveal · Turn |
+| `stingerClear` · `stingerFail` | 성적표가 뜰 때 한 번 | `ShowingMineResult` 가 켜짐 · `ResultSuccess` |
+| `caveLoop` | 판이 끝날 때까지. 지금은 비어 있다 — 동굴 울림이 `bgmPlaying` 으로 옮겨 갔다 | 루프 `mine.cave` |
+| `countTick` | "3" 에서 한 번 (클립에 3 · 2 · 1 박자가 들어 있다) | `Countdown` 정수 초가 3 |
+| `countGo` | 도안이 뜨는 순간 | Countdown → Reveal |
+| `turnStart` | 턴 시작 (첫 턴 포함) | Turn 중 `CurrentSlot` 이 바뀜 |
+| `timeWarn` | 턴 5초 전부터 끝날 때까지 루프 `mine.warn` | `TurnTimeLeft` ≤ 5 |
+| `stoneCrack` · `stoneBreak` | 돌에 금 · 깨짐 | `MineGrid.OnCellHit` |
+| `restorePlace` | 복구 블록 사용 | `RestoresLeft` 감소 |
+| `hintOpen` | 누군가 힌트를 켬 | `HintLeft` 가 0 에서 커짐 |
+| `swingMiss` | 팔 수 없을 때 휘두름 — **내 화면에서만** | `MineInputProvider.LocalSwing` |
+
+"채굴 종료" 부터는 배경음악을 멈춥니다. 결과 화면은 스팅어만 납니다 (AUDIO.md 4.3).
+
+> **`OnCellHit` 은 서버 판정 이벤트가 아닙니다.** 서버는 `Hit` 에서, 클라이언트는 서버 값을
+> 받아 적는 `ShowCell` 에서 똑같이 울립니다. 부스러기와 같은 신호라 모든 화면에서 납니다.
+
+> **헛스윙은 복제되는 값이 없습니다.** 서버는 턴이 아닌 사람과 도안이 떠 있는 동안의 휘두름을
+> 조용히 버립니다. 그래서 휘두름 키가 눌린 순간(`LocalSwing`)에 내 복사본으로
+> `IsMyTurn` · `ShowingTarget` 을 보고 판단합니다. 남에게는 들리지 않습니다.
+
+> ⚠ `광산 네트워크 씬 만들기` 로 씬을 다시 만들면 `Audio` 오브젝트도 사라집니다.
+> 그 뒤에 소리 메뉴를 한 번 더 돌립니다.
 
 ---
 

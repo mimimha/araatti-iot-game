@@ -22,6 +22,7 @@ namespace FishingMiniGame.Runtime
             _nextFrame.CastPressed = false;
             _nextFrame.CastReleased = false;
             _nextFrame.HookPressed = false;
+            _nextFrame.TimingPressed = false;
             return frame;
         }
 

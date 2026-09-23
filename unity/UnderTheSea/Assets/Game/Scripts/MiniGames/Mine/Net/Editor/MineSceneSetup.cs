@@ -44,6 +44,16 @@ namespace Mine.Net.Editor
         /// <summary>씬 인스턴스에 맞춘 점프 높이. 프리팹 기본값(5)은 너무 높다.</summary>
         private const float TunedJumpHeight = 0.2f;
 
+        /// <summary>
+        /// 광산의 걷기 · 달리기 속도(m/s). 원본 프리팹(P_JaeYoung)은 1 · 4 다.
+        ///
+        /// 로비(5.75 · 9.2)만큼 올리면 1m 칸을 겨누기 어렵고 한 턴에 파는 칸이 크게 늘어,
+        /// 중간값으로 올렸다 (MINE.md 4장 — 이동이 채굴 속도의 병목이다).
+        /// ⚠ 걷기는 <c>MineNetPlayerMover.walkSpeed</c> 와 같아야 애니메이션이 안 미끄러진다.
+        /// </summary>
+        private const float TunedWalkSpeed = 2f;
+        private const float TunedRunSpeed = 6f;
+
         [MenuItem(MenuRoot + "광산 네트워크 씬 만들기")]
         public static void BuildAll()
         {
@@ -168,6 +178,12 @@ namespace Mine.Net.Editor
             //    그대로 두면 한 번 눌러도 사람 키만큼 솟구친다. 실측으로 확인했다.
             SerializedProperty jump = data.FindProperty("m_JumpHeight");
             if (jump != null) jump.floatValue = TunedJumpHeight;
+
+            SerializedProperty walk = data.FindProperty("m_WalkSpeed");
+            if (walk != null) walk.floatValue = TunedWalkSpeed;
+
+            SerializedProperty run = data.FindProperty("m_RunSpeed");
+            if (run != null) run.floatValue = TunedRunSpeed;
 
             data.ApplyModifiedPropertiesWithoutUndo();
         }

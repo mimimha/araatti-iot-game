@@ -11,9 +11,22 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 {
+    public bool IsMovementLocked { get; private set; }
+
+    public void SetMovementLocked(bool locked)
+    {
+        if (IsMovementLocked == locked)
+        {
+            return;
+        }
+
+        IsMovementLocked = locked;
+    }
+
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         NetworkInputData data = new NetworkInputData();
+        Vector2 rawDirection = Vector2.zero;
 
         // 이 창에 포커스가 있을 때만 입력을 보낸다.
         // Editor Host와 standalone Client를 한 PC에서 같이 띄워도 서로 간섭하지 않는다.
@@ -24,24 +37,24 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && Application.isFocused && !ChatFocus.Typing)
         {
-            Vector2 direction = Vector2.zero;
-
-            if (keyboard.wKey.isPressed) direction.y += 1f;
-            if (keyboard.sKey.isPressed) direction.y -= 1f;
-            if (keyboard.dKey.isPressed) direction.x += 1f;
-            if (keyboard.aKey.isPressed) direction.x -= 1f;
-
-            data.Direction = direction;
+            if (keyboard.wKey.isPressed) rawDirection.y += 1f;
+            if (keyboard.sKey.isPressed) rawDirection.y -= 1f;
+            if (keyboard.dKey.isPressed) rawDirection.x += 1f;
+            if (keyboard.aKey.isPressed) rawDirection.x -= 1f;
 
             // 눌린 순간이 아니라 **누르고 있는 상태**를 보낸다.
             // 순간을 보내면 그 한 틱이 유실될 때 점프가 통째로 사라진다.
             // 서버가 GetPressed(직전) 로 순간을 스스로 만들어 낸다. (NetworkPlayerMover)
-            data.Buttons.Set((int)LobbyButton.Jump, keyboard.spaceKey.isPressed);
+            data.Buttons.Set((int)LobbyButton.Jump,
+                !IsMovementLocked && keyboard.spaceKey.isPressed);
 
             // 달리기는 누르고 있는 내내 유효하다. 서버가 그대로 속도에 쓴다.
             data.Buttons.Set((int)LobbyButton.Sprint,
-                keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
+                !IsMovementLocked &&
+                (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed));
         }
+
+        data.Direction = ApplyMovementLock(rawDirection);
 
         // 이동을 카메라 기준으로 돌리기 위해 로컬 카메라의 Y 각도를 함께 보낸다.
         // 서버에는 카메라가 없어서 이 값을 스스로 알 수 없다. (NetworkPlayerMover 가 쓴다)
@@ -55,6 +68,11 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         // 포커스가 없으면 Direction이 zero인 채로 전달된다. 입력을 아예 보내지 않으면
         // Host가 이전 tick 입력을 재사용해 캐릭터가 계속 미끄러진다.
         input.Set(data);
+    }
+
+    private Vector2 ApplyMovementLock(Vector2 direction)
+    {
+        return IsMovementLocked ? Vector2.zero : direction;
     }
 
     #region Unused

@@ -683,12 +683,21 @@ namespace Warriors.Net
             Phase3Hits++;
             Score += rhythmScore;
 
-            if (Phase3Hits < Phase3Target) return;
+            if (Phase3Hits < Phase3Target || AwaitingLastNotes) return;
 
             // ⚠ **합동 결정타는 없다.** 한때 목표를 채운 뒤 "둘이 함께 치는 한 방" 을 더 요구했는데,
             //    크라켄 체력이 이미 0 인데도 판이 끝나지 않고 결정타를 기다리며 멈춰 있었다.
-            //    목표를 채우면 그대로 클리어다.
-            ClearMatch();
+            //
+            // 지금 기다리는 것은 **이미 떨어지고 있던 노트뿐**이다. 목표를 채우는 순간 판을 닫으면
+            // 화면에 남은 화살표가 그대로 사라져 "치다 말았는데 끝났다" 가 된다.
+            // 위 사고를 되풀이하지 않도록 <see cref="lastNotesGraceSeconds"/> 로 **반드시 시간을 끊는다** —
+            // 노트가 어떤 이유로든 정리되지 않아도 그 시간이 지나면 클리어한다.
+            AwaitingLastNotes = true;
+            lastNotesGrace = TickTimer.CreateFromSeconds(Runner, lastNotesGraceSeconds);
+
+            Debug.Log(
+                $"[WarriorsMatch] 3페이즈 목표 달성. 떨어지던 노트가 정리되면 클리어합니다 " +
+                $"(최대 {lastNotesGraceSeconds:F1}초).");
         }
 
         /// <summary>
@@ -702,6 +711,39 @@ namespace Warriors.Net
         /// 어두워지는 시간은 라운드 사이보다 길다(<see cref="finaleFadeSeconds"/>) — 판이 끝나는
         /// 자리라 다음 라운드로 넘어갈 때처럼 서둘 이유가 없다.
         /// </summary>
+        /// <summary>
+        /// 3페이즈 목표를 채웠고, <b>이미 떨어지고 있던 노트</b>가 정리되기를 기다리는 중이다.
+        ///
+        /// 이 동안 무대는 그대로 열려 있어 남은 화살표를 끝까지 칠 수 있다.
+        /// <c>WarriorsPhase3Director</c> 는 이 값을 보고 <b>새 묶음을 더 내지 않고, 놓쳐도 피해를 주지 않는다</b> —
+        /// 이미 이긴 판에서 마지막 노트를 놓쳐 쓰러지면 이겼다가 지는 일이 생긴다.
+        /// </summary>
+        public bool AwaitingLastNotes { get; private set; }
+
+        private TickTimer lastNotesGrace;
+
+        /// <summary>남은 노트를 기다리는 **최대** 시간. 지나면 노트가 남아 있어도 클리어한다.</summary>
+        [Tooltip("3페이즈 목표를 채운 뒤 떨어지던 노트를 기다리는 최대 시간(초). 판이 멈추지 않게 반드시 끊는다.")]
+        [SerializeField, Range(0f, 10f)] private float lastNotesGraceSeconds = 4f;
+
+        /// <summary>떨어지던 노트가 다 정리됐거나 유예가 끝났으면 그때 판을 닫는다.</summary>
+        private void ClearWhenLastNotesSettled()
+        {
+            WarriorsPhase3Director rhythm = WarriorsPhase3Director.Current;
+            bool stillFalling = rhythm != null && rhythm.HasFallingNotes;
+
+            if (stillFalling && !lastNotesGrace.Expired(Runner)) return;
+
+            if (stillFalling)
+            {
+                Debug.LogWarning(
+                    $"[WarriorsMatch] 노트가 {lastNotesGraceSeconds:F1}초 안에 정리되지 않아 그대로 클리어합니다.");
+            }
+
+            AwaitingLastNotes = false;
+            ClearMatch();
+        }
+
         private void ClearMatch()
         {
             if (Phase == WarriorsMatchPhase.Cleared || PendingPhase != 0) return;
@@ -1072,10 +1114,14 @@ namespace Warriors.Net
             // 멈춘 동안에는 판이 흐르지 않는다. 쓰러짐 판정도 시작 판정도 쉰다.
             if (IsPaused) return;
 
+            // 목표는 채웠고 떨어지던 노트만 마저 치는 중이다.
+            if (AwaitingLastNotes) ClearWhenLastNotesSettled();
+
             // 두 명 모두 쓰러지면 거기서 끝이다. 시작 전이면 아직 아무도 없으므로 지나간다.
             // ⚠ **이미 이긴 판은 뒤집히지 않는다.** 크라켄을 쓰러뜨린 뒤 승리 연출이 도는 동안
             //    남은 촉수 공격에 둘 다 쓰러지면 이겼다가 지는 일이 생긴다.
-            if (HasStarted && PendingPhase != (int)WarriorsMatchPhase.Cleared && EveryoneDown())
+            //    목표를 채우고 마지막 노트를 기다리는 동안(AwaitingLastNotes)도 마찬가지다.
+            if (HasStarted && PendingPhase != (int)WarriorsMatchPhase.Cleared && !AwaitingLastNotes && EveryoneDown())
             {
                 Fail(1);
                 Debug.Log($"[WarriorsMatch] 두 명 모두 쓰러졌습니다. 매치 실패. (경과 {Elapsed:F1}초)");

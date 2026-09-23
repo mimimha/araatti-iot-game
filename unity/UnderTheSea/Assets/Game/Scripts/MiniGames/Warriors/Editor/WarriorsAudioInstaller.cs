@@ -17,7 +17,7 @@ namespace Warriors.Net.Editor
     ///   waveLoop  krakenLoop
     ///   swingHorizontal  swingVertical  swingThrust  monsterHit  comboUp  monsterKill
     ///   tentacleHit  tentacleCut  finishWindow  comboSet
-    ///   noteHit  noteMiss  krakenHurt  krakenRoar
+    ///   noteHitHorizontal  noteHitVertical  noteHitThrust  noteMiss  krakenHurt  krakenRoar
     ///   playerHurt  playerDown  roundChange  countdownTick  countdownGo
     /// </code>
     ///
@@ -47,15 +47,64 @@ namespace Warriors.Net.Editor
             "waveLoop", "krakenLoop",
             "swingHorizontal", "swingVertical", "swingThrust", "monsterHit", "comboUp", "monsterKill",
             "tentacleHit", "tentacleCut", "finishWindow", "comboSet",
-            "noteHit", "noteMiss", "krakenHurt", "krakenRoar",
+            "noteHitHorizontal", "noteHitVertical", "noteHitThrust", "noteMiss", "krakenHurt", "krakenRoar",
             "playerHurt", "playerDown", "roundChange", "countdownTick", "countdownGo",
         };
 
         private static readonly string[] Extensions = { ".ogg", ".wav", ".mp3" };
 
+        /// <summary>아레나 카메라가 든 프리팹. 이 카메라가 곧 플레이어의 귀다 (<see cref="EnsureListener"/>).</summary>
+        private const string ArenaPrefab = "Assets/Game/Prefabs/MiniGames/Warriors/Arena/WarriorsBeachArena.prefab";
+
+        /// <summary>
+        /// 아레나 카메라에 <see cref="AudioListener"/> 가 붙어 있게 한다. <b>없으면 아무 소리도 안 들린다.</b>
+        ///
+        /// 귀는 부트 씬 카메라에만 있었다. 그런데 <c>WarriorsLocalView</c> 는 화면이 겹치지 않게
+        /// <b>남길 카메라 하나만 빼고 끄면서 그 카메라의 AudioListener 도 같이 끈다.</b> 남는 것은 아레나
+        /// 카메라인데 거기엔 귀가 없어, 켜 줄 것이 없어서 <b>켜진 리스너가 0개</b>가 되었다.
+        /// 판은 서버가 돌리니 멀쩡히 진행되는데 소리만 안 나서 원인을 찾기 어려웠다. (실측 2026-09-22)
+        /// </summary>
+        private static void EnsureListener()
+        {
+            GameObject root = PrefabUtility.LoadPrefabContents(ArenaPrefab);
+
+            if (root == null)
+            {
+                Debug.LogError($"[WarriorsAudio] {ArenaPrefab} 을 열지 못했습니다. 귀를 넣지 못했습니다.");
+                return;
+            }
+
+            try
+            {
+                Camera camera = root.GetComponentInChildren<Camera>(true);
+
+                if (camera == null)
+                {
+                    Debug.LogError($"[WarriorsAudio] {ArenaPrefab} 안에 카메라가 없습니다. 귀를 넣지 못했습니다.");
+                    return;
+                }
+
+                if (camera.GetComponent<AudioListener>() != null)
+                {
+                    Debug.Log($"[WarriorsAudio] 귀는 이미 '{camera.name}' 에 있습니다.");
+                    return;
+                }
+
+                camera.gameObject.AddComponent<AudioListener>();
+                PrefabUtility.SaveAsPrefabAsset(root, ArenaPrefab);
+                Debug.Log($"[WarriorsAudio] '{camera.name}' 에 귀(AudioListener)를 붙였습니다.");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
         [MenuItem("Tools/아라아띠/Warriors 소리 놓고 클립 채우기")]
         public static void Install()
         {
+            EnsureListener();
+
             if (!AssetDatabase.IsValidFolder(AudioFolder))
             {
                 Debug.LogWarning($"[WarriorsAudio] {AudioFolder} 가 없습니다. 오브젝트만 놓고 클립은 비워 둡니다. " +

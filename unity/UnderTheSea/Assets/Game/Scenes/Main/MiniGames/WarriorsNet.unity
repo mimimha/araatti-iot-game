@@ -220,35 +220,38 @@ MonoBehaviour:
   bgmRound1: {fileID: 0}
   bgmRound2: {fileID: 0}
   bgmRound3: {fileID: 0}
-  stingerClear: {fileID: 0}
-  stingerFail: {fileID: 0}
+  stingerClear: {fileID: 8300000, guid: 75ec90a27f832904da4977c0e2e5d00b, type: 3}
+  stingerFail: {fileID: 8300000, guid: 415c4abe79c3c9b43a052393552788f0, type: 3}
   crossfadeSeconds: 1.5
   waveLoop: {fileID: 0}
   krakenLoop: {fileID: 0}
   loopLevel: 0.45
-  swingHorizontal: {fileID: 0}
-  swingVertical: {fileID: 0}
-  swingThrust: {fileID: 0}
-  monsterHit: {fileID: 0}
+  swingHorizontal: {fileID: 8300000, guid: 9daa913f38cddeb4c8562816df1dce1b, type: 3}
+  swingVertical: {fileID: 8300000, guid: a6df0f929fe5ad94b81473e4784b93d8, type: 3}
+  swingThrust: {fileID: 8300000, guid: 91e3bf45d360e6b4eb2f6f8ede9ff9c4, type: 3}
+  monsterHit: {fileID: 8300000, guid: 16fd32b671f93aa408181a18ab28f28f, type: 3}
   comboUp: {fileID: 0}
-  monsterKill: {fileID: 0}
-  tentacleHit: {fileID: 0}
-  tentacleCut: {fileID: 0}
-  finishWindow: {fileID: 0}
-  comboSet: {fileID: 0}
-  noteHit: {fileID: 0}
-  noteMiss: {fileID: 0}
-  krakenHurt: {fileID: 0}
-  krakenRoar: {fileID: 0}
-  playerHurt: {fileID: 0}
-  playerDown: {fileID: 0}
-  roundChange: {fileID: 0}
-  countdownTick: {fileID: 0}
-  countdownGo: {fileID: 0}
+  monsterKill: {fileID: 8300000, guid: 46d1513d609c95f45a2ac85af1713b3b, type: 3}
+  tentacleHit: {fileID: 8300000, guid: 9ccca189d29735141b7592569f30ea7f, type: 3}
+  tentacleCut: {fileID: 8300000, guid: 2b3381073fe33bf4eb03c555f0191149, type: 3}
+  finishWindow: {fileID: 8300000, guid: 8ac389bc9a266674eba6abc217e47ee4, type: 3}
+  comboSet: {fileID: 8300000, guid: 1c2360ab87a3c7a429d515e8b74fd56a, type: 3}
+  noteHitHorizontal: {fileID: 8300000, guid: 393bee0e9fba221419045bcaf55d55d5, type: 3}
+  noteHitVertical: {fileID: 8300000, guid: 620fa148859b9e94ea90e6baf9329256, type: 3}
+  noteHitThrust: {fileID: 8300000, guid: c1232c0eb5b40974db4e29834460241e, type: 3}
+  noteMiss: {fileID: 8300000, guid: 7923d095738b8424e9e35951069830c1, type: 3}
+  krakenHurt: {fileID: 8300000, guid: e5ba94f7282bd934eacc256a8657fac2, type: 3}
+  krakenRoar: {fileID: 8300000, guid: ac95f6df22ce17d428ab5a75bd05a5ad, type: 3}
+  playerHurt: {fileID: 8300000, guid: a48ddf324a0aa8b499e6f5f50dac61e5, type: 3}
+  playerDown: {fileID: 8300000, guid: d08b80d9e567e16468ab676a26933924, type: 3}
+  roundChange: {fileID: 8300000, guid: 136613a678165de42a9529c2350a53af, type: 3}
+  countdownTick: {fileID: 8300000, guid: 4105c1ad9d017f44a9db7ac2f584eb27, type: 3}
+  countdownGo: {fileID: 8300000, guid: 10cd4e5374c31234ab86eefa52d3c3c0, type: 3}
   sfxLevel: 0.85
-  swingLevel: 0.5
+  swingLevel: 1
   monsterLevel: 0.8
-  noteLevel: 0.9
+  killLevel: 0.4
+  noteLevel: 0.8
   krakenLevel: 1.15
   quietSecondsOnJoin: 1.5
 --- !u!4 &102336791
@@ -557,6 +560,7 @@ MonoBehaviour:
   _PendingPhase: 0
   _ClearedRound: 0
   _ClearHoldSeconds: 0
+  lastNotesGraceSeconds: 4
 --- !u!114 &664164397
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1162,6 +1166,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5010346383300035543, guid: 92edc86d7cacc874a9c448a2c5b0caec, type: 3}
+      propertyPath: rewardConfig
+      value: 
+      objectReference: {fileID: 11400000, guid: dd6f57d8ba52d5043a7f0d8d8565198b, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

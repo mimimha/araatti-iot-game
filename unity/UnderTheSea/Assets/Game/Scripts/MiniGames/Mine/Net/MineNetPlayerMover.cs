@@ -39,7 +39,7 @@ namespace Mine.Net
         [Header("애니메이션")]
         [Tooltip("이 속도(m/s)로 걸을 때를 1 로 본다. CharacterMover 의 Walk Speed 와 같게 둔다. " +
                  "그 값은 남의 에셋의 private 이라 여기에 따로 적는다.")]
-        [SerializeField, Min(0.1f)] private float walkSpeed = 1f;
+        [SerializeField, Min(0.1f)] private float walkSpeed = 2f;
 
         [Tooltip("애니메이션이 값을 따라가는 빠르기. CharacterMover 안의 값과 같다.")]
         [SerializeField, Min(0.5f)] private float animFlow = 4.5f;

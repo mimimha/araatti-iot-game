@@ -1,4 +1,5 @@
 using TMPro;
+using UnderTheSea.Character;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,8 +52,21 @@ namespace UnderTheSea.Network
         [SerializeField] private Sprite namePlateSprite;
 
         [Header("자리")]
-        [Tooltip("캐릭터 발밑에서 이만큼 위에 꼬리 끝이 온다.")]
+        [Tooltip("캐릭터 발밑에서 이만큼 위에 꼬리 끝이 온다.\n" +
+                 "모자처럼 캐릭터 꼭대기가 이보다 높으면 그 위로 올라간다 (headroom).")]
         [SerializeField, Min(0f)] private float height = 2.05f;
+
+        /// <summary>
+        /// 캐릭터 꼭대기와 꼬리 끝 사이의 여유(m).
+        ///
+        /// <b>모자가 말풍선을 가리지 않게 한다.</b> 말풍선이 뜰 때 캐릭터에 **실제로 그려지는**
+        /// 렌더러의 꼭대기를 재서, <see cref="height"/> 보다 높으면 그 꼭대기 + 이 값에 꼬리를 둔다.
+        /// 모자가 없으면 꼭대기가 <see cref="height"/> 아래라 예전 자리 그대로다.
+        ///
+        /// 매 프레임이 아니라 **말이 뜰 때 한 번** 잰다. 걷는 동안 모자가 들썩여도 말풍선은 가만히 있다.
+        /// </summary>
+        [Tooltip("모자 등 캐릭터 꼭대기와 꼬리 끝 사이 여유(m).")]
+        [SerializeField, Min(0f)] private float headroom = 0.1f;
 
         [Header("크기")]
         [Tooltip("칸 1개가 월드에서 몇 m 인가. 작을수록 말풍선이 작아진다.")]
@@ -105,6 +119,9 @@ namespace UnderTheSea.Network
         private TMP_Text nameLabel;
         private LayoutElement textElement;
         private Transform root;
+
+        /// <summary>캐릭터 외형. 꼭대기 높이를 잴 때 쓴다 (<see cref="FitHeight"/>).</summary>
+        private CharacterAppearanceApplier model;
 
         private float hideAt;
 
@@ -324,6 +341,45 @@ namespace UnderTheSea.Network
             }
         }
 
+        /// <summary>
+        /// 꼬리 끝을 둘 높이. <see cref="height"/> 와 "캐릭터 꼭대기 + <see cref="headroom"/>" 중 높은 쪽.
+        ///
+        /// 꼭대기는 <see cref="CharacterAppearanceApplier"/> 아래에서 **지금 그려지는** 렌더러로 잰다.
+        /// 입은 파츠는 그 아래에 붙고, 파츠에 가려진 기본 몸은 <c>forceRenderingOff</c> 로 꺼진다
+        /// (<c>RefreshVisibility</c>). 그래서 모자를 쓰면 모자가, 안 쓰면 머리가 꼭대기가 된다.
+        ///
+        /// ⚠ 불꽃 · 꼬리 자국 같은 이펙트는 뺀다. 크기가 제멋대로라 말풍선이 튄다.
+        /// </summary>
+        private float FitHeight()
+        {
+            if (model == null)
+            {
+                model = GetComponentInChildren<CharacterAppearanceApplier>(true);
+            }
+
+            if (model == null)
+            {
+                return height;
+            }
+
+            float fit = height;
+
+            foreach (Renderer draw in model.GetComponentsInChildren<Renderer>())
+            {
+                if (!draw.enabled || draw.forceRenderingOff
+                    || draw is ParticleSystemRenderer || draw is TrailRenderer || draw is LineRenderer)
+                {
+                    continue;
+                }
+
+                // 캐릭터는 세로축으로만 돈다. 꼭대기 모서리를 캐릭터 기준으로 옮기면 y 가 발밑에서 잰 높이다.
+                float top = transform.InverseTransformPoint(draw.bounds.max).y;
+                fit = Mathf.Max(fit, top + headroom);
+            }
+
+            return fit;
+        }
+
         /// <summary>크기와 관련된 값을 만들어 둔 부품에 다시 먹인다.</summary>
         private void ApplySize()
         {
@@ -333,7 +389,7 @@ namespace UnderTheSea.Network
             }
 
             root.localScale = Vector3.one * scale;
-            root.localPosition = new Vector3(0f, height, 0f);
+            root.localPosition = new Vector3(0f, FitHeight(), 0f);
 
             Transform back = bubble != null ? bubble.Find("Background") : null;
 
