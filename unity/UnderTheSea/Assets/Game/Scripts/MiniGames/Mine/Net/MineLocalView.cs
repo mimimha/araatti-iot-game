@@ -273,7 +273,7 @@ namespace Mine.Net
         ///
         /// 결과 화면에서 캐릭터가 떠밀릴 걱정은 없다. 정답 보기가 파인 칸을 끌어올리지만
         /// 그때는 <c>MineNetPlayer.CanMoveNow</c> 가 false 여서 <c>MineNetPlayerMover</c>
-        /// 가 이미 <c>CharacterMover</c> 를 꺼 둔다. 힌트 중에는 자기 턴이라 켜져 있어서
+        /// 가 이미 몸을 옮기지 않는다. 힌트 중에는 자기 턴이라 움직일 수 있어서
         /// <c>MineNetPlayer.WatchingOwnHint</c> 로 따로 막는다.
         /// </summary>
         private void TickAnswerToggle(MineMatchState match, float period, bool startOnAnswer)

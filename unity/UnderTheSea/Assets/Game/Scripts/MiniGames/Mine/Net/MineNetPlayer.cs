@@ -254,10 +254,9 @@ namespace Mine.Net
         ///
         /// ⚠ 서버에서도 판단은 같다. 규칙(충돌)이 걸려 있어 표시만의 문제가 아니다.
         ///
-        /// ⚠ <b><c>CharacterController</c> 는 여기서 건드리지 않는다.</b> 그것은
-        ///    <c>MineNetPlayerMover.SetSimulated</c> 가 <c>CharacterMover</c> 와 <b>함께</b>
-        ///    켜고 끈다. 컨트롤러만 따로 끄면 Mover 가 계속 <c>Move</c> 를 불러
-        ///    "inactive controller" 오류가 프레임마다 쏟아진다.
+        /// ⚠ <b><c>CharacterController</c> 는 여기서 건드리지 않는다.</b> 몸을 굴리는
+        ///    <c>MineNetPlayerMover</c> 가 다룬다. 컨트롤러만 따로 끄면 그쪽이 틱마다
+        ///    <c>Move</c> 를 불러 "inactive controller" 오류가 쏟아진다.
         /// </summary>
         public override void FixedUpdateNetwork()
         {

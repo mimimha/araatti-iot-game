@@ -210,7 +210,7 @@ namespace Mine.Net
         /// 릴레이와 어울린다. 그래서 <b>이동은 열고 채굴만 잠근다.</b>
         ///
         /// 이 값은 셋을 한꺼번에 정한다 — 누가 보이는가(<c>MineNetPlayer.ApplyPresence</c>),
-        /// 누구의 몸을 굴리는가(<c>MineNetPlayerMover.SetSimulated</c>),
+        /// 누구의 몸을 굴리는가(<c>MineNetPlayerMover.FixedUpdateNetwork</c>),
         /// 사람끼리 부딪히는가(<c>MineNetPlayerMover.ApplyCrowdCollision</c>).
         /// 셋이 같이 움직여야 한다 — 안 보이는 몸이 길을 막는 것이 제일 나쁘다.
         ///
@@ -785,8 +785,8 @@ namespace Mine.Net
                 //   걷고 있던 사람을 끌어오면 그 순간 조작이 끊기고, 앞사람 몸과 겹쳐
                 //   서로 밀어낸다. 자기 턴이 된 것은 발밑에 뜨는 조준 표시로 안다.
                 //
-                //   몸은 이미 굴러가고 있다(FreeRoam 이 턴을 포함한다). 여기서 한 번 더
-                //   켜 두는 것은 Phase 가 막 Turn 으로 바뀐 첫 틱의 빈틈을 없애기 위해서다.
+                //   몸은 이미 굴러가고 있다(FreeRoam 이 턴을 포함한다). 굴릴지는
+                //   MineNetPlayerMover 가 틱마다 CanMoveNow 를 보고 정하므로 여기서 켤 것이 없다.
                 //
                 // ⚠ **앞사람의 시야 각도도 물려주지 않는다.** 자리를 물려주던 때에는
                 //   "같은 자리에서 시점만 홱 도는" 것을 막으려고 넘겼지만(c1b7d037),
@@ -794,9 +794,6 @@ namespace Mine.Net
                 //   게다가 복제된 각도는 입력이 빠진 틱의 대비책으로도 쓰여서
                 //   (MineNetPlayerMover), 남겨 두면 다음 턴 주인의 몸이 그 한 틱 동안
                 //   앞사람이 보던 쪽을 향한다. 건희님과 빼기로 정했다.
-                MineNetPlayerMover mover = next.GetComponent<MineNetPlayerMover>();
-                if (mover != null) mover.SetSimulated(true);
-
                 CurrentSlot = slot;
                 TurnTimeLeft = turnSeconds;
 
