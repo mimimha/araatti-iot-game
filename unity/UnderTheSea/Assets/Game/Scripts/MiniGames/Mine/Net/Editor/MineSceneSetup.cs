@@ -117,6 +117,9 @@ namespace Mine.Net.Editor
             // 채굴 · 되메우기 · 힌트. 판정은 서버에서만 일어난다.
             root.AddComponent<MineNetPlayerActions>();
 
+            // 닉네임. 로비 아바타에만 있어서 광산 명단이 "P1" 로만 나왔다.
+            root.AddComponent<UnderTheSea.Network.NetworkPlayerIdentity>();
+
             // 돌이 깨질 때 폴짝 뛰는 연출. 원본 씬의 플레이어에도 붙어 있다.
             if (root.GetComponent<MineJump>() == null) root.AddComponent<MineJump>();
 

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using Fusion;
 using MiniGames.Common;
+using UnderTheSea.Network;
 using UnityEngine;
 
 namespace Mine.Net
@@ -1183,6 +1184,20 @@ namespace Mine.Net
 
             _hud.NetworkRosterSize = RosterSize;
             _hud.NetworkCurrentSlot = CurrentSlot;
+
+            // 명단의 이름과 프로필 사진. 이름은 로비에서처럼 NetworkPlayerIdentity 가 들고 온다.
+            // ⚠ DisplayName 이 아니라 Nickname 을 읽는다. 닉네임이 오기 전 DisplayName 은
+            //   "이름 없음" 인데, 그때는 HUD 가 원래대로 "P1" 을 적는 편이 낫다.
+            for (int slot = 0; slot < RosterSize; slot++)
+            {
+                MineNetPlayer one = FindBySlot(slot);
+                NetworkPlayerIdentity identity = one != null ? one.GetComponent<NetworkPlayerIdentity>() : null;
+
+                _hud.SetNetworkPlayer(
+                    slot,
+                    identity != null ? identity.Nickname.Value : null,
+                    one != null ? one.transform : null);
+            }
 
             // 복구 총량은 BeginMatch 에서야 정해진다. 그 전에 그리면 "0 / 0" 이 뜬다.
             _hud.NetworkRestoreText = TotalRestores > 0

@@ -1,4 +1,5 @@
 using System;
+using MiniGames.Common.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,6 +36,9 @@ public class MineHud : MonoBehaviour
         public Image frame;
         public TMP_Text nameText;
         public TMP_Text stateText;
+
+        [Tooltip("프로필 사진. 줄 그림의 빈 네모 칸 위에 얹는다. 아직 못 찍었으면 감춘다.")]
+        public RawImage portrait;
     }
 
     [Header("연결 — 비워두면 씬에서 찾는다")]
@@ -345,6 +349,31 @@ public class MineHud : MonoBehaviour
     /// <summary>지금 파는 사람의 자리. -1 이면 아무도 아니다(대기 · 공개 · 종료).</summary>
     public int NetworkCurrentSlot { get; set; } = -1;
 
+    // 자리별 이름과 몸. MineMatchState 가 매 프레임 채운다. 비어 있으면 "P1" 로 둔다.
+    private string[] _networkNames = Array.Empty<string>();
+    private Transform[] _networkBodies = Array.Empty<Transform>();
+
+    /// <summary>프로필 사진을 찍는 공통 부품. 처음 쓸 때 이 오브젝트에 붙인다.</summary>
+    private CharacterPortraitStudio _portraits;
+
+    /// <summary>
+    /// 그 자리에 선 사람의 이름과 몸. 나갔으면 둘 다 null 을 준다.
+    /// 이름이 비어 있으면(아직 닉네임이 안 왔으면) "P1" 로 그린다.
+    /// </summary>
+    public void SetNetworkPlayer(int slot, string displayName, Transform body)
+    {
+        if (slot < 0 || rows == null || slot >= rows.Length) return;
+
+        if (_networkNames.Length != rows.Length)
+        {
+            _networkNames = new string[rows.Length];
+            _networkBodies = new Transform[rows.Length];
+        }
+
+        _networkNames[slot] = displayName;
+        _networkBodies[slot] = body;
+    }
+
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
     private TMP_Text _noticeLabel;
@@ -369,7 +398,11 @@ public class MineHud : MonoBehaviour
             SetActive(RowObject(row), used);
             if (!used) continue;
 
-            if (row.nameText != null) row.nameText.text = NameOf(i);
+            string shownName = i < _networkNames.Length ? _networkNames[i] : null;
+            if (row.nameText != null) row.nameText.text = string.IsNullOrWhiteSpace(shownName) ? NameOf(i) : shownName.Trim();
+
+            DrawPortrait(row.portrait, i, i < _networkBodies.Length ? _networkBodies[i] : null);
+
             if (row.stateText == null) continue;
 
             // 상태는 셋뿐이다.
@@ -392,6 +425,38 @@ public class MineHud : MonoBehaviour
             //   내 턴에는 내 줄이 금색이 되는데, 그때는 내가 조작하고 있어 헷갈리지 않는다.
             DrawRowFrame(row.frame, digging, i == NetworkSelfSlot);
         }
+    }
+
+    /// <summary>
+    /// 그 자리 사람의 사진을 칸에 끼운다. 아직 못 찍었으면(외형이 안 왔거나 몸이 감춰져 있으면)
+    /// 칸을 감춰 줄 그림의 빈 틀이 그대로 보이게 둔다.
+    /// </summary>
+    private void DrawPortrait(RawImage slot, int index, Transform body)
+    {
+        if (slot == null) return;
+
+        if (_portraits == null && body != null)
+        {
+            _portraits = GetComponent<CharacterPortraitStudio>();
+            if (_portraits == null) _portraits = gameObject.AddComponent<CharacterPortraitStudio>();
+        }
+
+        Texture photo = body != null ? _portraits.Take(index, body, PixelSizeOf(slot)) : null;
+
+        if (slot.texture != photo) slot.texture = photo;
+        SetActive(slot, photo != null);
+    }
+
+    private readonly Vector3[] _corners = new Vector3[4];
+
+    /// <summary>
+    /// 칸 한 변의 화면 픽셀 수. 사진을 그 크기에 맞춰 찍어야 줄여 그리며 뿌예지지 않는다.
+    /// 이 HUD 는 Screen Space - Overlay 라 월드 좌표가 곧 화면 픽셀이다.
+    /// </summary>
+    private int PixelSizeOf(RawImage slot)
+    {
+        slot.rectTransform.GetWorldCorners(_corners);
+        return Mathf.RoundToInt(Vector3.Distance(_corners[0], _corners[1]));
     }
 
     /// <summary>
