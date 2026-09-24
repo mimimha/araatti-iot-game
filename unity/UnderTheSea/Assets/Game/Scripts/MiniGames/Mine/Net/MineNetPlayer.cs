@@ -73,6 +73,7 @@ namespace Mine.Net
         ///
         /// <b>카운트다운과 턴에는 참가자 전원이 참이다.</b> (<see cref="MineMatchState.FreeRoam"/>)
         /// 내 턴이 아니어도 걷고 달릴 수 있다. 그동안 넷이 다 보이고 서로 부딪힌다.
+        /// 단 카운트다운 3 2 1 동안은 <c>MineNetPlayerMover</c> 가 몸을 굳혀 둔다.
         ///
         /// ⚠ <b>파는 것은 여기에 걸리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
         ///   <see cref="IsMyTurn"/> 과 <c>ShowingTarget</c> 으로 따로 막는다.
@@ -99,9 +100,10 @@ namespace Mine.Net
         /// 공개 7초가 그 둘이 갈라지는 자리다 — 넷이 다 서 있되 첫 턴 예정자만 걷는다.
         /// 나머지 셋은 굳은 채로 같이 도안을 본다.
         ///
-        /// ⚠ <b>움직임 판정을 여기에 섞으면 안 된다.</b> 힌트처럼 잠깐 멈추는 것까지
-        ///   보이기에 엮으면 그때마다 캐릭터가 사라진다. 실제로 겪은 문제다.
-        ///   (<see cref="WatchingOwnHint"/> 주석)
+        /// ⚠ <b>움직임 판정을 여기에 섞으면 안 된다.</b> 잠깐 멈추는 것까지 보이기에
+        ///   엮으면 그때마다 캐릭터가 사라진다. 예전에 힌트 중 멈춤을 <see cref="CanMoveNow"/>
+        ///   에 넣었다가 힌트 토글마다 캐릭터가 사라진 적이 있다. 그 값은 <c>ApplyPresence</c>
+        ///   로 렌더러를 켜고 끄는 데도 쓰이기 때문이다. 멈춤은 <c>MineNetPlayerMover</c> 에서만 판단한다.
         /// </summary>
         public bool ShowBody
         {
@@ -111,29 +113,6 @@ namespace Mine.Net
 
                 MineMatchState match = MineMatchState.Current;
                 return match != null && match.CrewOnBoard;
-            }
-        }
-
-        /// <summary>
-        /// <b>내 힌트를 보는 중인가.</b> 그동안에는 몸을 굴리지 않는다.
-        ///
-        /// 탑뷰로 올라가 발밑이 안 보이는데 그대로 움직이면 어디로 가는지 모른다.
-        /// 게다가 정답 보기가 파인 칸을 0.25m 끌어올려서 콜라이더가 캐릭터를 떠민다 —
-        /// 솔로에서 실제로 토글마다 점프했다. (<c>MineGame.SyncFrozen</c>)
-        ///
-        /// ⚠ <b><see cref="CanMoveNow"/> 에 넣으면 안 된다.</b> 그 값은 이동 판정만
-        ///   하는 것이 아니라 <c>ApplyPresence</c> 로 <b>렌더러를 켜고 끄는 데도</b>
-        ///   쓰인다. 거기에 힌트 조건을 넣었다가 힌트 토글마다 캐릭터가 사라졌다.
-        ///   막을 것은 몸을 굴리는 것뿐이므로 <c>MineNetPlayerMover</c> 만 이걸 본다.
-        /// </summary>
-        public bool WatchingOwnHint
-        {
-            get
-            {
-                if (Slot < 0) return false;
-
-                MineMatchState match = MineMatchState.Current;
-                return match != null && match.HintLeft > 0f && match.HintSlot == Slot;
             }
         }
 

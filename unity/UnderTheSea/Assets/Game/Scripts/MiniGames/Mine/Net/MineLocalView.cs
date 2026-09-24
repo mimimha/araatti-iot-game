@@ -273,8 +273,8 @@ namespace Mine.Net
         ///
         /// 결과 화면에서 캐릭터가 떠밀릴 걱정은 없다. 정답 보기가 파인 칸을 끌어올리지만
         /// 그때는 <c>MineNetPlayer.CanMoveNow</c> 가 false 여서 <c>MineNetPlayerMover</c>
-        /// 가 이미 몸을 옮기지 않는다. 힌트 중에는 자기 턴이라 움직일 수 있어서
-        /// <c>MineNetPlayer.WatchingOwnHint</c> 로 따로 막는다.
+        /// 가 이미 몸을 옮기지 않는다. 힌트 중에는 걸어도 되는데, 정답 보기로 올라오는 칸은
+        /// 이 화면에서만 그려지고 몸은 서버가 굴리므로 떠밀리지 않는다.
         /// </summary>
         private void TickAnswerToggle(MineMatchState match, float period, bool startOnAnswer)
         {
@@ -387,32 +387,27 @@ namespace Mine.Net
 
             _toggleStarted = false;
 
-            // ⚠ 목표를 보여 주는 두 경우를 <b>갈라서</b> 다룬다.
+            // 목표를 보여 주는 두 경우 — 공개(7초)와 힌트 — 모두 <b>모두가 같이 본다.</b>
             //
-            //   공개(7초)  판이 시작하기 전이니 모두가 같이 본다.
-            //   힌트      그 사람이 자기 한 번을 쓴 것이다. <b>쓴 사람만 본다.</b>
-            //
-            //   예전에는 둘 다 <c>ShowingTarget</c> 하나로 묶어 모두에게 탑뷰를 보였다.
-            //   그러면 관전자가 남의 힌트를 공짜로 같이 본다.
-            bool showTarget = match.Phase == MineMatchPhase.Reveal
-                             || (match.HintLeft > 0f && _who != null && _who.Slot == match.HintSlot);
+            //   예전에는 힌트를 쓴 사람만 탑뷰로 보고 관전자는 "누군가 컨닝 중!" 을 봤다.
+            //   관전자가 남의 힌트를 공짜로 보는 것을 막으려던 것이었는데, 한 그림을 같이
+            //   그리는 팀 게임이라 다 같이 보고 서로 알려 주는 편이 낫다고 정했다.
+            //   힌트를 쓸 수 있는 것은 여전히 턴 주인뿐이다(턴마다 한 번).
+            bool showTarget = match.ShowingTarget;
 
-            // 화면 한가운데 덮개에 띄울 한마디. **이 칸을 쓰는 곳이 둘이다.**
+            // 화면 한가운데 덮개에 띄울 한마디. 동료를 기다리는 동안에만 쓴다.
+            // 이 단계에는 화면에 아무 말도 없어서 멈춘 것처럼 보인다.
             //
-            //   동료 기다리는 중  이 단계에는 화면에 아무 말도 없어서 멈춘 것처럼 보인다
-            //   누군가 컨닝 중!   남이 힌트를 보는 동안 관전자에게. 시점은 그대로 둔다
-            //
-            // ⚠ 둘을 **한 자리에서** 정한다. 여기서 매 프레임 덮어쓰기 때문에, 다른 데서
+            // ⚠ **한 자리에서** 정한다. 여기서 매 프레임 덮어쓰기 때문에, 다른 데서
             //   따로 넣으면 어느 쪽이 이길지 실행 순서에 달리게 된다.
             if (_hud != null)
             {
                 _hud.NetworkCenterNotice =
                     match.Phase == MineMatchPhase.Waiting ? match.WaitingLine
-                    : match.HintLeft > 0f && !showTarget ? "누군가 컨닝 중!"
                     : string.Empty;
             }
 
-            // ⚠ **목표를 보는 사람만** 탑뷰로 바뀐다. 공개 7초는 모두, 힌트는 쓴 사람만이다.
+            // ⚠ 목표를 보는 동안 탑뷰로 바뀐다. 공개 7초도 힌트도 모두가 같이 본다.
             //    탑뷰 + 밝히기 + 도안 켜기가 함께 움직여야 한다. 셋 중 하나라도 빠지면
             //    반쪽이 된다. (MINE.md 6장)
             if (showTarget)
@@ -467,7 +462,10 @@ namespace Mine.Net
             bool lit = match.Phase == MineMatchPhase.Countdown;
 
             // 마우스는 내 몸을 쥐고 있을 때만 받는다. 관전 중에는 시점이 복제로 들어온다.
-            _camera.AcceptsMouse = mine;
+            //
+            // ⚠ 카운트다운 3 2 1 에는 받지 않는다. 몸도 굳어 있는 시간이라(MineNetPlayerMover)
+            //   시점까지 멈춰 두어야 "아직 시작 전" 으로 읽힌다. 휠 줌도 같이 막힌다.
+            _camera.AcceptsMouse = mine && match.Phase != MineMatchPhase.Countdown;
 
             MineNetPlayer subject = mine ? _who : match.FindBySlot(match.CurrentSlot);
 

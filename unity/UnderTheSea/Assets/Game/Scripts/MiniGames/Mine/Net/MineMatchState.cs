@@ -123,6 +123,15 @@ namespace Mine.Net
         /// </summary>
         [Networked] public int RosterSize { get; private set; }
 
+        /// <summary>
+        /// **몇 명이 모이면 시작하는가.** 서버가 정해 복제한다.
+        ///
+        /// ⚠ 클라이언트가 스스로 계산하면 안 된다. 시작 인원은 서버의 실행 인자
+        ///   (<c>-crew</c>)나 매칭이 정하는데 클라이언트에는 그 값이 없어서, 인스펙터 기본값(2)이
+        ///   나온다. 3인 판에서 먼저 들어온 사람들 화면에 "동료를 기다리는 중 (1 / 2)" 가 떴다.
+        /// </summary>
+        [Networked] public int CrewToStart { get; private set; }
+
         /// <summary>지금 몇 번 자리의 턴인가. 0부터. 턴이 아니면 -1.</summary>
         [Networked] public int CurrentSlot { get; private set; }
 
@@ -200,7 +209,7 @@ namespace Mine.Net
         /// <b>참가자 전원이 제 몸을 쥐는 시간.</b> 카운트다운 3초와 턴 내내다.
         ///
         /// <code>
-        ///   카운트다운  넷이 다 움직인다. 아무도 못 판다 (CurrentSlot 이 -1)
+        ///   카운트다운  넷이 다 제 캐릭터를 본다. 몸은 굳어 있다(MineNetPlayerMover). 아무도 못 판다
         ///   공개 7초    첫 턴 예정자만 움직인다. 나머지 셋은 보이되 그 자리에 굳는다
         ///   턴          넷이 다 움직인다. 파는 것은 턴 주인만
         /// </code>
@@ -223,8 +232,12 @@ namespace Mine.Net
         ///   <b>움직이지 못할 뿐 넷 다 보인다</b> — 보이는 것은 <see cref="CrewOnBoard"/>
         ///   가 따로 정한다.
         ///
-        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는
-        ///   멈춰 있다가 "3" 과 함께 한꺼번에 풀리는 편이 신호로 읽힌다.
+        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는 멈춰 있는다.
+        ///
+        /// ⚠ 카운트다운은 여기 들지만 <b>몸은 굳어 있다</b>(<c>MineNetPlayerMover</c>). 이 값은
+        ///   카메라가 "각자 자기 캐릭터를 따라가는가" 를 정하는 데도 쓰여서, 카운트다운을 빼면
+        ///   그 3초 동안 화면이 판 전체 탑뷰로 바뀐다. 흩뿌려진 자리에서 다 같이 출발하게
+        ///   하려고 이동만 따로 막았다.
         /// </summary>
         public bool FreeRoam => Phase == MineMatchPhase.Countdown || Phase == MineMatchPhase.Turn;
 
@@ -316,10 +329,9 @@ namespace Mine.Net
         /// <b>올라온 블록이 캐릭터를 떠민다.</b> 솔로에서 토글마다 점프하던 것과 같다.
         /// (<c>MineGame.SyncFrozen</c>)
         ///
-        /// 서버 화면에 정답이 뜨는 경우는 하나다 — <b>호스트를 맡은 사람이 자기 힌트를
-        /// 볼 때.</b> <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
-        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다. 남이 힌트를 보는 것은
-        /// 그 사람 화면에서만 일어나므로 서버 물리와 상관이 없다.
+        /// 힌트는 <b>모두의 화면</b>에 뜨므로, 서버 PC 에 플레이어가 있으면(호스트 방식)
+        /// 서버 화면에도 뜬다. <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
+        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다.
         /// (전용 서버로 돌리면 화면 자체가 없어 언제나 거짓이다)
         ///
         /// ⚠ <b><see cref="HintLeft"/> 에서 파생시킨다.</b> 켜는 곳과 끄는 곳을 따로 두면
@@ -361,7 +373,8 @@ namespace Mine.Net
         ///   새 타이머 그림에 글자 줄이 들어갈 자리가 없었기 때문이다. 나머지 문구는
         ///   그림이나 다른 칸이 대신 맡았지만 이것만 갈 데가 없었다.
         /// </summary>
-        public string WaitingLine => $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+        public string WaitingLine =>
+            $"동료를 기다리는 중  ({Crew} / {(CrewToStart > 0 ? CrewToStart : RequiredCrew)})";
 
         public override void Spawned()
         {
@@ -373,6 +386,7 @@ namespace Mine.Net
             Countdown = 0f;
             CurrentSlot = -1;
             RosterSize = 0;
+            CrewToStart = RequiredCrew;
 
             Debug.Log($"[MineMatch] 매치 준비 — {RequiredCrew}명 대기, 턴 {turnSeconds:0}초");
         }
@@ -434,6 +448,9 @@ namespace Mine.Net
             ReseatWaitingCrew();
 
             int required = RequiredCrew;
+
+            // 매칭 인원은 첫 사람이 접속할 때 토큰으로 들어와 바뀔 수 있다. 그래서 매 틱 싣는다.
+            CrewToStart = required;
 
             if (Crew < required)
             {
@@ -560,12 +577,59 @@ namespace Mine.Net
                 Vector3 top = grid.CellToWorld(cell % grid.Size, cell / grid.Size);
                 Vector3 here = one.transform.position;
 
-                mover.PlaceAt(new Vector3(top.x, here.y, top.z), one.transform.rotation);
+                // ⚠ **발을 칸 윗면에 맞춰 놓는다.** 예전에는 서 있던 높이(스폰 높이)를 그대로 써서
+                //   조금 떠서 시작했는데, 카운트다운 동안 중력으로 내려앉아 티가 안 났다. 카운트다운에
+                //   몸을 굳히면서(MineNetPlayerMover) 목표 공개가 끝날 때까지 공중에 떠 있게 됐다.
+                //   첫 턴 사람만 공개 동안 움직일 수 있어 내려앉고, 나머지는 턴까지 떠 있었다.
+                float ground = GroundHeightAt(top, here.y, out string standingOn);
+                mover.PlaceAt(new Vector3(top.x, ground, top.z), one.transform.rotation);
+
+                Debug.Log($"[MineMatch] P{one.Slot + 1} → 칸 ({cell % grid.Size}, {cell / grid.Size}) " +
+                          $"발 높이 {ground:F2} ({standingOn})");
             }
 
             Debug.Log($"[MineMatch] 참가자 {count}명을 판 위에 흩뿌렸습니다. " +
                       $"(가장자리 {low}칸은 비운다)");
         }
+
+        /// <summary>
+        /// 칸 위에서 아래로 쏴 **밟고 설 면의 높이**를 잰다. 못 찾으면 <paramref name="fallback"/>.
+        ///
+        /// 캐릭터 캡슐은 건너뛴다. 그 칸에 아직 다른 사람이 서 있으면 그 머리 위에 올라서게 된다.
+        ///
+        /// ⚠ 캐릭터 키보다 조금 높은 곳에서 쏜다. 더 높이서 쏘면 동굴 천장 위에서 출발해
+        ///   천장 윗면을 바닥으로 잴 수 있다.
+        ///
+        /// ⚠ <b><c>Physics.Raycast</c> 로 쏘면 안 된다.</b> 광산은 <c>PeerMode.Multiple</c> 이라
+        ///   Fusion 이 게임 씬을 <b>따로 된 물리 씬</b>에 올린다. <c>Physics.*</c> 는 기본 물리 씬을
+        ///   보므로 판을 못 찾고, 못 찾으면 스폰 높이(2m)를 그대로 써서 공중에 뜬다. 실제로 그랬다.
+        ///   이 부품이 올라가 있는 씬의 물리 씬으로 쏜다(멀티 피어가 아니면 그게 기본 물리 씬이다).
+        /// </summary>
+        private float GroundHeightAt(Vector3 cellTop, float fallback, out string standingOn)
+        {
+            PhysicsScene physics = gameObject.scene.GetPhysicsScene();
+
+            int count = physics.Raycast(
+                cellTop + Vector3.up * 1.5f, Vector3.down, _groundHits, 5f, ~0, QueryTriggerInteraction.Ignore);
+
+            float best = float.MinValue;
+            standingOn = "바닥을 못 찾아 원래 높이";
+
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = _groundHits[i];
+                if (hit.collider is CharacterController) continue;
+                if (hit.point.y <= best) continue;
+
+                best = hit.point.y;
+                standingOn = hit.collider.name;
+            }
+
+            return best > float.MinValue ? best : fallback;
+        }
+
+        /// <summary><see cref="GroundHeightAt"/> 이 쓰는 칸. 흩뿌릴 때마다 새로 만들지 않는다.</summary>
+        private readonly RaycastHit[] _groundHits = new RaycastHit[16];
 
         /// <summary>아직 아무도 안 쓴 칸을 하나 고른다. 못 고르면 -1.</summary>
         private int PickFreeCell(MineGrid grid, int low, int high, int[] taken, int count)
@@ -633,7 +697,9 @@ namespace Mine.Net
             if (MineGridSync.Current == null) return;
 
             BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
-            MineGridSync.Current.ServerOpenBoard(BoardSeed);
+
+            // 아직 인원이 안 굳었으므로 **예정 인원**으로 도안을 고른다. 시작할 때 다시 고른다.
+            MineGridSync.Current.ServerOpenBoard(BoardSeed, RequiredCrew);
         }
 
 
@@ -665,6 +731,10 @@ namespace Mine.Net
             // 판은 기다리는 동안 이미 깔렸다. 여기서는 혹시 못 깔았을 때를 대비한다.
             // 이미 깔렸으면 아무것도 하지 않는다 — 시드가 바뀌면 시작 순간 판이 바뀐다.
             EnsureBoardOpen();
+
+            // 인원이 곧 난이도다(MINE.md 2장). 판을 깔 때는 예정 인원으로 골랐으니
+            // 실제로 모인 인원에 맞춰 다시 고른다. 같으면 아무것도 바뀌지 않는다.
+            if (MineGridSync.Current != null) MineGridSync.Current.ServerPickDrawing(RosterSize);
 
             Phase = MineMatchPhase.Reveal;
             RevealLeft = revealSeconds;
@@ -737,8 +807,19 @@ namespace Mine.Net
 
             // 이 힌트가 **서버 화면**에 뜨는 것인지 여기서 한 번만 가린다.
             // 매 틱 다시 찾으면 3초 동안 씬을 수백 번 훑게 된다.
-            MineNetPlayer viewer = FindBySlot(slot);
-            _hintIsOnServerScreen = viewer != null && viewer.Object != null && viewer.Object.HasInputAuthority;
+            //
+            // 힌트는 **모두의 화면**에 뜬다. 그러니 서버 PC 에 플레이어가 한 명이라도 있으면
+            // (호스트 방식) 서버 화면에도 뜬다. 전용 서버에는 플레이어가 없어 늘 거짓이다.
+            _hintIsOnServerScreen = false;
+            for (int s = 0; s < RosterSize; s++)
+            {
+                MineNetPlayer one = FindBySlot(s);
+                if (one != null && one.Object != null && one.Object.HasInputAuthority)
+                {
+                    _hintIsOnServerScreen = true;
+                    break;
+                }
+            }
 
             Debug.Log($"[MineMatch] P{slot + 1} 힌트 — {hintSeconds:0}초 동안 보여 줍니다." +
                       (BoardLifted ? " (서버 화면이라 그동안 모두 멈춥니다)" : string.Empty));

@@ -282,16 +282,28 @@ namespace Mine.Net
 
             MineMatchState match = MineMatchState.Current;
 
-            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 카운트다운과 턴에는 넷 다 통과하고
+            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 턴에는 넷 다 통과하고
             //   (MineMatchState.FreeRoam), 목표 공개(7초)에는 첫 턴 예정자만 통과한다.
+            //   카운트다운은 FreeRoam 에 들지만 아래 frozen 이 막는다.
             //   파는 것은 MineNetPlayerActions 가 IsMyTurn 으로 따로 막는다.
             //
             // ⚠ **판이 들려 있으면 아무도 안 움직인다.** 정답 보기가 파인 칸을 0.25m
-            //   끌어올려 캐릭터를 떠밀기 때문이다. 자기 힌트를 보는 사람만 멈추는 것으로는
-            //   부족하다 — 떠밀리는 것은 그 판 위를 걷는 <b>나머지 셋</b>이다.
-            //   (MineMatchState.BoardLifted 주석)
-            bool frozen = (_who != null && _who.WatchingOwnHint)
-                          || (match != null && match.BoardLifted);
+            //   끌어올려 캐릭터를 떠밀기 때문이다. 떠밀리는 것은 그 판 위를 걷는 모두다.
+            //   (MineMatchState.BoardLifted 주석 — 전용 서버에서는 늘 거짓이다)
+            //
+            //   **힌트 중에도 모두 걷는다.** 힌트 동안 파는 것만 막는다
+            //   (MineNetPlayerActions 가 ShowingTarget 으로 막는다). 예전에는 힌트를 쓴 사람이
+            //   탑뷰에서 발밑이 안 보이니 멈췄는데, 다 같이 보면서 다음에 팔 자리로 걸어가는
+            //   편이 낫다고 정했다. 탑뷰 기준으로 걷게 하는 것은 아래 yaw 에서 한다.
+            //   정답 보기로 올라오는 칸은 각자 화면에서만 그려지고, 몸은 서버가 굴리므로
+            //   화면의 블록이 몸을 떠밀지 않는다. 파인 칸 위에서 발이 잠겨 보이는 것은 받아들인다.
+            //   (혼자 하는 판은 같은 PC 에서 둘 다 일어나서 떠밀린다 — 그래서 MineGame 은 여전히 멈춘다)
+            //
+            // ⚠ **카운트다운 3 2 1 에는 아무도 안 움직인다.** 흩뿌려진 자리(ScatterCrew)에서
+            //   다 같이 출발하게 한다. 카메라는 여전히 각자 자기 캐릭터를 본다 —
+            //   그 판단은 FreeRoam 이 하므로 거기서 카운트다운을 빼면 안 된다(탑뷰로 바뀐다).
+            bool frozen = match != null
+                          && (match.BoardLifted || match.Phase == MineMatchPhase.Countdown);
 
             bool mine = _who != null && _who.CanMoveNow && !frozen;
 
@@ -309,6 +321,11 @@ namespace Mine.Net
                 if (_who != null) _who.RecordLook(input.LookYaw, input.LookPitch);
                 yaw = input.LookYaw;
             }
+
+            // 힌트 동안은 모두의 화면이 탑뷰라 위쪽이 늘 +Z 다. 이동도 그 기준으로 푼다.
+            // 안 그러면 W 가 화면 위가 아니라 아까 3인칭에서 보던 쪽으로 간다.
+            // 기록(RecordLook)은 그대로 둔다 — 힌트가 끝나면 원래 시점으로 돌아가야 한다.
+            if (match != null && match.HintLeft > 0f) yaw = 0f;
 
             if (!mine)
             {

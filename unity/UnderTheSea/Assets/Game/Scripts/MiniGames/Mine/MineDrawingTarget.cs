@@ -21,6 +21,10 @@ public class MineDrawingTarget : ScriptableObject
     [Tooltip("결과 화면에 보일 이름. 예: 물고기")]
     public string displayName = "물고기";
 
+    [Header("인원")]
+    [Tooltip("몇 명이 하는 판의 도안인가. 인원이 곧 난이도라 사람이 많을수록 칸이 많다. (MINE.md 2장)")]
+    [Range(1, 4)] public int crew = 1;
+
     [Header("격자")]
     [Tooltip("한 변의 칸 수. MineGrid 의 Size 와 같아야 한다.")]
     [Min(1)] public int size = 20;
@@ -72,6 +76,33 @@ public class MineDrawingTarget : ScriptableObject
         }
 
         return cells;
+    }
+
+    /// <summary>
+    /// 목록에서 <paramref name="crew"/> 명용 도안 하나를 시드로 골라 **번호**를 돌려준다.
+    /// 그 인원용이 없으면 전체에서 고른다. 목록이 비었으면 -1.
+    ///
+    /// 번호를 돌려주는 이유는 네트워크에서 번호만 복제하기 때문이다. 같은 목록 ·
+    /// 같은 인원 · 같은 시드면 어느 컴퓨터에서나 같은 번호가 나온다.
+    /// </summary>
+    public static int PickIndex(System.Collections.Generic.IReadOnlyList<MineDrawingTarget> list, int crew, int seed)
+    {
+        if (list == null) return -1;
+
+        var matching = new System.Collections.Generic.List<int>();
+        var any = new System.Collections.Generic.List<int>();
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i] == null) continue;
+            any.Add(i);
+            if (list[i].crew == crew) matching.Add(i);
+        }
+
+        var pool = matching.Count > 0 ? matching : any;
+        if (pool.Count == 0) return -1;
+
+        return pool[(int)((uint)seed % (uint)pool.Count)];
     }
 
     /// <summary>'.' 공백 '_' '0' 은 안 파는 칸. 그 외는 전부 파는 칸으로 본다.</summary>
