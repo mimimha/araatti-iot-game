@@ -52,11 +52,18 @@ public static class ChannelCatalog
     ///
     /// 여기를 늘리려면 그 세션 이름으로 서버 exe 를 하나 더 띄워야 한다.
     /// 띄우지 않은 채널을 고르면 접속이 실패하고 그 사유가 화면에 뜬다.
+    ///
+    /// <b>시연에서는 하나만 운영한다.</b> 예전에는 <c>srv-2</c>(<c>lobby-ch2</c>)도 있었는데,
+    /// 그 서버를 안 띄우면 고른 사람이 "접속 실패" 를 보게 된다. 띄울 계획이 없으니 지웠다.
+    /// 다시 늘릴 때는 <b>세션 이름으로 서버를 먼저 띄우고</b> 여기에 줄을 추가한다.
+    ///
+    /// ⚠ 채널이 둘 이상이 되면 <see cref="ToServerInfos"/> 의 인원 계산을 함께 고쳐야 한다.
+    ///    미니게임 세션(<c>mine-1</c> 등)은 채널 구분이 없어서, 지금은 "채널이 하나" 라는
+    ///    전제로 전부 더하고 있다.
     /// </summary>
     private static readonly Channel[] Channels =
     {
         new Channel("srv-1", "서버 1", "lobby-ch1", 100),
-        new Channel("srv-2", "서버 2", "lobby-ch2", 100),
     };
 
     /// <summary>채널 목록을 화면이 아는 형태로 돌려준다.</summary>
