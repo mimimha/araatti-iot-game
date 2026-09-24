@@ -330,15 +330,6 @@ public class MineHud : MonoBehaviour
     /// <summary>복구 블록이 아직 남았는가. 0 이 되면 판이 흑백으로 바뀐다.</summary>
     public bool NetworkRestoreLit { get; set; } = true;
 
-    /// <summary>
-    /// 내 힌트 상태. "J · 1회" · "사용함" · "보는 중" · "대기" 중 하나다.
-    ///
-    /// ⚠ <b>내 것만 적는다.</b> 남이 힌트를 쓰는 중이라도 이 칸은 내 것을 보여 준다 —
-    ///   남의 힌트는 화면을 덮는 <see cref="NetworkCenterNotice"/> 가 알린다.
-    ///   그래서 이 값은 판 전체를 보는 <c>MineMatchState</c> 가 아니라
-    ///   내가 누구인지 아는 <c>MineLocalView</c> 가 넣는다.
-    /// </summary>
-    public string NetworkHintText { get; set; }
 
     /// <summary>힌트가 아직 살아 있는가. 글자와 아이콘 색을 가른다.</summary>
     public bool NetworkHintLit { get; set; }
@@ -570,15 +561,7 @@ public class MineHud : MonoBehaviour
     /// </summary>
     private void DrawNetworkHint()
     {
-        bool show = !string.IsNullOrEmpty(NetworkHintText);
-        SetActive(hintText, show);
-
-        if (show && hintText != null)
-        {
-            hintText.text = NetworkHintText;
-            hintText.color = NetworkHintLit ? hintReady : hintUsed;
-        }
-
+        HideHintText();
         DrawHintArt(NetworkHintLit);
     }
 
@@ -967,20 +950,20 @@ public class MineHud : MonoBehaviour
         bool ready = game.HintAvailable;
         bool lit = ready || game.HintShowing;
 
-        if (hintText != null)
-        {
-            // ⚠ HintAvailable 은 "지금 쓸 수 있는가" 라서 내 턴이 아니면 false 다.
-            //   그걸 그대로 "사용함" 으로 적으면, 공개 7초에 쓰지도 않은 힌트가
-            //   이미 쓴 것처럼 보인다. 쓸 수 없는 때와 써버린 때를 갈라야 한다.
-            if (game.HintShowing) hintText.text = "보는 중";
-            else if (game.State != MineState.Turn) hintText.text = "대기";
-            else hintText.text = ready ? "J · 1회" : "사용함";
-
-            hintText.color = lit ? hintReady : hintUsed;
-        }
-
+        HideHintText();
         DrawHintArt(lit);
     }
+
+    /// <summary>
+    /// 힌트 칸의 상태 글자("J · 1회" · "사용함" …)는 <b>띄우지 않는다.</b>
+    ///
+    /// 그림에 박힌 "힌트" 글씨와 같은 자리라 겹쳐서 "1회" 만 삐져나와 보였다.
+    /// 쓸 수 있는지는 그림의 컬러/흑백이, 키(J)는 아래 조작 안내가 이미 알려 준다.
+    ///
+    /// ⚠ 필드를 지우지 않고 끈다. 글자 오브젝트는 프리팹에 남아 있어서, 연결만 끊으면
+    ///   프리팹에 적힌 기본 글자가 그대로 보인다.
+    /// </summary>
+    private void HideHintText() => SetActive(hintText, false);
 
     private static GameObject RowObject(PlayerRow row)
     {
