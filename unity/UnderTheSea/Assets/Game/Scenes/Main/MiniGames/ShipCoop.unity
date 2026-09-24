@@ -6754,13 +6754,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 39dc41ca26a3a4e4aa37d23ed6a87cd7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipCoopAudio
+  masterLevel: 0.8
   bgmReady: {fileID: 8300000, guid: 18ad4163b6dbf474c847ecba04fc9dfe, type: 3}
   bgmSailing: {fileID: 8300000, guid: c87aa6039fe83e44c836946b857ded92, type: 3}
   bgmResult: {fileID: 8300000, guid: a704c22e077126d4abed2428f991888f, type: 3}
+  musicLevel: 0.56
   endLevel: 0.7
   crossfadeSeconds: 2.5
   seaLoop: {fileID: 8300000, guid: eb1a8a59747a86740967cc45e9a5cef5, type: 3}
-  seaLevel: 0.24
+  seaLevel: 0.9
   windLoop: {fileID: 8300000, guid: 1055e225fb5fc544e827ca0037e9f8bd, type: 3}
   windBase: 0.3
   ropeLoop: {fileID: 8300000, guid: 953786a8cdbd4e31b1febf8199d28849, type: 3}
@@ -6775,7 +6777,7 @@ MonoBehaviour:
   seagullMaxInterval: 30
   seagullLevel: 0.7
   warnChime: {fileID: 8300000, guid: 933da6be62189994dad86e149d0b3956, type: 3}
-  waveHit: {fileID: 0}
+  waveHit: {fileID: 8300000, guid: 334f07d52811b90488597a54369b95bf, type: 3}
   reefHit: {fileID: 0}
   reefDodged: {fileID: 0}
   enemyHit: {fileID: 8300000, guid: 818b0219e2c4cc04980eb65f5ef75410, type: 3}
@@ -6797,6 +6799,7 @@ MonoBehaviour:
   waterLevel: 0.8
   hammerLevel: 0.8
   cannonLevel: 1.2
+  waveHitLevel: 1.2
 --- !u!4 &416717180
 Transform:
   m_ObjectHideFlags: 0
