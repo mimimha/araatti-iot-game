@@ -42426,8 +42426,10 @@ MonoBehaviour:
   shapeTolerance: 2
   maxAlign: 0
   drawings:
-  - {fileID: 11400000, guid: 17f040fd4b8ea174eb47b10b5de3ec0b, type: 2}
+  - {fileID: 11400000, guid: 4247227061b75604e9b9f2378b3ce084, type: 2}
   - {fileID: 11400000, guid: 0f0f09ced8f8d4f449716ccb3210df4c, type: 2}
+  - {fileID: 11400000, guid: 4aaeb000e0c18e646aef2580c48001d9, type: 2}
+  - {fileID: 11400000, guid: b83e38e9db3304240945fc20a794c87e, type: 2}
   _Cells: 
   _DrawingIndex: 0
   _BoardStamp: 0
@@ -42445,6 +42447,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineMatchState
   crewToStart: 2
   countdownSeconds: 3
+  readyTimeoutSeconds: 10
   spawnEdgeMargin: 2
   turnSeconds: 30
   restoreBlocks: 5
@@ -78215,6 +78218,7 @@ MonoBehaviour:
   diggers:
   - {fileID: 1398097736}
   playerCount: 4
+  drawings: []
   countdownSeconds: 3
   revealSeconds: 7
   turnSeconds: 30

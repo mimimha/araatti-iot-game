@@ -633,7 +633,9 @@ namespace Mine.Net
             if (MineGridSync.Current == null) return;
 
             BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
-            MineGridSync.Current.ServerOpenBoard(BoardSeed);
+
+            // 아직 인원이 안 굳었으므로 **예정 인원**으로 도안을 고른다. 시작할 때 다시 고른다.
+            MineGridSync.Current.ServerOpenBoard(BoardSeed, RequiredCrew);
         }
 
 
@@ -665,6 +667,10 @@ namespace Mine.Net
             // 판은 기다리는 동안 이미 깔렸다. 여기서는 혹시 못 깔았을 때를 대비한다.
             // 이미 깔렸으면 아무것도 하지 않는다 — 시드가 바뀌면 시작 순간 판이 바뀐다.
             EnsureBoardOpen();
+
+            // 인원이 곧 난이도다(MINE.md 2장). 판을 깔 때는 예정 인원으로 골랐으니
+            // 실제로 모인 인원에 맞춰 다시 고른다. 같으면 아무것도 바뀌지 않는다.
+            if (MineGridSync.Current != null) MineGridSync.Current.ServerPickDrawing(RosterSize);
 
             Phase = MineMatchPhase.Reveal;
             RevealLeft = revealSeconds;

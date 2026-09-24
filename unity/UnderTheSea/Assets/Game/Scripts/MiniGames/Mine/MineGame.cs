@@ -72,8 +72,12 @@ public class MineGame : MonoBehaviour
     [SerializeField] private MineDigger[] diggers;
 
     [Header("판 설정 (MINE.md 2장 — 전부 시작값이고 조정 대상)")]
-    [Tooltip("인원 = 턴 수. 1~4명.")]
+    [Tooltip("인원 = 턴 수. 1~4명. 도안도 이 인원용으로 고른다.")]
     [SerializeField, Range(1, 4)] private int playerCount = 4;
+
+    [Tooltip("인원별 도안. 판을 시작할 때 playerCount 명용을 하나 골라 MineGrid 에 건다.\n" +
+             "비워 두면 MineGrid 에 꽂힌 도안을 그대로 쓴다.")]
+    [SerializeField] private MineDrawingTarget[] drawings = new MineDrawingTarget[0];
 
     [Tooltip("공개 전 3 2 1 카운트다운(초). 0 이면 건너뛴다. 마음의 준비를 위한 시간이다.")]
     [SerializeField, Min(0f)] private float countdownSeconds = 3f;
@@ -227,7 +231,13 @@ public class MineGame : MonoBehaviour
 
         // 돌 배치는 무작위지만 시드로 만든다. 네트워크가 붙으면 이 값을 나눠 갖는다.
         // 그래야 4명이 같은 판을 본다. (MineGrid.Seed)
-        grid.ResetAll(boardSeed != 0 ? boardSeed : Environment.TickCount);
+        int seed = boardSeed != 0 ? boardSeed : Environment.TickCount;
+
+        // 인원이 곧 난이도다(MINE.md 2장). 네트워크 판(MineGridSync)과 같은 규칙으로 고른다.
+        int pick = MineDrawingTarget.PickIndex(drawings, playerCount, seed);
+        if (pick >= 0) grid.SetTarget(drawings[pick]);
+
+        grid.ResetAll(seed);
 
         foreach (MineDigger d in diggers)
         {
@@ -240,9 +250,6 @@ public class MineGame : MonoBehaviour
 
         RestoresLeft = TotalRestores;
         RestoresChanged?.Invoke(RestoresLeft);
-
-        // 난이도별 도안 고르기는 나중에 여기서 grid.SetTarget() 으로 갈아끼운다.
-        // (MINE.md 2장 — 인원이 곧 난이도)
 
         EnterCountdown();
     }
