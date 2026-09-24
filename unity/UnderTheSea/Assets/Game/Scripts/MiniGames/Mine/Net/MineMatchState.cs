@@ -316,10 +316,9 @@ namespace Mine.Net
         /// <b>올라온 블록이 캐릭터를 떠민다.</b> 솔로에서 토글마다 점프하던 것과 같다.
         /// (<c>MineGame.SyncFrozen</c>)
         ///
-        /// 서버 화면에 정답이 뜨는 경우는 하나다 — <b>호스트를 맡은 사람이 자기 힌트를
-        /// 볼 때.</b> <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
-        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다. 남이 힌트를 보는 것은
-        /// 그 사람 화면에서만 일어나므로 서버 물리와 상관이 없다.
+        /// 힌트는 <b>모두의 화면</b>에 뜨므로, 서버 PC 에 플레이어가 있으면(호스트 방식)
+        /// 서버 화면에도 뜬다. <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
+        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다.
         /// (전용 서버로 돌리면 화면 자체가 없어 언제나 거짓이다)
         ///
         /// ⚠ <b><see cref="HintLeft"/> 에서 파생시킨다.</b> 켜는 곳과 끄는 곳을 따로 두면
@@ -743,8 +742,19 @@ namespace Mine.Net
 
             // 이 힌트가 **서버 화면**에 뜨는 것인지 여기서 한 번만 가린다.
             // 매 틱 다시 찾으면 3초 동안 씬을 수백 번 훑게 된다.
-            MineNetPlayer viewer = FindBySlot(slot);
-            _hintIsOnServerScreen = viewer != null && viewer.Object != null && viewer.Object.HasInputAuthority;
+            //
+            // 힌트는 **모두의 화면**에 뜬다. 그러니 서버 PC 에 플레이어가 한 명이라도 있으면
+            // (호스트 방식) 서버 화면에도 뜬다. 전용 서버에는 플레이어가 없어 늘 거짓이다.
+            _hintIsOnServerScreen = false;
+            for (int s = 0; s < RosterSize; s++)
+            {
+                MineNetPlayer one = FindBySlot(s);
+                if (one != null && one.Object != null && one.Object.HasInputAuthority)
+                {
+                    _hintIsOnServerScreen = true;
+                    break;
+                }
+            }
 
             Debug.Log($"[MineMatch] P{slot + 1} 힌트 — {hintSeconds:0}초 동안 보여 줍니다." +
                       (BoardLifted ? " (서버 화면이라 그동안 모두 멈춥니다)" : string.Empty));
