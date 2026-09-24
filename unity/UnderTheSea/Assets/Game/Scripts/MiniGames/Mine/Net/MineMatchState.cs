@@ -123,6 +123,15 @@ namespace Mine.Net
         /// </summary>
         [Networked] public int RosterSize { get; private set; }
 
+        /// <summary>
+        /// **몇 명이 모이면 시작하는가.** 서버가 정해 복제한다.
+        ///
+        /// ⚠ 클라이언트가 스스로 계산하면 안 된다. 시작 인원은 서버의 실행 인자
+        ///   (<c>-crew</c>)나 매칭이 정하는데 클라이언트에는 그 값이 없어서, 인스펙터 기본값(2)이
+        ///   나온다. 3인 판에서 먼저 들어온 사람들 화면에 "동료를 기다리는 중 (1 / 2)" 가 떴다.
+        /// </summary>
+        [Networked] public int CrewToStart { get; private set; }
+
         /// <summary>지금 몇 번 자리의 턴인가. 0부터. 턴이 아니면 -1.</summary>
         [Networked] public int CurrentSlot { get; private set; }
 
@@ -360,7 +369,8 @@ namespace Mine.Net
         ///   새 타이머 그림에 글자 줄이 들어갈 자리가 없었기 때문이다. 나머지 문구는
         ///   그림이나 다른 칸이 대신 맡았지만 이것만 갈 데가 없었다.
         /// </summary>
-        public string WaitingLine => $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+        public string WaitingLine =>
+            $"동료를 기다리는 중  ({Crew} / {(CrewToStart > 0 ? CrewToStart : RequiredCrew)})";
 
         public override void Spawned()
         {
@@ -372,6 +382,7 @@ namespace Mine.Net
             Countdown = 0f;
             CurrentSlot = -1;
             RosterSize = 0;
+            CrewToStart = RequiredCrew;
 
             Debug.Log($"[MineMatch] 매치 준비 — {RequiredCrew}명 대기, 턴 {turnSeconds:0}초");
         }
@@ -433,6 +444,9 @@ namespace Mine.Net
             ReseatWaitingCrew();
 
             int required = RequiredCrew;
+
+            // 매칭 인원은 첫 사람이 접속할 때 토큰으로 들어와 바뀔 수 있다. 그래서 매 틱 싣는다.
+            CrewToStart = required;
 
             if (Crew < required)
             {
