@@ -125,7 +125,7 @@ MonoBehaviour:
   spotLocalEulerAngles: {x: 0, y: 90, z: 0}
   visualScale: {x: 1, y: 1, z: 1}
   caughtLiftSeconds: 0.7
-  caughtHoldSeconds: 1.05
+  caughtHoldSeconds: 2.8
   caughtArcHeight: 0.6
   caughtLocalPosition: {x: 0, y: 0, z: 0}
   caughtLocalEulerAngles: {x: 0, y: 0, z: 0}

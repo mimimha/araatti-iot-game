@@ -159,6 +159,10 @@ namespace FishingMiniGame.Tests.EditMode
 
             Assert.That(prefab, Is.Not.Null);
             Assert.That(prefab.GetComponent<FishingSpot>(), Is.Not.Null);
+            FishingSpot spot = prefab.GetComponent<FishingSpot>();
+            Assert.That(spot.PresentationAnchor, Is.Not.Null);
+            Assert.That(spot.PresentationAnchor.name, Is.EqualTo("FishPresentationAnchor"));
+            Assert.That(spot.PresentationAnchor.parent, Is.SameAs(prefab.transform));
             BoxCollider trigger = prefab.GetComponent<BoxCollider>();
             Assert.That(trigger, Is.Not.Null);
             Assert.That(trigger.isTrigger, Is.True);

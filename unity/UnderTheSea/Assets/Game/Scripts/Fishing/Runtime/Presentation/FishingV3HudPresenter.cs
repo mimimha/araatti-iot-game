@@ -24,6 +24,8 @@ namespace FishingMiniGame.Runtime
         [SerializeField] private Sprite gaugeFillSprite;
         [SerializeField] private Sprite tensionMarkerSprite;
         [SerializeField, Min(0.1f)] private float resultDisplaySeconds = 1.75f;
+        [SerializeField, Min(0f)] private float caughtResultDelaySeconds =
+            FishingV3FishVisualPresenter.DefaultCaughtDisplaySeconds;
 
         private static readonly Color PanelColor = new Color(0.07f, 0.17f, 0.23f, 0.96f);
         private static readonly Color OuterFrameColor = new Color(0.57f, 0.84f, 0.93f, 1f);
@@ -71,6 +73,8 @@ namespace FishingMiniGame.Runtime
         private Text _resultDescriptionLabel;
         private bool _hasConsumedTerminalResult;
         private float _resultTimeRemainingSeconds;
+        private bool _isCaughtResultPending;
+        private float _caughtResultDelayRemainingSeconds;
 
         public float DisplayedTensionNormalized { get; private set; }
         public float DisplayedCaptureProgressNormalized { get; private set; }
@@ -88,6 +92,10 @@ namespace FishingMiniGame.Runtime
         public string DisplayedResultTitle { get; private set; } = string.Empty;
         public string DisplayedResultDescription { get; private set; } = string.Empty;
         public float ResultDisplaySeconds => resultDisplaySeconds;
+        public float CaughtResultDelaySeconds => caughtResultDelaySeconds;
+        public bool IsCaughtResultPending => _isCaughtResultPending;
+        public float CaughtResultDelayRemainingSeconds =>
+            _caughtResultDelayRemainingSeconds;
         public float ResultTimeRemainingSeconds => _resultTimeRemainingSeconds;
         public int ResultPresentationSequence { get; private set; }
         public bool IsHudVisible => hudRoot != null && hudRoot.activeSelf;
@@ -183,6 +191,7 @@ namespace FishingMiniGame.Runtime
         private void OnDisable()
         {
             HideFightingAndReset();
+            CancelPendingCaughtResult();
             HideResultOverlay();
             _hasConsumedTerminalResult = true;
             SetVisible(false);
@@ -225,15 +234,35 @@ namespace FishingMiniGame.Runtime
             resultDisplaySeconds = SanitizeResultDisplaySeconds(seconds);
         }
 
+        public void ConfigureCaughtResultDelay(float seconds)
+        {
+            caughtResultDelaySeconds = SanitizeCaughtResultDelay(seconds);
+        }
+
         public void AdvancePresentation(float deltaTime)
         {
-            if (!IsResultOverlayVisible ||
-                float.IsNaN(deltaTime) ||
+            if (float.IsNaN(deltaTime) ||
                 float.IsInfinity(deltaTime) ||
                 deltaTime <= 0f)
             {
                 return;
             }
+
+            if (_isCaughtResultPending)
+            {
+                _caughtResultDelayRemainingSeconds = Mathf.Max(
+                    0f,
+                    _caughtResultDelayRemainingSeconds - deltaTime);
+                if (_caughtResultDelayRemainingSeconds <= 0f)
+                {
+                    _isCaughtResultPending = false;
+                    ShowResultOverlay(FishingV3Result.Caught);
+                    SetVisible(IsResultOverlayVisible);
+                }
+                return;
+            }
+
+            if (!IsResultOverlayVisible) return;
 
             _resultTimeRemainingSeconds = Mathf.Max(
                 0f,
@@ -272,15 +301,15 @@ namespace FishingMiniGame.Runtime
             switch (zone)
             {
                 case FishingV3TensionZone.Safe:
-                    return "SAFE";
+                    return "안전";
                 case FishingV3TensionZone.High:
-                    return "HIGH";
+                    return "주의";
                 case FishingV3TensionZone.Danger:
-                    return "DANGER";
+                    return "위험";
                 case FishingV3TensionZone.Low:
                 case FishingV3TensionZone.Slack:
                 default:
-                    return "SLACK";
+                    return "느슨함";
             }
         }
 
@@ -289,15 +318,15 @@ namespace FishingMiniGame.Runtime
             switch (zone)
             {
                 case FishingV3TensionZone.Safe:
-                    return "KEEP REELING!";
+                    return "계속 감으세요!";
                 case FishingV3TensionZone.High:
-                    return "SLOW DOWN!";
+                    return "천천히!";
                 case FishingV3TensionZone.Danger:
-                    return "STOP REELING!";
+                    return "릴링을 멈추세요!";
                 case FishingV3TensionZone.Low:
                 case FishingV3TensionZone.Slack:
                 default:
-                    return "REEL NOW!";
+                    return "지금 감으세요!";
             }
         }
 
@@ -323,11 +352,11 @@ namespace FishingMiniGame.Runtime
             switch (result)
             {
                 case FishingV3Result.Caught:
-                    return "CAUGHT!";
+                    return "잡았다!";
                 case FishingV3Result.LineBroken:
-                    return "LINE BROKEN!";
+                    return "줄이 끊어졌다!";
                 case FishingV3Result.FishEscaped:
-                    return "FISH ESCAPED!";
+                    return "물고기가 도망쳤다!";
                 default:
                     return string.Empty;
             }
@@ -338,11 +367,11 @@ namespace FishingMiniGame.Runtime
             switch (result)
             {
                 case FishingV3Result.Caught:
-                    return "Nice catch!";
+                    return "멋진 낚시였어요!";
                 case FishingV3Result.LineBroken:
-                    return "Too much tension!";
+                    return "장력이 너무 높았어요!";
                 case FishingV3Result.FishEscaped:
-                    return "The line went slack!";
+                    return "줄이 너무 느슨했어요!";
                 default:
                     return string.Empty;
             }
@@ -402,6 +431,7 @@ namespace FishingMiniGame.Runtime
         private void HideAllAndReset()
         {
             HideFightingAndReset();
+            CancelPendingCaughtResult();
             HideResultOverlay();
             _hasConsumedTerminalResult = false;
             SetVisible(false);
@@ -409,6 +439,7 @@ namespace FishingMiniGame.Runtime
 
         private void ResetResultForActiveSession()
         {
+            CancelPendingCaughtResult();
             HideResultOverlay();
             _hasConsumedTerminalResult = false;
         }
@@ -418,6 +449,7 @@ namespace FishingMiniGame.Runtime
             HideFightingAndReset();
             if (!IsTerminalResult(result))
             {
+                CancelPendingCaughtResult();
                 HideResultOverlay();
                 SetVisible(false);
                 return;
@@ -425,11 +457,33 @@ namespace FishingMiniGame.Runtime
 
             if (!_hasConsumedTerminalResult)
             {
-                ShowResultOverlay(result);
                 _hasConsumedTerminalResult = true;
+                if (result == FishingV3Result.Caught &&
+                    SanitizeCaughtResultDelay(caughtResultDelaySeconds) > 0f)
+                {
+                    ScheduleCaughtResult();
+                }
+                else
+                {
+                    ShowResultOverlay(result);
+                }
             }
 
             SetVisible(IsResultOverlayVisible);
+        }
+
+        private void ScheduleCaughtResult()
+        {
+            HideResultOverlay();
+            _caughtResultDelayRemainingSeconds = SanitizeCaughtResultDelay(
+                caughtResultDelaySeconds);
+            _isCaughtResultPending = _caughtResultDelayRemainingSeconds > 0f;
+        }
+
+        private void CancelPendingCaughtResult()
+        {
+            _isCaughtResultPending = false;
+            _caughtResultDelayRemainingSeconds = 0f;
         }
 
         private void ShowResultOverlay(FishingV3Result result)
@@ -538,7 +592,7 @@ namespace FishingMiniGame.Runtime
                 _timingPointer.gameObject.SetActive(false);
                 DisplayedTimingPointerNormalized = 0f;
                 DisplayedTimingGrade = FishingV3TimingGrade.None;
-                DisplayedPhaseMessage = hookWindow ? "HOOK!" : "WAIT...";
+                DisplayedPhaseMessage = hookWindow ? "지금!" : "입질을 기다리는 중...";
                 _timingResultLabel.text = DisplayedPhaseMessage;
                 ApplyTimingFeedbackStyle(snapshot.GameplayPhase, DisplayedTimingGrade);
                 PositionEventMessage(snapshot.GameplayPhase, DisplayedTimingGrade);
@@ -553,7 +607,7 @@ namespace FishingMiniGame.Runtime
                 snapshot.TimingPointerNormalized);
             DisplayedTimingGrade = snapshot.LastTimingGrade;
             DisplayedPhaseMessage = DisplayedTimingGrade == FishingV3TimingGrade.None
-                ? "PRESS J"
+                ? "J를 누르세요"
                 : DisplayedTimingGrade.ToString().ToUpperInvariant();
 
             SetZone(_timingGoodZone, snapshot.TimingGoodHalfWidthNormalized);
@@ -595,7 +649,7 @@ namespace FishingMiniGame.Runtime
                 14,
                 FontStyle.Bold,
                 TextAnchor.MiddleCenter);
-            _timingPromptLabel.text = "PRESS J";
+            _timingPromptLabel.text = "J를 누르세요";
             _timingPromptLabel.color = PrimaryTextColor;
 
             GameObject rail = CreateUiObject(
@@ -687,19 +741,8 @@ namespace FishingMiniGame.Runtime
             Text controls = FindNamedText(_fightingGaugeRoot, "Controls");
             if (controls != null)
             {
-                controls.transform.SetParent(meter, false);
-                RectTransform controlsRect = controls.rectTransform;
-                controlsRect.anchorMin = new Vector2(0.5f, 0f);
-                controlsRect.anchorMax = new Vector2(0.5f, 0f);
-                controlsRect.pivot = new Vector2(0.5f, 0f);
-                controlsRect.anchoredPosition = new Vector2(0f, 5f);
-                controlsRect.sizeDelta = new Vector2(520f, 12f);
-                controls.text = "C  START   |   J  HOOK / TIMING";
-                controls.font = ResolveHudFont();
-                controls.fontSize = 9;
-                controls.fontStyle = FontStyle.Normal;
-                controls.alignment = TextAnchor.MiddleCenter;
-                controls.color = SecondaryTextColor;
+                controls.text = string.Empty;
+                controls.gameObject.SetActive(false);
             }
 
             _eventMessageRoot = CreateUiObject(
@@ -772,27 +815,10 @@ namespace FishingMiniGame.Runtime
             if (legacyOutline != null) legacyOutline.enabled = false;
 
             Text controls = FindNamedText(_fightingGaugeRoot, "Controls");
-            Transform controlsTransform = controls != null ? controls.transform : null;
-            if (controlsTransform == null) return;
-
-            RectTransform controlsRect = controlsTransform as RectTransform;
-            if (controlsRect != null)
-            {
-                controlsRect.anchorMin = new Vector2(0f, 1f);
-                controlsRect.anchorMax = new Vector2(1f, 1f);
-                controlsRect.pivot = new Vector2(0.5f, 1f);
-                controlsRect.anchoredPosition = new Vector2(0f, -334f);
-                controlsRect.sizeDelta = new Vector2(0f, 18f);
-            }
-
             if (controls != null)
             {
-                controls.text = "C  START   |   J  HOOK / TIMING";
-                controls.font = ResolveHudFont();
-                controls.fontSize = 11;
-                controls.fontStyle = FontStyle.Normal;
-                controls.alignment = TextAnchor.MiddleCenter;
-                controls.color = SecondaryTextColor;
+                controls.text = string.Empty;
+                controls.gameObject.SetActive(false);
             }
         }
 
@@ -815,7 +841,7 @@ namespace FishingMiniGame.Runtime
             Text title = labelTransform != null ? labelTransform.GetComponent<Text>() : null;
             if (title != null)
             {
-                title.text = tensionCard ? "TENSION" : "CATCH PROGRESS";
+                title.text = tensionCard ? "장력" : "포획 진행도";
                 title.font = ResolveHudFont();
                 title.fontSize = tensionCard ? 22 : 21;
                 title.fontStyle = FontStyle.Bold;
@@ -949,14 +975,14 @@ namespace FishingMiniGame.Runtime
             _tensionLowLabel = EnsureScaleLabel(
                 track,
                 "LowLabel",
-                "LOW",
+                "낮음",
                 TextAnchor.UpperLeft,
                 0f,
                 0.5f);
             _tensionDangerLabel = EnsureScaleLabel(
                 track,
                 "DangerLabel",
-                "DANGER",
+                "위험",
                 TextAnchor.UpperRight,
                 0.5f,
                 1f);
@@ -973,14 +999,14 @@ namespace FishingMiniGame.Runtime
             _captureStartLabel = EnsureScaleLabel(
                 track,
                 "StartLabel",
-                "START",
+                "시작",
                 TextAnchor.UpperLeft,
                 0f,
                 0.5f);
             _captureEndLabel = EnsureScaleLabel(
                 track,
                 "CatchLabel",
-                "CATCH",
+                "포획",
                 TextAnchor.UpperRight,
                 0.5f,
                 1f);
@@ -1629,6 +1655,13 @@ namespace FishingMiniGame.Runtime
         {
             return float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0.1f
                 ? 1.75f
+                : seconds;
+        }
+
+        private static float SanitizeCaughtResultDelay(float seconds)
+        {
+            return float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0f
+                ? FishingV3FishVisualPresenter.DefaultCaughtDisplaySeconds
                 : seconds;
         }
 

@@ -720,7 +720,11 @@ namespace FishingMiniGame.Runtime
 
         private Vector3 ResolveTargetPosition(Vector3 origin)
         {
-            Transform target = _targetAnchor;
+            Transform target = _externalPresentationDriven
+                ? _targetAnchor
+                : fishVisualPresenter != null
+                    ? fishVisualPresenter.PresentationAnchor
+                    : _targetAnchor;
             if (target == null && fishVisualPresenter != null)
             {
                 target = fishVisualPresenter.PresentationAnchor;
