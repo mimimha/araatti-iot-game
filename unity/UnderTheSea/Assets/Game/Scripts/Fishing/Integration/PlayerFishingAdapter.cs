@@ -302,7 +302,22 @@ namespace FishingMiniGame.Runtime
 
         private void OnInteractPerformed(InputAction.CallbackContext context)
         {
-            TryInteractCurrentSpot();
+            TryStartFishing();
+        }
+
+        /// <summary>
+        /// Requests fishing through the same guarded boundary used by the project-wide
+        /// Interact action. External device adapters must call this on Unity's main thread.
+        /// </summary>
+        public bool TryStartFishing()
+        {
+            if (!isActiveAndEnabled)
+            {
+                return false;
+            }
+
+            RefreshCurrentSpot();
+            return TryInteractCurrentSpot();
         }
 
         private bool TryInteractCurrentSpot()
