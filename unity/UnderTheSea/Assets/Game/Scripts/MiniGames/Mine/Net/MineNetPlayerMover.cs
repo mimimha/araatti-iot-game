@@ -90,19 +90,26 @@ namespace Mine.Net
         /// </summary>
         [Networked] public NetworkBool Airborne { get; private set; }
 
+        /// <summary>
+        /// 공중 상태를 <b>켜 둘 시한</b>(<c>Runner.SimulationTime</c> 기준). 둘이 켠다.
+        ///
+        ///   <see cref="Step"/>        실제로 공중인 틱이 있으면 (점프 · 턱에서 떨어짐)
+        ///   <see cref="RequestHop"/>  칸이 깨지면 — 몸이 뜨든 말든
+        ///
+        /// ⚠ 공중 틱은 하나뿐일 때가 많다. 틱 하나(15.6ms)는 클라이언트가 한 프레임에
+        ///   틱 두 개를 넘길 때 통째로 빠지고, 애니메이터도 그 길이로는 동작을 못 시작한다.
+        ///   그래서 한 번 켜면 잠깐 붙잡아 둔다.
+        ///
+        ///   애니메이션만 모는 값이라 이동에는 영향이 없다.
+        /// </summary>
+        private float _airHoldUntil = -1f;
+
+        /// <summary>한 번 본 공중 상태를 얼마나 붙잡아 둘 것인가(초).</summary>
+        private const float AirHoldSeconds = 0.12f;
+
         private CharacterMover _mover;
         private MineNetPlayer _who;
 
-        /// <summary>
-        /// 발밑을 깨서 폴짝 뛰라는 요청. 땅에 붙은 틱에 <c>jump=true</c> 로 넣는다.
-        /// </summary>
-        private bool _hopRequest;
-
-        /// <summary>이 요청을 몇 번째 프레임에 받았는가.</summary>
-        private int _hopFrame = -1;
-
-        /// <summary>내려설 때까지 폴짝 요청을 몇 프레임까지 들고 있을 것인가.</summary>
-        private const int HopWaitFrames = 60;
         private CharacterController _capsule;
         private Animator _animator;
 
@@ -200,11 +207,16 @@ namespace Mine.Net
         /// 발밑을 깨졌으니 폴짝 뛰게 한다. <c>MineNetPlayerActions.Dig</c> 가 부른다.
         ///
         /// 손맛일 뿐 규칙은 아니다. 파이는 칸도 점수도 바뀌지 않는다.
+        ///
+        /// ⚠ <b>몸을 띄우지 않고 폴짝 동작만 켠다.</b> 예전에는 점프를 넣고 몸이 뜨기를
+        ///   기다렸는데, 폴짝은 원래 몸이 거의 안 뜬다(점프 높이 0.2 는 땅의 중력을 못 이긴다).
+        ///   보이던 폴짝은 발밑 칸이 내려앉을 때 몸이 잠깐 뜬 것이라, 칸 한가운데서 파면 나오고
+        ///   걸으면서 파면 캡슐이 옆 칸에 걸쳐 안 나왔다. "칸이 깨졌다" 에 직접 묶어 늘 나오게 한다.
         /// </summary>
         public void RequestHop()
         {
-            _hopRequest = true;
-            _hopFrame = Time.frameCount;
+            if (Runner == null) return;
+            _airHoldUntil = Runner.SimulationTime + AirHoldSeconds;
         }
 
         /// <summary>
@@ -319,26 +331,6 @@ namespace Mine.Net
                 jump = turn.Buttons.IsSet((int)MineButton.Jump);
             }
 
-            // ⚠ 폴짝은 <b>땅에 붙었을 때만</b> 들어간다.
-            //
-            //   <see cref="Step"/> 은 <c>isGrounded</c> 가 참일 때만 점프를 받는다.
-            //   그런데 칸을 파면 발밑 블록이 <c>digDepth</c> 만큼 내려가면서
-            //   <b>바로 그 순간 공중에 뜨게 된다.</b> 그때 요청을 버리면 내려설 때는
-            //   이미 요청이 없다. 그래서 <b>내려설 때까지 들고 있다가</b> 그 틱에 넣는다.
-            if (_hopRequest)
-            {
-                if (_capsule.isGrounded)
-                {
-                    _hopRequest = false;
-                    jump = true;
-                }
-                else if (Time.frameCount - _hopFrame > HopWaitFrames)
-                {
-                    // 너무 오래 기다리지는 않는다. 한참 뒤에 뛰면 어색하다.
-                    _hopRequest = false;
-                }
-            }
-
             Step(Runner.DeltaTime, axis, LookTarget(yaw), run, jump);
             MoveAxis = axis;
             Running = run;
@@ -422,7 +414,8 @@ namespace Mine.Net
                 transform.Rotate(Vector3.up, rotDelta);
             }
 
-            Airborne = air;
+            if (air) _airHoldUntil = Runner.SimulationTime + AirHoldSeconds;
+            Airborne = Runner.SimulationTime < _airHoldUntil;
         }
 
         /// <summary>
