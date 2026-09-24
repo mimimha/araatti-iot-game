@@ -237,6 +237,61 @@ public class NetworkPlayerMover : NetworkBehaviour
     /// 해안선 투명벽(<c>Tools/아라아띠/로비 해안선 투명벽 세우기</c>)이 1차로 막지만,
     /// 벽에 틈이 있거나 밀려 넘어가는 경우를 위해 여기서 한 번 더 건진다.
     /// </summary>
+    /// <summary>
+    /// **이정표에서 다른 이정표로 보내 달라고 서버에 청한다.**
+    ///
+    /// <b>왜 RPC 인가.</b> 로비 캐릭터의 위치는 서버만 정한다
+    /// (<see cref="FixedUpdateNetwork"/> 가 <c>HasStateAuthority</c> 가 아니면 바로 빠져나온다).
+    /// 클라이언트가 <c>transform.position</c> 을 바꿔도 다음 틱에 NetworkTransform 이
+    /// 서버 값으로 되돌린다. 그래서 "여기로 보내 달라" 고 청하는 수밖에 없다.
+    ///
+    /// <b>보낸 좌표를 그대로 믿지 않는다.</b> 그러면 누구든 아무 데나 갈 수 있다.
+    /// 서버도 같은 Lobby 씬을 들고 있으므로 놓여 있는 이정표를 안다. 받은 좌표가
+    /// <b>실제 이정표의 도착 지점과 맞을 때만</b> 옮긴다.
+    ///
+    /// ⚠ <b>이것으로 충분한 방어는 아니다.</b> 이정표 사이를 얼마나 자주 오갈 수 있는지,
+    ///    정말로 그 이정표 앞에 서 있었는지는 보지 않는다. 시연용으로는 과하다고 보고
+    ///    "아무 데나 못 간다" 까지만 막았다. 필요해지면 여기에 쿨다운과 출발지 확인을 더한다.
+    /// </summary>
+    /// <param name="target">가고 싶은 이정표의 도착 지점.</param>
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RpcRequestTeleport(Vector3 target)
+    {
+        // 받은 좌표가 정말 이정표 앞인가. 1.5m 는 부동소수 오차와 도착 지점을 살짝
+        // 옮겨 놓았을 여지를 봐주는 값이다.
+        if (!UnderTheSea.Lobby.SignpostTeleport.IsKnownArrival(target, 1.5f, out string who))
+        {
+            Debug.LogWarning(
+                $"[이정표] {Object.InputAuthority} 가 {target.ToString("F2")} 로 보내 달라 했지만 " +
+                "그 자리에 이정표가 없습니다. 보내지 않습니다.");
+            return;
+        }
+
+        Teleport(target);
+        Debug.Log($"[이정표] {Object.InputAuthority} 를 \"{who}\" ({target.ToString("F2")}) 로 보냈습니다.");
+    }
+
+    /// <summary>
+    /// 캐릭터를 그 자리에 놓는다. <b>서버에서만 뜻이 있다.</b>
+    ///
+    /// ⚠ <c>CharacterController</c> 는 켜져 있는 동안 자기 좌표를 따로 들고 있다.
+    ///    <c>transform</c> 만 옮기면 다음 <c>Move()</c> 에서 원래 자리로 끌려 돌아간다.
+    ///    껐다 켜야 지금 좌표를 다시 읽는다. 바다 빠짐 구조와 같은 방법이다.
+    /// </summary>
+    private void Teleport(Vector3 target)
+    {
+        controller.enabled = false;
+        transform.position = target;
+        controller.enabled = true;
+
+        // 떨어지며 붙은 속도를 지운다. 안 지우면 도착하자마자 땅으로 처박힌다.
+        verticalVelocity = 0f;
+
+        // 도착한 자리를 안전한 자리로 삼는다. 안 하면 바다에 빠졌을 때
+        // 떠나온 이정표로 되돌아가 버린다.
+        SafePosition = target;
+    }
+
     private void UpdateSafePositionOrRescue()
     {
         Vector3 now = transform.position;
