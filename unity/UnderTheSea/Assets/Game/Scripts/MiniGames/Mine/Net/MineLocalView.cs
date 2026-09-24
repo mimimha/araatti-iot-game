@@ -462,7 +462,10 @@ namespace Mine.Net
             bool lit = match.Phase == MineMatchPhase.Countdown;
 
             // 마우스는 내 몸을 쥐고 있을 때만 받는다. 관전 중에는 시점이 복제로 들어온다.
-            _camera.AcceptsMouse = mine;
+            //
+            // ⚠ 카운트다운 3 2 1 에는 받지 않는다. 몸도 굳어 있는 시간이라(MineNetPlayerMover)
+            //   시점까지 멈춰 두어야 "아직 시작 전" 으로 읽힌다. 휠 줌도 같이 막힌다.
+            _camera.AcceptsMouse = mine && match.Phase != MineMatchPhase.Countdown;
 
             MineNetPlayer subject = mine ? _who : match.FindBySlot(match.CurrentSlot);
 

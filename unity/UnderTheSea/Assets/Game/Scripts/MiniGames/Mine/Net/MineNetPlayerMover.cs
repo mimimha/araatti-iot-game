@@ -282,8 +282,9 @@ namespace Mine.Net
 
             MineMatchState match = MineMatchState.Current;
 
-            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 카운트다운과 턴에는 넷 다 통과하고
+            // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 턴에는 넷 다 통과하고
             //   (MineMatchState.FreeRoam), 목표 공개(7초)에는 첫 턴 예정자만 통과한다.
+            //   카운트다운은 FreeRoam 에 들지만 아래 frozen 이 막는다.
             //   파는 것은 MineNetPlayerActions 가 IsMyTurn 으로 따로 막는다.
             //
             // ⚠ **판이 들려 있으면 아무도 안 움직인다.** 정답 보기가 파인 칸을 0.25m
@@ -297,7 +298,12 @@ namespace Mine.Net
             //   정답 보기로 올라오는 칸은 각자 화면에서만 그려지고, 몸은 서버가 굴리므로
             //   화면의 블록이 몸을 떠밀지 않는다. 파인 칸 위에서 발이 잠겨 보이는 것은 받아들인다.
             //   (혼자 하는 판은 같은 PC 에서 둘 다 일어나서 떠밀린다 — 그래서 MineGame 은 여전히 멈춘다)
-            bool frozen = match != null && match.BoardLifted;
+            //
+            // ⚠ **카운트다운 3 2 1 에는 아무도 안 움직인다.** 흩뿌려진 자리(ScatterCrew)에서
+            //   다 같이 출발하게 한다. 카메라는 여전히 각자 자기 캐릭터를 본다 —
+            //   그 판단은 FreeRoam 이 하므로 거기서 카운트다운을 빼면 안 된다(탑뷰로 바뀐다).
+            bool frozen = match != null
+                          && (match.BoardLifted || match.Phase == MineMatchPhase.Countdown);
 
             bool mine = _who != null && _who.CanMoveNow && !frozen;
 

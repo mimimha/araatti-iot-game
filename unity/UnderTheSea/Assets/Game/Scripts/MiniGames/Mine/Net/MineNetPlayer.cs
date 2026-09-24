@@ -73,6 +73,7 @@ namespace Mine.Net
         ///
         /// <b>카운트다운과 턴에는 참가자 전원이 참이다.</b> (<see cref="MineMatchState.FreeRoam"/>)
         /// 내 턴이 아니어도 걷고 달릴 수 있다. 그동안 넷이 다 보이고 서로 부딪힌다.
+        /// 단 카운트다운 3 2 1 동안은 <c>MineNetPlayerMover</c> 가 몸을 굳혀 둔다.
         ///
         /// ⚠ <b>파는 것은 여기에 걸리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
         ///   <see cref="IsMyTurn"/> 과 <c>ShowingTarget</c> 으로 따로 막는다.

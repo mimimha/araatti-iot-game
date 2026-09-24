@@ -209,7 +209,7 @@ namespace Mine.Net
         /// <b>참가자 전원이 제 몸을 쥐는 시간.</b> 카운트다운 3초와 턴 내내다.
         ///
         /// <code>
-        ///   카운트다운  넷이 다 움직인다. 아무도 못 판다 (CurrentSlot 이 -1)
+        ///   카운트다운  넷이 다 제 캐릭터를 본다. 몸은 굳어 있다(MineNetPlayerMover). 아무도 못 판다
         ///   공개 7초    첫 턴 예정자만 움직인다. 나머지 셋은 보이되 그 자리에 굳는다
         ///   턴          넷이 다 움직인다. 파는 것은 턴 주인만
         /// </code>
@@ -232,8 +232,12 @@ namespace Mine.Net
         ///   <b>움직이지 못할 뿐 넷 다 보인다</b> — 보이는 것은 <see cref="CrewOnBoard"/>
         ///   가 따로 정한다.
         ///
-        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는
-        ///   멈춰 있다가 "3" 과 함께 한꺼번에 풀리는 편이 신호로 읽힌다.
+        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는 멈춰 있는다.
+        ///
+        /// ⚠ 카운트다운은 여기 들지만 <b>몸은 굳어 있다</b>(<c>MineNetPlayerMover</c>). 이 값은
+        ///   카메라가 "각자 자기 캐릭터를 따라가는가" 를 정하는 데도 쓰여서, 카운트다운을 빼면
+        ///   그 3초 동안 화면이 판 전체 탑뷰로 바뀐다. 흩뿌려진 자리에서 다 같이 출발하게
+        ///   하려고 이동만 따로 막았다.
         /// </summary>
         public bool FreeRoam => Phase == MineMatchPhase.Countdown || Phase == MineMatchPhase.Turn;
 
