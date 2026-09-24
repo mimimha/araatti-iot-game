@@ -81,6 +81,8 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(script.text, Does.Contain("Player/Interact"));
             Assert.That(script.text, Does.Contain(".performed += OnInteractPerformed"));
             Assert.That(script.text, Does.Contain(".performed -= OnInteractPerformed"));
+            Assert.That(script.text, Does.Contain("public bool TryStartFishing()"));
+            Assert.That(script.text, Does.Contain("TryStartFishing();"));
             Assert.That(script.text, Does.Contain("LocalPlayer.Registered"));
             Assert.That(script.text, Does.Contain("LocalPlayer.Unregistered"));
             Assert.That(script.text, Does.Contain("_localPlayer.Runner"));
@@ -238,10 +240,19 @@ namespace FishingMiniGame.Tests.EditMode
             FishingSpot spot = CreateObject("FarSpot").AddComponent<FishingSpot>();
             spot.transform.position = Vector3.right * 10f;
             Fixture fixture = CreateFixture(new[] { spot }, 2f);
-            Refresh(fixture.Adapter);
 
             Assert.That(TryInteract(fixture.Adapter), Is.False);
             Assert.That(spot.IsBusy, Is.False);
+            Assert.That(fixture.Mode.State, Is.EqualTo(FishingModeLifecycleState.Inactive));
+            Assert.That(IsLocked(fixture.Provider), Is.False);
+        }
+
+        [Test]
+        public void NoConfiguredSpot_PublicStartReturnsFalse()
+        {
+            Fixture fixture = CreateFixture(Array.Empty<FishingSpot>(), 2f);
+
+            Assert.That(TryInteract(fixture.Adapter), Is.False);
             Assert.That(fixture.Mode.State, Is.EqualTo(FishingModeLifecycleState.Inactive));
             Assert.That(IsLocked(fixture.Provider), Is.False);
         }
@@ -253,7 +264,6 @@ namespace FishingMiniGame.Tests.EditMode
             Fixture fixture = CreateFixture(new[] { spot }, 2f);
             int requestCount = 0;
             spot.FishingRequested += _ => requestCount++;
-            Refresh(fixture.Adapter);
 
             Assert.That(TryInteract(fixture.Adapter), Is.True);
             Assert.That(TryInteract(fixture.Adapter), Is.False);
@@ -495,7 +505,7 @@ namespace FishingMiniGame.Tests.EditMode
 
         private static bool TryInteract(Component adapter)
         {
-            return (bool)InvokeNonPublic(adapter, "TryInteractCurrentSpot");
+            return (bool)Invoke(adapter, "TryStartFishing");
         }
 
         private static void Refresh(Component adapter)

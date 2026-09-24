@@ -23,8 +23,18 @@ namespace UnderTheSea.Core
     /// 줄 수 있다. 풀만 <see cref="FoliageLayerName"/> 레이어에 모아 두고 그 레이어에만
     /// 짧은 거리를 준다. 나무·절벽은 Default 에 남아 있어 멀리서도 보인다.
     ///
-    /// ⚠ <b>구형 컬링을 쓴다.</b> 기본값은 카메라 평면까지의 거리로 재서, 고개를 옆으로
-    ///    돌리면 같은 풀이 들어왔다 나갔다 하며 깜빡인다. 구(球)로 재면 회전해도 안 변한다.
+    /// ⚠ <b>구형 컬링은 URP 에서 안 된다.</b> 거리를 카메라 평면까지로 재기 때문에,
+    ///    고개를 옆으로 돌리면 같은 풀이 들어왔다 나갔다 하며 깜빡인다.
+    ///    구(球)로 재면 회전해도 안 변하므로 <see cref="Camera.layerCullSpherical"/> 를
+    ///    켜 봤는데, Unity 가 이렇게 알려 주고 무시한다.
+    /// <code>
+    ///   Your project uses a scriptable render pipeline.
+    ///   You can use Camera.layerCullSpherical only with the built-in renderer.
+    /// </code>
+    ///    값은 저장되지만(<c>get</c> 이 <c>true</c> 를 돌려준다) 실제 컬링에는 안 쓰인다.
+    ///    그래서 그 줄은 뺐다. 새 카메라마다 경고 한 줄을 남길 뿐 하는 일이 없었다.
+    ///    <b>거리 컬링(<see cref="Camera.layerCullDistances"/>) 자체는 URP 에서도 동작한다.</b>
+    ///    깜빡임이 거슬리면 거리를 늘리는 쪽이 지금으로선 유일한 수단이다.
     ///
     /// ⚠ <b>한 번 걸고 끝낼 수 없다.</b> Fusion 이 Lobby 를 네트워크 씬으로 올리고,
     ///    그 뒤 <c>LocalPlayerView</c> 가 스폰된 캐릭터에 카메라를 붙인다. 그 카메라는
@@ -148,7 +158,7 @@ namespace UnderTheSea.Core
                     distances = new float[32];
                 }
 
-                if (Mathf.Approximately(distances[layer], wanted) && camera.layerCullSpherical)
+                if (Mathf.Approximately(distances[layer], wanted))
                 {
                     continue;
                 }
@@ -156,7 +166,6 @@ namespace UnderTheSea.Core
                 distances[layer] = wanted;
 
                 camera.layerCullDistances = distances;
-                camera.layerCullSpherical = true;
             }
         }
     }
