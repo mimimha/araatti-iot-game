@@ -107,12 +107,11 @@ namespace Mine.Net
             // 금만 갔을 때는 안 뛴다 — 아직 발밑이 그대로이기 때문이다.
             if (result != MineHitResult.Broke) return;
 
-            // ⚠ 네트워크에서는 <c>MineJump</c> 만으로는 부족하다.
+            // ⚠ 네트워크에서는 <c>MineJump</c> 로는 안 뛴다.
             //
-            //   그쪽은 Update(-50) 에서 CharacterMover 에 jump=true 를 쓰는데,
-            //   같은 프레임에 <c>MineNetPlayerMover</c> 가 틱마다 jump=false 를
-            //   다시 써서 지워버린다. 점프는 매 프레임 읽히는 bool 하나라
-            //   나중에 쓴 쪽이 이긴다. 그래서 그 부품에게 직접 알린다.
+            //   그쪽은 CharacterMover 에 jump=true 를 쓰는데, 네트워크에서는 그 부품이
+            //   꺼져 있고 몸은 <c>MineNetPlayerMover</c> 가 틱마다 굴린다.
+            //   그래서 그 부품에게 직접 알린다.
             if (_body != null) _body.RequestHop();
             else if (_hop != null) _hop.Hop();
         }

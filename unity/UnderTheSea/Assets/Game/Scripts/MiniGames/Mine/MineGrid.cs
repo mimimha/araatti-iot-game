@@ -12,8 +12,8 @@ using UnityEngine;
 ///   - 화면(MineGridView)과 채점(MineDigger)이 **같은 도안**을 봐야 한다.
 ///     각자 참조를 들면 한쪽만 바꿔놓고 헤매게 된다.
 ///   - 크기 검사와 캐시를 한 곳에서 한다.
-///   - 나중에 MineGame 이 인원에 맞는 도안을 골라 <see cref="SetTarget"/> 로 갈아끼운다.
-///     (MINE.md 2장 — 인원이 곧 난이도)
+///   - 판을 시작할 때 인원에 맞는 도안을 골라 <see cref="SetTarget"/> 로 갈아끼운다.
+///     혼자 하는 판은 MineGame, 네트워크 판은 MineGridSync 가 한다. (MINE.md 2장 — 인원이 곧 난이도)
 ///
 /// 격자는 이 오브젝트를 **중심**으로 XZ 평면에 놓인다.
 /// 칸 (0,0) 은 -X, -Z 쪽 구석이다.

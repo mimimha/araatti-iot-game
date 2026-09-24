@@ -68,11 +68,15 @@ namespace Mine.Net
         /// <summary>
         /// 지금 이 몸이 <b>움직일 수 있는가.</b>
         ///
-        /// 자기 턴이거나, 목표를 보여 주는 동안 곳 첫 턴을 받을 사람이다.
-        /// 공개 때 미리 자리를 잡을 수 있게 하려는 것이다.
+        /// 자기 턴이거나, 참가자 전원이 걷는 시간(카운트다운 · 공개 · 턴)이다.
+        ///
+        /// <b>공개 7초에도 넷이 다 걷는다.</b> 예전에는 첫 턴을 받을 사람만 걸었는데,
+        /// 나머지가 도안을 외우는 동안 굳어 있으니 할 일이 없었다. 첫 사람이 시작 칸을
+        /// 정하는 규칙은 그대로다 — 파는 것은 여전히 턴 주인만 한다. (MINE.md 2장)
         ///
         /// <b>카운트다운과 턴에는 참가자 전원이 참이다.</b> (<see cref="MineMatchState.FreeRoam"/>)
         /// 내 턴이 아니어도 걷고 달릴 수 있다. 그동안 넷이 다 보이고 서로 부딪힌다.
+        /// 단 카운트다운 3 2 1 동안은 <c>MineNetPlayerMover</c> 가 몸을 굳혀 둔다.
         ///
         /// ⚠ <b>파는 것은 여기에 걸리지 않는다.</b> <see cref="MineNetPlayerActions"/> 가
         ///   <see cref="IsMyTurn"/> 과 <c>ShowingTarget</c> 으로 따로 막는다.
@@ -89,19 +93,20 @@ namespace Mine.Net
                 MineMatchState match = MineMatchState.Current;
                 if (match == null || Slot < 0) return false;
 
-                return match.FreeRoam || match.WarmupSlot == Slot;
+                // 공개는 FreeRoam 에 넣지 않았다 — 그 값은 카메라도 정한다. (FreeRoam 주석)
+                return match.FreeRoam || match.Phase == MineMatchPhase.Reveal;
             }
         }
 
         /// <summary>
         /// 지금 이 몸이 <b>격자 위에 보이는가.</b> <see cref="CanMoveNow"/> 와 <b>따로 논다.</b>
         ///
-        /// 공개 7초가 그 둘이 갈라지는 자리다 — 넷이 다 서 있되 첫 턴 예정자만 걷는다.
-        /// 나머지 셋은 굳은 채로 같이 도안을 본다.
+        /// 카운트다운 3초가 그 둘이 갈라지는 자리다 — 넷이 다 서 있되 아무도 못 걷는다.
         ///
-        /// ⚠ <b>움직임 판정을 여기에 섞으면 안 된다.</b> 힌트처럼 잠깐 멈추는 것까지
-        ///   보이기에 엮으면 그때마다 캐릭터가 사라진다. 실제로 겪은 문제다.
-        ///   (<see cref="WatchingOwnHint"/> 주석)
+        /// ⚠ <b>움직임 판정을 여기에 섞으면 안 된다.</b> 잠깐 멈추는 것까지 보이기에
+        ///   엮으면 그때마다 캐릭터가 사라진다. 예전에 힌트 중 멈춤을 <see cref="CanMoveNow"/>
+        ///   에 넣었다가 힌트 토글마다 캐릭터가 사라진 적이 있다. 그 값은 <c>ApplyPresence</c>
+        ///   로 렌더러를 켜고 끄는 데도 쓰이기 때문이다. 멈춤은 <c>MineNetPlayerMover</c> 에서만 판단한다.
         /// </summary>
         public bool ShowBody
         {
@@ -111,29 +116,6 @@ namespace Mine.Net
 
                 MineMatchState match = MineMatchState.Current;
                 return match != null && match.CrewOnBoard;
-            }
-        }
-
-        /// <summary>
-        /// <b>내 힌트를 보는 중인가.</b> 그동안에는 몸을 굴리지 않는다.
-        ///
-        /// 탑뷰로 올라가 발밑이 안 보이는데 그대로 움직이면 어디로 가는지 모른다.
-        /// 게다가 정답 보기가 파인 칸을 0.25m 끌어올려서 콜라이더가 캐릭터를 떠민다 —
-        /// 솔로에서 실제로 토글마다 점프했다. (<c>MineGame.SyncFrozen</c>)
-        ///
-        /// ⚠ <b><see cref="CanMoveNow"/> 에 넣으면 안 된다.</b> 그 값은 이동 판정만
-        ///   하는 것이 아니라 <c>ApplyPresence</c> 로 <b>렌더러를 켜고 끄는 데도</b>
-        ///   쓰인다. 거기에 힌트 조건을 넣었다가 힌트 토글마다 캐릭터가 사라졌다.
-        ///   막을 것은 몸을 굴리는 것뿐이므로 <c>MineNetPlayerMover</c> 만 이걸 본다.
-        /// </summary>
-        public bool WatchingOwnHint
-        {
-            get
-            {
-                if (Slot < 0) return false;
-
-                MineMatchState match = MineMatchState.Current;
-                return match != null && match.HintLeft > 0f && match.HintSlot == Slot;
             }
         }
 
@@ -242,7 +224,7 @@ namespace Mine.Net
         /// <summary>
         /// **판이 도는 동안에는 참가자 넷이 다 보인다.** 카운트다운 · 공개 · 턴.
         /// (<see cref="ShowBody"/>) 움직일 수 있는가는 여기서 보지 않는다 —
-        /// 공개 7초에는 넷이 다 서 있고 걷는 것은 첫 턴 예정자뿐이다.
+        /// 카운트다운 3초에는 넷이 다 서 있지만 아무도 못 걷는다.
         ///
         /// 숨기는 때는 둘이다. <b>대기</b>는 아직 스폰 높이에 떠 있어서(카운트다운에
         /// 떨어진다), <b>결과</b>는 완성된 그림을 위에서 보여 주는 시간이라 몸이 가리면
@@ -254,10 +236,9 @@ namespace Mine.Net
         ///
         /// ⚠ 서버에서도 판단은 같다. 규칙(충돌)이 걸려 있어 표시만의 문제가 아니다.
         ///
-        /// ⚠ <b><c>CharacterController</c> 는 여기서 건드리지 않는다.</b> 그것은
-        ///    <c>MineNetPlayerMover.SetSimulated</c> 가 <c>CharacterMover</c> 와 <b>함께</b>
-        ///    켜고 끈다. 컨트롤러만 따로 끄면 Mover 가 계속 <c>Move</c> 를 불러
-        ///    "inactive controller" 오류가 프레임마다 쏟아진다.
+        /// ⚠ <b><c>CharacterController</c> 는 여기서 건드리지 않는다.</b> 몸을 굴리는
+        ///    <c>MineNetPlayerMover</c> 가 다룬다. 컨트롤러만 따로 끄면 그쪽이 틱마다
+        ///    <c>Move</c> 를 불러 "inactive controller" 오류가 쏟아진다.
         /// </summary>
         public override void FixedUpdateNetwork()
         {
