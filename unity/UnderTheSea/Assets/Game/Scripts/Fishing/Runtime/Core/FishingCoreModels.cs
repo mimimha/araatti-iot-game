@@ -63,6 +63,7 @@ namespace FishingMiniGame.Core
         public bool CastPressed;
         public bool CastReleased;
         public bool HookPressed;
+        public bool TimingPressed;
         public float ReelDelta;
         public float TensionNormalized;
         public float RodPitch;

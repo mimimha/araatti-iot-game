@@ -16,6 +16,7 @@ namespace FishingMiniGame.Runtime
         private IFishingFeedbackOutput _feedbackOutput;
         private IFishingResistanceOutput _resistanceOutput;
         private FishingV2ResistanceMapper _resistanceMapper;
+        private FishingV3ResistanceMapper _v3ResistanceMapper;
         private LocalFishingAuthority _authority;
         private FishingRoundTracker _roundTracker;
         private SingleFishSessionTracker _sessionTracker;
@@ -27,6 +28,9 @@ namespace FishingMiniGame.Runtime
         private FishingPlayerState _lastLoggedState;
         private FishingGameMode? _modeOverride;
         private FishingGameMode _gameMode;
+        private FishingGameplayRuntimeMode _gameplayRuntimeMode;
+        private FishingV3Runtime _v3Runtime;
+        private int _lastV3HeadShakeEventSequence;
         private int _nextFishIndex;
         private bool _prepareNextFish;
         private bool _sessionHookCommitted;
@@ -40,6 +44,8 @@ namespace FishingMiniGame.Runtime
         public FishingSessionSnapshot SessionSnapshot => _sessionTracker?.Current;
         public FishingSessionResult LastSessionResult => _sessionTracker?.Result;
         public FishingInputFrame LastInputFrame { get; private set; }
+        public FishingV3Snapshot V3Snapshot => _v3Runtime?.Current;
+        public FishingV3FishProfile V3FishProfile => _v3Runtime?.FishProfile;
         public FishingResistanceCommand LastResistanceCommand { get; private set; } = FishingResistanceCommand.Zero;
         public bool IsResistanceStopped { get; private set; } = true;
         public IReadOnlyList<FishingCatchRecord> CatchHistory => _roundTracker?.Catches;
@@ -48,6 +54,7 @@ namespace FishingMiniGame.Runtime
             : Snapshot?.Feedback ?? default;
         public FishingGameConfigAsset Config => config;
         public FishingGameMode Mode => _gameMode;
+        public FishingGameplayRuntimeMode GameplayRuntimeMode => _gameplayRuntimeMode;
         public bool IsPaused => _paused;
         public event Action<FishingCycleResult> CycleFinished;
         public event Action<FishingRoundResult> RoundFinished;
@@ -70,12 +77,7 @@ namespace FishingMiniGame.Runtime
 
         private void Update()
         {
-            if (!HasRuntimeDependencies()) InitializeRuntime();
-            if (!HasRuntimeDependencies() || _paused) return;
-
-            float deltaTime = Time.unscaledDeltaTime;
-            if (_gameMode == FishingGameMode.SingleFishSession) UpdateSingleFishSession(deltaTime);
-            else UpdateLegacyRound(deltaTime);
+            TickRuntime(Time.unscaledDeltaTime);
         }
 
         private void OnDisable()
@@ -89,6 +91,7 @@ namespace FishingMiniGame.Runtime
             if (_authority != null) _authority.CycleFinished -= OnCycleFinished;
             if (_roundTracker != null) _roundTracker.Completed -= OnRoundFinished;
             if (_sessionTracker != null) _sessionTracker.Completed -= OnSessionFinished;
+            _v3Runtime?.Shutdown();
             _feedbackOutput?.StopFeedback();
             StopResistanceFeedback(Snapshot);
         }
@@ -102,9 +105,67 @@ namespace FishingMiniGame.Runtime
         public void ConfigureFlowMode(FishingGameMode mode, FishProfile sessionFish = null)
         {
             InitializeRuntime();
+            _gameplayRuntimeMode = FishingGameplayRuntimeMode.LegacyV2;
+            _v3Runtime?.Abort();
             _modeOverride = mode;
             _sessionFishOverride = sessionFish?.Copy();
             RebuildRound(_launchContext);
+        }
+
+        public void ConfigureV3Runtime(
+            FishingV3Tuning modelTuning = null,
+            FishingV3ReelInputTuning reelInputTuning = null,
+            FishingV3ResistanceTuning resistanceTuning = null,
+            FishingV3FishBehaviorTuning behaviorTuning = null,
+            FishingV3TimingReelTuning timingTuning = null,
+            FishingV3ReelControlMode reelControlMode = FishingV3ReelControlMode.LegacyHold,
+            FishingV3BiteHookTuning biteHookTuning = null,
+            FishingV3SessionFlowMode sessionFlowMode =
+                FishingV3SessionFlowMode.ImmediateFight,
+            FishingV3FishProfile fishProfile = null)
+        {
+            InitializeRuntime();
+            StopResistanceFeedback(Snapshot);
+            _feedbackOutput.StopFeedback();
+            _gameplayRuntimeMode = FishingGameplayRuntimeMode.V3;
+            _v3Runtime = new FishingV3Runtime(
+                modelTuning,
+                reelInputTuning,
+                behaviorTuning,
+                timingTuning,
+                reelControlMode,
+                biteHookTuning,
+                sessionFlowMode,
+                fishProfile);
+            _v3ResistanceMapper = new FishingV3ResistanceMapper(resistanceTuning);
+            _lastV3HeadShakeEventSequence = 0;
+            _inputSource.ResetState();
+            LastInputFrame = NeutralInputFrame();
+            _paused = false;
+        }
+
+        public void SetV3FishState(FishingV3FishState fishState)
+        {
+            if (_gameplayRuntimeMode != FishingGameplayRuntimeMode.V3 || _v3Runtime == null)
+            {
+                throw new InvalidOperationException("ConfigureV3Runtime must be called before setting V3 fish state.");
+            }
+
+            _v3Runtime.SetFishState(fishState);
+        }
+
+        public void TriggerV3HeadShake(float intensityNormalized = 1f)
+        {
+            if (_gameplayRuntimeMode != FishingGameplayRuntimeMode.V3 ||
+                _v3Runtime == null ||
+                _v3Runtime.State != FishingV3RuntimeState.Running ||
+                _v3Runtime.Result != FishingV3Result.Active ||
+                _paused)
+            {
+                return;
+            }
+
+            _v3ResistanceMapper?.TriggerHeadShake(intensityNormalized);
         }
 
         public void InitializeRuntime()
@@ -117,10 +178,13 @@ namespace FishingMiniGame.Runtime
             _feedbackOutput?.StopFeedback();
             StopResistanceFeedback(Snapshot);
 
-            _inputSource = new KeyboardFishingInputSource("local-player");
-            _feedbackOutput = new MockFishingFeedbackOutput();
-            _resistanceMapper = new FishingV2ResistanceMapper();
-            _resistanceOutput = new MockFishingResistanceOutput();
+            // Preserve dependencies supplied before the first initialization. This is
+            // important for deterministic hosts/tests that install an input source
+            // before configuring the selected gameplay runtime.
+            _inputSource ??= new KeyboardFishingInputSource("local-player");
+            _feedbackOutput ??= new MockFishingFeedbackOutput();
+            _resistanceMapper ??= new FishingV2ResistanceMapper();
+            _resistanceOutput ??= new MockFishingResistanceOutput();
             LastResistanceCommand = FishingResistanceCommand.Zero;
             IsResistanceStopped = true;
             _authority = new LocalFishingAuthority();
@@ -144,6 +208,19 @@ namespace FishingMiniGame.Runtime
             InitializeRuntime();
             _paused = false;
 
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                if (_v3Runtime.State == FishingV3RuntimeState.Ready ||
+                    _v3Runtime.State == FishingV3RuntimeState.Completed ||
+                    _v3Runtime.State == FishingV3RuntimeState.Aborted)
+                {
+                    _v3ResistanceMapper?.Reset();
+                    _lastV3HeadShakeEventSequence = 0;
+                }
+                _v3Runtime.Begin();
+                return;
+            }
+
             if (_gameMode == FishingGameMode.SingleFishSession)
             {
                 if (_sessionTracker.Current.State == FishingSessionState.Completed ||
@@ -166,6 +243,12 @@ namespace FishingMiniGame.Runtime
         public void StopRound()
         {
             if (!HasRuntimeDependencies()) return;
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                _v3Runtime?.Abort();
+                StopResistanceFeedback(Snapshot);
+                return;
+            }
             if (_gameMode == FishingGameMode.SingleFishSession) _sessionTracker.Abort();
             else _roundTracker.Stop();
             StopResistanceFeedback(Snapshot);
@@ -174,6 +257,12 @@ namespace FishingMiniGame.Runtime
         public void AbortRound()
         {
             if (!HasRuntimeDependencies()) return;
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                _v3Runtime?.Abort();
+                StopResistanceFeedback(Snapshot);
+                return;
+            }
             if (_gameMode == FishingGameMode.SingleFishSession) _sessionTracker.Abort();
             else _roundTracker.Abort();
             StopResistanceFeedback(Snapshot);
@@ -182,6 +271,10 @@ namespace FishingMiniGame.Runtime
         public void SetPaused(bool paused)
         {
             _paused = paused;
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                _v3Runtime?.SetPaused(paused);
+            }
             if (paused)
             {
                 _feedbackOutput?.StopFeedback();
@@ -216,6 +309,16 @@ namespace FishingMiniGame.Runtime
         public void ResetCycle()
         {
             StopResistanceFeedback(Snapshot);
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                _inputSource?.ResetState();
+                _v3Runtime?.Reset();
+                _lastV3HeadShakeEventSequence = 0;
+                LastInputFrame = NeutralInputFrame();
+                _feedbackOutput?.StopFeedback();
+                _paused = false;
+                return;
+            }
             if (!IsActivePlayFlow()) return;
             _inputSource?.ResetState();
             _authority?.ResetCycle();
@@ -223,6 +326,56 @@ namespace FishingMiniGame.Runtime
             _prepareNextFish = false;
             _sessionHookCommitted = false;
             if (_authority?.Current != null) _lastLoggedState = _authority.Current.State;
+        }
+
+        public void ShutdownRuntime()
+        {
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                _v3Runtime?.Shutdown();
+            }
+            else
+            {
+                AbortRound();
+            }
+
+            _paused = true;
+            _feedbackOutput?.StopFeedback();
+            StopResistanceFeedback(Snapshot);
+        }
+
+        /// <summary>
+        /// Advances exactly one selected gameplay path. The controller owns the
+        /// single input read performed by an active gameplay tick.
+        /// </summary>
+        public void TickRuntime(float deltaTime)
+        {
+            if (!HasRuntimeDependencies()) InitializeRuntime();
+            if (!HasRuntimeDependencies() || _paused) return;
+
+            if (_gameplayRuntimeMode == FishingGameplayRuntimeMode.V3)
+            {
+                if (_v3Runtime == null || _v3Runtime.State != FishingV3RuntimeState.Running)
+                {
+                    return;
+                }
+
+                LastInputFrame = _inputSource.ReadFrame();
+                _v3Runtime.Tick(LastInputFrame, deltaTime);
+                if (_v3Runtime.Result != FishingV3Result.Active ||
+                    _v3Runtime.State != FishingV3RuntimeState.Running)
+                {
+                    StopResistanceFeedback(Snapshot);
+                    return;
+                }
+
+                ConsumeV3HeadShakeEvent();
+                UpdateV3ResistanceFeedback(deltaTime);
+                return;
+            }
+
+            if (_gameMode == FishingGameMode.SingleFishSession) UpdateSingleFishSession(deltaTime);
+            else UpdateLegacyRound(deltaTime);
         }
 
         private void UpdateLegacyRound(float deltaTime)
@@ -353,6 +506,7 @@ namespace FishingMiniGame.Runtime
                 Fish = firstFish
             });
             _inputSource.ResetState();
+            _v3Runtime?.Reset();
             LastInputFrame = NeutralInputFrame();
             _feedbackOutput.StopFeedback();
             StopResistanceFeedback(_authority.Current);
@@ -458,7 +612,8 @@ namespace FishingMiniGame.Runtime
 
         private bool CanApplyResistance(FishingSnapshot snapshot)
         {
-            return _gameMode == FishingGameMode.SingleFishSession &&
+            return _gameplayRuntimeMode == FishingGameplayRuntimeMode.LegacyV2 &&
+                _gameMode == FishingGameMode.SingleFishSession &&
                 _sessionTracker?.Current.State == FishingSessionState.Playing &&
                 snapshot != null &&
                 snapshot.State == FishingPlayerState.Fighting &&
@@ -466,9 +621,57 @@ namespace FishingMiniGame.Runtime
                 LastInputFrame.IsDeviceConnected;
         }
 
+        private void UpdateV3ResistanceFeedback(float deltaTime)
+        {
+            FishingV3Snapshot snapshot = V3Snapshot;
+            if (!CanApplyV3Resistance(snapshot))
+            {
+                StopResistanceFeedback(Snapshot);
+                return;
+            }
+
+            FishingResistanceCommand command = _v3ResistanceMapper.Tick(
+                snapshot.TensionNormalized,
+                deltaTime);
+            LastResistanceCommand = command;
+            IsResistanceStopped = false;
+            _resistanceOutput.ApplyCommand(command);
+        }
+
+        private void ConsumeV3HeadShakeEvent()
+        {
+            FishingV3Snapshot snapshot = V3Snapshot;
+            if (snapshot == null) return;
+
+            int sequence = Math.Max(0, snapshot.HeadShakeEventSequence);
+            if (sequence < _lastV3HeadShakeEventSequence)
+            {
+                _lastV3HeadShakeEventSequence = sequence;
+                return;
+            }
+            if (sequence == _lastV3HeadShakeEventSequence) return;
+
+            _lastV3HeadShakeEventSequence = sequence;
+            _v3ResistanceMapper?.TriggerHeadShake(
+                snapshot.HeadShakeIntensityNormalized);
+        }
+
+        private bool CanApplyV3Resistance(FishingV3Snapshot snapshot)
+        {
+            return _gameplayRuntimeMode == FishingGameplayRuntimeMode.V3 &&
+                _v3Runtime?.State == FishingV3RuntimeState.Running &&
+                snapshot != null &&
+                snapshot.Result == FishingV3Result.Active &&
+                snapshot.GameplayPhase == FishingV3GameplayPhase.Fighting &&
+                _v3ResistanceMapper != null &&
+                !_paused &&
+                LastInputFrame.IsDeviceConnected;
+        }
+
         private void StopResistanceFeedback(FishingSnapshot snapshot)
         {
             _resistanceMapper?.ResetToSafe(snapshot);
+            _v3ResistanceMapper?.Reset();
             LastResistanceCommand = FishingResistanceCommand.Zero;
             IsResistanceStopped = true;
             _resistanceOutput?.Stop();
