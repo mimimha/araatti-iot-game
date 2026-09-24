@@ -21,6 +21,8 @@ namespace Lobby.Editor
     /// <b>어떻게 막는가.</b>
     ///   1. 섬 일대를 격자로 훑어 칸마다 **밟고 설 면의 높이**를 잰다.
     ///      맨 위 콜라이더를 보므로 부두처럼 물 위에 놓인 구조물은 마른 땅으로 잡힌다.
+    ///      칸 안의 여러 점을 재서 **가장 높은 값**을 쓴다. 한가운데 한 점만 재면
+    ///      레이가 부두 판자 틈으로 빠져 바다 밑바닥을 읽고, 부두 한가운데에 벽이 선다.
     ///   2. 해수면(<see cref="SeaLevel"/>)에서 잰 **물 깊이가 어깨까지 차는지**로 가른다.
     ///      어깨보다 얕으면 걸어 다닐 수 있는 곳, 그보다 깊으면 막을 곳이다.
     ///      기준 깊이는 <see cref="LobbyWaterBlocker.ShoulderDepth"/> 가 캐릭터 캡슐에서 읽어 온다.
@@ -64,6 +66,11 @@ namespace Lobby.Editor
         /// <summary>격자 한 칸(m). 캡슐 반지름 0.35m 보다 크지만, 벽이 변 전체를 덮어 틈은 없다.</summary>
         private const float CellSize = 1f;
 
+        /// <summary>
+        /// 칸 안에서 잴 점의 간격(m). 칸 가장자리(±0.5)에 선 벽(두께 0.4)과 겹치지 않을 만큼 안쪽이다.
+        /// </summary>
+        private const float CellSampleOffset = 0.25f;
+
         /// <summary>스폰 지점. 여기서부터 뭍을 이어 나간다.</summary>
         private static readonly Vector3 SpawnHint = new Vector3(20.84f, 1.73f, 48.56f);
 
@@ -102,9 +109,7 @@ namespace Lobby.Editor
             {
                 for (int j = 0; j < nz; j++)
                 {
-                    Vector3 at = CellCenter(i, j);
-
-                    if (!TrySampleGround(at, buffer, out float y))
+                    if (!TrySampleCell(i, j, buffer, out float y))
                     {
                         // 아무것도 없는 칸은 막을 곳으로 친다. 허공으로 걸어 나가면 안 된다.
                         height[i, j] = float.MinValue;
@@ -318,7 +323,35 @@ namespace Lobby.Editor
             return Inside(i, j, nx, nz);
         }
 
-        /// <summary>한 점 위에서 아래로 쏴, 밟고 설 맨 위 면의 높이를 돌려준다.</summary>
+        /// <summary>
+        /// 칸 안에서 <see cref="CellSampleOffset"/> 간격 3×3 점을 재, 밟고 설 면이 가장 높은 값을 돌려준다.
+        /// 한 점이라도 부두 판자에 닿으면 그 칸은 부두다.
+        /// </summary>
+        private static bool TrySampleCell(int i, int j, RaycastHit[] buffer, out float y)
+        {
+            Vector3 center = CellCenter(i, j);
+            y = float.MinValue;
+
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    Vector3 at = center + new Vector3(dx * CellSampleOffset, 0f, dz * CellSampleOffset);
+
+                    if (TrySampleGround(at, buffer, out float sample) && sample > y)
+                    {
+                        y = sample;
+                    }
+                }
+            }
+
+            return y > float.MinValue;
+        }
+
+        /// <summary>
+        /// 한 점 위에서 아래로 쏴, 밟고 설 맨 위 면의 높이를 돌려준다.
+        /// 이미 세워 둔 투명벽은 땅이 아니므로 건너뛴다. 다시 세울 때 벽 꼭대기를 땅으로 읽으면 안 된다.
+        /// </summary>
         private static bool TrySampleGround(Vector3 at, RaycastHit[] buffer, out float y)
         {
             int count = Physics.RaycastNonAlloc(
@@ -328,6 +361,11 @@ namespace Lobby.Editor
 
             for (int k = 0; k < count; k++)
             {
+                if (buffer[k].collider.transform.root.name == BlockerRootName)
+                {
+                    continue;
+                }
+
                 if (buffer[k].point.y > y)
                 {
                     y = buffer[k].point.y;
