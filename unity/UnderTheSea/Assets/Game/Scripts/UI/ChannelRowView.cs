@@ -50,6 +50,9 @@ public class ChannelRowView : MonoBehaviour
     [SerializeField] private string crowdedText = "혼잡";
     [SerializeField] private string fullText = "만원";
 
+    /// <summary>세션 목록이 아직 안 왔을 때. 모르면서 "원활" 이라고 하면 안 된다.</summary>
+    [SerializeField] private string unknownText = "확인 중";
+
     [Header("클릭")]
     [SerializeField] private Button button;
 
@@ -89,10 +92,25 @@ public class ChannelRowView : MonoBehaviour
         gameObject.SetActive(true);
 
         if (nameLabel != null) nameLabel.text = info.DisplayName;
-        if (countLabel != null) countLabel.text = $"{info.CurrentPlayers} / {info.MaxPlayers}";
 
-        float ratio = info.MaxPlayers > 0 ? (float)info.CurrentPlayers / info.MaxPlayers : 1f;
-        bool crowded = info.IsFull || ratio >= crowdedRatio;
+        // ⚠ **인원을 아직 모르는 상태와 0명을 구별한다.** 세션 목록은 붙고 나서 1~2초 뒤에
+        //    온다. 그동안 "0 / 100" 으로 두면 서버가 죽은 것처럼 보이고, 잠시 뒤 숫자가
+        //    튀어 오른다. 모르는 동안은 "- / 100" 으로 두는 편이 정직하다.
+        bool known = info.CurrentPlayers >= 0;
+
+        if (countLabel != null)
+        {
+            countLabel.text = known
+                ? $"{info.CurrentPlayers} / {info.MaxPlayers}"
+                : $"- / {info.MaxPlayers}";
+        }
+
+        // 모르는 동안은 혼잡하지 않은 것으로 둔다. 모른다고 "혼잡" 을 띄우면 안 된다.
+        float ratio = known && info.MaxPlayers > 0
+            ? (float)info.CurrentPlayers / info.MaxPlayers
+            : 0f;
+
+        bool crowded = known && (info.IsFull || ratio >= crowdedRatio);
 
         if (statusBadge != null && smoothSprite != null && crowdedSprite != null)
         {
@@ -101,7 +119,10 @@ public class ChannelRowView : MonoBehaviour
 
         if (statusLabel != null)
         {
-            statusLabel.text = info.IsFull ? fullText : (crowded ? crowdedText : smoothText);
+            statusLabel.text = !known ? unknownText
+                : info.IsFull ? fullText
+                : crowded ? crowdedText
+                : smoothText;
         }
 
         // 가득 찬 채널은 고를 수 없다.

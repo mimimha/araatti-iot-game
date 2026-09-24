@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEditor;
@@ -323,6 +323,64 @@ namespace UnderTheSea.Network.Editor
             EditorApplication.Exit(0);
         }
 
+        /// <summary>
+        /// 🚀 <b>EC2 에 올릴 서버 한 벌.</b> Dedicated Server 넷을 한 번의 Unity 실행으로 만든다.
+        ///
+        /// <code>
+        ///   Server           로비   lobby-ch1
+        ///   MineServer       광산   mine-1 · mine-2
+        ///   WarriorsServer   검     warriors-1 · warriors-2
+        ///   ShipCoopServer   배     shipcoop-1 · shipcoop-2
+        /// </code>
+        ///
+        /// <b>왜 QA 한 벌로는 안 되는가.</b> <see cref="BuildQaSetFromCommandLine"/> 은 광산이
+        /// 빠져 있고 클라이언트를 하나 같이 굽는다. EC2 에 올리는 것은 서버뿐이고 광산도
+        /// 돌고 있어서 구성이 맞지 않는다. 그렇다고 광산만 따로 부르면 Unity 기동 비용을 또 낸다.
+        ///
+        /// ⚠ <b>리눅스로 구우려면 플랫폼을 미리 맞춰 둬야 한다.</b> 출력 경로는
+        ///    <see cref="Platform"/> 을 따라간다. <c>-buildTarget Linux64</c> 를 같이 주면
+        ///    <c>Builds/Linux/</c> 아래로 나가고, 안 주면 윈도우 빌드 자리에 덮어써 버린다.
+        ///
+        /// <code>
+        ///   Unity.exe -batchmode -quit -nographics -projectPath &lt;경로&gt; ^
+        ///     -buildTarget Linux64 -standaloneBuildSubtarget Server ^
+        ///     -executeMethod UnderTheSea.Network.Editor.FusionTestBuilds.BuildDeployServerSetFromCommandLine
+        /// </code>
+        ///
+        /// 하나라도 실패하면 거기서 멈추고 1 로 빠진다. <b>반만 새 빌드인 채로 올리면 안 된다.</b>
+        /// 클라이언트와 <c>Behaviour count mismatch</c> 가 나는데, 어느 서버가 옛것인지
+        /// 로그만 봐서는 알기 어렵다. 실제로 그렇게 한 번 헤맸다.
+        /// </summary>
+        public static void BuildDeployServerSetFromCommandLine()
+        {
+            if (!Ok("Lobby DS", Build(ServerOutput, StandaloneBuildSubtarget.Server))) return;
+
+            if (!Ok("Mine DS", Build(
+                    MineServerOutput, StandaloneBuildSubtarget.Server,
+                    MineScenes, BuildOptions.None))) return;
+
+            if (!Ok("Warriors DS", Build(
+                    WarriorsServerOutput, StandaloneBuildSubtarget.Server,
+                    WarriorsScenes, BuildOptions.None))) return;
+
+            if (!Ok("ShipCoop DS", Build(
+                    ShipCoopServerOutput, StandaloneBuildSubtarget.Server,
+                    ShipCoopScenes, BuildOptions.None))) return;
+
+            Debug.Log("[FusionTestBuilds] 배포용 서버 한 벌을 모두 만들었습니다. (Dedicated Server 4)");
+            EditorApplication.Exit(0);
+        }
+
+        /// <summary>
+        /// 커맨드라인용. <b>시연 클라이언트만</b> 굽는다. 실패하면 종료 코드 1 로 빠진다.
+        ///
+        /// <see cref="BuildShowcaseSetFromCommandLine"/> 은 서버 셋을 같이 굽는다.
+        /// EC2 에 올릴 때는 서버를 리눅스로 따로 구우므로 윈도우 서버가 필요 없다.
+        /// </summary>
+        public static void BuildShowcaseClientFromCommandLine()
+        {
+            ExitWith(BuildShowcaseClient());
+        }
         /// <summary>시연용 Release 클라이언트. 씬 목록은 정상 흐름 빌드와 같다.</summary>
         private static BuildReport BuildShowcaseClient()
         {
@@ -381,7 +439,7 @@ namespace UnderTheSea.Network.Editor
         {
             if (report != null && report.summary.result == BuildResult.Succeeded) return true;
 
-            Debug.LogError($"[FusionTestBuilds] QA 한 벌 — '{name}' 에서 실패했습니다.");
+            Debug.LogError($"[FusionTestBuilds] 한 벌 굽기 — '{name}' 에서 실패했습니다. 나머지는 굽지 않습니다.");
             EditorApplication.Exit(1);
             return false;
         }
