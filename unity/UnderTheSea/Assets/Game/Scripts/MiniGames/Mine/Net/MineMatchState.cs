@@ -194,24 +194,11 @@ namespace Mine.Net
         public bool ShowingTarget => Phase == MineMatchPhase.Reveal || HintLeft > 0f;
 
         /// <summary>
-        /// 목표를 보여 주는 동안 <b>미리 움직여 볼 수 있는 자리.</b> 아니면 -1.
-        ///
-        /// 공개가 끝나면 <see cref="DriveReveal"/> 가 <c>OpenTurnFrom(0)</c> 로
-        /// 첫 턴을 여므로, 미리 움직일 수 있는 사람도 그 0번이다.
-        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 턴이 열릴 때
-        /// 아무도 자리를 옮기지 않는다.
-        ///
-        /// ⚠ <b>힐트는 여기 해당하지 않는다.</b> 힐트 중에도 <c>ShowingTarget</c> 은
-        ///   참이지만 그때는 <c>Phase</c> 가 <c>Turn</c> 이라 본인은 이미 움직일 수 있다.
-        /// </summary>
-        public int WarmupSlot => Phase == MineMatchPhase.Reveal ? 0 : -1;
-
-        /// <summary>
         /// <b>참가자 전원이 제 몸을 쥐는 시간.</b> 카운트다운 3초와 턴 내내다.
         ///
         /// <code>
         ///   카운트다운  넷이 다 제 캐릭터를 본다. 몸은 굳어 있다(MineNetPlayerMover). 아무도 못 판다
-        ///   공개 7초    첫 턴 예정자만 움직인다. 나머지 셋은 보이되 그 자리에 굳는다
+        ///   공개 7초    넷이 다 움직인다. 화면은 모두 탑뷰다 (이 값에는 안 든다 — 아래 ⚠)
         ///   턴          넷이 다 움직인다. 파는 것은 턴 주인만
         /// </code>
         ///
@@ -228,10 +215,10 @@ namespace Mine.Net
         ///   <c>IsMyTurn</c> 으로 따로 막는다. 카운트다운에는 <see cref="CurrentSlot"/> 이
         ///   -1 이라 아무도 해당되지 않고, 턴에는 그 한 사람만 해당된다.
         ///
-        /// ⚠ 공개(<see cref="MineMatchPhase.Reveal"/>)는 <b>일부러 뺐다.</b> 그 7초는
-        ///   도안을 외우는 시간이라 <see cref="WarmupSlot"/> 한 명만 미리 자리를 잡는다.
-        ///   <b>움직이지 못할 뿐 넷 다 보인다</b> — 보이는 것은 <see cref="CrewOnBoard"/>
-        ///   가 따로 정한다.
+        /// ⚠ 공개(<see cref="MineMatchPhase.Reveal"/>)는 <b>여기 넣지 않는다.</b> 그 7초에도
+        ///   넷이 다 걷지만(<c>MineNetPlayer.CanMoveNow</c> 가 따로 연다), 이 값은 카메라가
+        ///   "각자 자기 캐릭터를 따라가는가" 도 정한다. 공개 때는 모두가 탑뷰로 도안을
+        ///   외워야 하므로 그 판단에 섞지 않는다. 보이는 것은 <see cref="CrewOnBoard"/> 가 정한다.
         ///
         /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는 멈춰 있는다.
         ///
@@ -245,10 +232,8 @@ namespace Mine.Net
         /// <summary>
         /// <b>참가자의 몸이 격자 위에 보이는 시간.</b> 카운트다운 · 공개 · 턴.
         ///
-        /// <b>보이는 것과 움직이는 것은 다른 문이다.</b> 공개 7초에는 넷이 다 서 있되
-        /// <see cref="WarmupSlot"/> 한 명만 걷는다 — 나머지 셋은 그 자리에 굳어 있다.
-        /// 넷이 같이 도안을 올려다보는 그림이 되고, 누가 첫 턴인지도 그 한 명이
-        /// 움직이는 것으로 드러난다.
+        /// <b>보이는 것과 움직이는 것은 다른 문이다.</b> 카운트다운 3초에는 넷이 다
+        /// 서 있되 아무도 못 걷는다(<c>MineNetPlayerMover</c>).
         ///
         /// <b>부딪히는 것도 이 값을 따른다.</b> (<c>MineNetPlayerMover.ApplyCrowdCollision</c>)
         /// 굳어 있어도 보이면 몸이고, 보이는 몸은 길을 막아도 된다. 막으면 안 되는 것은
