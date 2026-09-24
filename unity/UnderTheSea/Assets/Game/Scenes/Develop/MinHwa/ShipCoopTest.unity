@@ -7766,7 +7766,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   health: {fileID: 0}
-  damagePerSecondWhenFull: 3
+  damagePerSecondWhileWet: 2
+  damageGraceSeconds: 10
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
 --- !u!4 &623664410

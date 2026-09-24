@@ -1752,6 +1752,8 @@ MonoBehaviour:
   followSeconds: 0.4
   slideDeadZone: 0.15
   bankDegrees: 3
+  shakeDecayDegreesPerSecond: 40
+  shakeFrequency: 16
 --- !u!1 &388177374
 GameObject:
   m_ObjectHideFlags: 0
@@ -7442,7 +7444,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShipFlooding
   health: {fileID: 0}
-  damagePerSecondWhenFull: 3
+  damagePerSecondWhileWet: 2
+  damageGraceSeconds: 10
   risePerPointPerSecond: 0.025
   dumpAmount: 0.2
 --- !u!4 &623664410
@@ -8676,6 +8679,7 @@ MonoBehaviour:
   - {fileID: 823452538}
   - {fileID: 1872577301}
   pointCount: 1
+  maxPoints: 2
 --- !u!4 &924620908
 Transform:
   m_ObjectHideFlags: 0
@@ -9161,8 +9165,14 @@ MonoBehaviour:
   wavePrefab: {fileID: 0}
   waveMaterial: {fileID: 2100000, guid: 0dd08b39c8b3b3243af69e9113ed84a9, type: 2}
   waveWidth: 120
+  waveHeight: 8
+  waveThickness: 12
+  waveSink: 0.8
   straightColor: {r: 0.7, g: 0.85, b: 1, a: 1}
   crookedColor: {r: 0.9, g: 0.25, b: 0.2, a: 1}
+  warningOverlay: {fileID: 0}
+  overlayAlpha: 0.4
+  overlayLift: 0.06
   pushPerSecond: 45
   randomSide: 1
   fixedSide: 1
@@ -15612,6 +15622,8 @@ MonoBehaviour:
   health: {fileID: 1461677452}
   voyage: {fileID: 1461677451}
   flooding: {fileID: 0}
+  shipTurn: {fileID: 0}
+  enemyBreachShakeDegrees: 6
   timeLimit: 180
   phases:
   - name: "\uCD9C\uD56D"

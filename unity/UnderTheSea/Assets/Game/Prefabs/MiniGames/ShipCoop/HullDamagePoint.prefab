@@ -132,7 +132,7 @@ MonoBehaviour:
   interactRange: 2
   needsPlank: 1
   hitsToRepair: 5
-  leakDamagePerSecond: 2
+  leakDamagePerSecond: 1
   health: {fileID: 0}
   game: {fileID: 0}
 --- !u!114 &8272698210370373837
