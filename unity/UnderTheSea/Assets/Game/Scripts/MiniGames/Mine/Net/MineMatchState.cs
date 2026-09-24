@@ -577,12 +577,59 @@ namespace Mine.Net
                 Vector3 top = grid.CellToWorld(cell % grid.Size, cell / grid.Size);
                 Vector3 here = one.transform.position;
 
-                mover.PlaceAt(new Vector3(top.x, here.y, top.z), one.transform.rotation);
+                // ⚠ **발을 칸 윗면에 맞춰 놓는다.** 예전에는 서 있던 높이(스폰 높이)를 그대로 써서
+                //   조금 떠서 시작했는데, 카운트다운 동안 중력으로 내려앉아 티가 안 났다. 카운트다운에
+                //   몸을 굳히면서(MineNetPlayerMover) 목표 공개가 끝날 때까지 공중에 떠 있게 됐다.
+                //   첫 턴 사람만 공개 동안 움직일 수 있어 내려앉고, 나머지는 턴까지 떠 있었다.
+                float ground = GroundHeightAt(top, here.y, out string standingOn);
+                mover.PlaceAt(new Vector3(top.x, ground, top.z), one.transform.rotation);
+
+                Debug.Log($"[MineMatch] P{one.Slot + 1} → 칸 ({cell % grid.Size}, {cell / grid.Size}) " +
+                          $"발 높이 {ground:F2} ({standingOn})");
             }
 
             Debug.Log($"[MineMatch] 참가자 {count}명을 판 위에 흩뿌렸습니다. " +
                       $"(가장자리 {low}칸은 비운다)");
         }
+
+        /// <summary>
+        /// 칸 위에서 아래로 쏴 **밟고 설 면의 높이**를 잰다. 못 찾으면 <paramref name="fallback"/>.
+        ///
+        /// 캐릭터 캡슐은 건너뛴다. 그 칸에 아직 다른 사람이 서 있으면 그 머리 위에 올라서게 된다.
+        ///
+        /// ⚠ 캐릭터 키보다 조금 높은 곳에서 쏜다. 더 높이서 쏘면 동굴 천장 위에서 출발해
+        ///   천장 윗면을 바닥으로 잴 수 있다.
+        ///
+        /// ⚠ <b><c>Physics.Raycast</c> 로 쏘면 안 된다.</b> 광산은 <c>PeerMode.Multiple</c> 이라
+        ///   Fusion 이 게임 씬을 <b>따로 된 물리 씬</b>에 올린다. <c>Physics.*</c> 는 기본 물리 씬을
+        ///   보므로 판을 못 찾고, 못 찾으면 스폰 높이(2m)를 그대로 써서 공중에 뜬다. 실제로 그랬다.
+        ///   이 부품이 올라가 있는 씬의 물리 씬으로 쏜다(멀티 피어가 아니면 그게 기본 물리 씬이다).
+        /// </summary>
+        private float GroundHeightAt(Vector3 cellTop, float fallback, out string standingOn)
+        {
+            PhysicsScene physics = gameObject.scene.GetPhysicsScene();
+
+            int count = physics.Raycast(
+                cellTop + Vector3.up * 1.5f, Vector3.down, _groundHits, 5f, ~0, QueryTriggerInteraction.Ignore);
+
+            float best = float.MinValue;
+            standingOn = "바닥을 못 찾아 원래 높이";
+
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = _groundHits[i];
+                if (hit.collider is CharacterController) continue;
+                if (hit.point.y <= best) continue;
+
+                best = hit.point.y;
+                standingOn = hit.collider.name;
+            }
+
+            return best > float.MinValue ? best : fallback;
+        }
+
+        /// <summary><see cref="GroundHeightAt"/> 이 쓰는 칸. 흩뿌릴 때마다 새로 만들지 않는다.</summary>
+        private readonly RaycastHit[] _groundHits = new RaycastHit[16];
 
         /// <summary>아직 아무도 안 쓴 칸을 하나 고른다. 못 고르면 -1.</summary>
         private int PickFreeCell(MineGrid grid, int low, int high, int[] taken, int count)
