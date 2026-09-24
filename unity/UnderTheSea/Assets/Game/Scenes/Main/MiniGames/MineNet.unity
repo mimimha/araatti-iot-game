@@ -42426,12 +42426,10 @@ MonoBehaviour:
   shapeTolerance: 2
   maxAlign: 0
   drawings:
-  - {fileID: 11400000, guid: 4247227061b75604e9b9f2378b3ce084, type: 2}
+  - {fileID: 11400000, guid: 6ac61d306d444c24d9a0f2382e4e7103, type: 2}
   - {fileID: 11400000, guid: 0f0f09ced8f8d4f449716ccb3210df4c, type: 2}
   - {fileID: 11400000, guid: 4aaeb000e0c18e646aef2580c48001d9, type: 2}
   - {fileID: 11400000, guid: 0e1bc2248b1ead845b860daf4964680b, type: 2}
-  - {fileID: 11400000, guid: b83e38e9db3304240945fc20a794c87e, type: 2}
-  - {fileID: 11400000, guid: 6c902f9dd42492c4b82384c1ccfcb6de, type: 2}
   _Cells: 
   _DrawingIndex: 0
   _BoardStamp: 0
@@ -42464,6 +42462,7 @@ MonoBehaviour:
   _TurnTimeLeft: 0
   _Crew: 0
   _RosterSize: 0
+  _CrewToStart: 0
   _CurrentSlot: 0
   _RestoresLeft: 0
   _TotalRestores: 0
