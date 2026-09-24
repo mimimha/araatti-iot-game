@@ -44,10 +44,11 @@ namespace Mine.Net
     ///
     /// <b>여기가 가짜 ↔ 진짜를 갈아끼우는 유일한 지점이다.</b> (<c>AccountServiceBootstrap</c> 과 같은 방식)
     ///
-    ///     Active = Implementation.Fake   서버 없이 1~2초 뒤 그럴듯한 문장을 돌려준다  ← 지금 설정
-    ///     Active = Implementation.Http   계정 서버의 POST /api/mine/review 를 부른다
+    ///     Active = Implementation.Http   계정 서버의 POST /api/mine/review 를 부른다  ← 지금 설정
+    ///     Active = Implementation.Fake   서버 없이 1~2초 뒤 그럴듯한 문장을 돌려준다
     ///
-    /// ⚠ 서버에 아직 이 API 가 없다. 서버가 준비되면 아래 한 줄을 Http 로 바꾼다.
+    /// ⚠ 계정 서버에 Gemini 키(MineReview:ApiKey)가 없으면 503 이 오고 고정 문구가 뜬다.
+    ///    키 없이 흐름만 볼 때는 Fake 로 바꾼다.
     /// </summary>
     public static class MineReviewServices
     {
@@ -63,7 +64,7 @@ namespace Mine.Net
         /// const 가 아니라 static readonly 인 이유: const 로 두면 아래 분기 중 한쪽이
         /// "도달할 수 없는 코드" 경고를 낸다.
         /// </summary>
-        private static readonly Implementation Active = Implementation.Fake;
+        private static readonly Implementation Active = Implementation.Http;
 
         public static IMineReviewService Create()
         {
