@@ -2867,6 +2867,7 @@ GameObject:
   - component: {fileID: 2374415249255082345}
   - component: {fileID: 2401412249422510502}
   - component: {fileID: 767444123376367489}
+  - component: {fileID: 8795929401978136956}
   m_Layer: 0
   m_Name: MineNetPlayer
   m_TagString: Untagged
@@ -3043,6 +3044,7 @@ MonoBehaviour:
   - {fileID: 2327441312921421817}
   - {fileID: 2401412249422510502}
   - {fileID: 767444123376367489}
+  - {fileID: 8795929401978136956}
   ForceRemoteRenderTimeframe: 1
 --- !u!114 &2702322525704471838
 MonoBehaviour:
@@ -3245,6 +3247,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameDefaultAppearance
   waitSeconds: 20
+--- !u!114 &8795929401978136956
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741856755184999703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 --- !u!1 &6783612424117079814
 GameObject:
   m_ObjectHideFlags: 0

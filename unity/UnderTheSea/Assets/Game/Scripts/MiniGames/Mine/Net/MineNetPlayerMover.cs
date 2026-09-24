@@ -229,8 +229,8 @@ namespace Mine.Net
         /// 이것이다. 그때는 아예 영구히 꺼 두었지만, 이제 넷이 같이 서 있는 시간이
         /// 생겨서 <b>보일 때만 켠다.</b>
         ///
-        /// 굳어 있는 것과는 상관없다 — 공개 7초에 서 있는 셋은 움직이지 못해도
-        /// 보이므로, 첫 턴 예정자가 그 몸에 막히는 것이 맞다.
+        /// 굳어 있는 것과는 상관없다 — 카운트다운에 서 있는 몸은 움직이지 못해도
+        /// 보이므로, 다른 사람이 그 몸에 막히는 것이 맞다.
         ///
         /// <b>왜 <c>detectCollisions</c> 로는 안 되는가.</b> 그 값은 "다른 것이 나를
         /// <b>밀 수 있는가</b>" 를 정한다. <c>CharacterController.Move()</c> 가 스스로
@@ -283,7 +283,7 @@ namespace Mine.Net
             MineMatchState match = MineMatchState.Current;
 
             // ⚠ **움직일 수 있는 사람만 몸을 굴린다.** 턴에는 넷 다 통과하고
-            //   (MineMatchState.FreeRoam), 목표 공개(7초)에는 첫 턴 예정자만 통과한다.
+            //   (MineMatchState.FreeRoam), 목표 공개(7초)에도 넷 다 통과한다(MineNetPlayer.CanMoveNow).
             //   카운트다운은 FreeRoam 에 들지만 아래 frozen 이 막는다.
             //   파는 것은 MineNetPlayerActions 가 IsMyTurn 으로 따로 막는다.
             //
@@ -308,8 +308,8 @@ namespace Mine.Net
             bool mine = _who != null && _who.CanMoveNow && !frozen;
 
             // ⚠ **부딪히는 것은 보이는 것을 따라간다.** 숨은 몸이 길을 막으면
-            //   보이지 않는 벽이 된다. 굳어 있어도 보이면 몸이다 — 공개 7초에
-            //   서 있는 셋은 첫 턴 예정자를 막아도 된다. (ApplyCrowdCollision 주석)
+            //   보이지 않는 벽이 된다. 굳어 있어도 보이면 몸이다 — 카운트다운에
+            //   서 있는 몸은 남을 막아도 된다. (ApplyCrowdCollision 주석)
             ApplyCrowdCollision(match != null && match.CrewOnBoard);
 
             float yaw = _who != null ? _who.CameraYaw : 0f;
@@ -322,10 +322,10 @@ namespace Mine.Net
                 yaw = input.LookYaw;
             }
 
-            // 힌트 동안은 모두의 화면이 탑뷰라 위쪽이 늘 +Z 다. 이동도 그 기준으로 푼다.
+            // 공개 7초와 힌트 동안은 모두의 화면이 탑뷰라 위쪽이 늘 +Z 다. 이동도 그 기준으로 푼다.
             // 안 그러면 W 가 화면 위가 아니라 아까 3인칭에서 보던 쪽으로 간다.
-            // 기록(RecordLook)은 그대로 둔다 — 힌트가 끝나면 원래 시점으로 돌아가야 한다.
-            if (match != null && match.HintLeft > 0f) yaw = 0f;
+            // 기록(RecordLook)은 그대로 둔다 — 끝나면 원래 시점으로 돌아가야 한다.
+            if (match != null && match.ShowingTarget) yaw = 0f;
 
             if (!mine)
             {

@@ -200,26 +200,6 @@ namespace Mine.Net
         }
 
         /// <summary>
-        /// HUD 힌트 칸에 적을 글자. <c>MineHud.RefreshHint</c> 의 규칙 그대로다.
-        ///
-        /// ⚠ <b>아직 못 쓰는 때</b>·<b>써버린 때</b>·<b>기회가 지나간 때</b>를 가른다.
-        ///   내 턴 전을 "사용함" 으로 적으면 공개 7초에 쓰지도 않은 힌트가 이미 쓴 것처럼 보인다.
-        ///
-        /// 키는 <b>J</b> 다. 솔로도 같다 — 솔로는 <c>KeyboardPlayerController</c> 의
-        /// button2 가 J 로 묶여 있고, 네트워크는 <c>MineInputProvider</c> 의 jKey 다.
-        /// </summary>
-        private string HintCell(MineMatchState match)
-        {
-            if (match == null || _who == null || _who.Slot < 0) return string.Empty;
-
-            if (IsWatchingMyHint(match)) return "보는 중";
-            if (_who.HintUsed) return "사용함";
-            if (MyTurnGone(match)) return "지남";
-
-            return _who.IsMyTurn ? "J · 1회" : "대기";
-        }
-
-        /// <summary>
         /// 내 힌트가 아직 살아 있는가. HUD 는 이 값으로 힌트 그림을 컬러/흑백으로 바꾼다.
         ///
         /// 힌트는 <b>사람마다 하나</b>다 (MINE.md 2·4장). 그래서 남이 쓴 것은 내 칸을
@@ -309,7 +289,6 @@ namespace Mine.Net
             {
                 _hud.NetworkSelfSlot = _who != null ? _who.Slot : -1;
 
-                _hud.NetworkHintText = HintCell(match);
                 _hud.NetworkHintLit = HintAlive(match);
             }
 
