@@ -3043,7 +3043,7 @@ MonoBehaviour:
   - {fileID: 2327441312921421817}
   - {fileID: 2401412249422510502}
   - {fileID: 767444123376367489}
-  ForceRemoteRenderTimeframe: 0
+  ForceRemoteRenderTimeframe: 1
 --- !u!114 &2702322525704471838
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3120,6 +3120,10 @@ MonoBehaviour:
   lookAhead: 10
   lookHeight: 1
   walkSpeed: 2
+  runSpeed: 6
+  rotateSpeed: 720
+  jumpHeight: 0.2
+  jumpReload: 1
   animFlow: 4.5
   _MoveAxis: {x: 0, y: 0}
   _AnimAxis: {x: 0, y: 0}
