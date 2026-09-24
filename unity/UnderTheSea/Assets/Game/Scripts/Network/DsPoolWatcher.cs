@@ -207,6 +207,31 @@ public sealed class DsPoolWatcher : MonoBehaviour, INetworkRunnerCallbacks
     public bool TryGet(string session, out Room room) => rooms.TryGetValue(session, out room);
 
     /// <summary>
+    /// **지금 이 게임에 들어와 있는 사람 수.** 로비와 미니게임을 모두 더한다.
+    ///
+    /// 채널 선택 화면에서 "몇 명이 놀고 있는지" 를 보여 주는 데 쓴다. 로비 인원만 세면
+    /// 사람들이 미니게임에 들어간 순간 숫자가 뚝 떨어져 <b>아무도 없는 것처럼 보인다.</b>
+    /// 광산에 있는 사람도 이 게임을 하고 있는 사람이다.
+    ///
+    /// 각 방의 <see cref="Room.Occupants"/> 는 이미 서버 자신을 뺀 값이라 그대로 더하면 된다.
+    ///
+    /// ⚠ <b>채널이 하나라는 전제다.</b> 미니게임 세션은 채널을 구분하지 않으므로,
+    ///    채널을 늘리면 누가 어느 채널에서 왔는지 알 수 없어 이 합계가 뭉개진다.
+    ///    그때는 세션 이름에 채널을 넣거나 방마다 속성을 붙여야 한다.
+    /// </summary>
+    public int TotalOccupants()
+    {
+        int sum = 0;
+
+        foreach (Room room in rooms.Values)
+        {
+            sum += room.Occupants;
+        }
+
+        return sum;
+    }
+
+    /// <summary>
     /// <paramref name="crew"/> 명이 통째로 들어갈 수 있는 <b>빈 방</b>들. 번호 순서다.
     ///
     /// 우리 매칭은 방 하나에 한 팀만 넣는다. 그래서 "자리가 남은 방" 이 아니라
