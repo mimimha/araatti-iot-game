@@ -31,6 +31,10 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class ShipCoopAudio : MonoBehaviour
 {
+    [Header("🔊 전체")]
+    [Tooltip("배 협동의 모든 소리(배경음악 · 루프 · 효과음 · 갈매기)에 곱하는 전체 크기. 전부 너무 크거나 작을 때 이것 하나로 맞춘다.")]
+    [SerializeField, Range(0f, 1f)] private float masterLevel = 0.8f;
+
     [Header("🎵 배경음악 — 3단계")]
     [Tooltip("출항 전 대기.")]
     [SerializeField] private AudioClip bgmReady;
@@ -40,6 +44,10 @@ public class ShipCoopAudio : MonoBehaviour
 
     [Tooltip("결과 화면 (성공 · 실패 공통).")]
     [SerializeField] private AudioClip bgmResult;
+
+    [Tooltip("배경음악 크기 (masterLevel 에 곱해진다). 음악은 쉬지 않고 깔려서 같은 값이어도 효과음보다 크게 들리므로\n" +
+             "효과음보다 낮게 둔다. 0.56 이면 전체 0.8 과 곱해 0.45 — 효과음(0.72)보다 약 4 dB 아래.")]
+    [SerializeField, Range(0f, 1f)] private float musicLevel = 0.56f;
 
     [Tooltip("결과 화면 곡의 상대 크기. bgmResult 가 비어 있으면 항해 곡(bgmSailing)을 그대로 이어서 이만큼 낮춰 튼다.")]
     [SerializeField, Range(0f, 2f)] private float endLevel = 0.7f;
@@ -51,14 +59,17 @@ public class ShipCoopAudio : MonoBehaviour
     [Tooltip("바다. 항해 중 항상. 속도가 빠를수록 조금 커진다.")]
     [SerializeField] private AudioClip seaLoop;
 
-    [Tooltip("바다 루프의 크기 (0~1). 들릴락 말락 하게 아주 작게 깔 때 쓴다. loopLevel 에 곱해진다.")]
-    [SerializeField, Range(0f, 1f)] private float seaLevel = 0.24f;
+    [Tooltip("바다 루프의 크기 (0~2). loopLevel 에 곱해진다. 0.24 · 0.6 은 음악 · 돌풍에 묻혀 안 들렸고, 1.4 는 너무 커서 0.9.")]
+    [SerializeField, Range(0f, 2f)] private float seaLevel = 0.9f;
 
     [Tooltip("바람. 항해 중 늘 얕게 깔리고, 돌풍이 불면 커진다.")]
     [SerializeField] private AudioClip windLoop;
 
-    [Tooltip("평소 바람 크기 (돌풍 아닐 때, 0~1). 돌풍이면 1.")]
+    [Tooltip("평소 바람 크기 (돌풍 아닐 때, 0~1).")]
     [SerializeField, Range(0f, 1f)] private float windBase = 0.3f;
+
+    [Tooltip("돌풍이 불 때 바람 크기 (0~1). 1 이면 바다 소리가 완전히 묻혀서 0.7 — 돌풍 중에도 바다가 들린다.")]
+    [SerializeField, Range(0f, 1f)] private float squallLevel = 0.7f;
 
     [Tooltip("밧줄 삐걱임. 누가 돛을 당기거나 푸는 동안.")]
     [SerializeField] private AudioClip ropeLoop;
@@ -166,6 +177,9 @@ public class ShipCoopAudio : MonoBehaviour
 
     [Tooltip("대포 발사. 가장 큰 소리.")]
     [SerializeField, Range(0f, 2f)] private float cannonLevel = 1.2f;
+
+    [Tooltip("큰 파도가 배를 때리는 순간. 큰 사건이라 대포만큼 크게.")]
+    [SerializeField, Range(0f, 2f)] private float waveHitLevel = 1.2f;
 
     // ------------------------------------------------------------
 
@@ -647,7 +661,7 @@ public class ShipCoopAudio : MonoBehaviour
                 {
                     switch (e)
                     {
-                        case BigWave _: Play(waveHit); break;
+                        case BigWave _: Play(waveHit, waveHitLevel); break;
                         case HullDamage _: Play(hullCrack); break;
                     }
 
@@ -910,7 +924,7 @@ public class ShipCoopAudio : MonoBehaviour
 
         if (want != null)
         {
-            _hub.PlayMusic(want, crossfadeSeconds, level);
+            _hub.PlayMusic(want, crossfadeSeconds, level * musicLevel * masterLevel);
         }
         else if (_hub.CurrentMusic != null)
         {
@@ -925,23 +939,24 @@ public class ShipCoopAudio : MonoBehaviour
     private void DriveLoops()
     {
         bool sailing = _game != null && _game.State == ShipCoopState.Sailing;
+        float loop = loopLevel * masterLevel;
 
         // 바다 — 항해 중 늘. 속도가 빠르면 조금 크게.
         float speed01 = _voyage != null ? Mathf.Clamp01(Mathf.Abs(_voyage.Speed) / 5f) : 0.5f;
-        _sea.Target = (sailing ? Mathf.Lerp(0.6f, 1f, speed01) : 0.3f) * loopLevel * seaLevel;
+        _sea.Target = (sailing ? Mathf.Lerp(0.6f, 1f, speed01) : 0.3f) * loop * seaLevel;
 
         // 바람 — 항해 중 늘 얕게, 돌풍이면 크게.
         bool squall = _voyage != null && _voyage.SquallBlowing;
-        _wind.Target = (squall ? 1f : (sailing ? windBase : windBase * 0.5f)) * loopLevel;
+        _wind.Target = (squall ? squallLevel : (sailing ? windBase : windBase * 0.5f)) * loop;
 
         // 밧줄 — 당기거나 푸는 동안.
-        _rope.Target = (_sail != null && Mathf.Abs(_sail.Pull) > 0.05f ? 1f : 0f) * loopLevel;
+        _rope.Target = (_sail != null && Mathf.Abs(_sail.Pull) > 0.05f ? 1f : 0f) * loop;
 
         // 키 — 조타 입력이 있는 동안.
-        _wheel.Target = (_helm != null && Mathf.Abs(_helm.Steer) > 0.05f ? 1f : 0f) * loopLevel;
+        _wheel.Target = (_helm != null && Mathf.Abs(_helm.Steer) > 0.05f ? 1f : 0f) * loop;
 
         // 물 — 침수량만큼.
-        _flood.Target = (_flooding != null ? _flooding.Level01 : 0f) * loopLevel;
+        _flood.Target = (_flooding != null ? _flooding.Level01 : 0f) * loop;
     }
 
     /// <summary>
@@ -957,7 +972,7 @@ public class ShipCoopAudio : MonoBehaviour
             return;
         }
 
-        _hub.PlayOneShot(clip, sfxLevel * level);
+        _hub.PlayOneShot(clip, sfxLevel * level * masterLevel);
     }
 
     /// <summary>이 시각까지는 효과음을 안 낸다 (접속 직후 값 맞추는 동안).</summary>

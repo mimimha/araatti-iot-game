@@ -119,7 +119,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         // ⚠ 이 RPC 는 `#if DEVELOPMENT_BUILD` 로 감싸지 않는다. Fusion 은 RPC 를 컴파일 시점에 번호로
         //    엮는데, 서버(Release)와 클라이언트(Development)의 RPC 목록이 다르면 번호가 어긋나
         //    **이 게임의 모든 RPC 가 엉뚱한 곳으로 간다.** 양쪽에 똑같이 있어야 한다.
-        //    개발자 모드 UI 자체는 여전히 개발 빌드에만 컴파일된다(ShipCoopDevMode).
+        //    개발자 모드 UI(ShipCoopDevMode)도 이제 Release 빌드에 들어간다.
         // ------------------------------------------------------------
 
         /// <summary>개발자 모드가 호스트에 부탁하는 일. 숫자는 <c>ShipCoopDevMode</c> 와 짝이다.</summary>
@@ -134,6 +134,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             RepairFull = 6,
             TogglePause = 7,
             Restart = 8,
+            ForceArrive = 9,
         }
 
         /// <summary>이 화면에서 개발자 모드가 부탁을 보낼 수 있는 곳. 없으면 네트워크 세션이 아니다.</summary>
@@ -250,6 +251,25 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                     if (game == null) return;
                     game.RestartVoyage();
                     Debug.Log("[개발자 모드] 처음부터 다시 시작했다.");
+                    break;
+                }
+
+                case DevCommand.ForceArrive:
+                {
+                    // 결과창을 직접 띄우지 않고 **진짜로 도착시킨다.** 다음 프레임 ShipCoopGame.CheckEnd 가
+                    // 도착을 보고 성공으로 끝낸다. 점수 · 결과 보고 · 클라이언트 동기화가 실제 성공과 같게 돈다.
+                    ShipCoopGame game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
+                    ShipVoyage voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
+                    if (game == null || voyage == null) return;
+
+                    if (game.State != ShipCoopState.Sailing)
+                    {
+                        Debug.Log($"[개발자 모드] 항해 중이 아니라 도착시킬 수 없다. ({game.State})");
+                        return;
+                    }
+
+                    voyage.SetProgress01(1f);
+                    Debug.Log("[개발자 모드] 목적지로 옮겼다. 성공으로 끝난다.");
                     break;
                 }
             }
