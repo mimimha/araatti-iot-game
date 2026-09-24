@@ -178,6 +178,14 @@ namespace Mine.Net
 
         [Networked] public int ResultAlignY { get; private set; }
 
+        /// <summary>
+        /// AI 한 줄 평. 비어 있으면 성적표가 점수 구간별 고정 문구를 쓴다.
+        ///
+        /// 채점보다 <b>1~2초 늦게</b> 채워진다. 성적표는 판이 끝나고 3.5초 뒤에 뜨므로
+        /// 대개 그 전에 도착하고, 늦으면 고정 문구가 떠 있다가 이 문장으로 바뀐다.
+        /// </summary>
+        [Networked] public NetworkString<_128> ResultComment { get; private set; }
+
         /// <summary>판이 시작한 뒤 흐른 시간. 결과 화면의 플레이 시간으로 쓴다.</summary>
         [Networked] public float Elapsed { get; private set; }
 
@@ -989,6 +997,7 @@ namespace Mine.Net
             ResultDugCount = 0;
             ResultAlignX = 0;
             ResultAlignY = 0;
+            ResultComment = default;
         }
 
         private void EnterFinished()
@@ -1025,6 +1034,59 @@ namespace Mine.Net
             Debug.Log(
                 $"[MineMatch] 끝 — {(ResultSuccess ? "성공" : "실패")} · {result} " +
                 $"(참가 {RosterSize}명 · 복구 {TotalRestores - RestoresLeft}개 씀, 틱 {ResultTick})");
+
+            RequestReview(board.Grid);
+        }
+
+        // ------------------------------------------------------------
+        // AI 한 줄 평 — 판당 한 번, 서버만 (MINE.md 7장)
+        // ------------------------------------------------------------
+
+        /// <summary><see cref="ResultComment"/> 의 글자 수. 넘치면 잘라서 담는다.</summary>
+        private const int ReviewCapacity = 128;
+
+        /// <summary>
+        /// 판 그림을 보내고 한 줄 평을 받아 <see cref="ResultComment"/> 에 담는다.
+        ///
+        /// ⚠ <b>승패와 점수는 이미 정해진 뒤다.</b> AI 는 그것을 바꾸지 않는다.
+        ///
+        /// ⚠ 답을 기다리는 동안 판이 되돌려지면(모두 나감) 늦게 온 답을 버린다.
+        ///    <see cref="ResultTick"/> 이 요청할 때와 다르면 다른 판이다.
+        /// </summary>
+        private void RequestReview(MineGrid grid)
+        {
+            if (grid == null) return;
+
+            byte[] png;
+            try
+            {
+                png = MineBoardImage.EncodePng(grid.Cells, grid.Size);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning($"[MineMatch] 판 그림을 만들지 못해 한 줄 평을 건너뜁니다. — {exception.Message}");
+                return;
+            }
+
+            var request = new MineReviewRequest
+            {
+                targetName = grid.Target != null ? grid.Target.displayName : string.Empty,
+                score = ResultScore,
+                success = ResultSuccess,
+                imagePngBase64 = System.Convert.ToBase64String(png),
+            };
+
+            int tick = ResultTick;
+
+            StartCoroutine(MineReviewServices.Create().Request(request, comment =>
+            {
+                if (string.IsNullOrWhiteSpace(comment) || ResultTick != tick) return;
+
+                if (comment.Length > ReviewCapacity) comment = comment.Substring(0, ReviewCapacity);
+                ResultComment = comment;
+
+                Debug.Log($"[MineMatch] 한 줄 평 — {comment}");
+            }));
         }
 
         // ------------------------------------------------------------
@@ -1156,6 +1218,7 @@ namespace Mine.Net
                 _hud.NetworkResultScore = ResultScore;
                 _hud.NetworkResultTargetCount = ResultTargetCount;
                 _hud.NetworkResultDugCount = ResultDugCount;
+                _hud.NetworkResultComment = ResultComment.ToString();
             }
             _hud.NetworkPhaseText = PhaseLine();
 
