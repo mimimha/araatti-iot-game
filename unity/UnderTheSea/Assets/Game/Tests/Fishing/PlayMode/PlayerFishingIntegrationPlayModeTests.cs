@@ -183,7 +183,7 @@ namespace FishingMiniGame.Tests
 
         private static bool TryInteract(Component adapter)
         {
-            return (bool)InvokeNonPublic(adapter, "TryInteractCurrentSpot");
+            return (bool)Invoke(adapter, "TryStartFishing");
         }
 
         private static void Refresh(Component adapter)
@@ -222,6 +222,14 @@ namespace FishingMiniGame.Tests
                 name, BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, name);
             field.SetValue(target, value);
+        }
+
+        private static object Invoke(object target, string name, params object[] arguments)
+        {
+            MethodInfo method = target.GetType().GetMethod(
+                name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, name);
+            return method.Invoke(target, arguments);
         }
 
         private static object InvokeNonPublic(object target, string name, params object[] arguments)
