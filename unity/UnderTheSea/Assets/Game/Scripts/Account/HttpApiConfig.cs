@@ -56,6 +56,12 @@ namespace UnderTheSea.Account
         /// <summary>봉헌. 409 실패에도 최신 상태가 함께 온다.</summary>
         public const string AltarOfferPath = "/api/altar/offer";
 
+        /// <summary>
+        /// 🛠 섬 회복도 +1 · -1 (<c>{ "delta": 1 }</c>). API 가 개발자 모드일 때만 있다(아니면 404).
+        /// 응답은 제단 상태와 같다.
+        /// </summary>
+        public const string AltarDevRecoveryPath = "/api/altar/dev/recovery";
+
         /// <summary>광산 결과 한 줄 평. 서버가 LLM 을 부른다. (MINE.md 7장 — 아직 서버에 없다)</summary>
         public const string MineReviewPath = "/api/mine/review";
 

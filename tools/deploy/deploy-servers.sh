@@ -120,7 +120,8 @@ if [ -f "$STAGE/api.tar.gz" ]; then
     export ASPNETCORE_ENVIRONMENT=Production
     export ASPNETCORE_URLS=http://0.0.0.0:5080
     cd "$ROOT/api"
-    nohup ./AraAtti.Api >> "$ROOT/api.log" 2>&1 &
+    # DEVMODE 가 있으면 API 도 개발자 경로(로비의 섬 회복도 올리기)를 연다.
+    nohup ./AraAtti.Api ${DEVMODE:+--devmode} >> "$ROOT/api.log" 2>&1 &
     say "다시 띄웠습니다. pid $!"
     sleep 4
 fi
