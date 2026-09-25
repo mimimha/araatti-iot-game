@@ -128,6 +128,10 @@ public sealed class MiniGameTransition : MonoBehaviour
         // 돌아올 곳을 먼저 기억한다. Disconnect 가 채널 정보를 지우므로 순서가 중요하다.
         RememberLobby();
 
+        // 어느 포탈로 들어갔는지 적어 둔다. 돌아오면 그 포탈 앞에 선다. (LobbyReturnToken)
+        // 입장에 실패해 곧바로 되돌아가는 경우에도 쓰인다 — 그 사람도 포탈 앞에 있었다.
+        LobbyReturnInfo.RememberCameFrom(sceneName);
+
         TransitionStatus.SetLoading("게임에 입장 중...");
 
         // 여기서부터는 되돌릴 수 없다. 화면의 취소 버튼도 이 신호로 사라진다.
