@@ -45,13 +45,19 @@ public static class CharacterEndpoints
     /// Unity 의 캐릭터 생성 화면 카테고리 이름과 같다.
     /// (CharacterCustomizationPersistence.PersistedCategories)
     ///
-    /// ⚠ 여기 있는 것은 **슬롯 이름 6개뿐**이다. 프리팹 목록이 아니다.
+    /// ⚠ 여기 있는 것은 **슬롯 이름뿐**이다. 프리팹 목록이 아니다.
     ///    어떤 프리팹이 있는지는 서버가 알지 못하고, 알 필요도 없다.
     ///    Unity 에 카테고리가 늘어나면 이 배열에 한 줄 추가하면 된다.
+    ///
+    /// Hat · Glasses · FaceAccessory 는 Accessory 카테고리 안의 자리 이름이다.
+    /// 모자 + 안경을 함께 쓰면 둘 다 "Accessory" 라 아래 UNIQUE 규칙에 걸렸다.
+    /// 그래서 Unity 가 이 셋은 자리 이름으로 나눠 보낸다. (CharacterPartCatalog.SnapshotSlotOf)
+    /// "Accessory" 는 예전 데이터와 장갑 같은 나머지 자리를 위해 남겨 둔다.
     /// </summary>
     private static readonly string[] AllowedSlots =
     {
-        "Face", "Hair", "Shoes", "Top", "Bottom", "Accessory"
+        "Face", "Hair", "Shoes", "Top", "Bottom", "Accessory",
+        "Hat", "Glasses", "FaceAccessory"
     };
 
     /// <summary>Unity 의 닉네임 검증과 같은 규칙. (GetNicknameValidationMessage)</summary>

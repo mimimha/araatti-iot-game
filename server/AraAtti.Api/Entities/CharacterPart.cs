@@ -20,6 +20,7 @@ public class CharacterPart
     /// <summary>
     /// 어느 칸인지. Unity 의 카테고리 이름을 그대로 씁니다.
     /// "Face" / "Hair" / "Top" / "Bottom" / "Shoes" / "Accessory"
+    /// Accessory 안의 모자 · 안경 · 얼굴장식은 함께 입을 수 있어 "Hat" / "Glasses" / "FaceAccessory" 로 나눠 씁니다.
     ///
     /// 문자열이라서 Unity 에 새 카테고리가 생겨도 DB 를 바꾸지 않습니다.
     /// </summary>

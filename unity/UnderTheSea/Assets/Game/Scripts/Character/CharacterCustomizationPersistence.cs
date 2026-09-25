@@ -266,7 +266,12 @@ namespace UnderTheSea.Character
                 if (prefab == null || !IsCatalogPartEquipped(prefab))
                     continue;
 
-                parts.Add(new CharacterPartSnapshot(slot, prefab.name));
+                // 모자 + 안경처럼 한 카테고리에 둘 이상이면 카테고리 이름으로는 서버가 받지 않는다.
+                // 그래서 자리 이름으로 나눠 저장한다. (CharacterPartCatalog.SnapshotSlotOf)
+                string partSlot = catalog != null && catalog.TryFind(prefab, out CharacterPartCatalog.Entry entry)
+                    ? CharacterPartCatalog.SnapshotSlotOf(entry)
+                    : slot;
+                parts.Add(new CharacterPartSnapshot(partSlot, prefab.name));
                 found++;
             }
 
@@ -326,7 +331,8 @@ namespace UnderTheSea.Character
 
                 foreach (CharacterPartSnapshot part in snapshot.parts)
                 {
-                    if (!string.Equals(part.slot, slot, StringComparison.Ordinal))
+                    // 모자 · 안경 · 얼굴장식은 자리 이름으로 저장돼 있다. (CharacterPartCatalog.SnapshotSlotOf)
+                    if (!string.Equals(CharacterPartCatalog.CategoryOfSnapshotSlot(part.slot), slot, StringComparison.Ordinal))
                         continue;
 
                     if (string.IsNullOrEmpty(part.prefabName))
