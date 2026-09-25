@@ -57,7 +57,7 @@ namespace UnderTheSea.Account
         public const string AltarOfferPath = "/api/altar/offer";
 
         /// <summary>
-        /// 🛠 섬 회복도 +1 · -1 (<c>{ "delta": 1 }</c>). API 가 개발자 모드일 때만 있다(아니면 404).
+        /// 🛠 섬 회복도 ±1 · ±10 (<c>{ "delta": 10 }</c>). API 가 개발자 모드일 때만 있다(아니면 404).
         /// 응답은 제단 상태와 같다.
         /// </summary>
         public const string AltarDevRecoveryPath = "/api/altar/dev/recovery";

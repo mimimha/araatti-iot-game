@@ -91,9 +91,9 @@ public sealed record AltarOfferFailureResponse(
     float RecoveryPercent);
 
 /// <summary>
-/// 🛠 개발자 모드의 섬 회복도 조정. 로비 개발자 패널의 <c>]</c>(+1) · <c>[</c>(-1).
+/// 🛠 개발자 모드의 섬 회복도 조정. 로비 개발자 패널의 <c>]</c>(+1) · <c>[</c>(-1) · <c>'</c>(+10) · <c>;</c>(-10).
 ///
 /// nullable 로 받는 이유는 <see cref="AltarOfferRequest"/> 와 같다. 빠졌을 때 우리 문구로 답한다.
 /// </summary>
-/// <param name="Delta">+1 또는 -1. 그 밖의 값은 400 DELTA_INVALID.</param>
+/// <param name="Delta">±1 또는 ±10. 그 밖의 값은 400 DELTA_INVALID.</param>
 public sealed record DevRecoveryRequest(int? Delta);

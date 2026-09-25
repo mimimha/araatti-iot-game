@@ -47,7 +47,7 @@ public static class AltarEndpoints
     }
 
     /// <summary>
-    /// 🛠 개발자 모드에서만 여는 경로. 로비 개발자 패널의 <c>]</c> · <c>[</c> 키가 부른다.
+    /// 🛠 개발자 모드에서만 여는 경로. 로비 개발자 패널의 <c>]</c> <c>[</c> (±1) · <c>'</c> <c>;</c> (±10) 키가 부른다.
     ///
     /// ⚠ <b>개발자 모드가 아니면 이 경로를 아예 만들지 않는다</b>(Program.cs). 404 가 난다.
     ///    조각 없이 섬 회복도를 바꾸므로 실제 서비스에 열려 있으면 안 된다.
@@ -60,7 +60,7 @@ public static class AltarEndpoints
             .RequireAuthorization()
             .MapPost("/recovery", DevAdjustAsync)
             .WithSummary("🛠 섬 회복도 올리기 · 내리기 (개발자 모드)")
-            .WithDescription("조각 없이 전체 봉헌량을 delta(+1 또는 -1)만큼 바꾼다. 0 ~ 목표를 벗어나지 않는다. 응답은 /state 와 같다.");
+            .WithDescription("조각 없이 전체 봉헌량을 delta(±1 · ±10)만큼 바꾼다. 끝에 닿으면 0 · 목표에서 멈춘다. 응답은 /state 와 같다.");
     }
 
     // ------------------------------------------------------------
@@ -105,15 +105,17 @@ public static class AltarEndpoints
     // 🛠 개발자 — 섬 회복도 올리기 · 내리기
     // ------------------------------------------------------------
 
+    /// <summary>한 번에 바꿀 수 있는 양. <c>[</c> <c>]</c> 는 1, <c>;</c> <c>'</c> 는 10. 목표가 100 이면 1% · 10%.</summary>
+    private static readonly int[] DevRecoverySteps = { 1, 10 };
+
     /// <summary>
     /// 전체 봉헌량만 바꾼다. 누구의 조각도 건드리지 않고, 기여 이력(altar_contributions)도 남기지 않는다.
     ///
-    /// 한 번에 한 칸(+1 · -1)만 받는다. 목표가 100 이면 1% 다.
-    /// 0 ~ 목표를 벗어나지 않는 것은 봉헌과 같은 방식이다 — 읽고 판단하지 않고 WHERE 에 넣는다.
-    /// 끝에 닿아 있으면 0행이 바뀌고, 그대로 지금 상태를 돌려준다(오류가 아니다).
+    /// <b>끝에 닿으면 끝에서 멈춘다.</b> 95 에서 +10 이면 100, 3 에서 -10 이면 0 이다. 거절하지 않는다.
+    /// 읽고 판단하지 않고 한 문장의 UPDATE 안에서 자른다 — 동시에 눌러도 0 ~ 목표를 벗어나지 않는다.
     ///
-    /// ⚠ 내리는 쪽도 뺄셈을 WHERE 에 넣지 않는다. 두 컬럼이 UNSIGNED 라 total - 1 이 0 아래로
-    ///    가면 MySQL 오류다. <c>total &gt;= 1</c> 로 본다.
+    /// ⚠ 두 컬럼이 UNSIGNED 라 <c>total - 10</c> 이 0 아래로 가면 MySQL 오류다. 빼기 전에
+    ///    <c>total &gt;= step</c> 을 먼저 보고, 아니면 0 을 넣는다(IF 는 고른 쪽만 계산한다).
     /// </summary>
     private static async Task<IResult> DevAdjustAsync(
         DevRecoveryRequest request,
@@ -126,27 +128,30 @@ public static class AltarEndpoints
             return TokenInvalid();
         }
 
-        if (request.Delta is not (1 or -1))
+        if (request.Delta is not int delta || !DevRecoverySteps.Contains(Math.Abs(delta)))
         {
-            return Results.BadRequest(new ErrorResponse("DELTA_INVALID", "delta 는 1 또는 -1 이어야 합니다."));
+            return Results.BadRequest(new ErrorResponse("DELTA_INVALID", "delta 는 ±1 또는 ±10 이어야 합니다."));
         }
 
-        if (request.Delta > 0)
+        uint step = (uint)Math.Abs(delta);
+        DateTime now = DateTime.UtcNow;
+
+        // EF 의 조건식 번역에 기대지 않고 SQL 한 문장으로 쓴다. 한 문장이라 동시에 눌러도 안전하다.
+        if (delta > 0)
         {
-            await database.AltarStates
-                .Where(altar => altar.Id == AltarStateId
-                    && altar.TotalOffered + 1 <= altar.TargetOffering)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(altar => altar.TotalOffered, altar => altar.TotalOffered + 1)
-                    .SetProperty(altar => altar.UpdatedAt, _ => DateTime.UtcNow), cancellationToken);
+            await database.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE altar_state
+                   SET total_offered = LEAST(total_offered + {step}, target_offering),
+                       updated_at = {now}
+                 WHERE id = {AltarStateId}", cancellationToken);
         }
         else
         {
-            await database.AltarStates
-                .Where(altar => altar.Id == AltarStateId && altar.TotalOffered >= 1)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(altar => altar.TotalOffered, altar => altar.TotalOffered - 1)
-                    .SetProperty(altar => altar.UpdatedAt, _ => DateTime.UtcNow), cancellationToken);
+            await database.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE altar_state
+                   SET total_offered = IF(total_offered >= {step}, total_offered - {step}, 0),
+                       updated_at = {now}
+                 WHERE id = {AltarStateId}", cancellationToken);
         }
 
         return await GetAltarStateAsync(principal, database, cancellationToken);
