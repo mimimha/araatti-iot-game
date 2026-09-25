@@ -29,6 +29,7 @@ namespace FishingMiniGame.Runtime
     {
         [SerializeField] private bool interactionEnabled = true;
         [SerializeField] private string promptText = "낚시하기";
+        [SerializeField] private Transform presentationAnchor;
 
         private bool _isBusy;
 
@@ -41,6 +42,8 @@ namespace FishingMiniGame.Runtime
         public bool CanInteract => isActiveAndEnabled && interactionEnabled && !_isBusy;
 
         public string PromptText => promptText;
+
+        public Transform PresentationAnchor => presentationAnchor;
 
         /// <summary>
         /// Raises one fishing request and reserves the spot until <see cref="Release"/>

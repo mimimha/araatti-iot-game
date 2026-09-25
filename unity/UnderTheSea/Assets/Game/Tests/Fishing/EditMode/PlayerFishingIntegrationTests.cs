@@ -220,6 +220,85 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
+        public void LobbyScene_HasOneIntegrationAndThreeSpotOwnedPresentationAnchors()
+        {
+            const string scenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
+            Scene scene = default;
+
+            try
+            {
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+                Assert.That(scene.IsValid(), Is.True);
+
+                Component adapter = null;
+                FishingV3FishVisualPresenter fishPresenter = null;
+                var spots = new List<FishingSpot>();
+                int integrationCount = 0;
+                int adapterCount = 0;
+                int modeCount = 0;
+
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    foreach (Transform item in root.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (item.name == "FishingLobbyIntegration") integrationCount++;
+                        foreach (Component component in item.GetComponents<Component>())
+                        {
+                            if (component == null) continue;
+                            if (component.GetType() == RequiredType(AdapterTypeName))
+                            {
+                                adapter = component;
+                                adapterCount++;
+                            }
+                            else if (component is FishingModeController)
+                            {
+                                modeCount++;
+                            }
+                            else if (component is FishingV3FishVisualPresenter presenter)
+                            {
+                                fishPresenter = presenter;
+                            }
+                            else if (component is FishingSpot spot)
+                            {
+                                spots.Add(spot);
+                            }
+                        }
+                    }
+                }
+
+                Assert.That(integrationCount, Is.EqualTo(1));
+                Assert.That(adapterCount, Is.EqualTo(1));
+                Assert.That(modeCount, Is.EqualTo(1));
+                Assert.That(spots, Has.Count.EqualTo(3));
+                Assert.That(fishPresenter, Is.Not.Null);
+                Assert.That(adapter, Is.Not.Null);
+
+                var adapterData = new SerializedObject(adapter);
+                SerializedProperty configuredSpots = adapterData.FindProperty("fishingSpots");
+                Assert.That(configuredSpots.arraySize, Is.EqualTo(3));
+                for (int index = 0; index < configuredSpots.arraySize; index++)
+                {
+                    FishingSpot configured = configuredSpots
+                        .GetArrayElementAtIndex(index)
+                        .objectReferenceValue as FishingSpot;
+                    Assert.That(configured, Is.Not.Null);
+                    Assert.That(configured.PresentationAnchor, Is.Not.Null);
+                    Assert.That(configured.PresentationAnchor.parent,
+                        Is.SameAs(configured.transform));
+                }
+
+                var presenterData = new SerializedObject(fishPresenter);
+                Assert.That(
+                    presenterData.FindProperty("presentationAnchor").objectReferenceValue,
+                    Is.Null);
+            }
+            finally
+            {
+                if (scene.IsValid()) EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [Test]
         public void NearestAvailableSpot_IsSelectedDeterministically()
         {
             FishingSpot first = CreateObject("FirstSpot").AddComponent<FishingSpot>();

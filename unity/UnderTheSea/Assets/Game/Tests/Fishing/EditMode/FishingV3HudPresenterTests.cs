@@ -152,10 +152,10 @@ namespace FishingMiniGame.Tests.EditMode
                 Is.EqualTo(0.5f).Within(0.000001f));
             Assert.That(((RectTransform)marker).anchorMax.x,
                 Is.EqualTo(0.5f).Within(0.000001f));
-            Assert.That(low.text, Is.EqualTo("LOW"));
-            Assert.That(danger.text, Is.EqualTo("DANGER"));
-            Assert.That(start.text, Is.EqualTo("START"));
-            Assert.That(catchLabel.text, Is.EqualTo("CATCH"));
+            Assert.That(low.text, Is.EqualTo("낮음"));
+            Assert.That(danger.text, Is.EqualTo("위험"));
+            Assert.That(start.text, Is.EqualTo("시작"));
+            Assert.That(catchLabel.text, Is.EqualTo("포획"));
 
             string[] expectedSegmentNames =
             {
@@ -186,11 +186,11 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(previousEnd, Is.EqualTo(1f).Within(0.000001f));
         }
 
-        [TestCase(FishingV3TensionZone.Slack, "SLACK", "REEL NOW!")]
-        [TestCase(FishingV3TensionZone.Low, "SLACK", "REEL NOW!")]
-        [TestCase(FishingV3TensionZone.Safe, "SAFE", "KEEP REELING!")]
-        [TestCase(FishingV3TensionZone.High, "HIGH", "SLOW DOWN!")]
-        [TestCase(FishingV3TensionZone.Danger, "DANGER", "STOP REELING!")]
+        [TestCase(FishingV3TensionZone.Slack, "느슨함", "지금 감으세요!")]
+        [TestCase(FishingV3TensionZone.Low, "느슨함", "지금 감으세요!")]
+        [TestCase(FishingV3TensionZone.Safe, "안전", "계속 감으세요!")]
+        [TestCase(FishingV3TensionZone.High, "주의", "천천히!")]
+        [TestCase(FishingV3TensionZone.Danger, "위험", "릴링을 멈추세요!")]
         public void TensionZone_MapsToReadableLabelAndAction(
             FishingV3TensionZone zone,
             string expectedLabel,
@@ -202,11 +202,11 @@ namespace FishingMiniGame.Tests.EditMode
                 Is.EqualTo(expectedHint));
         }
 
-        [TestCase(0.20f, FishingV3TensionZone.Slack, "SLACK")]
-        [TestCase(0.275f, FishingV3TensionZone.Low, "SLACK")]
-        [TestCase(0.50f, FishingV3TensionZone.Safe, "SAFE")]
-        [TestCase(0.80f, FishingV3TensionZone.High, "HIGH")]
-        [TestCase(0.90f, FishingV3TensionZone.Danger, "DANGER")]
+        [TestCase(0.20f, FishingV3TensionZone.Slack, "느슨함")]
+        [TestCase(0.275f, FishingV3TensionZone.Low, "느슨함")]
+        [TestCase(0.50f, FishingV3TensionZone.Safe, "안전")]
+        [TestCase(0.80f, FishingV3TensionZone.High, "주의")]
+        [TestCase(0.90f, FishingV3TensionZone.Danger, "위험")]
         public void Fighting_UsesSnapshotTensionZoneForStatusAndFillColor(
             float tension,
             FishingV3TensionZone expectedZone,
@@ -253,8 +253,8 @@ namespace FishingMiniGame.Tests.EditMode
                 Is.EqualTo(FishingV3FishState.Run));
             Assert.That(fixture.Presenter.DisplayedTensionZone,
                 Is.EqualTo(FishingV3TensionZone.Safe));
-            Assert.That(fixture.Presenter.DisplayedTensionZoneLabel, Is.EqualTo("SAFE"));
-            Assert.That(fixture.Presenter.DisplayedTensionHint, Is.EqualTo("KEEP REELING!"));
+            Assert.That(fixture.Presenter.DisplayedTensionZoneLabel, Is.EqualTo("안전"));
+            Assert.That(fixture.Presenter.DisplayedTensionHint, Is.EqualTo("계속 감으세요!"));
         }
 
         [Test]
@@ -331,7 +331,7 @@ namespace FishingMiniGame.Tests.EditMode
             fixture.Presenter.RefreshNow();
             Assert.That(fixture.Presenter.DisplayedGameplayPhase,
                 Is.EqualTo(FishingV3GameplayPhase.WaitingForBite));
-            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("WAIT..."));
+            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("입질을 기다리는 중..."));
             Assert.That(fixture.Controller.V3Snapshot.IsTimingReelActive, Is.False);
             Assert.That(fixture.Presenter.IsTensionStatusVisible, Is.False);
             Assert.That(fixture.Presenter.AreFightGaugesVisible, Is.False);
@@ -341,7 +341,7 @@ namespace FishingMiniGame.Tests.EditMode
 
             Assert.That(fixture.Presenter.DisplayedGameplayPhase,
                 Is.EqualTo(FishingV3GameplayPhase.HookWindow));
-            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("HOOK!"));
+            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("지금!"));
             Assert.That(fixture.Controller.V3Snapshot.IsTimingReelActive, Is.False);
             Assert.That(fixture.Presenter.IsTensionStatusVisible, Is.False);
             Assert.That(fixture.Presenter.AreFightGaugesVisible, Is.False);
@@ -351,7 +351,7 @@ namespace FishingMiniGame.Tests.EditMode
 
             Assert.That(fixture.Presenter.DisplayedGameplayPhase,
                 Is.EqualTo(FishingV3GameplayPhase.Fighting));
-            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("PRESS J"));
+            Assert.That(fixture.Presenter.DisplayedPhaseMessage, Is.EqualTo("J를 누르세요"));
             Assert.That(fixture.Controller.V3Snapshot.IsTimingReelActive, Is.True);
             Assert.That(fixture.Presenter.IsTensionStatusVisible, Is.True);
             Assert.That(fixture.Presenter.AreFightGaugesVisible, Is.True);
@@ -380,7 +380,7 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(eventText, Is.Not.Null);
             Assert.That(eventRoot.gameObject.activeInHierarchy, Is.True);
             Assert.That(timingMeter.gameObject.activeSelf, Is.False);
-            Assert.That(eventText.text, Is.EqualTo("WAIT..."));
+            Assert.That(eventText.text, Is.EqualTo("입질을 기다리는 중..."));
             Assert.That(eventText.color.a, Is.EqualTo(1f));
 
             fixture.Controller.TickRuntime(10f);
@@ -391,7 +391,7 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(eventRoot.gameObject.activeInHierarchy, Is.True);
             Assert.That(eventText.gameObject.activeInHierarchy, Is.True);
             Assert.That(timingMeter.gameObject.activeSelf, Is.False);
-            Assert.That(eventText.text, Is.EqualTo("HOOK!"));
+            Assert.That(eventText.text, Is.EqualTo("지금!"));
             Assert.That(eventText.font, Is.Not.Null);
             Assert.That(eventText.fontSize, Is.EqualTo(24));
             Assert.That(eventText.fontStyle, Is.EqualTo(FontStyle.Normal));
@@ -404,7 +404,7 @@ namespace FishingMiniGame.Tests.EditMode
 
             TextGenerationSettings settings = eventText.GetGenerationSettings(
                 eventText.rectTransform.rect.size);
-            Assert.That(eventText.cachedTextGenerator.Populate("HOOK!", settings), Is.True);
+            Assert.That(eventText.cachedTextGenerator.Populate("지금!", settings), Is.True);
             Assert.That(eventText.cachedTextGenerator.vertexCount, Is.GreaterThan(0));
         }
 
@@ -473,9 +473,9 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(fixture.CaptureFill.fillAmount, Is.Zero);
         }
 
-        [TestCase(FishingV3Result.Caught, "CAUGHT!", "Nice catch!")]
-        [TestCase(FishingV3Result.LineBroken, "LINE BROKEN!", "Too much tension!")]
-        [TestCase(FishingV3Result.FishEscaped, "FISH ESCAPED!", "The line went slack!")]
+        [TestCase(FishingV3Result.Caught, "잡았다!", "멋진 낚시였어요!")]
+        [TestCase(FishingV3Result.LineBroken, "줄이 끊어졌다!", "장력이 너무 높았어요!")]
+        [TestCase(FishingV3Result.FishEscaped, "물고기가 도망쳤다!", "줄이 너무 느슨했어요!")]
         public void TerminalResult_HidesFightingHudAndShowsOneShotResultOverlay(
             FishingV3Result result,
             string expectedTitle,
@@ -502,6 +502,16 @@ namespace FishingMiniGame.Tests.EditMode
             Fixture fixture = CreateFixture(tuning, reel);
             fixture.Controller.TickRuntime(1f);
             fixture.Presenter.RefreshNow();
+            if (result == FishingV3Result.Caught)
+            {
+                Assert.That(fixture.Presenter.IsCaughtResultPending, Is.True);
+                Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.False);
+                Assert.That(fixture.Presenter.IsHudVisible, Is.False);
+                fixture.Presenter.AdvancePresentation(
+                    fixture.Presenter.CaughtResultDelaySeconds - 0.01f);
+                Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.False);
+                fixture.Presenter.AdvancePresentation(0.02f);
+            }
             float remaining = fixture.Presenter.ResultTimeRemainingSeconds;
 
             fixture.Presenter.RefreshNow();
@@ -530,6 +540,7 @@ namespace FishingMiniGame.Tests.EditMode
         {
             Fixture fixture = CreateFixture(TerminalTuning(0.5f, captureScale: 1f), 1f);
             fixture.Presenter.ConfigureResultDisplayDuration(0.25f);
+            fixture.Presenter.ConfigureCaughtResultDelay(0f);
             fixture.Controller.TickRuntime(1f);
             fixture.Presenter.RefreshNow();
 
@@ -560,7 +571,7 @@ namespace FishingMiniGame.Tests.EditMode
             Assert.That(fixture.Controller.V3Snapshot.Result,
                 Is.EqualTo(FishingV3Result.FishEscaped));
             Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.True);
-            Assert.That(fixture.Presenter.DisplayedResultTitle, Is.EqualTo("FISH ESCAPED!"));
+            Assert.That(fixture.Presenter.DisplayedResultTitle, Is.EqualTo("물고기가 도망쳤다!"));
         }
 
         [Test]
@@ -570,8 +581,9 @@ namespace FishingMiniGame.Tests.EditMode
             fixture.Controller.TickRuntime(1f);
             fixture.Presenter.RefreshNow();
             Assert.That(fixture.Controller.V3Snapshot.Result, Is.EqualTo(FishingV3Result.Caught));
-            Assert.That(fixture.Presenter.IsHudVisible, Is.True);
-            Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.True);
+            Assert.That(fixture.Presenter.IsHudVisible, Is.False);
+            Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.False);
+            Assert.That(fixture.Presenter.IsCaughtResultPending, Is.True);
             Assert.That(fixture.CaptureFill.fillAmount, Is.Zero);
 
             fixture.Controller.BeginRound();
@@ -580,6 +592,7 @@ namespace FishingMiniGame.Tests.EditMode
 
             Assert.That(fixture.Presenter.IsHudVisible, Is.True);
             Assert.That(fixture.Presenter.IsResultOverlayVisible, Is.False);
+            Assert.That(fixture.Presenter.IsCaughtResultPending, Is.False);
             Assert.That(fixture.Presenter.DisplayedResult, Is.EqualTo(FishingV3Result.Active));
             Assert.That(fixture.Presenter.IsTensionStatusVisible, Is.True);
             Assert.That(fixture.Presenter.AreFightGaugesVisible, Is.True);
@@ -608,12 +621,11 @@ namespace FishingMiniGame.Tests.EditMode
                 {
                     controls = label;
                 }
-                if (label.text == "CATCH PROGRESS") catchProgress = label;
+                if (label.text == "포획 진행도") catchProgress = label;
             }
             Assert.That(controls, Is.Not.Null);
-            Assert.That(controls.text, Does.Contain("C"));
-            Assert.That(controls.text, Does.Contain("J"));
-            Assert.That(controls.text, Does.Contain("TIMING"));
+            Assert.That(controls.gameObject.activeSelf, Is.False);
+            Assert.That(controls.text, Is.Empty);
             Assert.That(catchProgress, Is.Not.Null);
 
             Transform canvas = prefab.transform.Find("Canvas");
