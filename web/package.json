@@ -1,0 +1,20 @@
+{
+  "name": "araatti-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "araatti.site 홈페이지. 빌드 결과(dist/)를 EC2 nginx 에 올린다.",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy:dry": "npm run build && node scripts/deploy.mjs --dry-run",
+    "deploy": "npm run build && node scripts/deploy.mjs"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1"
+  }
+}
