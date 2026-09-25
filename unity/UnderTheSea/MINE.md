@@ -97,8 +97,13 @@ ShipCoop 이 **동시에 벌어지는 일을 나눠 맡는** 재미라면, 광�
 8장이 요구하는 반환값은 `성공여부 + 점수` 한 쌍입니다. 광산은 여기에 그대로 맞습니다.
 
 ```csharp
-ReportMiniGameResult(similarity >= threshold, Mathf.RoundToInt(similarity));
+int score = Mathf.RoundToInt(similarity);
+ReportMiniGameResult(score >= threshold, score);
 ```
+
+> ⚠ **판정은 반올림한 점수로 합니다.** 반올림 전 유사도로 재면 69.5~69.99% 가
+> 화면에 **"70점" 으로 보이면서 실패**가 됩니다. 실제로 겪었고, 그때 "실패!" 제목 밑에
+> 70점 성공 멘트까지 떴습니다. 보이는 점수와 판정이 언제나 같아야 합니다.
 
 **개인 점수는 없습니다.** 하나의 그림을 함께 만들었으므로 결과도 하나입니다.
 누가 잘 팠는지 순위를 매기지 않습니다 — 그러면 릴레이가 아니라 경쟁이 됩니다.

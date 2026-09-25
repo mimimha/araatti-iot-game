@@ -92,7 +92,7 @@ public class MineGame : MonoBehaviour
              "0 이면 바로 다음 턴이 시작된다. MINE.md 12장의 조정 항목이다.")]
     [SerializeField, Min(0f)] private float turnGapSeconds = 0f;
 
-    [Tooltip("이 값 이상이면 성공. (MINE.md 7장)")]
+    [Tooltip("점수(유사도를 반올림한 값)가 이 값 이상이면 성공. (MINE.md 7장)")]
     [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
     [Header("판정 (MINE.md 7장)")]
@@ -569,9 +569,11 @@ public class MineGame : MonoBehaviour
         }
 
         Result = _similarity.Evaluate(grid.Cells, grid.TargetCells, grid.Size);
-        Success = Result.Percent >= successThreshold;
-
         int score = Mathf.Clamp(Mathf.RoundToInt(Result.Percent), 0, 100);
+
+        // 판정은 화면에 보이는 점수로 한다. 네트워크 판(MineMatchState.EnterFinished)과 같은 규칙이다.
+        // 반올림 전 값으로 재면 69.5~69.99% 가 "70점 실패" 로 보인다.
+        Success = score >= successThreshold;
         string label = string.IsNullOrEmpty(TargetName) ? "(이름 없음)" : TargetName;
 
         Debug.Log($"[MINE] 끝 — {label} · {(Success ? "성공" : "실패")} · {Result} · " +
