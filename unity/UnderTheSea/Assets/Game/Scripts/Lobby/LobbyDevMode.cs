@@ -19,7 +19,11 @@ namespace UnderTheSea.Lobby
     ///   P   켜기 / 끄기
     ///   ]   섬 회복도 +1  (조각 없이. 목표가 100 이면 1%)
     ///   [   섬 회복도 -1
+    ///   '   섬 회복도 +10
+    ///   ;   섬 회복도 -10
     /// </code>
+    ///
+    /// 끝에 닿으면 끝에서 멈춘다(95 에서 ' 이면 100%).
     ///
     /// <b>화면에서 값을 직접 바꾸지 않는다.</b> 섬 회복도는 모두가 같이 보는 서버 DB 값이라
     /// API 에 부탁하고(<see cref="HttpApiConfig.AltarDevRecoveryPath"/>), 돌려받은 상태를 봉헌 · 조회와 같은
@@ -150,11 +154,19 @@ namespace UnderTheSea.Lobby
             {
                 StartCoroutine(AdjustRecoveryRoutine(-1));
             }
+            else if (keyboard[Key.Quote].wasPressedThisFrame)
+            {
+                StartCoroutine(AdjustRecoveryRoutine(+10));
+            }
+            else if (keyboard[Key.Semicolon].wasPressedThisFrame)
+            {
+                StartCoroutine(AdjustRecoveryRoutine(-10));
+            }
         }
 
         /// <summary>
         /// 채팅 · 입력칸에 글을 쓰는 중인가. 로비에는 채팅이 있어서, 이걸 안 보면
-        /// "p" 나 "]" · "[" 를 치는 순간 패널이 열리거나 회복도가 바뀐다.
+        /// "p" 나 "]" "[" "'" ";" 를 치는 순간 패널이 열리거나 회복도가 바뀐다.
         /// </summary>
         private static bool IsTyping()
         {
@@ -252,6 +264,8 @@ namespace UnderTheSea.Lobby
             text.AppendLine();
             text.AppendLine("  ]   섬 회복도 +1");
             text.AppendLine("  [   섬 회복도 -1");
+            text.AppendLine("  '   섬 회복도 +10");
+            text.AppendLine("  ;   섬 회복도 -10");
 
             if (!string.IsNullOrEmpty(lastResult))
             {
