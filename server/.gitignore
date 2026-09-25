@@ -5,6 +5,9 @@
 bin/
 obj/
 
+# 반복 시험 결과 (AraAtti.Api.Tests/TestResults/mine-review/). 지우려면 폴더째 지운다.
+TestResults/
+
 # 개인 설정 · 비밀 정보 — 절대 커밋하지 않습니다.
 # 대신 커밋되는 예시 파일을 복사해서 씁니다.
 #   .env                                  ← .env.example
