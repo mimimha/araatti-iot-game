@@ -46,8 +46,8 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
-            // ⚠ 채팅칸 · 도감 · 제단 창이 떠 있으면 그 입력은 그쪽 몫이다.
-            //    채팅에 ` 를 치는데 종료 창이 뜨면 안 된다. 도감 창과 같은 규칙이다.
+            // ⚠ 채팅칸 · 제단 창이 떠 있으면 그 입력은 그쪽 몫이다.
+            //    채팅에 ` 를 치는데 종료 창이 뜨면 안 된다.
             if (ChatFocus.HeldByOther(this))
             {
                 return;

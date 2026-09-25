@@ -22,7 +22,7 @@ namespace Lobby.Editor
         private const string Folder = "Assets/Game/Resources";
         private const string Output = Folder + "/LobbyGameExit.prefab";
 
-        /// <summary>제단 봉헌 창(50) · 도감(45) 위. 무엇이 떠 있든 종료 창이 맨 위에 온다.</summary>
+        /// <summary>제단 봉헌 창(50) 위. 무엇이 떠 있든 종료 창이 맨 위에 온다.</summary>
         private const int SortingOrder = 60;
 
         /// <summary>창 높이. 가로는 그림 비율을 따른다. 1920×1080 기준.</summary>
