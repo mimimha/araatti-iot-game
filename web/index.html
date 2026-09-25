@@ -29,11 +29,11 @@
   h1 { font-size: 44px; margin: 0 0 8px; letter-spacing: -1px; }
   .tag { color: var(--muted); font-size: 17px; margin: 0; }
 
-  /* 두 버튼을 같은 크기로 나란히. 좁은 화면에서는 위아래로 쌓인다. */
+  /* 다운로드 버튼. 폭을 가득 채운다. */
   .buttons {
     display: flex;
     gap: 16px;
-    margin: 0 0 20px;
+    margin: 0 0 44px;
   }
   .btn {
     flex: 1 1 0;
@@ -50,17 +50,6 @@
   .btn:hover { filter: brightness(1.08); }
   .btn small { display: block; font-weight: 400; font-size: 13px; opacity: .75; margin-top: 4px; }
   @media (max-width: 560px) { .buttons { flex-direction: column; } }
-
-  .why {
-    background: rgba(10, 42, 71, .45);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 18px 22px;
-    margin-bottom: 44px;
-    color: var(--muted);
-    font-size: 15px;
-  }
-  .why b { color: var(--ink); }
 
   section {
     background: rgba(10, 42, 71, .55);
@@ -97,29 +86,17 @@
   </header>
 
   <div class="buttons">
-    <a class="btn" href="https://drive.google.com/drive/folders/1t9UZUoNr1hJKrHk0BR8J_Q1IgsyZcpQI?usp=sharing" target="_blank" rel="noopener">
-      구글 드라이브에서 받기
-      <small>Windows · 약 375MB</small>
-    </a>
     <a class="btn" href="/AraAtti.zip">
-      이 서버에서 바로 받기
-      <small>Windows · 약 375MB</small>
+      게임 받기
+      <small>Windows · 약 410MB</small>
     </a>
   </div>
-
-  <p class="why">
-    <b>어느 쪽으로 받아도 게임은 같습니다.</b>
-    아라아띠는 서버 한 대에서 게임 서버 7대와 이 사이트를 함께 운영합니다.
-    드라이브에서 받으시면 그만큼의 회선이 게임 쪽에 남아,
-    지금 접속해 있는 분들이 더 쾌적하게 플레이할 수 있습니다.
-  </p>
 
   <section>
     <h2>실행 방법</h2>
     <ol>
       <li>
-        받은 <code>AraAtti-EC2.zip</code> 의 압축을 풉니다.
-        <span class="warn">⚠ 드라이브에서 받으실 때 "바이러스 검사를 할 수 없습니다" 가 뜨면 <b>무시하고 다운로드</b> 를 누르세요. 파일이 커서 구글이 검사하지 못할 뿐입니다.</span>
+        받은 <code>AraAtti.zip</code> 의 압축을 풉니다.
       </li>
       <li>
         폴더 안의 <code>게임시작.bat</code> 을 더블클릭합니다.
