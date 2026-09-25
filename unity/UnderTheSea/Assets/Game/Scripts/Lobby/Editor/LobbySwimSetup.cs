@@ -856,11 +856,69 @@ namespace Lobby.Editor
             so.FindProperty("bubblesPrefab").objectReferenceValue = bubblesSystem;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            FillSwimAudio(root.AddComponent<UnderTheSea.Lobby.LobbySwimAudio>());
+
             PrefabUtility.SaveAsPrefabAsset(root, UnderwaterPrefabPath);
             Object.DestroyImmediate(root);
 
             AssetDatabase.SaveAssets();
             Debug.Log($"[물속] {UnderwaterPrefabPath} 를 만들었다.");
+        }
+
+        private const string LobbyAudioFolder = "Assets/Game/Audio/Lobby";
+
+        /// <summary>
+        /// 헤엄 · 잠수 소리를 파일 이름으로 채운다(AUDIO.md 5장). 필드 이름 = 파일 이름이다.
+        ///   diveIn · surfaceOut · underwaterLoop   하나씩
+        ///   swimStroke1 · swimStroke2 …           swimStroke 로 시작하는 것 전부 (swimStrokes 배열)
+        /// 없는 것은 비워 둔다. 비어 있으면 그 소리만 안 난다.
+        /// </summary>
+        private static void FillSwimAudio(UnderTheSea.Lobby.LobbySwimAudio audio)
+        {
+            var clips = new Dictionary<string, AudioClip>();
+
+            if (AssetDatabase.IsValidFolder(LobbyAudioFolder))
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { LobbyAudioFolder }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    clips[Path.GetFileNameWithoutExtension(path)] = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                }
+            }
+
+            var so = new SerializedObject(audio);
+
+            foreach (string field in new[] { "diveIn", "surfaceOut", "underwaterLoop" })
+            {
+                clips.TryGetValue(field, out AudioClip clip);
+                so.FindProperty(field).objectReferenceValue = clip;
+
+                if (clip == null)
+                {
+                    Debug.LogWarning($"[물속] {LobbyAudioFolder}/{field}.* 가 없어 그 소리는 비워 둔다.");
+                }
+            }
+
+            AudioClip[] strokes = clips
+                .Where(pair => pair.Key.StartsWith("swimStroke"))
+                .OrderBy(pair => pair.Key)
+                .Select(pair => pair.Value)
+                .ToArray();
+
+            SerializedProperty array = so.FindProperty("swimStrokes");
+            array.arraySize = strokes.Length;
+
+            for (int i = 0; i < strokes.Length; i++)
+            {
+                array.GetArrayElementAtIndex(i).objectReferenceValue = strokes[i];
+            }
+
+            if (strokes.Length == 0)
+            {
+                Debug.LogWarning($"[물속] {LobbyAudioFolder}/swimStroke*.* 가 없어 젓는 소리는 비워 둔다.");
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>

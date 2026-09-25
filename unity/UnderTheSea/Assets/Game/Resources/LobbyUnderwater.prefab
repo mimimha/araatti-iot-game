@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6472660403806166057}
   - component: {fileID: 8282277752313357014}
+  - component: {fileID: 5426450167325187773}
   m_Layer: 0
   m_Name: LobbyUnderwater
   m_TagString: Untagged
@@ -60,3 +61,27 @@ MonoBehaviour:
   surfaceScroll: {x: 0.03, y: 0.018}
   bubblesPrefab: {fileID: 2311965045380227588, guid: 6744686723b90774384d9c57fb0060c1, type: 3}
   bubbleOffset: {x: 0, y: 0.6, z: 0.35}
+--- !u!114 &5426450167325187773
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 306741948466095805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: daf99ed5cda0e2f45ad0cbdb1b4b1aad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.LobbySwimAudio
+  swimStrokes:
+  - {fileID: 8300000, guid: 912fa5504faecca44954068ccd4f3915, type: 3}
+  - {fileID: 8300000, guid: 6f48a850bc7f50847a4737dbdc2bf62a, type: 3}
+  strokeInterval: 1.1
+  sprintStrokeInterval: 0.8
+  diveIn: {fileID: 8300000, guid: 739d6a56852fbf944825a1781515cd62, type: 3}
+  surfaceOut: {fileID: 8300000, guid: 31fa45272cdc095409959e814171652b, type: 3}
+  underwaterLoop: {fileID: 8300000, guid: 20f5d4a1c918d1c43810bbe56c5828e7, type: 3}
+  strokeLevel: 0.6
+  underwaterStrokeScale: 0.5
+  diveLevel: 0.8
+  underwaterLoopLevel: 0.5
