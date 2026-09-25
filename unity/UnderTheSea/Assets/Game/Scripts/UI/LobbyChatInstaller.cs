@@ -112,6 +112,36 @@ public static class LobbyChatInstaller
     ///    다행히 <see cref="LobbyChatView"/> 의 <c>OnDisable</c> 이 끄면서 풀어 준다.
     ///    그 코드를 지우면 여기서 직접 풀어야 한다.
     /// </summary>
+    /// <summary>
+    /// 로비 안이라도 채팅을 잠시 감추게 한 것들. (포탈의 인원 선택 · 매칭 화면)
+    ///
+    /// 이유를 하나의 bool 로 두지 않고 <b>누가 감췄는지</b>를 모은다. 인원 선택 창이 닫히며
+    /// "보여라" 를 부르는 순간 매칭 화면이 막 열렸다면, bool 하나로는 채팅이 매칭 화면 위로
+    /// 도로 올라온다. 하나라도 남아 있으면 감춘다.
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<Object> hiders =
+        new System.Collections.Generic.HashSet<Object>();
+
+    /// <summary><paramref name="owner"/> 가 열려 있는 동안 채팅을 감춘다. 닫힐 때 false 로 다시 부른다.</summary>
+    public static void SetHiddenBy(Object owner, bool hidden)
+    {
+        if (owner == null)
+        {
+            return;
+        }
+
+        if (hidden)
+        {
+            hiders.Add(owner);
+        }
+        else
+        {
+            hiders.Remove(owner);
+        }
+
+        ShowOnlyInLobby();
+    }
+
     private static void ShowOnlyInLobby()
     {
         if (instance == null)
@@ -119,11 +149,14 @@ public static class LobbyChatInstaller
             return;
         }
 
-        bool lobby = InLobby();
+        // 감춘 쪽이 씬과 함께 사라졌으면 그 이유도 버린다. 남겨 두면 채팅이 영영 안 나온다.
+        hiders.RemoveWhere(owner => owner == null);
 
-        if (instance.activeSelf != lobby)
+        bool show = InLobby() && hiders.Count == 0;
+
+        if (instance.activeSelf != show)
         {
-            instance.SetActive(lobby);
+            instance.SetActive(show);
         }
     }
 

@@ -97,6 +97,23 @@ namespace MiniGames.Common.UI
         private float dotBaseY;
         private bool dotBaseYCaptured;
         private bool dotBaseValid;
+        private float cancelBaseX;
+        private bool cancelBaseXCaptured;
+
+        // ── 다른 창이 이 판의 모양을 빌려 쓸 때 (CrewPickerScreen) ──────────────
+        // 금테 남색 판 · 금색 버튼 · 제목 글꼴을 한 곳에서만 정하려고 여기서 꺼내 준다.
+        // 이 판의 그림을 바꾸면 인원 선택 창도 같이 바뀐다.
+
+        /// <summary>판 배경(금테 + 남색 속). 판 자신의 Image 다.</summary>
+        public Image PanelImage => GetComponent<Image>();
+        /// <summary>작은 게임 이름 (금색).</summary>
+        public TMP_Text GameTitleTemplate => gameTitleText;
+        /// <summary>큰 제목 (흰색).</summary>
+        public TMP_Text TitleTemplate => titleText;
+        /// <summary>강조 버튼 [게임 시작] (금색 글자).</summary>
+        public Button PrimaryButtonTemplate => startButton;
+        /// <summary>보조 버튼 [매칭 취소] (흰 글자).</summary>
+        public Button SecondaryButtonTemplate => cancelButton;
 
         private void OnEnable()
         {
@@ -337,13 +354,28 @@ namespace MiniGames.Common.UI
 
             int count = PlayerRoster.ActivePlayerCount;
 
+            bool showStart = !flow.ServerDriven && config.ShowsStartButton;
+
             if (startButton != null)
             {
                 // ⚠ 서버가 정하는 판에는 시작 버튼이 없다. 인원이 차면 알아서 출발하므로
                 //    누를 일이 없고, 잠긴 채로 놔두면 "왜 안 눌리지" 를 만든다.
                 //    화면에 남는 버튼은 [매칭 취소] 하나다.
-                startButton.gameObject.SetActive(!flow.ServerDriven && config.ShowsStartButton);
+                startButton.gameObject.SetActive(showStart);
                 startButton.interactable = flow.CanStartMatch();
+            }
+
+            // [매칭 취소] 가 혼자 남으면 가운데로 옮긴다. 둘이면 원래(오른쪽) 자리.
+            if (cancelButton != null)
+            {
+                var cancelRect = (RectTransform)cancelButton.transform;
+                if (!cancelBaseXCaptured)
+                {
+                    cancelBaseX = cancelRect.anchoredPosition.x;
+                    cancelBaseXCaptured = true;
+                }
+
+                cancelRect.anchoredPosition = new Vector2(showStart ? cancelBaseX : 0f, cancelRect.anchoredPosition.y);
             }
 
             if (startButtonLabel != null)
