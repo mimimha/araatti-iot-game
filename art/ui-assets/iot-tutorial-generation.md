@@ -7,12 +7,12 @@
 | 조작 | 파일 | 픽셀 크기 |
 | --- | --- | --- |
 | 이동 | icon-iot-move-fit-v2.png | 1367×821 |
-| 점프 | icon-iot-jump-fit-v2.png | 1809×525 |
+| 점프 | icon-iot-jump-fit-v2.png | 1254×1254 |
 | 카메라 | icon-iot-look-fit-v2.png | 1175×733 |
 
-기존 이미지의 조작부를 확대하고 손잡이 하단을 페이드 처리했습니다. 점프 그림은 A 버튼을 분리하여 재배치했습니다. 새 이미지 생성 없이 원본 픽셀을 가공했으며, 캔버스 크기와 투명 배경을 유지했습니다. 최종본의 Unity 메타 파일은 Sprite 설정입니다.
+이동·카메라는 기존 이미지 조작부를 확대하고 손잡이 하단을 페이드 처리했습니다. 점프는 내장 image_gen 편집으로 연결선·외부 A 버튼·R 표기를 제거하고 기기 자체의 A 버튼만 파랗게 강조했습니다. 투명 정사각형 캔버스로 교체하여 기존 158×110 이미지 영역에서 크게 표시됩니다. 컨테이너와 Sprite 메타 GUID는 유지했습니다.
 
-`fit-iot-tutorial.ps1`은 이 배치를 재현하는 스크립트이고, `iot-tutorial-layout-comparison-v2.png`는 전후 비교 이미지입니다.
+`fit-iot-tutorial.ps1`은 이동·카메라 배치만 재현하며 점프 편집본을 덮어쓰지 않습니다. `iot-tutorial-layout-comparison-v2.png` 및 아래 인게임 캡처의 점프 이미지는 정사각형 교체 전 버전입니다.
 
 실제 로비에서 최종본을 임시 적용한 1920×1080 캡처는 `art/screenshots/iot-tutorial/`에 있습니다. 순서는 이동 → 점프 → 카메라 → 마지막 안내입니다. 프리팹과 실행 코드는 변경하지 않았고, IoT 연결 감지 및 튜토리얼 자동 전환 기능은 아직 적용하지 않았습니다.
 
@@ -31,6 +31,9 @@
 현재 코드 순서는 이동→둘러보기→점프→마지막 문구입니다. 이미지 파일은 순서에 독립적입니다.
 
 ## 생성 프롬프트
+
+### 점프 단일 기기 편집 (현재 버전)
+내장 image_gen 사용. 기존 점프 이미지 편집: 왼쪽 기기 상단의 정면 형태와 아이보리/금색 스타일을 유지한다. 금색 연결선, 오른쪽의 확대 A 버튼, 외부 R 문자를 제거한다. 실제 기기의 A 버튼만 청록색으로 강조하고 조이스틱과 B 버튼은 어두운 중립색으로 유지한다. 기기 상단과 짧은 손잡이만 정사각형 투명 캔버스 중앙에 크게 배치한다. 손잡이 끝은 투명하게 페이드 처리한다. 외부 선, 화살표, 문구, 배경은 넣지 않는다.
 
 ### 이동
 Use case: style-transfer. Create a production transparent PNG Unity tutorial icon, replacing the keyboard subject with the referenced physical IoT wand. Image 1 is exact device geometry reference: broad oval head, one large circular joystick at top, A then B round buttons vertically below, straight ribbed handle with elongated oval grip. Image 2 and 3 are visual style references only: polished low-poly faceted cream ivory objects, warm amber beveled edges and cyan active control glow. Preserve recognizable device geometry. MOVEMENT asset: show two upright matching wands side by side, LEFT wand larger foreground and right wand muted smaller behind, visibly highlight ONLY LEFT joystick with cyan light and four directional cyan arrows around that joystick. Both A/B buttons neutral. Small crisp ivory 'L' below left wand and 'R' below right wand, no other text except device A/B. Broad landscape composition target 1367x821; use width efficiently, comfortable 4% transparent margin, complete objects uncropped. Real transparent alpha background, no rectangle, no panel, no keyboard keys, no hands, no environment. Same fantasy game HUD quality as references; dark subtle outline to remain legible on brown panel.
