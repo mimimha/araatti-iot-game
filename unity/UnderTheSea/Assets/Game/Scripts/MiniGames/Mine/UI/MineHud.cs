@@ -128,7 +128,7 @@ public class MineHud : MonoBehaviour
     [Tooltip("① 큰 칸 — 최종 점수. 그림에 박힌 \"도안 유사도\" 라벨 위다.")]
     [SerializeField] private TMP_Text resultScoreText;
 
-    [Tooltip("② 가로 칸 — 점수 구간별 한 줄 평.")]
+    [Tooltip("② 가로 칸 — AI 한 줄 평. 아직 안 왔으면 점수 구간별 고정 문구.")]
     [SerializeField] private TMP_Text resultCommentText;
 
     [Tooltip("③ 왼쪽 — 도안 전체 칸 수. 그림에 박힌 \"목표\" 라벨 아래다.")]
@@ -295,6 +295,9 @@ public class MineHud : MonoBehaviour
 
     /// <summary>실제로 판 전체 칸 수. 맞힌 칸 수가 아니다.</summary>
     public int NetworkResultDugCount { get; set; }
+
+    /// <summary>AI 한 줄 평. 비어 있으면 점수 구간별 고정 문구를 쓴다. (MINE.md 7장)</summary>
+    public string NetworkResultComment { get; set; }
 
     /// <summary>
     /// 화면 한가운데에 띄울 한마디. 빈 문자열이면 안 띄운다.
@@ -627,7 +630,7 @@ public class MineHud : MonoBehaviour
         if (NetworkResultShow)
         {
             DrawResultCard(NetworkResultSuccess, NetworkResultScore,
-                           NetworkResultTargetCount, NetworkResultDugCount);
+                           NetworkResultTargetCount, NetworkResultDugCount, NetworkResultComment);
         }
 
         if (phaseText != null) phaseText.text = NetworkPhaseText ?? string.Empty;
@@ -841,7 +844,8 @@ public class MineHud : MonoBehaviour
             game.Success,
             Mathf.Clamp(Mathf.RoundToInt(game.Result.Percent), 0, 100),
             game.Result.TargetCount,
-            game.Result.DugCount);
+            game.Result.DugCount,
+            null);
     }
 
     /// <summary>
@@ -856,8 +860,11 @@ public class MineHud : MonoBehaviour
     ///
     /// ⚠ <b>목표·채굴은 맞힌 칸 수가 아니다.</b> 목표는 도안 전체 칸 수, 채굴은 실제로
     ///   판 전체 칸 수다. 둘이 같아도 그림이 맞다는 뜻이 아니다.
+    ///
+    /// <paramref name="aiComment"/> 는 네트워크 판에서만 온다. 비어 있으면(솔로 · 아직 안 옴 · 실패)
+    /// 점수 구간별 고정 문구를 쓴다.
     /// </summary>
-    private void DrawResultCard(bool success, int score, int targetCount, int dugCount)
+    private void DrawResultCard(bool success, int score, int targetCount, int dugCount, string aiComment)
     {
         if (resultPanelImage != null)
         {
@@ -872,17 +879,17 @@ public class MineHud : MonoBehaviour
         //   같은 말을 두 번 하는 셈이고 금속·주황 판 위에서 색만 겉돈다.
         if (resultScoreText != null) resultScoreText.text = score + "점";
 
-        if (resultCommentText != null) resultCommentText.text = CommentFor(score);
+        if (resultCommentText != null)
+            resultCommentText.text = string.IsNullOrEmpty(aiComment) ? CommentFor(score) : aiComment;
         if (resultTargetText != null) resultTargetText.text = targetCount + "칸";
         if (resultDugText != null) resultDugText.text = dugCount + "칸";
     }
 
     /// <summary>
-    /// 점수 구간별 한 줄 평. <b>AI 가 아니라 표다.</b>
+    /// 점수 구간별 한 줄 평. <b>AI 한 줄 평이 없을 때 쓰는 대체 문구다.</b>
     ///
-    /// MINE.md 7장은 한 줄 평을 AI 몫으로 뒀지만, 표로 둔 이유는 그 장이 판정과 AI 를
-    /// 가른 이유와 같다 — 같은 점수면 늘 같은 말이 나오고, 왕복을 기다리지 않고,
-    /// 오프라인에서도 된다. 승패도 점수도 AI 가 건드리지 않는 자리다.
+    /// AI 문장은 채점보다 1~2초 늦게 오고, 서버가 없거나 실패하면 아예 안 온다.
+    /// 그동안 칸이 비지 않게 이 표가 먼저 뜬다. 솔로 판은 AI 를 안 불러서 언제나 이 표다.
     ///
     /// ⚠ <b>성공선이 70 이라는 것이 이 표에 박혀 있다.</b> 70 부터가 성공 말투이고
     ///   60~69 는 아쉬워하는 말투다. 씬의 <c>successThreshold</c> 를 바꾸면
