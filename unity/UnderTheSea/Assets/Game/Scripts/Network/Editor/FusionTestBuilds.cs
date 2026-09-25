@@ -483,6 +483,21 @@ namespace UnderTheSea.Network.Editor
                 MineServerOutput, StandaloneBuildSubtarget.Server, MineScenes, BuildOptions.None));
         }
 
+        /// <summary>
+        /// <b>한 줄 평 장애 재현용 광산 서버.</b> 평소에는 쓰지 않는다. (MINE.md 7장 "장애 재현")
+        ///
+        /// <c>-minereviewfault</c> 를 읽는 <c>FaultMineReviewService</c> 는 <c>DEVELOPMENT_BUILD</c> 에만
+        /// 들어가서 <see cref="BuildMineServer"/>(None) 로 만든 서버는 그 인자를 모른다. 그렇다고 그것을
+        /// 개발 빌드로 바꾸면 평소 서버가 바뀌므로 출력 폴더를 나눈다. (Profiler 서버와 같은 이유)
+        /// </summary>
+        [MenuItem(MenuRoot + "광산 서버 빌드 — 한 줄 평 장애 재현용 (Development)")]
+        public static void BuildMineServerForReviewFault()
+        {
+            Build(MineServerFaultOutput, StandaloneBuildSubtarget.Server, MineScenes, BuildOptions.Development);
+        }
+
+        private const string MineServerFaultOutput = "Builds/MineServerFault/AraAtti-MineServer.exe";
+
         [MenuItem(MenuRoot + "광산 클라이언트 빌드")]
         public static void BuildMineClient()
         {

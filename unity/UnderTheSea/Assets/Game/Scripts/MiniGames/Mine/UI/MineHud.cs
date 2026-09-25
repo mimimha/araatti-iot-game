@@ -880,7 +880,16 @@ public class MineHud : MonoBehaviour
         if (resultScoreText != null) resultScoreText.text = score + "점";
 
         if (resultCommentText != null)
-            resultCommentText.text = string.IsNullOrEmpty(aiComment) ? CommentFor(score) : aiComment;
+        {
+            bool fromAi = !string.IsNullOrEmpty(aiComment);
+            string shown = fromAi ? aiComment : CommentFor(score);
+
+            // 바뀔 때만 찍는다. 고정 문구 → AI 문장으로 바뀌면 두 줄이 남는다.
+            if (resultCommentText.text != shown)
+                Debug.Log($"[MineHud] 성적표 한 줄 평 — {(fromAi ? "AI" : "고정 문구")} · {score}점 · {shown}");
+
+            resultCommentText.text = shown;
+        }
         if (resultTargetText != null) resultTargetText.text = targetCount + "칸";
         if (resultDugText != null) resultDugText.text = dugCount + "칸";
     }

@@ -68,6 +68,10 @@ namespace Mine.Net
 
         public static IMineReviewService Create()
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // 장애 재현 — 실행 인자 -minereviewfault 가 있을 때만. 출시 빌드에는 이 줄이 없다. (FaultMineReviewService)
+            if (FaultMineReviewService.TryCreateFromArgs(out IMineReviewService fault)) return fault;
+#endif
             return Active == Implementation.Http
                 ? new HttpMineReviewService()
                 : new FakeMineReviewService();
