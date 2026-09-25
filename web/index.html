@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아라아띠</title>
+<meta name="description" content="바닷속 협동 미니게임 — 아라아띠">
+<style>
+  :root {
+    --deep:   #041526;
+    --line:   #17436b;
+    --ink:    #eaf4ff;
+    --muted:  #93b4d1;
+    --gold:   #f2b544;
+    --gold-d: #c98f22;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: linear-gradient(180deg, #062036 0%, var(--deep) 60%);
+    color: var(--ink);
+    font-family: "Malgun Gothic", "맑은 고딕", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 56px 16px 72px; }
+
+  header { text-align: center; margin-bottom: 40px; }
+  h1 { font-size: 44px; margin: 0 0 8px; letter-spacing: -1px; }
+  .tag { color: var(--muted); font-size: 17px; margin: 0; }
+
+  /* 다운로드 버튼. 폭을 가득 채운다. */
+  .buttons {
+    display: flex;
+    gap: 16px;
+    margin: 0 0 44px;
+  }
+  .btn {
+    flex: 1 1 0;
+    display: block;
+    text-align: center;
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-d) 100%);
+    color: #2a1a00;
+    font-size: 19px; font-weight: 700;
+    padding: 20px 16px;
+    border-radius: 12px;
+    text-decoration: none;
+    border: 1px solid #8f6410;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn small { display: block; font-weight: 400; font-size: 13px; opacity: .75; margin-top: 4px; }
+  @media (max-width: 560px) { .buttons { flex-direction: column; } }
+
+  section {
+    background: rgba(10, 42, 71, .55);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 18px; margin: 0 0 16px; color: var(--gold); }
+
+  ol { margin: 0; padding-left: 22px; }
+  ol li { margin-bottom: 14px; }
+  ol li:last-child { margin-bottom: 0; }
+
+  .warn { display: block; margin-top: 6px; color: #ffd98a; font-size: 15px; }
+  code {
+    background: #06283f;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: .95em;
+  }
+  .spec { color: var(--muted); font-size: 15px; margin: 0; }
+  footer { text-align: center; color: #5d7f9c; font-size: 14px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>아라아띠</h1>
+    <p class="tag">바닷속에서 함께하는 협동 미니게임</p>
+  </header>
+
+  <div class="buttons">
+    <a class="btn" href="/AraAtti.zip">
+      게임 받기
+      <small>Windows · 약 410MB</small>
+    </a>
+  </div>
+
+  <section>
+    <h2>실행 방법</h2>
+    <ol>
+      <li>
+        받은 <code>AraAtti.zip</code> 의 압축을 풉니다.
+      </li>
+      <li>
+        폴더 안의 <code>게임시작.bat</code> 을 더블클릭합니다.
+        <span class="warn">⚠ <code>AraAtti-Flow.exe</code> 를 직접 실행하면 서버에 연결되지 않습니다.</span>
+      </li>
+      <li>
+        파란 경고창이 뜨면 <b>추가 정보 → 실행</b> 을 누릅니다.
+        <span class="warn">⚠ 서명되지 않은 프로그램이라 Windows 가 한 번 묻습니다.</span>
+      </li>
+      <li>
+        게임이 열리면 <b>회원가입</b> 부터 합니다.
+        <span class="warn">⚠ 처음이라 계정이 없습니다. 로그인이 아니라 회원가입입니다.</span>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>이렇게 즐깁니다</h2>
+    <p class="spec">
+      캐릭터를 만들고 로비에 모입니다. 포탈에서 <b>광산 · 검 · 배</b> 세 가지 미니게임 중
+      하나를 고르고, 몇 명이서 할지 정하면 같은 인원을 고른 사람들과 묶여 게임이 시작됩니다.
+      끝나면 다시 로비로 돌아옵니다.
+    </p>
+  </section>
+
+  <section>
+    <h2>권장 사양</h2>
+    <p class="spec">
+      Windows 10 이상 · 외장 그래픽 권장 · 여유 공간 2GB · 인터넷 연결 필수<br>
+      화면이 버벅이면 <code>게임시작.bat</code> 을 메모장으로 열어 마지막 줄 끝에
+      <code>-fps 60</code> 을 붙여 보세요.
+    </p>
+  </section>
+
+  <footer>
+    SSAFY 특화 프로젝트 · 아라아띠 팀
+  </footer>
+
+</div>
+</body>
+</html>
