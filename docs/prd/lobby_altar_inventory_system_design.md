@@ -253,8 +253,9 @@ Assets/InputSystem_Actions.inputactions   (guid 052faaac586de48259a63d0c4782560b
 | **F1** | 디버그 HUD 토글 | Mine, ShipCoop, 공통결과, Fishing | `MineDebugHud.cs:36`, `ShipCoopDebugHud.cs:25`, `MatchResultTestRig.cs:49`, `FishingDebugUI.cs:100` | | 없음 |
 | F3 | 낚시 디버그 UI | Fishing* | `FishingDebugUI.cs:100` | | 없음 |
 | F9 | 배 개발자 모드 | ShipCoop | `ShipCoopDevMode.cs:98` | | 없음 |
-| ` (Backquote) | 개발자 모드 토글 | ShipCoop, Warriors | `ShipCoopDevMode.cs:95`, `WarriorsDevMode.cs:35` | | 없음 |
-| `- = [ ] ; ' , . / \` `P` `R` `0` `1` | 배 개발자 치트 | ShipCoop | `ShipCoopDevMode.cs:240-308` | | 없음 |
+| P | 배 개발자 모드 토글 | ShipCoop | `ShipCoopDevMode.cs:95` | | 없음 |
+| ` (Backquote) | 무쌍 개발자 모드 토글 | Warriors | `WarriorsDevMode.cs:35` | | 없음 |
+| `- = [ ] ; ' , . / \` `O` `R` `G` `0` `1` | 배 개발자 치트 | ShipCoop | `ShipCoopDevMode.cs:240-308` | | 없음 |
 | `- [ ] 0` | 무쌍 개발자 치트 | Warriors | `WarriorsDevMode.cs:80-92` | | 없음 |
 
 \* 낚시(Fishing)는 현재 `Scenes/Develop/Yongju/FishingScenes/` 의 개발 씬에만 있습니다.

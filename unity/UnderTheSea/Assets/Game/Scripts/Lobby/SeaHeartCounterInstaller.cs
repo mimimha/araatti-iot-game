@@ -7,20 +7,20 @@ using UnityEngine.SceneManagement;
 namespace UnderTheSea.Lobby
 {
     /// <summary>
-    /// 도감 버튼과 도감 창을 로비에 띄우는 설치기.
+    /// 바다의 심장 조각 수량 HUD 를 로비에 띄우는 설치기.
     ///
     /// <see cref="IslandRecoveryInstaller"/> 와 같은 이유 · 같은 모양이다. Fusion 이 씬을 인수하고
     /// 큰 <c>Lobby.unity</c> 를 건드리지 않으려고, <see cref="Object.DontDestroyOnLoad"/> 로 올려 두고
     /// <b>로비를 벗어나면 숨긴다.</b>
     ///
     /// <code>
-    ///   Assets/Game/Resources/LobbyCollection.prefab   (LobbyCollectionView 가 붙어 있다)
+    ///   Assets/Game/Resources/SeaHeartCounter.prefab   (SeaHeartCounterView 가 붙어 있다)
     /// </code>
     /// </summary>
-    public static class LobbyCollectionInstaller
+    public static class SeaHeartCounterInstaller
     {
-        /// <summary>없으면 조용히 아무것도 하지 않는다. 도감이 없다고 게임이 멈추면 안 된다.</summary>
-        private const string PrefabPath = "LobbyCollection";
+        /// <summary>없으면 조용히 아무것도 하지 않는다. 수량 HUD 가 없다고 게임이 멈추면 안 된다.</summary>
+        private const string PrefabPath = "SeaHeartCounter";
 
         private static GameObject root;
 
@@ -54,7 +54,7 @@ namespace UnderTheSea.Lobby
             catch (System.Exception e)
             {
                 Debug.LogError(
-                    "[LobbyCollectionInstaller] 도감을 띄우지 못했습니다. 게임은 그대로 진행합니다.\n" + e);
+                    "[SeaHeartCounterInstaller] 조각 수량을 띄우지 못했습니다. 게임은 그대로 진행합니다.\n" + e);
             }
         }
 
@@ -70,7 +70,7 @@ namespace UnderTheSea.Lobby
             if (prefab == null)
             {
                 Debug.LogWarning(
-                    $"[LobbyCollectionInstaller] Resources/{PrefabPath} 를 찾지 못해 도감을 띄우지 않습니다.");
+                    $"[SeaHeartCounterInstaller] Resources/{PrefabPath} 를 찾지 못해 조각 수량을 띄우지 않습니다.");
                 return;
             }
 

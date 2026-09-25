@@ -1,4 +1,3 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -14,12 +13,13 @@ using UnderTheSea.MiniGames.ShipCoop.Net;
 ///   최저 속도로는 목적지까지 480초입니다. 사건 하나 확인하려고 그걸 기다릴 수 없습니다.
 ///   사건도 10~20초 간격으로 무작위로 오니, 파도를 보려는데 암초만 세 번 올 수 있습니다.
 ///
-/// ⚠ 이 파일 전체가 `UNITY_EDITOR || DEVELOPMENT_BUILD` 로 감싸여 있습니다.
-///    출시 빌드에는 **컴파일조차 되지 않습니다.** 치트가 제품에 남으면 안 됩니다.
+/// ⚠ **출시(Release) 빌드에도 들어갑니다.** 예전에는 `UNITY_EDITOR || DEVELOPMENT_BUILD` 로
+///    감싸 개발 빌드에서만 켜졌는데, 시연 · 테스트를 Release 빌드로 하므로 풀었습니다.
+///    켜기 전까지는 어떤 키도 먹지 않고 화면에 안내 한 줄만 뜹니다.
 ///
 /// 사용법
 ///   **씬에 아무것도 붙이지 않아도 됩니다.** 플레이를 누르면 스스로 뜹니다.
-///   `` ` `` (물결표 키, Esc 아래) 또는 F9 로 켜고 끕니다.
+///   P 또는 F9 로 켜고 끕니다.
 ///   꺼져 있으면 어떤 키도 먹지 않습니다.
 ///
 /// 왜 스스로 뜨는가
@@ -30,11 +30,11 @@ using UnderTheSea.MiniGames.ShipCoop.Net;
 /// 왜 F2 가 아닌가
 ///   **F2 는 유니티 에디터의 "이름 바꾸기" 단축키입니다.** 에디터가 먼저 먹어서
 ///   게임까지 오지 않습니다. F1 도 도움말로 잡히는 자리가 있습니다.
-///   `` ` `` 와 F9 는 에디터가 쓰지 않습니다.
+///   P 와 F9 는 에디터가 쓰지 않습니다.
 ///
 /// 키가 게임 조작과 겹치지 않게 골랐습니다.
 /// 게임은 W · A · S · D · Shift · Space · J · K · L · C 와 마우스 우클릭을 씁니다.
-/// 여기는 숫자와 기호만 씁니다.
+/// 여기는 숫자 · 기호와 P · O · R · G 만 씁니다.
 /// </summary>
 public class ShipCoopDevMode : MonoBehaviour
 {
@@ -86,15 +86,15 @@ public class ShipCoopDevMode : MonoBehaviour
         var go = new GameObject("ShipCoopDevMode (자동)");
         _instance = go.AddComponent<ShipCoopDevMode>();
 
-        Debug.Log("[개발자 모드] 준비됐다. ` (물결표) 또는 F9 로 켠다.", go);
+        Debug.Log("[개발자 모드] 준비됐다. P 또는 F9 로 켠다.", go);
     }
 
     [Header("켜고 끄기")]
     [Tooltip("이 키를 누르면 개발자 모드가 켜지고 꺼진다.\n" +
              "F2 는 쓰지 마세요 — 유니티의 '이름 바꾸기' 단축키라 에디터가 먼저 먹습니다.")]
-    [SerializeField] private Key toggleKey = Key.Backquote;
+    [SerializeField] private Key toggleKey = Key.P;
 
-    [Tooltip("보조 켜고 끄기 키. 물결표가 안 먹는 자판을 위한 것이다.")]
+    [Tooltip("보조 켜고 끄기 키.")]
     [SerializeField] private Key altToggleKey = Key.F9;
 
     [Tooltip("켜면 씬을 시작할 때부터 켜져 있다. 매번 F2 를 누르기 귀찮을 때 쓴다.")]
@@ -284,8 +284,8 @@ public class ShipCoopDevMode : MonoBehaviour
             Ask(ShipCoopEventSync.DevCommand.RepairFull, 0, 0f);
         }
 
-        // P — 스케줄러 정지
-        if (keyboard[Key.P].wasPressedThisFrame)
+        // O — 스케줄러 정지. P 는 켜고 끄기라 옆자리로 옮겼다.
+        if (keyboard[Key.O].wasPressedThisFrame)
         {
             Ask(ShipCoopEventSync.DevCommand.TogglePause, 0, 0f);
         }
@@ -294,6 +294,12 @@ public class ShipCoopDevMode : MonoBehaviour
         if (keyboard[Key.R].wasPressedThisFrame)
         {
             Ask(ShipCoopEventSync.DevCommand.Restart, 0, 0f);
+        }
+
+        // G — 바로 도착해 성공 화면을 본다
+        if (keyboard[Key.G].wasPressedThisFrame)
+        {
+            Ask(ShipCoopEventSync.DevCommand.ForceArrive, 0, 0f);
         }
 
         // - = \ — 시간 배속. 규칙이 아니라 이 프로세스만의 값이라 호스트 여부와 무관하게 듣는다.
@@ -448,7 +454,7 @@ public class ShipCoopDevMode : MonoBehaviour
             Vector2 hint = PanelAnchor();
 
             GUI.color = new Color(1f, 1f, 1f, 0.35f);
-            GUI.Label(new Rect(hint.x, hint.y, 260f, 20f), "` 또는 F9 — 개발자 모드", _style);
+            GUI.Label(new Rect(hint.x, hint.y, 260f, 20f), $"{KeyName(toggleKey)} 또는 {KeyName(altToggleKey)} — 개발자 모드", _style);
             GUI.color = Color.white;
             return;
         }
@@ -517,9 +523,10 @@ public class ShipCoopDevMode : MonoBehaviour
         _sb.AppendLine($"  [ ] 진행도 ∓{progressStep:P0}");
         _sb.AppendLine($"  ;   물 +{floodStep:P0}      '   물 비우기");
         _sb.AppendLine("  ,   HP -20        .   HP 가득");
-        _sb.AppendLine("  P   사건 뿌리기 정지/재개");
+        _sb.AppendLine("  O   사건 뿌리기 정지/재개");
         _sb.AppendLine("  - = 배속 ÷2 / ×2      \\   배속 1x");
         _sb.AppendLine("  R   처음부터 다시");
+        _sb.AppendLine("  G   바로 도착 (성공 화면)");
     }
 
     /// <summary>화면에 적을 키 이름. Backquote 는 글자로 보여줘야 알아본다.</summary>
@@ -545,4 +552,3 @@ public class ShipCoopDevMode : MonoBehaviour
         _style.normal.textColor = Color.white;
     }
 }
-#endif

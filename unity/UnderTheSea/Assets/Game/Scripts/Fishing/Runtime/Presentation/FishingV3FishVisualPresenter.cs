@@ -82,7 +82,7 @@ namespace FishingMiniGame.Runtime
         public const float MaximumYawDegrees = 28f;
         public const float MaximumRollDegrees = 22f;
         public const float DefaultCaughtLiftSeconds = 0.7f;
-        public const float DefaultCaughtHoldSeconds = 1.05f;
+        public const float DefaultCaughtHoldSeconds = 2.8f;
         public const float DefaultCaughtArcHeight = 0.6f;
         public const float DefaultCaughtDisplaySeconds =
             DefaultCaughtLiftSeconds + DefaultCaughtHoldSeconds;
@@ -195,7 +195,7 @@ namespace FishingMiniGame.Runtime
         public Vector3 FailureTargetWorldPosition => _failureTargetWorldPosition;
         public bool HasConfiguredCatalog => visualSet != null;
         public bool HasPresentationAnchor => presentationAnchor != null;
-        public Transform PresentationAnchor => presentationAnchor;
+        public Transform PresentationAnchor => ResolveAnchor();
         public float MotionElapsedSeconds => _motionElapsedSeconds;
         public bool IsHeadShakeActive =>
             _headShakeElapsedSeconds < HeadShakeDurationSeconds;
@@ -299,7 +299,7 @@ namespace FishingMiniGame.Runtime
                     _activeVisual.transform,
                     ResolveAnchor(),
                     entry,
-                    presentationAnchor != null);
+                    UsesDedicatedPresentationAnchor(ResolveAnchor()));
             }
         }
 
@@ -346,7 +346,7 @@ namespace FishingMiniGame.Runtime
                     _activeVisual.transform,
                     anchor,
                     entry,
-                    presentationAnchor != null);
+                    UsesDedicatedPresentationAnchor(anchor));
                 ApplyMotion(_activeVisual.transform, snapshot, motionDeltaTime);
                 return;
             }
@@ -359,7 +359,7 @@ namespace FishingMiniGame.Runtime
                 _activeVisual.transform,
                 anchor,
                 entry,
-                presentationAnchor != null);
+                UsesDedicatedPresentationAnchor(anchor));
             ResetMotion(snapshot);
             ApplyMotion(_activeVisual.transform, snapshot, motionDeltaTime);
 
@@ -697,10 +697,31 @@ namespace FishingMiniGame.Runtime
         private Transform ResolveAnchor()
         {
             if (presentationAnchor != null) return presentationAnchor;
+            if (modeController != null &&
+                modeController.CurrentSpot != null &&
+                modeController.CurrentSpot.PresentationAnchor != null)
+            {
+                return modeController.CurrentSpot.PresentationAnchor;
+            }
+            if (fishingSpot != null && fishingSpot.PresentationAnchor != null)
+                return fishingSpot.PresentationAnchor;
             if (modeController != null && modeController.CurrentSpot != null)
                 return modeController.CurrentSpot.transform;
             if (fishingSpot != null) return fishingSpot.transform;
             return transform;
+        }
+
+        private bool UsesDedicatedPresentationAnchor(Transform anchor)
+        {
+            if (anchor == null) return false;
+            if (presentationAnchor != null && anchor == presentationAnchor) return true;
+            if (modeController != null && modeController.CurrentSpot != null &&
+                anchor == modeController.CurrentSpot.PresentationAnchor)
+            {
+                return true;
+            }
+
+            return fishingSpot != null && anchor == fishingSpot.PresentationAnchor;
         }
 
         private void RememberIdentity(FishingV3Snapshot snapshot)

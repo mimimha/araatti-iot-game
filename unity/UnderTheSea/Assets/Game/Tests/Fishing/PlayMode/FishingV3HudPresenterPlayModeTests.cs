@@ -35,6 +35,7 @@ namespace FishingMiniGame.Tests
                 FishingV3HudPresenter presenter = host.AddComponent<FishingV3HudPresenter>();
                 presenter.Configure(facade, hudRoot, tensionFill, captureFill);
                 presenter.ConfigureResultDisplayDuration(0.1f);
+                presenter.ConfigureCaughtResultDelay(0f);
                 controller.enabled = false;
                 controller.BeginRound();
 
@@ -73,7 +74,7 @@ namespace FishingMiniGame.Tests
                 Assert.That(presenter.AreFightGaugesVisible, Is.False);
                 Assert.That(presenter.IsTensionStatusVisible, Is.False);
                 Assert.That(presenter.IsResultOverlayVisible, Is.True);
-                Assert.That(presenter.DisplayedResultTitle, Is.EqualTo("CAUGHT!"));
+                Assert.That(presenter.DisplayedResultTitle, Is.EqualTo("잡았다!"));
                 Assert.That(tensionFill.fillAmount, Is.Zero);
                 Assert.That(presenter.DisplayedTensionMarkerNormalized, Is.Zero);
                 Assert.That(captureFill.fillAmount, Is.Zero);

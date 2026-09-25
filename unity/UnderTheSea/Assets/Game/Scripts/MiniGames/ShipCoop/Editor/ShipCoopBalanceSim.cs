@@ -202,9 +202,10 @@ public static class ShipCoopBalanceSim
         float pullSpeed = new SerializedObject(sail).FindProperty("pullSpeed").floatValue;
 
         var fs = new SerializedObject(flood);
-        float floodDps = fs.FindProperty("damagePerSecondWhenFull").floatValue;
+        float floodDps = fs.FindProperty("damagePerSecondWhileWet").floatValue;
         float floodRise = fs.FindProperty("risePerPointPerSecond").floatValue;
         float dumpAmount = fs.FindProperty("dumpAmount").floatValue;
+        float floodGrace = fs.FindProperty("damageGraceSeconds").floatValue;
 
         float maxHp = new SerializedObject(hp).FindProperty("maxHp").floatValue;
 
@@ -238,7 +239,7 @@ public static class ShipCoopBalanceSim
         var sb = new StringBuilder();
         sb.AppendLine("=== 배 협동 밸런스 시뮬레이션 (도착 · 시간초과 · 침몰 전부) ===");
         sb.AppendLine($"거리 {distance}m · 최대 {maxSpeed}m/s · 최저 {minSpeed}m/s · 제한 {limit}초 · HP {maxHp}");
-        sb.AppendLine($"침수: 파손 1개당 초당 +{floodRise:P1} · 만수 시 초당 HP -{floodDps} · 양동이 -{dumpAmount:P0}");
+        sb.AppendLine($"침수: 파손 1개당 초당 +{floodRise:P1} · 물이 있으면 초당 HP -{floodDps} (차고 {floodGrace}초 뒤부터) · 양동이 -{dumpAmount:P0}");
         sb.AppendLine($"수리 지점 {repairPoints}곳 (구멍은 여기까지만 뚫린다)");
         sb.AppendLine($"사람 가정: 수리 {RepairSeconds}초 · 양동이 {BailSeconds}초 · 자리이동 {SwitchSeconds}초");
         sb.AppendLine($"판당 {Trials} 회");
@@ -265,7 +266,7 @@ public static class ShipCoopBalanceSim
                 Result r = Sim(rng, crew, sailOnly,
                                distance, maxSpeed, minSpeed, limit, maxHp,
                                maxHeading, turnSpeed, recenter, helmPushedCapacity, pullSpeed,
-                               floodDps, floodRise, dumpAmount, repairPoints, dumpPoints,
+                               floodDps, floodRise, dumpAmount, floodGrace, repairPoints, dumpPoints,
                                defs, schedule);
 
                 solved += r.Solved;
@@ -292,7 +293,7 @@ public static class ShipCoopBalanceSim
     private static Result Sim(System.Random rng, int crew, bool sailOnly,
                               float distance, float maxSpeed, float minSpeed, float limit, float maxHp,
                               float maxHeading, float turnSpeed, float recenter, int helmPushedCapacity, float pullSpeed,
-                              float floodDps, float floodRise, float dumpAmount, int repairPoints, int dumpPoints,
+                              float floodDps, float floodRise, float dumpAmount, float floodGrace, int repairPoints, int dumpPoints,
                               List<EventDef> defs, (float min, float max, int cap)[] schedule)
     {
         var agents = new Agent[crew];
@@ -307,6 +308,7 @@ public static class ShipCoopBalanceSim
         float elapsed = 0f;
         float hp = maxHp;
         float water = 0f;
+        float wetSeconds = 0f;                // 물이 찬 채로 지난 시간. ShipFlooding 의 유예와 같다
         // ⚠ **구멍마다 진행도를 따로 잽니다.** 한 사람이 자기 구멍 하나씩 붙는 것이 실제
         //    게임입니다. 합쳐서 하나의 계기로 재면, 구멍 두 개가 동시에 열려도 **번갈아
         //    하나씩만** 끝나는 것으로 나옵니다. (아래 갱신부에 이유가 적혀 있습니다)
@@ -545,9 +547,11 @@ public static class ShipCoopBalanceSim
                 water = Mathf.Clamp01(water + floodRise * holeWork.Count * Dt);
             }
 
-            if (water > 0f)
+            wetSeconds = water > 0f ? wetSeconds + Dt : 0f;
+
+            if (water > 0f && wetSeconds >= floodGrace)
             {
-                hp -= floodDps * water * Dt;
+                hp -= floodDps * Dt;
             }
 
             if (hp <= 0f)
