@@ -141,9 +141,23 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     /// </summary>
     private const int WriteTimeoutMs = 20;
 
+    /// <summary>
+    /// 자동 탐색에서 포트 하나를 지켜보는 시간(ms).
+    ///
+    /// 후보 포트 수만큼 곱해져 씬 시작이 밀리므로 짧게 잡는다. 동글은 완드가 켜져
+    /// 있으면 50Hz 로 쏟아내고, 꺼져 있어도 <c>?</c> 에 곧바로 답한다.
+    /// </summary>
+    private const int DiscoveryWindowMs = 300;
+
+    /// <summary>자동 탐색에서 포트를 들여다보는 간격(ms).</summary>
+    private const int DiscoveryPollMs = 10;
+
     [Header("시리얼 포트")]
-    [Tooltip("동글이 잡힌 포트 이름. 장치 관리자에서 확인한다. 예: COM3")]
-    [SerializeField] private string portName = "COM3";
+    [Tooltip("동글이 잡힌 포트 이름. 예: COM3\n\n" +
+             "⚠ 비워두면 모든 COM 포트를 훑어 동글을 스스로 찾는다. 윈도우가 COM 번호를 " +
+             "꽂는 자리마다 다르게 주므로 대개 비워두는 쪽이 편하다.\n\n" +
+             "이미 씬에 적혀 있는 값은 그대로 쓰인다. 자동 탐색을 쓰려면 지워야 한다.")]
+    [SerializeField] private string portName = string.Empty;
 
     [Tooltip("펌웨어와 같은 값이어야 한다.")]
     [SerializeField] private int baudRate = 115200;
@@ -316,11 +330,29 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     ///
     /// 포트가 열린 것만으로는 부족하다. 동글만 꽂고 완드를 안 켰으면 값이 전부 0 이라
     /// 사람은 여전히 키보드로 하고 있다. 줄이 들어오고 있는 완드가 있어야 참이다.
-    /// 왼손 자리에는 살아 있는 완드가 먼저 앉으므로 (<see cref="ResolveHands"/>) 그것만 보면 된다.
+    ///
+    /// 키보드 자동 전환(<see cref="RefreshKeyboardFallback"/>)도 이 값으로 정한다.
+    /// HUD 와 전환이 같은 답을 봐야 키캡과 실제 입력이 어긋나지 않는다.
+    ///
+    /// ⚠ <c>_left</c> 만 보지 않고 전부 훑는다. 손 배정(<see cref="ResolveHands"/>)이
+    ///   다시 돌기 전에는 방금 붙은 완드가 왼손 자리에 없을 수 있다.
     /// </summary>
     public bool AnyWandConnected
     {
-        get { EnsureWands(); return _left.Connected; }
+        get
+        {
+            EnsureWands();
+
+            for (int i = 0; i < _wands.Length; i++)
+            {
+                if (_wands[i].Connected)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>지금 포트가 열려 있는지. 디버그 HUD 가 본다. 서버 빌드에서는 늘 false 다.</summary>
@@ -412,30 +444,12 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             return;
         }
 
-        SerialPort port;
+        SerialPort port = string.IsNullOrWhiteSpace(portName)
+            ? DiscoverDongle()
+            : OpenNamed(portName, quiet: false);
 
-        try
+        if (port == null)
         {
-            port = new SerialPort(portName, baudRate)
-            {
-                DtrEnable = dtrEnable,
-                RtsEnable = rtsEnable,
-
-                // ⚠ 무한 대기로 두면 포트를 닫을 때 읽기 스레드가 안 빠져나온다.
-                ReadTimeout = ReadTimeoutMs,
-
-                // ⚠ 메인 스레드에서 쓴다. 무한 대기로 두면 동글이 멈췄을 때 게임이 통째로 언다.
-                WriteTimeout = WriteTimeoutMs,
-            };
-
-            port.Open();
-        }
-        catch (Exception error)
-        {
-            // 경고 한 줄만 남기고 조용히 비활성이 된다. 모든 값은 0 · false 로 나간다.
-            Debug.LogWarning(
-                $"[IotPlayerController] {portName} 을(를) 열지 못했습니다. " +
-                $"장치 없이 계속합니다. — {error.Message}", this);
             return;
         }
 
@@ -452,6 +466,175 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         };
 
         _readThread.Start();
+    }
+
+    /// <summary>포트 하나를 연다. 실패하면 <c>null</c>. 예외는 밖으로 나가지 않는다.</summary>
+    /// <param name="quiet">
+    /// 자동 탐색은 남의 포트도 두드려 보므로 실패가 정상이다. 그때는 찍지 않는다.
+    /// </param>
+    private SerialPort OpenNamed(string name, bool quiet)
+    {
+        try
+        {
+            SerialPort port = new SerialPort(name, baudRate)
+            {
+                DtrEnable = dtrEnable,
+                RtsEnable = rtsEnable,
+
+                // ⚠ 무한 대기로 두면 포트를 닫을 때 읽기 스레드가 안 빠져나온다.
+                ReadTimeout = ReadTimeoutMs,
+
+                // ⚠ 메인 스레드에서 쓴다. 무한 대기로 두면 동글이 멈췄을 때 게임이 통째로 언다.
+                WriteTimeout = WriteTimeoutMs,
+            };
+
+            port.Open();
+            return port;
+        }
+        catch (Exception error)
+        {
+            if (!quiet)
+            {
+                // 경고 한 줄만 남기고 조용히 비활성이 된다. 모든 값은 0 · false 로 나간다.
+                Debug.LogWarning(
+                    $"[IotPlayerController] {name} 을(를) 열지 못했습니다. " +
+                    $"장치 없이 계속합니다. — {error.Message}", this);
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// COM 포트를 훑어 동글을 스스로 찾는다. <c>portName</c> 이 비어 있을 때만 돈다.
+    ///
+    /// 윈도우는 COM 번호를 꽂는 자리와 순서마다 다르게 주고 재부팅하면 또 바뀐다.
+    /// 사람마다 번호를 적어 두는 대신 **말투로 알아본다.**
+    ///
+    /// 다른 프로그램(아두이노 IDE 등)이 이미 쥐고 있는 포트는 열리지 않으므로 건너뛴다.
+    /// 못 찾아도 경고 한 줄로 끝나고 키보드 폴백이 받는다.
+    /// </summary>
+    private SerialPort DiscoverDongle()
+    {
+        string[] names;
+
+        try
+        {
+            names = SerialPort.GetPortNames();
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning(
+                $"[IotPlayerController] COM 포트 목록을 읽지 못했습니다. — {error.Message}", this);
+            return null;
+        }
+
+        foreach (string name in names)
+        {
+            SerialPort port = OpenNamed(name, quiet: true);
+
+            if (port == null)
+            {
+                continue;
+            }
+
+            if (SoundsLikeDongle(port))
+            {
+                Debug.Log($"[IotPlayerController] {name} 에서 동글을 찾았습니다.", this);
+                return port;
+            }
+
+            port.Close();
+            port.Dispose();
+        }
+
+        Debug.LogWarning(
+            $"[IotPlayerController] COM 포트 {names.Length}개를 훑었지만 동글을 찾지 못했습니다. " +
+            "장치 없이 계속합니다.", this);
+
+        return null;
+    }
+
+    /// <summary>
+    /// 이 포트에서 동글의 말투가 들리는지 <see cref="DiscoveryWindowMs"/> 동안 듣는다.
+    ///
+    /// 동글이 내는 줄은 두 가지뿐이고 둘 중 하나만 와도 확정이다.
+    /// <code>
+    ///   완드 입력   0,0,0,0,0,0,0,0,0,64957     필드 10개짜리 CSV
+    ///   신원        #MAC AA:BB:CC:DD:EE:FF      동글만 내는 줄
+    /// </code>
+    ///
+    /// ⚠ <b>완드가 꺼져 있으면 동글은 먼저 말하지 않는다.</b> CSV 는 완드 패킷이 올 때만
+    ///    나오고 알림은 부팅 때 한 번뿐이다. 그래서 절반이 지나도 조용하면 그때
+    ///    <c>?</c> 한 글자를 보내 물어본다. 동글은 <c>#MAC</c> 으로 답한다.
+    ///    (dongle_esp32s3.ino 의 handleLine)
+    ///
+    /// 남의 포트일 수도 있으므로 **조용할 때만, 딱 한 번** 쓴다.
+    /// </summary>
+    private static bool SoundsLikeDongle(SerialPort port)
+    {
+        StringBuilder heard = new StringBuilder();
+        bool asked = false;
+
+        for (int waited = 0; waited < DiscoveryWindowMs; waited += DiscoveryPollMs)
+        {
+            try
+            {
+                if (port.BytesToRead > 0)
+                {
+                    heard.Append(port.ReadExisting());
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            // 끝 조각은 잘려 있을 수 있다. 개행까지 온 줄만 본다.
+            string text = heard.ToString();
+            int lastBreak = text.LastIndexOf('\n');
+
+            if (lastBreak >= 0)
+            {
+                foreach (string raw in text.Substring(0, lastBreak).Split('\n'))
+                {
+                    string line = raw.Trim();
+
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    // ⚠ '#' 로 시작한다고 다 동글이 아니다. 완드도 #CAL · #FSR 을 찍으므로
+                    //    같은 PC 에 완드가 꽂혀 있으면 그 포트를 동글로 착각한다.
+                    //    #MAC 은 동글만 낸다. (완드는 자기 것을 #NOW 로 찍는다)
+                    if (line.StartsWith("#MAC", StringComparison.Ordinal) || TryParse(line, out _))
+                    {
+                        return true;
+                    }
+                }
+
+                heard.Remove(0, lastBreak + 1);
+            }
+
+            if (!asked && waited >= DiscoveryWindowMs / 2)
+            {
+                asked = true;
+
+                try
+                {
+                    port.Write("?\n");
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            Thread.Sleep(DiscoveryPollMs);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -780,7 +963,7 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             return;
         }
 
-        bool wanted = !AnyWandConnected();
+        bool wanted = !AnyWandConnected;
 
         if (wanted == _keyboardActive)
         {
@@ -801,20 +984,6 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         {
             Debug.Log($"[IotPlayerController] 입력 전환 — {(wanted ? "키보드" : "완드")}", this);
         }
-    }
-
-    /// <summary>완드가 한 대라도 붙어 있는가.</summary>
-    private bool AnyWandConnected()
-    {
-        for (int i = 0; i < _wands.Length; i++)
-        {
-            if (_wands[i].Connected)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>한 손에 쌓여 있는 "눌린 순간" 과 동작을 읽어서 버린다.</summary>

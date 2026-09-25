@@ -27,7 +27,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
-#include <esp_mac.h>   // esp_read_mac. WiFi.macAddress() 는 부팅 직후 0 을 준다 (아래 setup 참고)
+#include <esp_mac.h>   // esp_read_mac. WiFi.macAddress() 는 부팅 직후 0 을 준다 (printMac 참고)
 
 #define CH          1     // 완드와 같아야 한다
 #define WAND_COUNT  4
@@ -208,10 +208,27 @@ static void sendVibrate(int id, int strength, int durationMs) {
   }
 }
 
+// 내 MAC 을 밝힌다. 부팅 때 한 번, 그리고 물어보면 언제든.
+// 완드는 이 값을 구워야 하고, 유니티는 이 값으로 동글을 알아본다.
+static void printMac() {
+  // ⚠ WiFi.macAddress() 를 쓰면 안 된다. arduino-esp32 3.x 에서는 STA netif 가
+  //    올라오기 전에 부르면 00:00:00:00:00:00 을 돌려준다 (실기 확인).
+  //    eFuse 에서 직접 읽으면 Wi-Fi 상태와 무관하게 맞는 값이 나온다.
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+
+  Serial.printf("#MAC %02X:%02X:%02X:%02X:%02X:%02X ch=%d\n",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH);
+}
+
 // ── 유니티 -> 동글 ─────────────────────────────────────────
 
 static void handleLine(const char* s) {
   int id, strength, ms;
+
+  // 유니티가 어느 COM 포트가 동글인지 찾을 때 쓴다. 완드가 꺼져 있으면
+  // CSV 가 한 줄도 안 나오므로, 물어보면 그때 신원을 밝힌다.
+  if (s[0] == '?' && s[1] == '\0') { printMac(); return; }
 
   if (sscanf(s, "V,%d,%d,%d", &id, &strength, &ms) == 3) {
     sendVibrate(id, strength, ms);
@@ -297,14 +314,7 @@ void setup() {
   esp_now_register_recv_cb(onRecv);
   esp_now_register_send_cb(onSent);
 
-  // ⚠ WiFi.macAddress() 를 쓰면 안 된다. arduino-esp32 3.x 에서는 STA netif 가
-  //    올라오기 전에 부르면 00:00:00:00:00:00 을 돌려준다 (실기 확인).
-  //    eFuse 에서 직접 읽으면 Wi-Fi 상태와 무관하게 맞는 값이 나온다.
-  uint8_t mac[6];
-  esp_read_mac(mac, ESP_MAC_WIFI_STA);
-
-  Serial.printf("#MAC %02X:%02X:%02X:%02X:%02X:%02X ch=%d\n",
-                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH);
+  printMac();
   Serial.println("#READY 완드가 입력을 보내면 자동으로 등록된다");
 }
 
