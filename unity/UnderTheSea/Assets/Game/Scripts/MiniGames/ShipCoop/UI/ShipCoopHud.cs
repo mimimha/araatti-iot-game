@@ -288,7 +288,7 @@ public class ShipCoopHud : MonoBehaviour
     ///    **무엇을 하든 "Space" 로 고정**돼 있었고, 대포에 붙은 사람이 Space 를 눌러
     ///    아무 일도 안 일어나는 것을 보게 됐다.
     /// </summary>
-    [Tooltip("오른쪽 아래 키캡 글자. 자리에 따라 Space · K · J L 로 바뀐다.")]
+    [Tooltip("오른쪽 아래 키캡 글자. 자리에 따라 Space · K · J L 로 바뀌고, 완드가 붙으면 A · B · L R 로 바뀐다.")]
     [SerializeField] private TextMeshProUGUI interactKeycap;
 
     [Tooltip("\"길게 누르세요\" 같은 홀드 안내. 꾹 누르고 있어야 하는 동작에서만 켠다.")]
@@ -1146,26 +1146,72 @@ public class ShipCoopHud : MonoBehaviour
     /// </summary>
     private const string KeyInteract = "<size=80%>Space</size>";
 
+    // ------------------------------------------------------------
+    // 🎮 **완드가 붙으면 키캡을 완드 버튼으로 바꾼다.** (KEY_MAPPING.md 배 협동)
+    //
+    //    완드에는 버튼이 A(버튼 1) · B(버튼 2) 로 새겨져 있고, 배가 키캡에 띄우는 것은
+    //    전부 오른손 쪽이다.
+    //
+    //      키보드   완드
+    //      Space    A      붙기 · 집기 · 놓기 · 장전   오른손 버튼 1
+    //      K        B      발사 · 망치질              오른손 버튼 2 (내리치기도 됨)
+    //      J · L    L · R  조타 · 돛                  양손 기울기 · 비틀기
+    //
+    //    ⚠ **글자 크기는 키보드와 같다.** 같은 칸 · 같은 자동 크기 범위를 그대로 쓴다.
+    //       "A" · "B" 는 "K" 와 같은 한 글자라 같은 크기로 서고, "L · R" 은 "J · L" 과
+    //       생김새가 같아 같은 크기로 줄어든다.
+    //
+    //    ⚠ 조타 · 돛에 "기울기" 같은 한글을 쓰지 않는다. 키캡 글꼴(Fredoka)에는 한글이
+    //       없어 네모로 나온다. 어떻게 움직이는지는 아래 안내 줄(HintOf)이 한글로 말한다.
+    // ------------------------------------------------------------
+
+    private const string WandInteract = "A";
+    private const string WandFire = "B";
+    private const string WandTilt = "L · R";
+
+    /// <summary>
+    /// 이 컴퓨터에서 지금 완드로 하고 있는가.
+    ///
+    /// 네트워크에서는 캐릭터의 입력이 서버가 되살린 것(ShipCoopNetworkedController)이라
+    /// 그걸 봐서는 무엇이 꽂혀 있는지 모른다. 러너에 붙은 <b>이 컴퓨터의 기기</b>를 먼저 본다.
+    /// 로컬 테스트 씬에는 러너가 없으므로 그때는 캐릭터에 붙은 것을 본다.
+    ///
+    /// 동글만 꽂고 완드를 안 켰으면 키보드로 하고 있는 것이니 키보드 키를 보여준다.
+    /// </summary>
+    private bool UsingWand()
+    {
+        IPlayerController devices = UnderTheSea.MiniGames.ShipCoop.Net.ShipCoopInputProvider.LocalDevices;
+
+        if (devices == null && LocalWorker != null)
+        {
+            devices = LocalWorker.Input;
+        }
+
+        return devices is IotPlayerController wand && wand.AnyWandConnected;
+    }
+
     private void Show(string text, float gauge01, Sprite icon, Transform anchor, bool isHold)
     {
-        Show(text, gauge01, icon, false, KeyInteract, anchor, isHold);
+        Show(text, gauge01, icon, false, UsingWand() ? WandInteract : KeyInteract, anchor, isHold);
     }
 
     /// <summary>
     /// 그 자리에서 **실제로 일하는** 키. 키캡에 그대로 나간다.
     ///
-    /// ⚠ 자리에 **붙는** 키(Space)와 붙은 다음에 **일하는** 키는 다르다.
+    /// ⚠ 자리에 **붙는** 키(Space · A)와 붙은 다음에 **일하는** 키는 다르다.
     ///    붙고 나면 Space 는 그 자리에서 할 일이 없다.
     /// </summary>
-    private static string KeyOf(TaskBase task)
+    private string KeyOf(TaskBase task)
     {
+        bool wand = UsingWand();
+
         switch (task)
         {
-            case CannonTask _: return "K";
-            case RepairTask _: return "K";
-            case HelmTask _: return "J · L";
-            case SailTask _: return "J · L";
-            default: return KeyInteract;
+            case CannonTask _: return wand ? WandFire : "K";
+            case RepairTask _: return wand ? WandFire : "K";
+            case HelmTask _: return wand ? WandTilt : "J · L";
+            case SailTask _: return wand ? WandTilt : "J · L";
+            default: return wand ? WandInteract : KeyInteract;
         }
     }
 
@@ -1371,7 +1417,7 @@ public class ShipCoopHud : MonoBehaviour
         }
     }
 
-    private static string HintOf(TaskBase task)
+    private string HintOf(TaskBase task)
     {
         switch (task)
         {
@@ -1386,8 +1432,9 @@ public class ShipCoopHud : MonoBehaviour
                 return repair.CanHammer ? "연타해서 수리" : "자재가 필요하다 — 갈색 상자에서";
 
             // 조타와 돛은 두 키가 서로 반대 방향이라 어느 쪽이 무엇인지 적어준다.
-            case HelmTask _: return "J 좌 · L 우";
-            case SailTask _: return "L 당기기 · J 풀기";
+            // 완드는 키가 아니라 손 동작이라 어떻게 움직이는지를 적는다. (ShipCoopInput.Steer · SailPull)
+            case HelmTask _: return UsingWand() ? "양손 기울여 좌 · 우" : "J 좌 · L 우";
+            case SailTask _: return UsingWand() ? "양손 비틀어 당기기 · 풀기" : "L 당기기 · J 풀기";
             default: return null;
         }
     }
