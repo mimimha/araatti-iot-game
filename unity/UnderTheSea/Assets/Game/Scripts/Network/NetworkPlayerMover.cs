@@ -44,6 +44,51 @@ public class NetworkPlayerMover : NetworkBehaviour
              "물가에서 기억한 자리로 되돌렸다가 다시 빠지는 일이 없다.")]
     [SerializeField] private float safeGroundMinY = 0.5f;
 
+    [Header("헤엄")]
+    [Tooltip("해수면 높이. 로비 바다 판(OceanCollider)이 y=0 에 놓여 있다.")]
+    [SerializeField] private float seaLevel = 0f;
+
+    [Tooltip("발밑 물 깊이가 이보다 깊으면 헤엄치기 시작한다.\n\n" +
+             "해안선 투명벽은 물이 어깨(약 1m)까지 차는 곳에 서 있으므로, " +
+             "헤엄칠 수 있는 곳은 이 깊이부터 벽까지의 띠다. 벽 너머로는 여전히 못 나간다.")]
+    [SerializeField] private float swimEnterDepth = 0.45f;
+
+    [Tooltip("헤엄치다가 물이 이보다 얕아지면 다시 걷는다. " +
+             "들어가는 깊이보다 얕아야 경계에서 헤엄 · 걷기가 번갈아 깜빡이지 않는다.")]
+    [SerializeField] private float swimExitDepth = 0.35f;
+
+    [Tooltip("수면에 떠 있을 때 발(피벗)을 수면 아래 얼마에 둘지(m). Space 로 떠올라도 여기서 멈춘다.\n\n" +
+             "헤엄 자세에서 몸통은 피벗 위 0~0.35m, 머리는 1m 까지 올라온다. " +
+             "0.3m 가라앉히면 몸통은 물에 잠기고 큰 머리만 물 위에 뜬다. " +
+             "Tools/아라아띠/로비 헤엄 자세 미리보기 로 보고 정했다.")]
+    [SerializeField] private float swimSinkDepth = 0.3f;
+
+    [SerializeField] private float swimSpeed = 3.2f;
+
+    [Tooltip("Shift 를 누르고 헤엄칠 때의 속도.")]
+    [SerializeField] private float swimSprintSpeed = 4.6f;
+
+    [Tooltip("Space 를 누르고 있을 때 떠오르는 속도(m/s). 수면 높이(swimSinkDepth)에서 멈춘다.")]
+    [SerializeField] private float swimRiseSpeed = 1.8f;
+
+    [Tooltip("Space 를 떼고 있을 때 가라앉는 속도(m/s). 바닥에 닿으면 멈춘다.\n\n" +
+             "떠오르는 것보다 느려야 한다. 잠깐 손을 뗀 사이에 훅 가라앉으면 조작이 거칠게 느껴진다.")]
+    [SerializeField] private float swimDiveSpeed = 0.8f;
+
+    /// <summary>
+    /// 헤엄치며 Space 로 떠오르는 중인가. 서버가 정하고 모든 피어가 읽는다.
+    /// 제자리에서 떠오를 때도 팔을 젓게 하려고 둔다(<see cref="AnimAxis"/> 는 수평 입력뿐이다).
+    /// </summary>
+    [Networked] public NetworkBool Ascending { get; set; }
+
+    /// <summary>
+    /// 지금 헤엄치는 중인가. 서버가 정하고 **모든 피어가 읽는다.** <see cref="Running"/> 과 같은 이유다.
+    ///
+    /// ⚠ <b>[Networked] 여야 한다.</b> 들어가고 나오는 깊이가 달라서(<see cref="swimEnterDepth"/> ·
+    ///    <see cref="swimExitDepth"/>) 직전 상태를 보고 정한다. 되돌려 계산하는 틱에서도 같은 값을 봐야 한다.
+    /// </summary>
+    [Networked] public NetworkBool Swimming { get; set; }
+
     [Header("점프")]
     [Tooltip("최고점 높이(m). 솟는 속도는 중력에서 거꾸로 계산한다.\n\n" +
              "속도를 직접 두지 않는 이유는 중력을 바꾸면 높이가 같이 변해서다. " +
@@ -72,6 +117,14 @@ public class NetworkPlayerMover : NetworkBehaviour
     [SerializeField] private string horizontalId = "Hor";
     [SerializeField] private string verticalId = "Vert";
     [SerializeField] private string stateId = "State";
+
+    [Tooltip("Tools/아라아띠/로비 헤엄 모션 설치 가 애니메이터에 더하는 파라미터와 같아야 한다.")]
+    [SerializeField] private string swimmingId = "IsSwimming";
+    [SerializeField] private string swimSpeedId = "SwimSpeed";
+
+    [Tooltip("헤엄 모션 재생 속도. 제자리에서는 천천히 저어 떠 있는 것처럼 보이게 한다.")]
+    [SerializeField] private float swimIdleAnimSpeed = 0.35f;
+    [SerializeField] private float swimSprintAnimSpeed = 1.4f;
 
     /// <summary>
     /// 애니메이터에 넣을 이동 축. 서버가 쓰고 모든 피어가 읽는다.
@@ -103,6 +156,12 @@ public class NetworkPlayerMover : NetworkBehaviour
 
     private float nextLogTime;
     private Vector3 lastLoggedPosition;
+
+    /// <summary>발밑 물 깊이를 잴 때 쓰는 버퍼. 매 틱 배열을 만들지 않으려고 둔다.</summary>
+    private readonly RaycastHit[] groundHits = new RaycastHit[16];
+
+    /// <summary>해안선 · 물 투명벽의 루트 이름. 벽 꼭대기를 바닥으로 읽으면 안 된다.</summary>
+    private const string BlockerRootName = "WaterBlockers";
 
     private void Awake()
     {
@@ -158,6 +217,7 @@ public class NetworkPlayerMover : NetworkBehaviour
         Vector2 axis = Vector2.zero;
         bool jumped = false;
         bool running = false;
+        bool jumpHeld = false;
 
         if (GetInput(out NetworkInputData input))
         {
@@ -185,6 +245,9 @@ public class NetworkPlayerMover : NetworkBehaviour
             // 눌린 순간을 만들 필요가 없으므로 IsForward 안쪽에 두지 않는다.
             running = input.Buttons.IsSet((int)LobbyButton.Sprint);
 
+            // 물속에서 Space 는 "누르고 있는 동안 떠오르기" 다. 달리기와 같은 이유로 IsForward 밖에서 읽는다.
+            jumpHeld = input.Buttons.IsSet((int)LobbyButton.Jump);
+
             // ⚠ 되돌려 다시 계산하는 틱에서는 "눌린 순간" 을 만들지 않는다.
             //    Fusion 은 같은 틱을 여러 번 굴린다. 그대로 두면 한 번 누른 것이
             //    여러 번으로 처리되어 점프가 두 번 튄다.
@@ -197,6 +260,95 @@ public class NetworkPlayerMover : NetworkBehaviour
             }
         }
 
+        // 제자리에 서 있으면 달리는 것이 아니다. 가만히 Shift 만 눌러도
+        // 달리는 자세가 나오면 어색하다.
+        bool moving = move.sqrMagnitude > 0.0001f;
+        running = running && moving;
+
+        // 발밑 물이 깊으면 헤엄친다. 들어가는 깊이와 나오는 깊이를 달리 둬 경계에서 깜빡이지 않게 한다.
+        float depth = WaterDepth();
+        bool swimming = Swimming ? depth >= swimExitDepth : depth >= swimEnterDepth;
+
+        if (swimming)
+        {
+            SwimStep(move, running, jumpHeld);
+        }
+        else
+        {
+            WalkStep(move, running, jumped);
+        }
+
+        Swimming = swimming;
+        Ascending = swimming && jumpHeld;
+
+        UpdateSafePositionOrRescue();
+
+        AnimAxis = axis;
+        Running = running;
+    }
+
+    /// <summary>
+    /// 헤엄 한 틱. 중력 대신 **Space 로 위아래**를 정한다. 점프는 하지 않는다.
+    ///   누르고 있으면  <see cref="swimRiseSpeed"/> 로 떠올라 수면 높이에서 멈춘다
+    ///   떼고 있으면    <see cref="swimDiveSpeed"/> 로 가라앉아 바닥에서 멈춘다(컨트롤러가 막는다)
+    ///
+    /// 벽은 따로 두지 않는다. 해안선 투명벽이 그대로 서 있어서, 헤엄칠 수 있는 곳은
+    /// 벽 안쪽 바다뿐이다.
+    /// </summary>
+    private void SwimStep(Vector3 move, bool running, bool rise)
+    {
+        float dt = Runner.DeltaTime;
+
+        float y = transform.position.y;
+        float surfaceY = seaLevel - swimSinkDepth;
+
+        float dy = rise ? swimRiseSpeed * dt : -swimDiveSpeed * dt;
+
+        // 수면 위로 튀어나가지 않는다. 걸어 들어오며 이미 수면 높이보다 위에 있으면 그 자리에서 내려오기만 한다.
+        dy = Mathf.Min(dy, Mathf.Max(0f, surfaceY - y));
+
+        // 물에서 나가 걷기 시작할 때 떨어지며 붙은 속도가 남아 있으면 안 된다.
+        verticalVelocity = 0f;
+
+        Vector3 step = move * ((running ? swimSprintSpeed : swimSpeed) * dt);
+        step.y = dy;
+
+        controller.Move(step);
+    }
+
+    /// <summary>
+    /// 발밑 물 깊이(m). 해수면에서 **밟고 설 면**까지의 거리다. 물 위 땅이면 0 이하다.
+    ///
+    /// 로비 바다에는 물 콜라이더가 없고 해수면 아래로 지형이 이어진다
+    /// (<see cref="UpdateSafePositionOrRescue"/> 참고). 그래서 아래로 쏴서 바닥 높이를 잰다.
+    /// 다른 캐릭터와 투명벽은 바닥이 아니므로 뺀다. 광선은 캡슐 안에서 쏘므로 자기 자신에는 걸리지 않는다.
+    /// </summary>
+    private float WaterDepth()
+    {
+        Vector3 origin = transform.position + Vector3.up;
+        int count = Physics.RaycastNonAlloc(origin, Vector3.down, groundHits, 30f, ~0, QueryTriggerInteraction.Ignore);
+
+        float ground = float.MinValue;
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = groundHits[i].collider;
+
+            if (hit is CharacterController || hit.transform.root.name == BlockerRootName)
+            {
+                continue;
+            }
+
+            ground = Mathf.Max(ground, groundHits[i].point.y);
+        }
+
+        // 아래에 아무것도 없으면 물이 아니라 허공이다. 헤엄치게 두지 않고 떨어뜨려 구조 장치에 맡긴다.
+        return ground > float.MinValue ? seaLevel - ground : 0f;
+    }
+
+    /// <summary>걷기 · 달리기 · 점프 한 틱. 헤엄 전의 원래 이동이다.</summary>
+    private void WalkStep(Vector3 move, bool running, bool jumped)
+    {
         // 접지 중이면 살짝 눌러 두고, 아니면 중력을 누적한다.
         bool grounded = controller.isGrounded;
 
@@ -212,20 +364,10 @@ public class NetworkPlayerMover : NetworkBehaviour
             verticalVelocity = Mathf.Sqrt(2f * jumpHeight * -gravity);
         }
 
-        // 제자리에 서 있으면 달리는 것이 아니다. 가만히 Shift 만 눌러도
-        // 달리는 자세가 나오면 어색하다.
-        bool moving = move.sqrMagnitude > 0.0001f;
-        running = running && moving;
-
         Vector3 velocity = move * (running ? runSpeed : walkSpeed);
         velocity.y = verticalVelocity;
 
         controller.Move(velocity * Runner.DeltaTime);
-
-        UpdateSafePositionOrRescue();
-
-        AnimAxis = axis;
-        Running = running;
     }
 
     /// <summary>
@@ -297,7 +439,11 @@ public class NetworkPlayerMover : NetworkBehaviour
         Vector3 now = transform.position;
 
         // 바다 아래로 내려갔으면 마지막 안전한 자리로 되돌린다.
-        if (now.y < rescueBelowY)
+        //
+        // ⚠ 헤엄치는 중에는 되돌리지 않는다. 해안선 벽이 15m 바깥으로 물러나 바다 밑이 10m 까지
+        //    내려가므로, 잠수만 해도 이 높이 아래로 간다. 헤엄은 발밑에 바닥이 있을 때만 되므로
+        //    (WaterDepth) 바닥 없는 허공으로 떨어지는 경우는 여전히 여기서 건진다.
+        if (!Swimming && now.y < rescueBelowY)
         {
             // ⚠ CharacterController 는 활성화된 순간의 좌표를 내부에 따로 들고 있다.
             //    transform 만 옮기면 다음 Move() 에서 원래 자리로 끌려 돌아간다.
@@ -339,6 +485,11 @@ public class NetworkPlayerMover : NetworkBehaviour
 
         // State 는 걷기(0)~뛰기(1) 블렌드다. 서버가 정한 값을 모든 피어가 같이 본다.
         animator.SetFloat(stateId, Running ? 1f : 0f);
+
+        // 헤엄도 서버가 정한 값을 모두가 같이 본다. 제자리에서는 천천히 저어 떠 있게 한다.
+        bool stroking = axis.sqrMagnitude > 0.0001f || Ascending;
+        animator.SetBool(swimmingId, Swimming);
+        animator.SetFloat(swimSpeedId, !stroking ? swimIdleAnimSpeed : Running ? swimSprintAnimSpeed : 1f);
     }
 
     private void Update()
