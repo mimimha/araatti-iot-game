@@ -1081,15 +1081,34 @@ namespace Mine.Net
             };
 
             int tick = ResultTick;
+            float askedAt = Time.realtimeSinceStartup;
+
+            // ⚠ 요청 · 응답 줄에 점수와 승패를 같이 찍는다. 한 줄 평이 성공하든 실패하든
+            //    두 줄의 값이 같아야 한다. (MINE.md 7장 "장애 재현")
+            Debug.Log($"[MineReview] 요청 — 틱 {tick} · {ResultScore}점 · {(ResultSuccess ? "성공" : "실패")} · " +
+                      $"{System.DateTime.Now:HH:mm:ss.fff}");
 
             StartCoroutine(MineReviewServices.Create().Request(request, comment =>
             {
-                if (string.IsNullOrWhiteSpace(comment) || ResultTick != tick) return;
+                string took = $"{Time.realtimeSinceStartup - askedAt:0.00}초 · {System.DateTime.Now:HH:mm:ss.fff}";
+
+                if (string.IsNullOrWhiteSpace(comment))
+                {
+                    Debug.Log($"[MineReview] 버림(실패 · 빈 문장) — 틱 {tick} · {took} · 고정 문구 유지");
+                    return;
+                }
+
+                if (ResultTick != tick)
+                {
+                    Debug.Log($"[MineReview] 버림(다른 판) — 요청 틱 {tick} · 지금 틱 {ResultTick} · {took}");
+                    return;
+                }
 
                 if (comment.Length > ReviewCapacity) comment = comment.Substring(0, ReviewCapacity);
                 ResultComment = comment;
 
-                Debug.Log($"[MineMatch] 한 줄 평 — {comment}");
+                Debug.Log($"[MineReview] 적용 — 틱 {tick} · {took} · 판 끝나고 {SinceResult:0.0}초 · " +
+                          $"{ResultScore}점 · {(ResultSuccess ? "성공" : "실패")} · {comment}");
             }));
         }
 
@@ -1165,6 +1184,9 @@ namespace Mine.Net
                 extraStatLabel: "채굴량",
                 extraStatValue: dug.ToString(),
                 playerCount: crew));
+
+            // 한 줄 평이 오든 안 오든 같은 박자에 이 줄이 떠야 한다.
+            Debug.Log($"[MineMatch] 공용 결과로 넘깁니다 — {score}점 · {(clear ? "성공" : "실패")} · 판 끝나고 {SinceResult:0.0}초");
 
             resultRelease = null;
         }
