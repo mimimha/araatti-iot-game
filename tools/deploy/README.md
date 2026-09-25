@@ -61,7 +61,14 @@ scp -i ~/.ssh/J15C101T.pem servers.tar.gz api.tar.gz \
     ubuntu@43.202.67.137:~/araatti/staging/
 scp -i ~/.ssh/J15C101T.pem ../AraAtti-EC2.zip \
     ubuntu@43.202.67.137:~/araatti/staging/AraAtti.zip
+
+# deploy-servers.sh 를 고쳤으면 이것도. 서버에 있는 것은 따로 복사해 둔 사본이다.
+scp -i ~/.ssh/J15C101T.pem ../../../../tools/deploy/deploy-servers.sh \
+    ubuntu@43.202.67.137:~/araatti/deploy-servers.sh
 ```
+
+⚠ **`deploy-servers.sh` 는 서버에 사본이 따로 있다.** 저장소에서 고쳐도 올리지 않으면 서버는 옛 것으로
+돈다. 서버 실행 인자(`-devmode` 등)를 바꿨다면 반드시 같이 올린다.
 
 ### 4. 교체
 
@@ -73,6 +80,20 @@ sudo chown www-data:www-data /var/www/araatti/AraAtti.zip
 
 `deploy-servers.sh` 는 옛 빌드를 `~/araatti/backup-<날짜>/` 로 옮겨 둔다.
 잘못됐으면 그걸 되돌리면 된다. 되돌리는 명령은 스크립트가 실행 중에 찍어 준다.
+
+## 개발자 모드 (`-devmode`)
+
+시연을 Release 빌드로 하면서 개발자 패널(배·검 게임에서 **P**)로 판을 빨리 넘긴다.
+**클라이언트와 서버가 둘 다** `-devmode` 로 떠야 한다. 클라이언트만 켜면 패널은 열리지만
+서버가 명령을 듣지 않는다.
+
+| 어디 | 무엇 |
+|---|---|
+| 클라이언트 | `pack-client.ps1` 이 만드는 `게임시작.bat` 의 `set DEVMODE=-devmode` |
+| 서버 7대 | `deploy-servers.sh` 의 `DEVMODE=-devmode` |
+
+지금은 우리끼리만 플레이하므로 **늘 켜 둔다.** 끄려면 두 곳의 값을 비우고 다시 배포한다
+(다시 빌드할 필요는 없다). 코드 쪽 설명은 `Assets/Game/Scripts/Core/DevMode.cs`.
 
 ## 걸려 넘어졌던 것들
 

@@ -17,6 +17,10 @@ using UnderTheSea.MiniGames.ShipCoop.Net;
 ///    감싸 개발 빌드에서만 켜졌는데, 시연 · 테스트를 Release 빌드로 하므로 풀었습니다.
 ///    켜기 전까지는 어떤 키도 먹지 않고 화면에 안내 한 줄만 뜹니다.
 ///
+/// ⚠ **실행 인자 `-devmode` 가 있어야 뜹니다.** (`UnderTheSea.Core.DevMode`, 에디터는 항상)
+///    없으면 이 화면을 만들지도 않고, 안내 한 줄도 안 뜨고, P 를 눌러도 아무 일이 없습니다.
+///    서버도 `-devmode` 없이 떴으면 개발자 명령을 받지 않습니다(`ShipCoopEventSync.Rpc_DevCommand`).
+///
 /// 사용법
 ///   **씬에 아무것도 붙이지 않아도 됩니다.** 플레이를 누르면 스스로 뜹니다.
 ///   P 또는 F9 로 켜고 끕니다.
@@ -65,6 +69,12 @@ public class ShipCoopDevMode : MonoBehaviour
     private static void TryCreate()
     {
         if (_instance != null)
+        {
+            return;
+        }
+
+        // -devmode 없이 실행했으면 만들지 않는다.
+        if (!UnderTheSea.Core.DevMode.Enabled)
         {
             return;
         }
@@ -130,6 +140,13 @@ public class ShipCoopDevMode : MonoBehaviour
 
     private void Awake()
     {
+        // 씬에 손으로 붙여 둔 것도 -devmode 없이는 돌지 않는다. 스스로 뜨는 쪽은 TryCreate 가 막는다.
+        if (!UnderTheSea.Core.DevMode.Enabled)
+        {
+            enabled = false;
+            return;
+        }
+
         _game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
         _health = FindAnyObjectByType<ShipHealth>(FindObjectsInactive.Include);
         _voyage = FindAnyObjectByType<ShipVoyage>(FindObjectsInactive.Include);
