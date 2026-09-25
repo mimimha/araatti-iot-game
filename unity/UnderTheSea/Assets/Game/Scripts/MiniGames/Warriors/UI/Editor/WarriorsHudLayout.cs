@@ -576,15 +576,19 @@ namespace Warriors.Net.Editor
                 //    길쭉하다" 는 실측 지적. 라운드 소개는 점수 정보가 아니라 잠깐 뜨는 안내이므로
                 //    규칙상으로도 회색 판이 맞다(금테는 진행 정보에만). 회색 판은 모서리 반경 12 의
                 //    둥근 사각형이라 어떤 크기로 늘려도 모양이 안 변한다.
-                Vector2 size = new Vector2(920f, 240f);
+                // ⚠ 설명(Body)은 두 줄까지 들어가야 한다. 3라운드 설명이 두 줄인데 칸이 40 높이 ·
+                //    자동 크기 최대 20 · 말줄임(…)이라 글자가 작고 끝에 "..." 가 붙었다(실측 지적).
+                //    칸을 90 으로 키우고 글자를 26 으로 고정(제목 42 보다 한 단계 작게), 말줄임 없이(PutNoClip) 둔다.
+                Vector2 size = new Vector2(920f, 300f);
                 Plain(card, size);
                 card.sizeDelta = size;
 
-                Place(Find(card, "RoundBadge"), new Vector2(0f, 66f), new Vector2(220f, 48f));
-                Put(card, "Title", new Vector2(0f, 4f), new Vector2(size.x - PadX * 2f, 52f),
-                    20f, FontBig, TextAlignmentOptions.Center);
-                Put(card, "Body", new Vector2(0f, -66f), new Vector2(size.x - PadX * 2f, 40f),
-                    14f, FontMid, TextAlignmentOptions.Center);
+                Place(Find(card, "RoundBadge"), new Vector2(0f, 96f), new Vector2(220f, 48f));
+                // 제목은 설명(26)보다 확실히 커야 한다. 공용 FontBig(34)로는 차이가 거의 없어 42 까지 둔다.
+                PutNoClip(card, "Title", new Vector2(0f, 28f), new Vector2(size.x - PadX * 2f, 52f),
+                    20f, 42f, TextAlignmentOptions.Center);
+                PutNoClip(card, "Body", new Vector2(0f, -62f), new Vector2(size.x - PadX * 2f, 90f),
+                    26f, 26f, TextAlignmentOptions.Center);
 
                 Debug.Log($"[HUD 배치] {Path(card)}  {size.x:F0}×{size.y:F0}");
             }

@@ -832,9 +832,8 @@ namespace Warriors
                     case WarriorsBattlePhase.FinalKrakenPhase:
                         badge = "ROUND 3";
                         title = "크라켄이 마지막 공격을 준비합니다!";
-                        // 콤보 안내는 **시작 화면에서 한 번만.** 아래 objective 에는 넣지 않는다.
-                        body = "내려오는 화살표가 판정선에 닿을 때 공격하세요.\n" +
-                               "연속으로 성공하면 강한 공격이 발동합니다.";
+                        // 한 줄만 둔다. 콤보 안내("연속으로 성공하면…")까지 두 줄을 쓰니 읽을 게 많았다.
+                        body = "내려오는 화살표가 판정선에 닿을 때 공격하세요.";
                         objective = "내려오는 화살표가 판정선에 닿을 때 공격하세요.";
                         break;
                 }
