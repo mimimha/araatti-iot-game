@@ -12,14 +12,11 @@ using UnityEngine.InputSystem;
 public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("IoT")]
-    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 씬에서 찾는다. 없으면 키보드만 쓴다.")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
-    /// <summary>완드. 없으면 null 이고, 그때는 예전처럼 키보드만 읽는다.</summary>
+    /// <summary>완드. 서버 빌드에서는 null 이고, 그때는 예전처럼 키보드만 읽는다.</summary>
     private IPlayerController _wand;
-
-    /// <summary>다음에 완드를 다시 찾아볼 시각. 못 찾은 동안 매 tick 씬을 뒤지지 않으려고 둔다.</summary>
-    private float _nextWandSearchTime;
 
     public bool IsMovementLocked { get; private set; }
 
@@ -66,8 +63,12 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 
         // 완드도 같은 자리로 들어온다. **키보드를 대체하지 않고 더한다.**
         //
-        // 장치가 없으면 _wand 가 null 이라 아래가 통째로 비고, 예전과 완전히 같아진다.
+        // 완드가 안 붙어 있으면 아래가 통째로 비고, 예전과 완전히 같아진다.
         // 둘 다 있으면 둘 다 먹는다 — 완드를 들고도 키보드로 확인할 수 있어야 한다.
+        //
+        // ⚠ **완드가 실제로 붙어 있을 때만 더한다.** (IsWandLive) 완드가 없으면
+        //   IotPlayerController 가 키보드로 대신 채우는데, 그것을 더하면 위 키보드 블록과
+        //   같은 키가 두 번 들어간다. 특히 Shift 가 그쪽에서는 토글이라 떼도 계속 달린다.
         //
         // ⚠ **네트워크는 손대지 않는다.** 완드는 여기까지만 오고, 서버로 실어 보내는 것은
         //   예전 그대로 이 함수가 한다. 장치용 네트워크 경로를 따로 내면 같은 tick 에
@@ -76,7 +77,7 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         // ⚠ 채팅 잠금은 완드에도 그대로 건다. 글자를 치는 동안 스틱으로 걸어가면
         //   키보드만 막은 의미가 없다.
         IPlayerController wand = ResolveWand();
-        if (wand != null && Application.isFocused && !ChatFocus.Typing)
+        if (IotPlayerController.IsWandLive(wand) && Application.isFocused && !ChatFocus.Typing)
         {
             rawDirection += wand.Move;
 
@@ -120,37 +121,22 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     /// <summary>
-    /// 완드를 찾아 둔다. 없으면 null 이고 로비는 예전처럼 키보드로만 돈다.
+    /// 완드를 쥐어 둔다. 서버 빌드에서는 null 이고 로비는 예전처럼 키보드로만 돈다.
     ///
-    /// ⚠ <b>Awake 에서 찾을 수 없다.</b> 이 부품은 NetworkRunner 와 함께 있고
-    ///   FusionLauncher 가 실행 중에 만들기도 해서, 로비 씬의 완드보다 먼저 깨어날 수 있다.
-    ///   그래서 찾을 때까지 이따금 다시 본다. 매 tick 씬을 뒤지면 비싸므로 1초에 한 번만 본다.
+    /// 씬을 뒤지지 않는다. 이 부품은 NetworkRunner 와 함께 실행 중에 생겨서 씬의 무엇보다
+    /// 먼저 깨어날 수 있는데, <see cref="IotPlayerController.Persistent"/> 는 없으면 그 자리에서
+    /// 만들어 주므로 순서를 따질 필요가 없다.
+    ///
+    /// ⚠ **KeyboardPlayerController 를 여기 꽂지 않는다.** 그것은 키보드를 장치처럼
+    ///   흉내내는 부품이라, 같은 W 가 위쪽 키보드 블록과 여기로 두 번 들어온다.
+    ///   완드 경로를 장치 없이 확인해야 할 때만 위 칸에 직접 지정한다.
     /// </summary>
     private IPlayerController ResolveWand()
     {
-        if (_wand != null)
+        if (_wand == null)
         {
-            return _wand;
+            _wand = playerControllerSource as IPlayerController ?? IotPlayerController.Persistent;
         }
-
-        if (playerControllerSource is IPlayerController assigned)
-        {
-            _wand = assigned;
-            return _wand;
-        }
-
-        if (Time.unscaledTime < _nextWandSearchTime)
-        {
-            return null;
-        }
-
-        _nextWandSearchTime = Time.unscaledTime + 1f;
-
-        // ⚠ **KeyboardPlayerController 는 일부러 찾지 않는다.** 그것은 키보드를 장치처럼
-        //   흉내내는 부품이라, 여기 끼면 같은 W 가 위쪽 키보드 블록과 여기로 두 번 들어온다.
-        //   로비는 이미 자기 키보드 경로를 갖고 있어서 흉내가 필요 없다.
-        //   완드 경로를 장치 없이 확인해야 한다면 위 칸에 직접 지정한다.
-        _wand = FindAnyObjectByType<IotPlayerController>();
 
         return _wand;
     }

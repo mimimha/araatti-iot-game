@@ -72,6 +72,7 @@ public enum IotControlProfile
 ///
 /// 붙이는 곳
 ///   로컬 테스트 씬(MineTest · ShipCoopTest)  → Player 오브젝트
+///   로비                                      → 붙이지 않는다. <see cref="Persistent"/> 가 코드로 만든다
 ///   네트워크 배 협동                          → NetworkRunner 오브젝트
 ///   ShipCoopInputProvider 가 같은 오브젝트에서 GetComponent 로 찾고,
 ///   못 찾으면 KeyboardPlayerController 를 스스로 붙입니다. 그래서 **먼저 붙어 있어야** 합니다.
@@ -361,6 +362,89 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 #else
     public bool PortOpen => false;
 #endif
+
+    /// <summary>
+    /// 이 입력이 지금 <b>진짜 완드</b> 값을 내놓고 있는가.
+    ///
+    /// 로비처럼 <b>자기 키보드 경로를 따로 가진 곳</b>이 완드 값을 더하기 전에 본다.
+    /// <see cref="IotPlayerController"/> 는 완드가 없으면 키보드로 대신 채우므로(키보드 폴백),
+    /// 그 값을 그대로 더하면 같은 키가 두 번 들어간다. C 한 번에 낚시와 포탈이 함께 걸리고,
+    /// 우클릭 드래그에 화면이 두 배로 돈다.
+    ///
+    /// 인스펙터로 다른 구현(<see cref="KeyboardPlayerController"/> 등)을 직접 꽂았으면
+    /// 일부러 그런 것이므로 참이다.
+    /// </summary>
+    public static bool IsWandLive(IPlayerController controller)
+    {
+        return controller is IotPlayerController wand ? wand.AnyWandConnected : controller != null;
+    }
+
+    // ------------------------------------------------------------
+    // 게임 내내 하나
+    // ------------------------------------------------------------
+
+#if !UNITY_SERVER
+    private static IotPlayerController _persistent;
+    private static bool _quitting;
+
+    /// <summary>에디터에서 도메인 리로드를 꺼도 지난 플레이의 값이 남지 않게 한다.</summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPersistent()
+    {
+        _persistent = null;
+        _quitting = false;
+        Application.quitting -= MarkQuitting;
+        Application.quitting += MarkQuitting;
+    }
+
+    private static void MarkQuitting()
+    {
+        _quitting = true;
+    }
+#endif
+
+    /// <summary>
+    /// <b>씬이 바뀌어도 살아 있는 완드 하나.</b> 처음 부를 때 만든다.
+    ///
+    /// 씬은 <c>SceneManager.LoadScene</c> 으로 통째로 바뀝니다. 씬에 두면 로비 → 미니게임에서
+    /// 사라지고, 돌아올 때마다 COM 포트를 새로 훑느라 화면이 멎습니다. 로비의 러너와
+    /// 캐릭터는 실행 중에 생겨서 인스펙터로 이어 줄 수도 없습니다. 그래서 코드로 한 번 만들고
+    /// <c>DontDestroyOnLoad</c> 로 끝까지 둡니다. 씬 파일은 건드리지 않습니다.
+    ///
+    /// 설정은 이 컴포넌트의 기본값 그대로입니다 — 포트는 자동 탐색, 프로필은 <c>Shared</c>(로비 배치).
+    ///
+    /// ⚠ <b>씬에 이미 <c>IotPlayerController</c> 를 둔 테스트 씬(MineTest 등)에서는 부르지 않습니다.</b>
+    ///   동글 포트는 한 곳만 열 수 있어서 둘 중 하나는 완드를 못 받습니다.
+    ///
+    /// ⚠ 서버 빌드에서는 <c>null</c> 입니다. 서버에는 완드가 없습니다.
+    /// </summary>
+    public static IotPlayerController Persistent
+    {
+        get
+        {
+#if UNITY_SERVER
+            return null;
+#else
+            // Unity 의 == 라서 누가 지웠으면 여기서 걸러지고 새로 만든다.
+            if (_persistent != null)
+            {
+                return _persistent;
+            }
+
+            // 끄는 도중에 누가 부르면 새로 만들지 않는다. 만들면 "정리되지 않은 오브젝트" 가 남는다.
+            if (_quitting || !Application.isPlaying)
+            {
+                return null;
+            }
+
+            GameObject host = new GameObject("[IotPlayerController]");
+            DontDestroyOnLoad(host);
+            _persistent = host.AddComponent<IotPlayerController>();
+
+            return _persistent;
+#endif
+        }
+    }
 
     // ------------------------------------------------------------
     // 수명

@@ -26,6 +26,10 @@ using UnityEngine;
 ///   키보드 입력원을 먼저 꽂아 두기 때문에, 그보다 늦게 덮어써야 합니다.
 ///   Awake 는 전부 Start 보다 먼저 도므로 Start 면 확실합니다.
 ///
+/// ⚠ **덮어써도 키보드는 살아 있습니다.** 입력원이 하나만 꽂히는 자리라, 키보드 입력원을
+///   <see cref="WandFishingInputSource"/> 안에 새로 품어서 넣습니다. J 와 오른손 버튼 2 가
+///   둘 다 됩니다.
+///
 /// ⚠ **채팅 잠금을 벗기지 않습니다.** 팀원이 씌워 둔 <c>ChatFocusFishingInputSource</c> 로
 ///   똑같이 감싸서 넣습니다. 안 감싸면 채팅을 치는 동안 완드로 낚시가 됩니다.
 ///
@@ -36,7 +40,7 @@ using UnityEngine;
 public sealed class IotFishingBridge : MonoBehaviour
 {
     [Header("연결")]
-    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 씬에서 찾는다.")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
     [Tooltip("비워두면 같은 오브젝트에서 찾는다.")]
@@ -71,7 +75,7 @@ public sealed class IotFishingBridge : MonoBehaviour
 
         if (_controller == null)
         {
-            // 완드가 없는 자리다. 팀원이 꽂아 둔 키보드 입력원을 그대로 둔다.
+            // 서버 빌드다. 팀원이 꽂아 둔 키보드 입력원을 그대로 둔다.
             enabled = false;
             return;
         }
@@ -83,7 +87,9 @@ public sealed class IotFishingBridge : MonoBehaviour
             return;
         }
 
-        _inputSource = new WandFishingInputSource(_controller);
+        // 팀원이 꽂는 것과 같은 키보드 입력원을 바탕으로 품는다. (PlayerFishingAdapter)
+        _inputSource = new WandFishingInputSource(
+            _controller, new KeyboardFishingInputSource("local-player"));
 
         // 채팅 잠금을 그대로 씌운다. 팀원이 건 경계를 벗기지 않는다.
         gameController.SetInputSource(new ChatFocusFishingInputSource(_inputSource));
@@ -126,10 +132,10 @@ public sealed class IotFishingBridge : MonoBehaviour
 
     private void ResolveController()
     {
-        // ⚠ **KeyboardPlayerController 는 일부러 찾지 않는다.** 완드가 없으면 팀원이
-        //   꽂아 둔 KeyboardFishingInputSource 가 그대로 살아서 C · J 로 낚시가 된다.
-        //   둘 다 끼우면 J 를 한 번 눌러 두 번 챔질하게 된다.
+        // ⚠ **KeyboardPlayerController 를 꽂지 않는다.** 키보드는 안에 품은
+        //   KeyboardFishingInputSource 가 이미 J 로 받는다. 둘 다 끼우면 키 한 번에 두 번 챔질한다.
+        //   IotPlayerController 가 완드 없이 키보드로 대신 채울 때는 PollHook 이 읽지 않는다.
         _controller = playerControllerSource as IPlayerController
-                      ?? FindAnyObjectByType<IotPlayerController>();
+                      ?? IotPlayerController.Persistent;
     }
 }

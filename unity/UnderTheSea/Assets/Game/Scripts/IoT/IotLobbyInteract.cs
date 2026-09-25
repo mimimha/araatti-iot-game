@@ -28,7 +28,9 @@ using UnityEngine;
 ///   그래서 <see cref="IotFishingBridge"/> 는 버튼을 읽지 않고 이쪽이 불러 줍니다.
 ///
 /// ⚠ **키보드 경로는 그대로 둡니다.** C · F · E 는 예전처럼 따로 동작합니다.
-///   완드가 없으면 이 부품은 스스로 꺼집니다.
+///   완드가 안 붙어 있는 동안에는 이 부품이 아무것도 읽지 않습니다. 그때
+///   <c>IotPlayerController</c> 는 왼손 버튼 1 을 C 로 대신 채우는데, 그것을 읽으면
+///   C 한 번에 낚시와 포탈이 함께 걸립니다. (<c>IotPlayerController.IsWandLive</c>)
 ///
 /// 로비 씬 아무 곳에나 하나 올립니다.
 /// </summary>
@@ -36,7 +38,7 @@ using UnityEngine;
 public sealed class IotLobbyInteract : MonoBehaviour
 {
     [Header("연결")]
-    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 씬에서 찾는다.")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
     [Tooltip("낚시 다리. 비워두면 씬에서 찾는다. 없으면 낚시를 뺀 나머지만 된다.")]
@@ -46,23 +48,25 @@ public sealed class IotLobbyInteract : MonoBehaviour
 
     private void Start()
     {
-        // ⚠ KeyboardPlayerController 는 찾지 않는다. 그것의 왼손 버튼 1 도 C 라서,
+        // ⚠ KeyboardPlayerController 를 꽂지 않는다. 그것의 왼손 버튼 1 도 C 라서,
         //   키보드 경로와 여기가 같은 C 를 두 번 먹는다.
         _controller = playerControllerSource as IPlayerController
-                      ?? FindAnyObjectByType<IotPlayerController>();
+                      ?? IotPlayerController.Persistent;
 
         if (fishingBridge == null) fishingBridge = FindAnyObjectByType<IotFishingBridge>();
 
         if (_controller == null)
         {
-            // 완드가 없는 자리다. 키보드가 예전처럼 다 한다.
+            // 서버 빌드다. 완드가 없다.
             enabled = false;
         }
     }
 
     private void Update()
     {
-        if (_controller == null) return;
+        // 완드가 안 붙어 있으면 읽지 않는다. 키보드가 예전처럼 다 한다.
+        // 쌓이는 C 는 완드로 넘어가는 순간 IotPlayerController 가 버린다.
+        if (!IotPlayerController.IsWandLive(_controller)) return;
 
         // 낚시 중에는 상호작용 버튼이 놀아야 한다. 낚시터 앞에 선 채로 낚시를 하고 있으므로
         // 그대로 두면 낚시 도중에 같은 낚시터에 또 걸거나 옆의 포탈로 들어가 버린다.
