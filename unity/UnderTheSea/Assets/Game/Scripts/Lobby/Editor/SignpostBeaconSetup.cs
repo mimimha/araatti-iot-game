@@ -49,10 +49,13 @@ namespace UnderTheSea.Lobby.Editor
         /// <summary>
         /// 이정표 원점에서 얼마나 위에 띄우는가(m).
         ///
-        /// <see cref="SignpostBeacon"/> 의 기본값과 같게 맞춰 둔다. 에디터에서 보이는 자리와
-        /// 실행 중 자리가 다르면 위치를 잡을 때 헷갈린다.
+        /// ⚠ <b><see cref="SignpostBeacon"/> 의 <c>height</c> 기본값과 반드시 같아야 한다.</b>
+        ///    여기서 놓는 자리와 그쪽이 계산하는 자리가 다르면, 에디터에서 보이는 높이와
+        ///    실행 중 높이가 어긋난다. 실제로 이 값이 0.8 인데 <c>height</c> 는 1.2 라
+        ///    0.4m 차이가 있었다. <c>[ExecuteAlways]</c> 가 매 프레임 덮어쓰고 있어서
+        ///    그동안 드러나지 않았을 뿐이다.
         /// </summary>
-        private const float BeaconHeight = 0.8f;
+        private const float BeaconHeight = 1.2f;
 
         /// <summary>
         /// 주황. <b>1을 넘는 값</b>이라 Bloom 임계값(0.9)을 넘어 번진다.

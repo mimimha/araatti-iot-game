@@ -28,12 +28,22 @@ namespace UnderTheSea.Lobby
     /// ⚠ <b>서버에서는 돌지 않는다.</b> 서버는 화면을 안 그리므로 이 연출이 의미가 없다.
     /// </summary>
     /// <remarks>
-    /// <b><see cref="ExecuteAlways"/> 인 이유.</b> 에디터에서 보이는 자리와 실행 중 자리가
-    /// 달라서는 안 된다. 프리팹에 저장된 지역 좌표로 두면 씬 인스턴스의 배율이 곱해지는데
-    /// 실행 중 계산은 그걸 안 타서, 실제로 Stop 했을 때와 Play 중일 때 화살표가 다른
-    /// 높이에 있었다. <b>같은 코드가 양쪽에서 돌면</b> 그런 일이 없다.
+    /// <b>한때 <c>[ExecuteAlways]</c> 였다.</b> 에디터에서 보이는 자리와 실행 중 자리를
+    /// 맞추려던 것이다. 그때는 임포트된 FBX 루트에 X축 -90도와 100배가 붙어 있어서
+    /// 월드 좌표로 상쇄하고 있었고, 그 상쇄를 에디터가 안 타서 양쪽이 어긋났다.
+    ///
+    /// <b>지금은 필요 없다.</b> 프리팹에 회전도 배율도 없는 빈 루트를 씌운 뒤로
+    /// (<c>SignpostSetup</c>) 상쇄할 것이 없다. 프리팹에 저장된 지역 좌표가 그대로
+    /// <see cref="Place"/> 가 계산하는 값과 같아서, 에디터에서 따로 돌리지 않아도 맞는다.
+    ///
+    /// ⚠ <b>매 프레임 돌면 씬이 더러워진다.</b> <c>[ExecuteAlways]</c> 를 달아 두면
+    ///    Play 중이 아니어도 원뿔이 흔들리고 돈다. 그 상태로 씬을 저장하면 그 찰나의
+    ///    값이 파일에 박혀, <b>아무 작업을 안 해도 diff 가 생긴다.</b> 이정표 5개분이
+    ///    매번 따라붙어 <c>Lobby.unity</c> 머지 충돌 거리를 늘렸다. 실제로 그랬다.
+    ///
+    /// 인스펙터에서 값을 바꿨을 때 눈으로 보이는 것은 <see cref="OnValidate"/> 가 맡는다.
+    /// 매 프레임이 아니라 <b>바꾼 그때 한 번</b>이라 의도한 변경만 파일에 남는다.
     /// </remarks>
-    [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class SignpostBeacon : MonoBehaviour
     {
@@ -42,8 +52,8 @@ namespace UnderTheSea.Lobby
         [SerializeField] private Transform marker;
 
         [Header("어디에")]
-        [Tooltip("이정표 원점(바닥)에서 얼마나 위에 띄울지(m). 실행 중에 바꿔도 바로 반영된다.")]
-        [SerializeField] private float height = 0.8f;
+        [Tooltip("이정표 원점(바닥)에서 얼마나 위에 띄울지(m). 여기서 바꾸면 에디터 화면에 바로 반영된다.")]
+        [SerializeField] private float height = 1.2f;
 
         [Header("어떻게 움직일까")]
         [Tooltip("위아래로 흔들리는 폭(m). 0 이면 가만히 있는다.")]
@@ -65,11 +75,10 @@ namespace UnderTheSea.Lobby
         /// <summary>
         /// 지금 연출을 돌려야 하는가.
         ///
-        /// ⚠ <b>스스로를 <c>enabled = false</c> 로 끄면 안 된다.</b> 이 클래스는
-        ///    <see cref="ExecuteAlways"/> 라 에디터에서도 <c>Awake</c> 가 돈다. 설치
-        ///    스크립트가 <c>AddComponent</c> 한 직후에는 <see cref="marker"/> 가 아직
-        ///    비어 있는데, 그때 스스로를 꺼 버리면 <b>꺼진 상태가 프리팹에 저장</b>된다.
-        ///    그 뒤에 marker 를 연결해도 켜지지 않아, 인스펙터에서 값을 바꿔도 아무 일이
+        /// ⚠ <b>스스로를 <c>enabled = false</c> 로 끄면 안 된다.</b> 설치 스크립트가
+        ///    <c>AddComponent</c> 한 직후에는 <see cref="marker"/> 가 아직 비어 있는데,
+        ///    그때 스스로를 꺼 버리면 <b>꺼진 상태가 프리팹에 저장</b>된다. 그 뒤에
+        ///    marker 를 연결해도 켜지지 않아, 인스펙터에서 값을 바꿔도 아무 일이
         ///    일어나지 않는다. 실제로 그렇게 됐다.
         ///
         ///    그래서 끄지 않고 <b>매번 물어본다.</b> 조건이 갖춰지면 저절로 동작한다.
@@ -87,6 +96,42 @@ namespace UnderTheSea.Lobby
                 Place(0f);
             }
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// **인스펙터에서 값을 고쳤을 때 한 번만** 원뿔을 새 자리에 놓는다.
+        ///
+        /// <see cref="height"/> 를 바꿔도 화면이 그대로면 얼마나 올라갔는지 알 수 없어
+        /// 배치할 때마다 Play 를 눌러 봐야 한다. 그 불편을 없애되, <b>매 프레임이 아니라
+        /// 바꾼 그때만</b> 움직여서 의도한 변경만 씬에 남게 한다.
+        ///
+        /// ⚠ <b>흔들림 없이(<c>bob</c> 0) 놓는다.</b> 에디터에서 흔들 이유가 없고,
+        ///    흔들면 저장할 때마다 다른 값이 박힌다.
+        ///
+        /// ⚠ <b>곧바로 만지지 않고 한 프레임 미룬다.</b> Unity 는 <c>OnValidate</c> 가
+        ///    도는 동안 씬을 건드리는 것을 좋아하지 않아 경고를 낸다.
+        ///    (<c>SendMessage cannot be called during OnValidate</c>)
+        /// </summary>
+        private void OnValidate()
+        {
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                // 미룬 사이에 지워졌을 수 있다. Unity 의 "가짜 null" 을 타야 하므로
+                // `?.` 가 아니라 `== null` 로 본다.
+                if (this == null || !ShouldRun)
+                {
+                    return;
+                }
+
+                Place(0f);
+            };
+        }
+#endif
 
         /// <summary>
         /// 화살표를 이정표 위에 놓는다. 평범한 지역 좌표다.
