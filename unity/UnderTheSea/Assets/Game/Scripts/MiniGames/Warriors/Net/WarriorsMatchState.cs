@@ -94,6 +94,9 @@ namespace Warriors.Net
         /// <summary>개발용 인원 인자. <c>-crew 1</c> 로 혼자 시작한다.</summary>
         private const string CrewKey = "-crew";
 
+        /// <summary>개발용. <c>-startphase 3 -r3left 1</c> 이면 3라운드를 마지막 한 방만 남기고 시작한다.</summary>
+        private const string Phase3LeftKey = "-r3left";
+
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 10f;
 
@@ -171,6 +174,13 @@ namespace Warriors.Net
 
         [Tooltip("크라켄을 쓰러뜨린 뒤 결과 화면까지 천천히 어두워지는 시간(초). 라운드 사이보다 길다.")]
         [SerializeField, Min(0f)] private float finaleFadeSeconds = 1.6f;
+
+        [Tooltip("크라켄이 바다 밑으로 가라앉는 것을 보여 주는 시간(초). 판 마지막에만 더한다.\n" +
+                 "가라앉는 연출(WarriorsKrakenBoss.PlayDefeatSink)이 이 시간 + 종료 문구 시간 동안 돈다.")]
+        [SerializeField, Min(0f)] private float finaleSinkSeconds = 2f;
+
+        /// <summary>크라켄이 다 가라앉을 때까지의 시간. 종료 문구가 떠 있는 동안 이미 가라앉기 시작한다.</summary>
+        public float FinaleSinkDuration => clearNoticeSeconds + finaleSinkSeconds;
 
         [Header("점수 — 밸런스 미확정 (WARRIORS.md 3장)")]
         [Tooltip("1페이즈 몬스터 한 마리.")]
@@ -752,7 +762,8 @@ namespace Warriors.Net
 
             PendingPhase = (int)WarriorsMatchPhase.Cleared;
             ClearedRound = 3;
-            ClearHoldSeconds = clearNoticeSeconds + finaleFadeSeconds;
+            // 종료 문구 → 크라켄이 가라앉는 시간 → 어두워지는 시간. 가라앉는 동안 화면이 천천히 어두워진다.
+            ClearHoldSeconds = clearNoticeSeconds + finaleSinkSeconds + finaleFadeSeconds;
             ClearHoldTimer = TickTimer.CreateFromSeconds(Runner, ClearHoldSeconds);
 
             Debug.Log(
@@ -1254,6 +1265,21 @@ namespace Warriors.Net
             if (opening >= WarriorsMatchPhase.Phase2) Phase1Kills = Phase1Target;
             if (opening >= WarriorsMatchPhase.Phase3) Phase2Hits = Phase2Target;
 
+            // **개발용 -r3left N.** 3라운드를 "N번만 더 맞히면 끝" 인 상태로 시작한다.
+            // 크라켄을 쓰러뜨리는 마지막 장면(가라앉기 · 결과 화면)을 확인하려고 매번 3라운드를
+            // 끝까지 치는 비용이 커서 -startphase 3 과 함께 쓰도록 붙였다. 인자가 없으면 아무 일도 없다.
+            if (opening == WarriorsMatchPhase.Phase3)
+            {
+                int left = FusionLaunchArguments.GetInt(Phase3LeftKey, 0, 0, Phase3Target);
+                if (left > 0)
+                {
+                    Phase3Hits = Phase3Target - left;
+                    Debug.LogWarning(
+                        $"[WarriorsMatch] 개발용 {Phase3LeftKey} {left} — 3라운드를 {left}번만 더 맞히면 끝나는 상태로 시작합니다. " +
+                        "제품 실행에서는 이 인자를 주지 마세요.");
+                }
+            }
+
             Debug.Log(
                 $"[WarriorsMatch] 카운트다운이 끝났습니다. {RoundOf(opening)}페이즈 시작. " +
                 $"(인원 {Crew}명, 처치 목표 {Phase1Target}, 전체 제한 {matchSeconds:F0}초, 시드 {RunSeed})");
@@ -1497,6 +1523,10 @@ namespace Warriors.Net
                 ? ClearHoldSeconds
                 : clearNoticeSeconds + transitionGapSeconds;
             hud.NetworkClearedRound = InClearHold ? ClearedRound : 0;
+
+            // 크라켄을 쓰러뜨린 뒤에는 가라앉는 장면을 밝게 보여 주고, 그 다음에 어두워진다.
+            bool finale = ClearedRound == 3 && PendingPhase == (int)WarriorsMatchPhase.Cleared;
+            hud.NetworkFadeStartSeconds = finale ? FinaleSinkDuration : -1f;
 
         }
 

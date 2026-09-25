@@ -229,6 +229,36 @@ namespace Warriors.Net
         /// <summary>이 화면이 크라켄을 켜 두었는가. 새 판으로 돌아갈 때 끄는 데 쓴다.</summary>
         private bool shownKraken;
 
+        /// <summary>이번 판의 승리 연출(크라켄이 가라앉기)을 이미 틀었는가. 한 판에 한 번만.</summary>
+        private bool shownDefeatSink;
+
+        /// <summary>
+        /// **3라운드를 깬 순간 크라켄을 바다 밑으로 가라앉힌다.** 각 화면이 복제된 판 상태를 보고 튼다.
+        ///
+        /// 서버가 크라켄을 쓰러뜨리면 <c>PendingPhase = Cleared</c> · <c>ClearedRound = 3</c> 으로 결과까지
+        /// 붙잡아 두는 구간이 열린다. 그 구간이 보이기 시작한 첫 프레임에 한 번 튼다.
+        /// 새 판으로 돌아가면(판이 끝난 상태가 아니면) 다시 틀 수 있게 풀어 둔다.
+        /// </summary>
+        private void DriveDefeatSink()
+        {
+            if (HasStateAuthority || match == null || kraken == null) return;
+            if (match.Object == null || !match.Object.IsValid) return;
+
+            bool finale = match.ClearedRound == 3
+                && (match.Phase == WarriorsMatchPhase.Cleared || match.PendingPhase == (int)WarriorsMatchPhase.Cleared);
+
+            if (finale && !shownDefeatSink)
+            {
+                shownDefeatSink = true;
+                // 카메라는 흔들지 않는다. 조용히 잠기는 장면이라 흔들면 "터진" 것처럼 보였다.
+                kraken.PlayDefeatSink(match.FinaleSinkDuration);
+            }
+            else if (!finale && !match.IsOver)
+            {
+                shownDefeatSink = false;
+            }
+        }
+
         /// <summary>이 화면의 카메라. 흔들 때만 쓴다. 서버에는 없다.</summary>
         private WarriorsThirdPersonCamera arenaCamera;
 
@@ -756,6 +786,8 @@ namespace Warriors.Net
         {
             if (hud == null) return;
 
+            DriveDefeatSink();
+
             if (!Running)
             {
                 shownStage = false;
@@ -780,7 +812,11 @@ namespace Warriors.Net
                 // 단, **결과 화면에서는 내리지 않는다.** 쓰러진 크라켄은 결과 직전까지
                 // 보여야 하는 그림이다. 판이 끝난 상태(IsOver)가 아니라 대기/1라운드로
                 // 돌아갔을 때만 치운다.
-                bool backToNewMatch = match != null && !match.IsOver;
+                // ⚠ 크라켄을 쓰러뜨린 직후의 붙잡는 구간은 아직 Phase3 라 IsOver 가 거짓이다
+                //    (PendingPhase 만 Cleared). IsOver 만 보면 판이 끝난 그 순간 크라켄을 꺼 버려
+                //    "갑자기 사라진다" · "끝났을 때 이미 물 밑에 있다" 가 됐다. 결과를 기다리는 중도 빼야 한다.
+                bool backToNewMatch = match != null && !match.IsOver
+                    && match.PendingPhase != (int)WarriorsMatchPhase.Cleared;
 
                 if (backToNewMatch && shownKraken && !HasStateAuthority && kraken != null)
                 {
