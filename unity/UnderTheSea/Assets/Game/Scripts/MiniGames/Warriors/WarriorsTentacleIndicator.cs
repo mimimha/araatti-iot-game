@@ -17,7 +17,8 @@ namespace Warriors
         [SerializeField] private SpriteRenderer windowRing;
         [SerializeField] private Color glyphColor = new(.97f, .99f, 1f, 1f);
         [SerializeField] private Color ringColor = new(1f, .72f, .26f, .95f);
-        [SerializeField, Min(.1f)] private float ringStartSize = 1.4f;
+        // 1.4 는 링이 원판 바로 바깥에서 생겨 조여드는 거리가 짧았다. osu! · Cytus 처럼 멀리서 다가오게 1.8.
+        [SerializeField, Min(.1f)] private float ringStartSize = 1.8f;
 
         /// <summary>
         /// 표식 전체(원판 · 링 · 화살표)를 한꺼번에 키우는 값.
