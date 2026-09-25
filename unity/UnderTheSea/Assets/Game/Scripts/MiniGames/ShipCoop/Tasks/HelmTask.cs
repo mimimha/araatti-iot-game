@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -105,6 +106,56 @@ public class HelmTask : TaskBase
 
     private float _baseYaw;
 
+    // ------------------------------------------------------------
+    // 조타 중립 — 붙는 순간의 손 각도를 0 으로 삼는다
+    //
+    // 완드의 `Tilt` 는 **중력 기준 절대 각도**입니다. 그래서 사람이 조타륜을 잡는
+    // 손 각도가 그대로 조타값이 됩니다. 그런데 그 각도는 매번 다릅니다 —
+    // 같은 사람이 "조타 자세" 로 세 번 잡았을 때 -38도 · -1도 · +72도 가 나왔습니다.
+    //
+    // +72도 인 날에는 손을 가만히 둬도 조타가 계속 한쪽으로 먹습니다. 좌우로 움직일
+    // 폭(실측 160~209도)은 충분한데, **원점이 매번 다른 것**이 문제입니다.
+    //
+    // 붙는 순간의 값을 빼면 그 자리가 중립이 됩니다. 그때부터 움직인 만큼만 조타입니다.
+    //
+    // ⚠ **키보드는 영향을 받지 않습니다.** KeyboardPlayerController 는 안 누르면
+    //    Tilt 가 0 이라 빼는 값도 0 입니다. A/D 조작은 그대로입니다.
+    //
+    // ⚠ 잡는 순간에 손이 조타 자세가 아니면(팔을 내린 채로 상호작용) 그 각도가
+    //    중립이 됩니다. 손을 들어올리는 것만으로 배가 돕니다. 실기에서 거슬리면
+    //    "붙고 나서 한 박자 뒤에 잡기" 나 "버튼으로 다시 잡기" 를 얹어야 합니다.
+    //    (IotPlayerController.md 7-5)
+    //
+    // IoT 담당 작업. 배 협동 담당 동의를 받고 넣었습니다.
+    // ------------------------------------------------------------
+
+    private readonly Dictionary<TaskWorker, float> _neutralSteer = new Dictionary<TaskWorker, float>();
+
+    /// <summary>이 사람의 조타. 붙는 순간을 0 으로 본 값이다. -1 ~ +1.</summary>
+    private float SteerOf(TaskWorker worker)
+    {
+        float raw = ShipCoopInput.Steer(worker.Input);
+
+        if (_neutralSteer.TryGetValue(worker, out float neutral))
+        {
+            raw -= neutral;
+        }
+
+        // 중립을 뺀 뒤에도 -1 ~ +1 을 지킨다. 한쪽으로 치우쳐 잡으면
+        // 반대쪽으로 1 을 넘길 수 있고, 그대로 두면 정원 계산이 틀어진다.
+        return Mathf.Clamp(raw, -1f, 1f);
+    }
+
+    protected override void OnWorkerJoined(TaskWorker worker)
+    {
+        _neutralSteer[worker] = ShipCoopInput.Steer(worker.Input);
+    }
+
+    protected override void OnWorkerLeft(TaskWorker worker)
+    {
+        _neutralSteer.Remove(worker);
+    }
+
     /// <summary>
     /// **뱃머리를 똑바로 되돌린다.** 판을 치울 때 부른다.
     ///
@@ -124,6 +175,15 @@ public class HelmTask : TaskBase
         // 사건이 밀어붙이던 힘도 지운다. 사건은 ClearBoard 가 이미 껐지만,
         // 끄는 순서에 기대지 않는 편이 안전하다.
         ExternalPushPerSecond = 0f;
+
+        // 붙어 있는 사람이 있으면 중립을 지금 손 각도로 다시 잡는다.
+        //
+        // 지우기만 하면 다음 판이 **중립 없이** 시작해서 손을 가만히 둬도 배가 돈다.
+        // 판이 바뀌는 사이에 자세가 바뀌었을 수도 있으니 새로 잡는 편이 맞다.
+        for (int i = 0; i < Workers.Count; i++)
+        {
+            _neutralSteer[Workers[i]] = ShipCoopInput.Steer(Workers[i].Input);
+        }
 
         if (shipToRotate != null)
         {
@@ -147,7 +207,7 @@ public class HelmTask : TaskBase
         float steer = 0f;
         for (int i = 0; i < Workers.Count; i++)
         {
-            steer += ShipCoopInput.Steer(Workers[i].Input);
+            steer += SteerOf(Workers[i]);
         }
 
         // 정원만큼까지만 인정한다. 한 사람이 두 사람 몫을 낼 수는 없다.
