@@ -9,6 +9,9 @@
 MemoryCaptures/
 Recordings/
 
+# 광산 한 줄 평 반복 시험 기록 (-minereviewrecord). 지우려면 폴더째 지운다.
+/MineReviewRecords/
+
 # Visual Studio / IDE caches
 .vs/
 .vscode/

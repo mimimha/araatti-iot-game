@@ -1088,9 +1088,20 @@ namespace Mine.Net
             Debug.Log($"[MineReview] 요청 — 틱 {tick} · {ResultScore}점 · {(ResultSuccess ? "성공" : "실패")} · " +
                       $"{System.DateTime.Now:HH:mm:ss.fff}");
 
-            StartCoroutine(MineReviewServices.Create().Request(request, comment =>
+            IMineReviewService service = MineReviewServices.Create();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // 반복 시험 기록 — -minereviewrecord 가 없으면 아무것도 하지 않는다. (MineReviewRecorder)
+            int recordSeq = MineReviewRecorder.OnRequest(service, tick, ResultScore, ResultSuccess);
+#endif
+
+            StartCoroutine(service.Request(request, comment =>
             {
                 string took = $"{Time.realtimeSinceStartup - askedAt:0.00}초 · {System.DateTime.Now:HH:mm:ss.fff}";
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                MineReviewRecorder.OnResponse(recordSeq, comment, ResultTick, SinceResult);
+#endif
 
                 if (string.IsNullOrWhiteSpace(comment))
                 {
@@ -1172,6 +1183,10 @@ namespace Mine.Net
         /// </summary>
         private IEnumerator ShowResultAfterHold(bool clear, int score, float playTime, int dug, int crew)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            int recordTick = ResultTick;
+#endif
+
             // 세 화면을 다 보여 준 뒤에 넘긴다. 한 단계라도 빼먹으면 공용 결과가
             // 그만큼 일찍 덮어 버린다.
             yield return new WaitForSeconds(finishTitleSeconds + answerToggleSeconds + resultHoldSeconds);
@@ -1187,6 +1202,15 @@ namespace Mine.Net
 
             // 한 줄 평이 오든 안 오든 같은 박자에 이 줄이 떠야 한다.
             Debug.Log($"[MineMatch] 공용 결과로 넘깁니다 — {score}점 · {(clear ? "성공" : "실패")} · 판 끝나고 {SinceResult:0.0}초");
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // 점수 · 승패는 지금 복제 값으로 넘긴다. 요청 때 값과 다르면 기록기가 센다. (INV-01)
+            if (HasStateAuthority)
+                MineReviewRecorder.OnTransition(recordTick, ResultTick,
+                    ResultTick == recordTick ? ResultScore : score,
+                    ResultTick == recordTick ? (bool)ResultSuccess : clear,
+                    ResultComment.ToString());
+#endif
 
             resultRelease = null;
         }

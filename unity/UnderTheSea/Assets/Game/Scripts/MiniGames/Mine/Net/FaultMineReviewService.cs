@@ -22,7 +22,12 @@ namespace Mine.Net
     ///   empty      1초 뒤 공백 문장            TC04  MineMatchState 의 빈 문장 거르기까지 본다
     ///   httperror  0.5초 뒤 실패(null)        TC05
     ///   delayed    9초 뒤 문장                 TC06 · TC07  성적표(3.5~7초)가 걷힌 뒤에 온다
+    ///   pattern    판마다 아래 순서를 돈다       반복 시험 (Mixed)
+    ///              Success Success Success Timeout Success Empty Success HttpError Success Success
     /// </code>
+    ///
+    /// pattern 은 무작위가 아니다. 서버를 켠 뒤 n 번째 판은 언제나 같은 조건이라 다시 돌릴 수 있다.
+    /// 계정 서버 반복 시험(<c>MineReviewRepeatTests.MixedPattern</c>)과 같은 순서다.
     ///
     /// TC02(키 없음)는 이것 없이 진짜 <see cref="HttpMineReviewService"/> 로 본다 — 계정 서버에서 키만 비운다.
     ///
@@ -42,15 +47,32 @@ namespace Mine.Net
             Empty,
             HttpError,
             Delayed,
+            Pattern,
         }
+
+        /// <summary><see cref="Mode.Pattern"/> 의 고정 순서. 10판이 한 바퀴다.</summary>
+        private static readonly Mode[] PatternOrder =
+        {
+            Mode.Success, Mode.Success, Mode.Success, Mode.Timeout, Mode.Success,
+            Mode.Empty, Mode.Success, Mode.HttpError, Mode.Success, Mode.Success,
+        };
+
+        /// <summary>이 프로세스에서 몇 번째 요청인가. 문장과 pattern 순서에 쓴다.</summary>
+        private static int requestCount;
+
+        /// <summary>이번 요청에 실제로 쓸 방식. pattern 이면 순서에서 고른 것이다. (반복 시험 기록용)</summary>
+        public string Planned => mode.ToString();
 
         private readonly Mode mode;
         private readonly float delay;
 
-        private FaultMineReviewService(Mode mode, float delay)
+        private readonly int sequence;
+
+        private FaultMineReviewService(Mode mode, float delay, int sequence)
         {
             this.mode = mode;
             this.delay = delay;
+            this.sequence = sequence;
         }
 
         /// <summary>실행 인자에 <see cref="ModeKey"/> 가 있으면 만든다. 없거나 모르는 값이면 false.</summary>
@@ -64,12 +86,15 @@ namespace Mine.Net
             if (!Enum.TryParse(raw.Trim(), true, out Mode mode))
             {
                 Debug.LogWarning($"[MineReviewFault] {ModeKey} \"{raw}\" 을 모릅니다. 장애 재현 없이 평소대로 갑니다. " +
-                                 "(success · timeout · empty · httperror · delayed)");
+                                 "(success · timeout · empty · httperror · delayed · pattern)");
                 return false;
             }
 
+            int sequence = ++requestCount;
+            if (mode == Mode.Pattern) mode = PatternOrder[(sequence - 1) % PatternOrder.Length];
+
             float delay = FusionLaunchArguments.GetInt(DelayKey, -1, -1, 120);
-            service = new FaultMineReviewService(mode, delay >= 0 ? delay : DefaultDelay(mode));
+            service = new FaultMineReviewService(mode, delay >= 0 ? delay : DefaultDelay(mode), sequence);
             return true;
         }
 
@@ -99,7 +124,7 @@ namespace Mine.Net
                 case Mode.Success:
                 case Mode.Delayed:
                     string target = string.IsNullOrEmpty(request.targetName) ? "그림" : request.targetName;
-                    onComment?.Invoke($"[테스트 {mode}] {target} · {askedAt} 요청");
+                    onComment?.Invoke($"[테스트 {mode} #{sequence}] {target} · {askedAt} 요청");
                     break;
 
                 case Mode.Empty:
