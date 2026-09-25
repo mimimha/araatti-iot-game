@@ -671,6 +671,35 @@ POST /api/mine/review          토큰 없음 · 같은 머신(루프백)에서 �
 코드: `Net/MineReviewService.cs`(규격 · 전환 스위치) · `FakeMineReviewService` · `HttpMineReviewService` ·
 `MineBoardImage` · `MineMatchState.RequestReview`
 
+#### 장애 재현
+
+LLM 이 실패하거나 늦어도 **점수 · 승패 · 진행이 그대로인지**를 두 곳에서 봅니다. 진짜 Gemini 는 부르지 않습니다.
+
+**계정 서버 — 자동.** `server/` 에서 `dotnet test AraAtti.Api.Tests`. LLM 자리에 가짜를 끼워
+정상 · 키 없음(503) · 5초 초과(504) · 빈 답(502) · LLM 오류(502) · 다른 머신(403)을 봅니다.
+
+**광산 서버 — 손으로.** `Tools → 아라아띠 → 광산 서버 빌드 — 한 줄 평 장애 재현용 (Development)` 로 만든
+`Builds/MineServerFault/` 서버에 인자를 붙입니다. 출시 빌드 · 평소 광산 서버에는 이 기능이 없습니다.
+
+| 인자 | 무엇이 오나 | 보는 것 |
+| --- | --- | --- |
+| `-minereviewfault success` | 1.5초 뒤 `[테스트 Success] …` | 성적표에 그 문장 |
+| (인자 없이, 계정 서버 키 비움) | 503 | 고정 문구 |
+| `-minereviewfault timeout` | 5초 뒤 실패 | 고정 문구, 진행 그대로 |
+| `-minereviewfault empty` | 1초 뒤 공백 | 고정 문구 |
+| `-minereviewfault httperror` | 0.5초 뒤 실패 | 고정 문구 |
+| `-minereviewfault delayed` | 9초 뒤(성적표 걷힌 뒤) | 다음 판에 안 샌다 |
+| `-minereviewfault delayed -minereviewdelay 30` | 30초 뒤 | 그 사이 모두 나가면 `버림(다른 판)` |
+
+서버 콘솔에서 이 줄들을 봅니다. `요청` 과 `적용`/`버림` 줄의 점수 · 승패가 같고, `공용 결과로 넘깁니다` 가
+어느 경우에도 판 끝나고 7.0초 근처에 떠야 합니다. 클라이언트 콘솔의 `[MineHud] 성적표 한 줄 평 — AI / 고정 문구` 가 화면에 뜬 쪽입니다.
+
+```text
+[MineReview] 요청 — 틱 … · 71점 · 성공 · 시각
+[MineReview] 적용 — … / 버림(실패 · 빈 문장) — … / 버림(다른 판) — 요청 틱 … · 지금 틱 0
+[MineMatch] 공용 결과로 넘깁니다 — 71점 · 성공 · 판 끝나고 7.0초
+```
+
 ### 온디바이스 분류기는 확장 후보입니다
 
 `com.unity.sentis` 로 스케치 분류기를 넣어 "AI 가 무엇으로 봤는가"를 판정에 쓰는 방안도
