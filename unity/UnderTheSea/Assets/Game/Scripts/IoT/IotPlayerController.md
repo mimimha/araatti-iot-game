@@ -658,8 +658,8 @@ powershell -ExecutionPolicy Bypass -File firmware\tools\tilt_sign.ps1 -SelfTest
 | 10 | ~~광산 이동이 완드로 안 된다~~ | **됐음.** `MineMoveInput` 을 `IPlayerController` 로 옮겼다 (아래 7-6) |
 | 11 | **광산 씬이 컴포넌트 순서에 기대고 있다** | `Player Controller Source` 두 칸이 비어 있다 (2-5) |
 | 12 | **배 협동 실기 확인** | 코드는 다 되어 있다. 씬에 붙이기만 하면 된다 (2-5) |
-| 13 | **로비 · 낚시가 씬에 안 붙어 있다** | 코드만 있다. `Lobby.unity` 에 `IotPlayerController` · `IotLobbyInteract` · `IotFishingBridge` 가 하나도 없다 (7-7) |
-| 14 | **완드가 씬을 넘어가지 못한다** | `IotPlayerController` 가 씬마다 따로 있다. 로비 → 미니게임에서 사라진다 (7-7) |
+| 13 | **로비 · 낚시가 씬에 안 붙어 있다** | `IotPlayerController` 는 이제 안 붙여도 된다(14). `Lobby.unity` 에 `IotLobbyInteract` · `IotFishingBridge` 가 아직 없다 (7-7) |
+| 14 | ~~완드가 씬을 넘어가지 못한다~~ | **고침.** `IotPlayerController.Persistent` — 처음 부를 때 코드로 만들고 `DontDestroyOnLoad`. 로비 코드 4곳이 이것을 쓴다 (7-7) |
 | 15 | **네트워크 광산 · 무쌍에 완드가 안 닿는다** | `MineInputProvider` · `WarriorsInputProvider` 가 키보드를 직접 읽는다. 담당자와 합의 필요 (7-7) |
 | 16 | ~~develop 을 받으면 컴파일이 깨진다~~ | **고침.** `AnyWandConnected` 를 공개 프로퍼티 하나로 합쳤다. batchmode 컴파일 에러 0 (7-7) |
 | 17 | **포탈 인원 선택 화면이 마우스 전용이다** | develop 에서 포탈이 `CrewPickerScreen` 을 먼저 띄운다. 완드로 포탈은 열리지만 인원은 마우스로 골라야 한다 (7-7) |
@@ -998,15 +998,15 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
 
 | 게임 | 로컬 씬 (테스트용) | 실제 네트워크 씬 | 완드가 닿는가 |
 |---|---|---|---|
-| 로비 이동 · 점프 · 달리기 | — | `Lobby` | **코드 됐음, 씬에 안 붙음.** `PlayerInputProvider.OnInput` 안에서 더하므로 Fusion 입력으로 그대로 서버에 간다 |
+| 로비 이동 · 점프 · 달리기 | — | `Lobby` | **씬 작업 없이 닿는다 (실기 확인 전).** `PlayerInputProvider.OnInput` 이 `Persistent` 를 만들어 쓰고, 그 안에서 더하므로 Fusion 입력으로 그대로 서버에 간다 |
 | 로비 카메라 | — | `Lobby` | 같음. `LocalPlayerView` (카메라는 로컬 전용이라 네트워크 불필요) |
-| 로비 상호작용 (낚시 · 포탈 · 제단) | — | `Lobby` | 같음. `IotLobbyInteract` 가 키와 똑같은 함수(`Enter` · `InteractPressed`)를 부른다 |
-| 낚시 | — | `Lobby` | 같음. 낚시는 로컬 권한(`LocalFishingAuthority`)이고 연출만 동기화하므로 입력을 네트워크에 실을 필요가 없다 |
+| 로비 상호작용 (낚시 · 포탈 · 제단) | — | `Lobby` | **코드 됐음, 씬에 안 붙음.** `IotLobbyInteract` 가 키와 똑같은 함수(`Enter` · `InteractPressed`)를 부른다 |
+| 낚시 | — | `Lobby` | 같음. `IotFishingBridge`. 낚시는 로컬 권한(`LocalFishingAuthority`)이고 연출만 동기화하므로 입력을 네트워크에 실을 필요가 없다 |
 | 배 협동 | `ShipCoopTest` 실기 확인 | `ShipCoopBoot` | **안 닿음.** 러너에 `KeyboardPlayerController` 가 붙어 있다. `IotPlayerController` 로 바꾸면 값 전송 · 진동 RPC 는 이미 있다 |
 | 광산 | `MineTest` 실기 확인 | `MineNet` | **안 닿음.** `MineInputProvider` 가 키보드를 직접 읽는다 |
 | 무쌍 | `WarriorsTest` 실기 확인 | `WarriorsNet` | **안 닿음.** `WarriorsInputProvider` 가 키보드를 직접 읽는다 (7-2) |
 
-`IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. `IotLobbyInteract` · `IotFishingBridge` 는 어느 씬에도 없습니다.
+`IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. 로비는 씬에 두지 않고 `Persistent` 를 씁니다(아래 2번). `IotLobbyInteract` · `IotFishingBridge` 는 어느 씬에도 없습니다.
 
 #### 남은 일 — 순서대로
 
@@ -1015,9 +1015,16 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
    - **판정은 완드 전체를 훑는 쪽으로 했습니다.** HUD 원본은 `_left.Connected` 만 봤는데, 손 배정이 다시 돌기 전에는 방금 붙은 완드가 왼손 자리에 없을 수 있습니다. 키보드 자동 전환도 같은 프로퍼티를 보므로 **키캡과 실제 입력이 같은 답을 냅니다.**
    - `EnsureWands` → `EnsureKeyboardFallback` → `RefreshKeyboardFallback` → `AnyWandConnected` → `EnsureWands` 로 돌아오지만, 그때는 `_wands` 가 이미 있어 곧바로 빠집니다. 되부름이 아닙니다.
    - Unity 6000.5.9f1 batchmode 로 전체 컴파일 — 에러 0.
-2. **완드를 게임 내내 하나로 둔다.** 씬이 `SceneManager.LoadScene` 으로 통째로 바뀌므로 로비에 둔 컨트롤러는 미니게임에서 사라지고 포트를 다시 찾습니다. `DontDestroyOnLoad` 로 하나만 두고, 씬에 들어갈 때 `SetControlProfile` 을 부르게 합니다. (지금은 무쌍만 부른다)
-3. **로비에 붙이고 확인한다.** `IotPlayerController` · `IotLobbyInteract` 하나씩, `PlayerFishingAdapter` 옆에 `IotFishingBridge`. 두 클라이언트를 띄워 **상대 화면에서도** 내 캐릭터가 완드로 움직이는지 봅니다.
-4. **배 협동** — `ShipCoopInputProvider.Awake` 가 `GetComponent` 로만 찾는다. 2번의 컨트롤러를 찾는 한 줄이 필요하다. 배 협동 담당에게 알리고 넣는다.
+2. ~~완드를 게임 내내 하나로 둔다.~~ **됐음.** `IotPlayerController.Persistent`
+   - **씬에 두지 않고 코드로 만듭니다.** 처음 부를 때 `[IotPlayerController]` 오브젝트를 만들고 `DontDestroyOnLoad`. 씬이 `SceneManager.LoadScene` 으로 통째로 바뀌어도 남아서, 로비 → 미니게임 → 로비 동안 COM 포트를 한 번만 찾습니다. 로비의 러너 · 캐릭터는 실행 중에 생겨 인스펙터로 이어 줄 수 없고, `Lobby.unity` 는 여러 사람이 만지는 씬이라 건드리지 않는 편이 낫습니다.
+   - 서버 빌드에서는 `null` 입니다. 끄는 도중에는 새로 만들지 않습니다.
+   - `PlayerInputProvider` · `LocalPlayerView` · `IotLobbyInteract` · `IotFishingBridge` 가 `FindAnyObjectByType` 대신 이것을 씁니다. 1초마다 씬을 뒤지던 코드는 지웠습니다.
+   - ⚠ **씬에 직접 둔 테스트 씬(MineTest 등)에서는 부르지 않습니다.** 동글 포트는 한 곳만 열려서 둘 중 하나가 완드를 못 받습니다. 지금 그 씬들의 코드는 `GetComponent` 로만 찾으므로 부를 일이 없습니다.
+   - **같이 고친 것 — 키보드가 두 번 들어가던 것.** 컨트롤러는 완드가 없으면 키보드로 대신 채웁니다(키보드 폴백). 로비는 자기 키보드 경로가 따로 있어서 그 값을 더하면 **C 한 번에 낚시와 포탈이 같이 걸리고, 우클릭 드래그에 화면이 두 배로 돌고, Shift 가 토글이 되어 떼도 계속 달립니다.** 지금까지는 로비에 컨트롤러가 없어서 안 보였을 뿐입니다. `IotPlayerController.IsWandLive` 로 **완드가 실제로 붙어 있을 때만** 더하게 했습니다.
+   - **같이 고친 것 — 낚시 J 가 죽던 것.** 낚시 입력원은 하나만 꽂혀서, 완드 입력원을 꽂으면 팀원의 키보드 입력원이 빠졌습니다. `WandFishingInputSource` 가 `KeyboardFishingInputSource` 를 안에 품고 그 프레임에 완드 챔질을 더합니다. J 와 오른손 버튼 2 가 둘 다 됩니다.
+   - **프로필(`SetControlProfile`)은 아직 안 바꿉니다.** 지금 `Persistent` 를 쓰는 곳은 로비뿐이고 기본값 `Shared` 가 로비 배치입니다. 미니게임이 `Persistent` 를 쓰기 시작하면(4 · 5번) 각자 자기 씬에 들어갈 때 부르고, **로비로 돌아올 때 `Shared` 로 되돌리는 곳**도 함께 정해야 합니다.
+3. **로비에 붙이고 확인한다.** `IotLobbyInteract` 하나, `PlayerFishingAdapter` 옆에 `IotFishingBridge`. (`IotPlayerController` 는 안 붙인다 — 2번) 두 클라이언트를 띄워 **상대 화면에서도** 내 캐릭터가 완드로 움직이는지 봅니다.
+4. **배 협동** — `ShipCoopInputProvider.Awake` 가 `GetComponent` 로만 찾는다. 못 찾으면 `IotPlayerController.Persistent` 를 쓰게 하는 한 줄이 필요하다. 배 협동 담당에게 알리고 넣는다.
 5. **광산 · 무쌍** — 담당자 파일이라 방식부터 합의한다. 광산 파기와 무쌍 공격은 "사건" 이라 감지한 틱에만 켜서 보내야 한다 (서버가 `GetPressed` 로 판정). 무쌍은 7-2 의 쿨다운 이중 · `minimumStrength` 도 같이 정한다.
 
 > ⚠ **포탈 뒤의 인원 선택 화면은 마우스 버튼뿐입니다.** develop 에서 `MiniGamePortal.Enter` 가 바로 떠나지 않고 `MatchScreenFlow.Begin` → `CrewPickerScreen` 을 띄웁니다. `TryEnterFromDevice` 는 키와 같은 `Enter` 를 부르므로 **화면은 완드로 열리지만 인원은 마우스로 고릅니다.** 완드로 끝까지 가려면 그 화면이 `IPlayerController` 를 읽거나 UI 내비게이션을 받아야 합니다 — 매칭 화면 담당과 정할 일입니다.
