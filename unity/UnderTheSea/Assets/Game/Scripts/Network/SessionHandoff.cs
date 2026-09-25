@@ -120,6 +120,15 @@ public static class LobbyReturnInfo
     /// <summary>그때 쓴 닉네임. 재접속에 필요하다.</summary>
     public static string Nickname { get; private set; }
 
+    /// <summary>
+    /// **방금 다녀온 미니게임의 씬 이름.** 로비에 다시 들어갈 때 그 포탈 앞에 서려고 적어 둔다.
+    ///
+    /// 미니게임에 들어갈 때 적고(<c>MiniGameTransition</c>), 로비에 접속하면서 서버에 쪽지로
+    /// 보낸 뒤 지운다(<c>FusionNetworkService.Connect</c>). 처음 로그인할 때는 비어 있으므로
+    /// 지금처럼 기본 자리에 선다. 쪽지 모양은 <see cref="LobbyReturnToken"/>.
+    /// </summary>
+    public static string CameFrom { get; private set; }
+
     /// <summary>채널에 접속할 때 적어 둔다.</summary>
     public static void Remember(string nickname, string channelId)
     {
@@ -127,11 +136,27 @@ public static class LobbyReturnInfo
         ChannelId = channelId;
     }
 
+    /// <summary>미니게임에 들어갈 때 적는다. 돌아오면 그 포탈 앞에 선다.</summary>
+    public static void RememberCameFrom(string sceneName)
+    {
+        CameFrom = sceneName;
+    }
+
+    /// <summary>
+    /// 로비 접속에 쪽지를 실어 보냈으면 지운다. 남겨 두면 나중에 채널을 옮겨 들어갈 때도
+    /// 엉뚱하게 그 포탈 앞에 선다.
+    /// </summary>
+    public static void ForgetCameFrom()
+    {
+        CameFrom = null;
+    }
+
     /// <summary>채널 선택으로 되돌아갈 때처럼, 돌아갈 곳이 사라졌을 때 비운다.</summary>
     public static void Forget()
     {
         Nickname = null;
         ChannelId = null;
+        CameFrom = null;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
