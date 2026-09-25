@@ -69,6 +69,33 @@ namespace Warriors
 
         private void Awake() => Equip();
 
+#if UNITY_EDITOR
+        /// <summary>
+        /// ⚠ 에디터 전용 — 칼이 손에 붙는 자리를 <b>Play 중에 눈으로 맞추려고</b> 둔다.
+        ///
+        /// 칼은 <see cref="Equip"/> 에서 한 번 붙고 끝이라, Play 중에 무기 정의 에셋(<c>w_TH_sword.asset</c>)의
+        /// 값을 바꿔도 화면이 그대로다. 매번 멈추고 다시 켜야 했다. 그래서 에디터에서는 매 프레임
+        /// 에셋 값을 다시 입힌다. ScriptableObject 에셋은 Play 를 멈춰도 되돌아가지 않으므로 맞춘 값이 남는다.
+        ///
+        /// 빌드에는 들어가지 않는다. 빌드는 예전처럼 붙일 때 한 번만 정한다.
+        ///
+        /// ⚠ <b>에디터에서 Play 하는 동안에는 칼 위치가 늘 에셋 값을 따른다.</b>
+        ///    · 칼 오브젝트(Hierarchy 의 <c>w_TH_sword</c>)의 Transform 을 직접 고치면 다음 프레임에 되돌아간다.
+        ///      값은 Project 창의 <c>w_TH_sword.asset</c> 에서 고친다. 이름이 같아서 헷갈리기 쉽다.
+        ///    · 게임 중에 칼을 옮기는 기능(다른 손으로 바꿔 쥐기 등)을 넣으면 에디터에서만 먹지 않는다.
+        ///      그런 기능을 넣을 때는 이 LateUpdate 를 지운다.
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (definition == null || EquippedWeapon == null) return;
+
+            Transform grip = EquippedWeapon.transform;
+            grip.localPosition = definition.gripLocalPosition;
+            grip.localRotation = Quaternion.Euler(definition.gripLocalRotation);
+            grip.localScale = definition.localScale;
+        }
+#endif
+
         public void Equip()
         {
             if (definition != null)

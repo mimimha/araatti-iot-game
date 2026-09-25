@@ -1000,7 +1000,12 @@ namespace Mine.Net
             ResultComment = default;
         }
 
-        private void EnterFinished()
+        /// <param name="forceSuccess">
+        /// 개발자 모드의 "무조건 성공". 채점은 그대로 하되 승패를 성공으로 굳히고,
+        /// 점수가 기준치보다 낮으면 기준치까지 올린다. 그래야 "성공!" 제목 밑에
+        /// 실패 점수의 멘트(MineHud.CommentFor)가 뜨지 않는다.
+        /// </param>
+        private void EnterFinished(bool forceSuccess = false)
         {
             Phase = MineMatchPhase.Finished;
             CurrentSlot = -1;
@@ -1024,6 +1029,8 @@ namespace Mine.Net
             // ⚠ **판정은 화면에 보이는 점수로 한다.** 반올림 전 값(Percent)으로 재면
             //   69.5~69.99% 가 "70점" 으로 보이면서 실패가 된다. 실제로 겪었다.
             //   그러면 "실패!" 제목 밑에 70점 성공 멘트(MineHud.CommentFor)까지 뜬다.
+            if (forceSuccess) ResultScore = Mathf.Max(ResultScore, Mathf.CeilToInt(successThreshold));
+
             ResultSuccess = ResultScore >= successThreshold;
             ResultTargetCount = result.TargetCount;
             ResultDugCount = result.DugCount;
@@ -1040,6 +1047,66 @@ namespace Mine.Net
                 $"(참가 {RosterSize}명 · 복구 {TotalRestores - RestoresLeft}개 씀, 틱 {ResultTick})");
 
             RequestReview(board.Grid);
+        }
+
+        // ------------------------------------------------------------
+        // 개발자 모드 — 시연을 빨리 넘기기 위한 것. 서버가 실행한다.
+        // ------------------------------------------------------------
+
+        /// <summary>개발자 모드가 서버에 부탁할 수 있는 일.</summary>
+        public enum DevCommand
+        {
+            /// <summary>지금 턴인 사람을 건너뛴다. 마지막 사람이면 판이 끝나고 평소대로 채점한다.</summary>
+            SkipTurn = 0,
+
+            /// <summary>판을 지금 끝내고 무조건 성공으로 채점한다.</summary>
+            ForceSuccess = 1,
+        }
+
+        /// <summary>
+        /// <b>개발자 모드의 부탁을 서버가 실행한다.</b> 검 게임과 같은 방식이다.
+        ///
+        /// ⚠ 끝난 판이나 시작 전 판에는 듣지 않는다. 결과 화면에서 눌러 판이 되살아나면 안 된다.
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void Rpc_DevCommand(DevCommand command, RpcInfo info = default)
+        {
+            // ⚠ 서버가 -devmode 없이 떴으면 듣지 않는다. 클라이언트만 막으면 누구든 실행 인자
+            //    한 줄로 열 수 있다. 이 RPC 자체는 #if 로 감싸지 않는다 — Fusion 은 RPC 에 컴파일 때
+            //    번호를 매겨서, 한쪽 빌드에만 있으면 클라이언트와 서버의 번호가 어긋난다.
+            if (!UnderTheSea.Core.DevMode.Enabled)
+            {
+                Debug.LogWarning(
+                    $"[Mine 개발자] {info.Source} 의 '{command}' 가 왔지만 이 서버는 " +
+                    $"{UnderTheSea.Core.DevMode.Key} 없이 떴습니다. 실행하지 않습니다.");
+                return;
+            }
+
+            if (IsOver || !HasStarted)
+            {
+                Debug.Log($"[Mine 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
+                return;
+            }
+
+            switch (command)
+            {
+                case DevCommand.SkipTurn:
+                    // 공개 중에는 아직 턴이 없다. 건너뛸 사람이 없다.
+                    if (Phase != MineMatchPhase.Turn)
+                    {
+                        Debug.Log($"[Mine 개발자] 아직 턴이 아니라 건너뛰지 않습니다. (지금 {Phase})");
+                        return;
+                    }
+
+                    Debug.Log($"[Mine 개발자] {info.Source} 가 P{CurrentSlot + 1} 의 턴을 건너뜁니다.");
+                    AdvanceTurn();
+                    break;
+
+                case DevCommand.ForceSuccess:
+                    Debug.Log($"[Mine 개발자] {info.Source} 가 판을 성공으로 끝냅니다.");
+                    EnterFinished(forceSuccess: true);
+                    break;
+            }
         }
 
         // ------------------------------------------------------------

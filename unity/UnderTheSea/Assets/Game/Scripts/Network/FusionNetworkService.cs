@@ -246,12 +246,21 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
             return;
         }
 
+        // 미니게임에서 돌아오는 길이면 "어디서 왔는지" 를 쪽지로 들고 간다. 서버가 그 포탈 앞에 세운다.
+        // 처음 로그인이면 비어 있어 null 이고, 서버는 지금처럼 기본 자리에 세운다.
+        string cameFrom = LobbyReturnInfo.CameFrom;
+        if (!string.IsNullOrEmpty(cameFrom))
+        {
+            Debug.Log($"[FusionNetworkService] \"{cameFrom}\" 에서 돌아왔다는 쪽지를 들고 접속합니다.");
+        }
+
         StartGameResult result = await runner.StartGame(new StartGameArgs
         {
             GameMode = GameMode.Client,
             SessionName = sessionName,
             Scene = lobby,
             SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+            ConnectionToken = LobbyReturnToken.Write(cameFrom),
 
             // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
             CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
@@ -279,6 +288,10 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         // ⚠ 미니게임에 들어가려면 이 세션을 반드시 끊어야 하고, 끊으면 위 값이 지워진다.
         //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
         LobbyReturnInfo.Remember(nickname, serverId);
+
+        // 쪽지는 이번 접속에 실어 보냈다. 지워야 다음에 채널을 옮겨 들어갈 때 엉뚱한 포탈 앞에 서지 않는다.
+        // ⚠ 실패했을 때는 지우지 않는다(위에서 이미 return). 다시 시도해도 포탈 앞에 서야 한다.
+        LobbyReturnInfo.ForgetCameFrom();
 
         // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
         SceneFlow.LobbyLoadedByNetwork = true;

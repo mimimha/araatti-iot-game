@@ -107,6 +107,9 @@ public class LocalPlayerView : NetworkBehaviour
         //    (ThirdPersonCamera 는 대상이 없는 동안 움직이지 않도록 고쳐 두었다)
         if (boundCamera is ThirdPersonCamera thirdPerson)
         {
+            // 캐릭터가 보는 방향 뒤에 선다. 미니게임에서 돌아와 포탈을 등지고 섰을 때
+            // 포탈에서 걸어 나온 모습이 된다. 처음 로그인 자리는 모두 북쪽을 보므로 예전과 같다.
+            thirdPerson.FaceYaw(transform.eulerAngles.y);
             thirdPerson.SnapToPlayer();
         }
 

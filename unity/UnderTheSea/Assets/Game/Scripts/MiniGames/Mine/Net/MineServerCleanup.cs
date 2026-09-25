@@ -55,6 +55,7 @@ namespace Mine.Net
             count += DisableAll<StandaloneInputModule>("입력 모듈");
             count += DisableAll<MineHud>("HUD");
             count += DisableAll<MineDebugHud>("개발용 HUD");
+            count += DisableAll<MineDevMode>("개발자 모드");
 
             // 광산 연출
             // ⚠ <b>MineGridView 는 끄지 않는다.</b> 그리기만 하는 부품이 아니다.

@@ -68,6 +68,18 @@ namespace ithappy.Cute_Characters.Controller
         ///
         /// 첫 Snap 이후의 평상시 추적은 그대로 <see cref="Move"/> 가 맡는다.
         /// </summary>
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 카메라를 이 좌우 각도(도)에서 보게 한다. 위아래 각도는 그대로 둔다.
+        ///
+        /// 접속할 때마다 카메라는 늘 북쪽(+Z)을 보고 시작한다. 미니게임에서 돌아와 포탈을 등지고
+        /// 선 캐릭터를 엉뚱한 쪽에서 보면 "포탈에서 나왔다" 는 느낌이 안 난다. 캐릭터가 보는
+        /// 방향을 넘겨 그 뒤에 서게 한다. 곧바로 <see cref="SnapToPlayer"/> 를 부르면 보간 없이 자리를 잡는다.
+        /// </summary>
+        public void FaceYaw(float yawDegrees)
+        {
+            m_Angles.y = yawDegrees;
+        }
+
         public void SnapToPlayer()
         {
             if (m_Player == null)
