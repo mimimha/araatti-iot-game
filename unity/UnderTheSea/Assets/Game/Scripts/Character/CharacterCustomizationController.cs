@@ -232,8 +232,8 @@ namespace UnderTheSea.Character
             runtimeRenderer.localBounds = source.localBounds;
             runtimeRenderer.updateWhenOffscreen = collection.targetRenderer.updateWhenOffscreen;
 
-            if (ReferenceEquals(collection, face) && appearance != null)
-                appearance.ApplySkinMaterialTo(runtimeRenderer);
+            // 표정에는 피부 재질을 입히지 않는다. 입술 · 볼터치 같은 빨강 계열이 피부색으로 지워진다.
+            // (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
 
             collection.targetRenderer.enabled = false;
 
@@ -288,15 +288,10 @@ namespace UnderTheSea.Character
         {
             currentSkinColor = skinColors[colorIndex];
 
+            // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
+            // 표정은 칠하지 않는다. (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
             if (appearance != null)
-            {
-                // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
                 appearance.ApplySkinColor(currentSkinColor);
-
-                // 카탈로그에 없는 파츠는 컨트롤러가 targetRenderer 경로로 붙였다. 그것만 여기서 칠한다.
-                if (face.activePart != null)
-                    appearance.ApplySkinMaterialTo(face.activePart.GetComponent<SkinnedMeshRenderer>());
-            }
 
             RefreshSkinColorOptions();
         }

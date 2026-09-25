@@ -387,7 +387,7 @@ namespace UnderTheSea.Character
                 renderer.localBounds = source.localBounds;
                 renderer.updateWhenOffscreen = true;
 
-                if (entry.skin)
+                if (NeedsSkinMaterial(entry))
                 {
                     ApplySkinMaterialTo(renderer);
                 }
@@ -525,7 +525,7 @@ namespace UnderTheSea.Character
             // 이미 입은 파츠 중 피부 취급인 것들도 다시 칠한다.
             foreach (KeyValuePair<WearSlot, CharacterPartCatalog.Entry> entry in equippedParts)
             {
-                if (!entry.Value.skin || !equippedObjects.TryGetValue(entry.Key, out GameObject equipped))
+                if (!NeedsSkinMaterial(entry.Value) || !equippedObjects.TryGetValue(entry.Key, out GameObject equipped))
                 {
                     continue;
                 }
@@ -535,6 +535,21 @@ namespace UnderTheSea.Character
                     ApplySkinMaterialTo(renderer);
                 }
             }
+        }
+
+        /// <summary>
+        /// 이 파츠에 피부 재질을 입혀야 하는가.
+        ///
+        /// ⚠ <b>표정(<see cref="WearSlot.Face"/>)은 카탈로그에 skin 으로 표시돼 있어도 입히지 않는다.</b>
+        ///    표정 메시는 눈 · 입 · 볼터치만 있는 얹는 메시라 피부 칸을 한 군데도 쓰지 않는다.
+        ///    (40개 전부 UV 로 실측. 머리 피부는 Body 메시에 있다)
+        ///    그런데 피부 재질은 <see cref="CreateRecoloredSkinTexture"/> 가 팔레트의 빨강 · 주황 칸을
+        ///    전부 피부색으로 바꾼 것이라, 입히면 입술 · 볼터치 · 하트 눈 · 혀가 피부색으로 지워진다.
+        ///    표정 25개가 그런 빨강 계열 칸을 쓴다. 원래 재질 그대로 두면 제 색이 나온다.
+        /// </summary>
+        private static bool NeedsSkinMaterial(CharacterPartCatalog.Entry entry)
+        {
+            return entry.skin && entry.slot != WearSlot.Face;
         }
 
         /// <summary>지금 피부 재질을 이 렌더러에 입힌다.</summary>
