@@ -54,6 +54,10 @@ namespace MiniGames.Common
 
             Current = this;
 
+            // 매칭 화면(대기 로딩 포함)이 떠 있는 동안 로비 채팅창 · 섬 회복도 바를 감춘다.
+            if (canvasRoot != null && canvasRoot.GetComponent<HideLobbyHudWhileShown>() == null)
+                canvasRoot.AddComponent<HideLobbyHudWhileShown>();
+
             if (!showOnStart && canvasRoot != null) canvasRoot.SetActive(false);
         }
 

@@ -369,9 +369,11 @@ namespace Warriors
 
             Rescan(force: false);
 
-            if (_match == null)
+            // ⚠ 참조가 남아 있어도 네트워크 판이 이미 내려갔을 수 있다(로비로 돌아가며 Runner 가 닫힐 때).
+            //    그때 Phase 를 읽으면 Fusion 이 "Spawned() 전에는 읽을 수 없다" 예외를 던진다.
+            if (_match == null || _match.Object == null || !_match.Object.IsValid)
             {
-                // 네트워크 판이 아직 없거나(부트 중) 1인 검증 씬이다. 조용히 기다린다.
+                // 네트워크 판이 아직 없거나(부트 중) 이미 끝났거나, 1인 검증 씬이다. 조용히 기다린다.
                 DriveLoops(WarriorsMatchPhase.Waiting);
                 return;
             }
@@ -492,7 +494,8 @@ namespace Warriors
         /// </summary>
         private void WatchMyCombat()
         {
-            if (_myCombat == null) return;
+            // 내 캐릭터가 판보다 먼저 내려갈 수 있다. 내려간 뒤 Combo 를 읽으면 Fusion 예외다.
+            if (_myCombat == null || _myCombat.Object == null || !_myCombat.Object.IsValid) return;
 
             int combo = _myCombat.Combo;
 

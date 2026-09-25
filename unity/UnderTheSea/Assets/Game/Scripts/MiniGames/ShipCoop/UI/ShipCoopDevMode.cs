@@ -100,11 +100,10 @@ public class ShipCoopDevMode : MonoBehaviour
     }
 
     [Header("켜고 끄기")]
-    [Tooltip("이 키를 누르면 개발자 모드가 켜지고 꺼진다.\n" +
+    // ⚠ 켜는 키 P 는 인스펙터 칸이 아니라 코드(DevMode.PanelKey)에 둔다. 세 게임이 같은 키를 쓰고,
+    //    씬에 저장된 값이 코드 기본값보다 우선해서 칸으로 두면 P 가 안 먹을 수 있다. (DevMode 참고)
+    [Tooltip("P 말고 추가로 받는 켜고 끄기 키. P 는 늘 먹는다(DevMode.PanelKey).\n" +
              "F2 는 쓰지 마세요 — 유니티의 '이름 바꾸기' 단축키라 에디터가 먼저 먹습니다.")]
-    [SerializeField] private Key toggleKey = Key.P;
-
-    [Tooltip("보조 켜고 끄기 키.")]
     [SerializeField] private Key altToggleKey = Key.F9;
 
     [Tooltip("켜면 씬을 시작할 때부터 켜져 있다. 매번 F2 를 누르기 귀찮을 때 쓴다.")]
@@ -195,7 +194,7 @@ public class ShipCoopDevMode : MonoBehaviour
             return;
         }
 
-        bool toggled = (toggleKey != Key.None && keyboard[toggleKey].wasPressedThisFrame)
+        bool toggled = keyboard[UnderTheSea.Core.DevMode.PanelKey].wasPressedThisFrame
                     || (altToggleKey != Key.None && keyboard[altToggleKey].wasPressedThisFrame);
 
         if (toggled)
@@ -471,13 +470,13 @@ public class ShipCoopDevMode : MonoBehaviour
             Vector2 hint = PanelAnchor();
 
             GUI.color = new Color(1f, 1f, 1f, 0.35f);
-            GUI.Label(new Rect(hint.x, hint.y, 260f, 20f), $"{KeyName(toggleKey)} 또는 {KeyName(altToggleKey)} — 개발자 모드", _style);
+            GUI.Label(new Rect(hint.x, hint.y, 260f, 20f), $"{KeyName(UnderTheSea.Core.DevMode.PanelKey)} 또는 {KeyName(altToggleKey)} — 개발자 모드", _style);
             GUI.color = Color.white;
             return;
         }
 
         _sb.Clear();
-        _sb.AppendLine($"── 개발자 모드 ({KeyName(toggleKey)} 로 끈다) ──");
+        _sb.AppendLine($"── 개발자 모드 ({KeyName(UnderTheSea.Core.DevMode.PanelKey)} 로 끈다) ──");
 
         AppendState();
         _sb.AppendLine();

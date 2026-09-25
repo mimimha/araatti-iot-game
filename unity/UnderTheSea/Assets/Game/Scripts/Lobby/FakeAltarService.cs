@@ -26,7 +26,7 @@ namespace UnderTheSea.Lobby
     {
         [Header("가짜 서버 초기값")]
         [Tooltip("목표 봉헌량. 서버 altar_state.target_offering 에 해당한다.")]
-        [SerializeField] private long targetOffering = 1000;
+        [SerializeField] private long targetOffering = 100;
 
         [Tooltip("시작 시 이미 봉헌된 양.")]
         [SerializeField] private long startingTotalOffered = 0;

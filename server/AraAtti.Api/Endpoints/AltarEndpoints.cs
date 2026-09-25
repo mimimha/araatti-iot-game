@@ -28,7 +28,7 @@ public static class AltarEndpoints
     /// ⚠ 이 행은 AddInventoryAndAltar 마이그레이션이 넣어 둔 것이다.
     ///    조회하다가 없다고 해서 여기서 만들지 않는다. 두 요청이 동시에 만들려다 부딪힌다.
     /// </summary>
-    private const int AltarStateId = 1;
+    internal const int AltarStateId = 1;
 
     public static void MapAltarEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -44,6 +44,23 @@ public static class AltarEndpoints
         group.MapPost("/offer", OfferAsync)
             .WithSummary("봉헌")
             .WithDescription("조각을 제단에 바친다. 부분 수락은 없다. 같은 requestId 재요청은 duplicate 로 처리한다.");
+    }
+
+    /// <summary>
+    /// 🛠 개발자 모드에서만 여는 경로. 로비 개발자 패널의 <c>]</c> · <c>[</c> 키가 부른다.
+    ///
+    /// ⚠ <b>개발자 모드가 아니면 이 경로를 아예 만들지 않는다</b>(Program.cs). 404 가 난다.
+    ///    조각 없이 섬 회복도를 바꾸므로 실제 서비스에 열려 있으면 안 된다.
+    /// </summary>
+    public static void MapAltarDevEndpoints(this IEndpointRouteBuilder routes)
+    {
+        routes
+            .MapGroup("/api/altar/dev")
+            .WithTags("Altar (개발자)")
+            .RequireAuthorization()
+            .MapPost("/recovery", DevAdjustAsync)
+            .WithSummary("🛠 섬 회복도 올리기 · 내리기 (개발자 모드)")
+            .WithDescription("조각 없이 전체 봉헌량을 delta(+1 또는 -1)만큼 바꾼다. 0 ~ 목표를 벗어나지 않는다. 응답은 /state 와 같다.");
     }
 
     // ------------------------------------------------------------
@@ -82,6 +99,57 @@ public static class AltarEndpoints
             snapshot.RecoveryPercent,
             (ulong)myOfferedTotal,
             snapshot.UpdatedAt));
+    }
+
+    // ------------------------------------------------------------
+    // 🛠 개발자 — 섬 회복도 올리기 · 내리기
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 전체 봉헌량만 바꾼다. 누구의 조각도 건드리지 않고, 기여 이력(altar_contributions)도 남기지 않는다.
+    ///
+    /// 한 번에 한 칸(+1 · -1)만 받는다. 목표가 100 이면 1% 다.
+    /// 0 ~ 목표를 벗어나지 않는 것은 봉헌과 같은 방식이다 — 읽고 판단하지 않고 WHERE 에 넣는다.
+    /// 끝에 닿아 있으면 0행이 바뀌고, 그대로 지금 상태를 돌려준다(오류가 아니다).
+    ///
+    /// ⚠ 내리는 쪽도 뺄셈을 WHERE 에 넣지 않는다. 두 컬럼이 UNSIGNED 라 total - 1 이 0 아래로
+    ///    가면 MySQL 오류다. <c>total &gt;= 1</c> 로 본다.
+    /// </summary>
+    private static async Task<IResult> DevAdjustAsync(
+        DevRecoveryRequest request,
+        ClaimsPrincipal principal,
+        AraAttiDbContext database,
+        CancellationToken cancellationToken)
+    {
+        if (!principal.TryGetUserId(out _))
+        {
+            return TokenInvalid();
+        }
+
+        if (request.Delta is not (1 or -1))
+        {
+            return Results.BadRequest(new ErrorResponse("DELTA_INVALID", "delta 는 1 또는 -1 이어야 합니다."));
+        }
+
+        if (request.Delta > 0)
+        {
+            await database.AltarStates
+                .Where(altar => altar.Id == AltarStateId
+                    && altar.TotalOffered + 1 <= altar.TargetOffering)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(altar => altar.TotalOffered, altar => altar.TotalOffered + 1)
+                    .SetProperty(altar => altar.UpdatedAt, _ => DateTime.UtcNow), cancellationToken);
+        }
+        else
+        {
+            await database.AltarStates
+                .Where(altar => altar.Id == AltarStateId && altar.TotalOffered >= 1)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(altar => altar.TotalOffered, altar => altar.TotalOffered - 1)
+                    .SetProperty(altar => altar.UpdatedAt, _ => DateTime.UtcNow), cancellationToken);
+        }
+
+        return await GetAltarStateAsync(principal, database, cancellationToken);
     }
 
     // ------------------------------------------------------------
@@ -434,7 +502,7 @@ public static class AltarEndpoints
     ///    다른 제약을 위반한 것도 전부 duplicate 성공으로 둔갑한다.
     ///    MySQL 의 1062(ER_DUP_ENTRY)일 때만 참이다.
     /// </summary>
-    private static bool IsDuplicateKeyViolation(DbUpdateException exception)
+    internal static bool IsDuplicateKeyViolation(DbUpdateException exception)
     {
         return exception.InnerException is MySqlException { ErrorCode: MySqlErrorCode.DuplicateKeyEntry };
     }

@@ -68,8 +68,16 @@ namespace Warriors.Net
             }
 
             // 카메라 각도는 포커스와 상관없이 채운다. 서버가 이 각도로 이동을 돌린다.
+            // ⚠ 카메라 transform 의 각도가 아니라 궤도 각도를 보낸다. transform 각도는 옆으로 걸을 때
+            //    카메라가 따라 돌며 바뀌어, 이동 → 카메라 회전 → 이동의 되먹임으로 화면이 떨렸다.
+            //    (WarriorsThirdPersonCamera.HeadingYaw 설명 참고)
             Camera view = Camera.main;
-            if (view != null) data.LookYaw = view.transform.eulerAngles.y;
+            if (view != null)
+            {
+                data.LookYaw = view.TryGetComponent(out WarriorsThirdPersonCamera orbit)
+                    ? orbit.HeadingYaw
+                    : view.transform.eulerAngles.y;
+            }
 
             // **스윙은 버튼이 아니라 사건으로 보낸다.**
             //
