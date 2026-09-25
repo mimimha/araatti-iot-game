@@ -102,6 +102,12 @@ namespace Warriors
         public float NetworkIntroStartSeconds { get; set; } = 1.5f;
 
         /// <summary>
+        /// 화면이 어두워지기 시작하는 시각(초). 음수면 종료 문구가 끝난 때(<see cref="NetworkClearSeconds"/>)부터.
+        /// 판 마지막에는 크라켄이 다 가라앉은 뒤부터 어두워져야 가라앉는 장면이 가려지지 않는다.
+        /// </summary>
+        public float NetworkFadeStartSeconds { get; set; } = -1f;
+
+        /// <summary>
         /// 방금 깬 라운드 번호(1~3). 0 이면 지금 깬 라운드가 없다.
         ///
         /// 종료 문구는 이 값으로 고른다. 라운드 번호가 오르는 것으로 판단하면 무대가 이미
@@ -1040,7 +1046,9 @@ namespace Warriors
 
             // 어두워지는 데 쓰는 시간은 <b>문구가 끝난 뒤 남은 여백</b> 전체다.
             // 라운드 사이는 0.5초, 판 마지막(크라켄 처치)은 1.6초라 저절로 더 천천히 어두워진다.
-            float fadeOut = Mathf.Max(.3f, gate - NetworkClearSeconds);
+            // 판 마지막은 크라켄이 가라앉는 동안 밝게 두고, 다 가라앉은 뒤에만 어두워진다.
+            float fadeStart = NetworkFadeStartSeconds >= 0f ? NetworkFadeStartSeconds : NetworkClearSeconds;
+            float fadeOut = Mathf.Max(.3f, gate - fadeStart);
 
             float target = 0f;
 
