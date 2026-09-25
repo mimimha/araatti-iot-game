@@ -98,7 +98,7 @@ namespace Mine.Net
         [SerializeField, Min(0f)] private float resultHoldSeconds = 3.5f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
-        [Tooltip("이 값 이상이면 성공.")]
+        [Tooltip("점수(유사도를 반올림한 값)가 이 값 이상이면 성공.")]
         [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
         // ------------------------------------------------------------
@@ -1019,8 +1019,12 @@ namespace Mine.Net
             MineSimilarityResult result = board.ServerScore();
 
             ResultPercent = result.Percent;
-            ResultSuccess = result.Percent >= successThreshold;
             ResultScore = Mathf.Clamp(Mathf.RoundToInt(result.Percent), 0, 100);
+
+            // ⚠ **판정은 화면에 보이는 점수로 한다.** 반올림 전 값(Percent)으로 재면
+            //   69.5~69.99% 가 "70점" 으로 보이면서 실패가 된다. 실제로 겪었다.
+            //   그러면 "실패!" 제목 밑에 70점 성공 멘트(MineHud.CommentFor)까지 뜬다.
+            ResultSuccess = ResultScore >= successThreshold;
             ResultTargetCount = result.TargetCount;
             ResultDugCount = result.DugCount;
             ResultAlignX = result.Alignment.x;
