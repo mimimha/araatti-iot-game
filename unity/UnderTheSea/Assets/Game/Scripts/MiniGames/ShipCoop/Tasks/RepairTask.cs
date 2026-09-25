@@ -14,6 +14,7 @@ using UnityEngine;
 /// 입력
 ///   내리치기 → ShipCoopInput.ConsumeSwing. 오른손 면버튼 2 또는 휘두름. 키보드는 K 연타.
 ///   **횟수는 IoT 와 같아야 합니다.** (7장 — IoT 가 벌칙이 되면 안 됩니다)
+///   자재를 받은 구멍 앞이면 붙지 않고 K 를 눌러도 된다. 그 한 번에 붙고 친다. (<see cref="FindHammerable"/>)
 ///
 /// 수리가 끝나면 스스로 꺼집니다. 다시 쓰려면 새로 만드는 쪽(HullDamage)이 만듭니다.
 /// </summary>
@@ -28,6 +29,13 @@ public class RepairTask : TaskBase
     [Header("수리")]
     [Tooltip("이만큼 내리치면 수리가 끝난다")]
     [SerializeField, Min(1)] private int hitsToRepair = 5;
+
+    [Tooltip("붙어 있는 사람이 이 시간(초) 동안 안 치면, 옆 사람이 K 로 자리를 넘겨받는다.\n\n" +
+             "정원이 1명이라 누가 붙은 채 서 있으면 아무도 못 친다. 멍하니 서 있는 사람 때문에 구멍이 막히면 안 된다.")]
+    [SerializeField, Min(0f)] private float idleHandOverSeconds = 1f;
+
+    /// <summary>마지막으로 친 시각. 붙은 순간도 친 것으로 친다 — 붙자마자 뺏기지 않게.</summary>
+    private float _lastActiveTime;
 
     [Header("방치했을 때")]
     [Tooltip("아무도 붙어 있지 않은 동안 초당 이만큼 배 HP 가 깎인다. (4장)")]
@@ -126,18 +134,125 @@ public class RepairTask : TaskBase
         }
 
         // 정원이 1명이라 보통 한 명이지만, 규격이 바뀌어도 그대로 동작하게 전원을 센다.
+        // 다 고치면 Complete 가 붙은 사람을 놓아줘 목록이 바뀌므로 그 자리에서 멈춘다.
         for (int i = 0; i < Workers.Count; i++)
         {
-            if (ShipCoopInput.ConsumeSwing(Workers[i].Input))
+            if (ShipCoopInput.ConsumeSwing(Workers[i].Input) && Hammer() && IsRepaired)
             {
-                Hits++;
+                break;
             }
         }
+    }
+
+    /// <summary>
+    /// **한 번 내리친다.** 먹었으면 true. 자재가 없거나 이미 다 고쳤으면 안 먹는다.
+    ///
+    /// 붙어 있는 동안의 망치질(<see cref="Work"/>)과, 붙기 전에 K 를 눌러 붙자마자 치는 첫 망치질
+    /// (<see cref="TaskWorker"/>)이 같이 쓴다. <b>계산하는 쪽에서만 부른다.</b>
+    /// </summary>
+    public bool Hammer()
+    {
+        if (IsRepaired || !CanHammer)
+        {
+            return false;
+        }
+
+        Hits++;
+        _lastActiveTime = Time.time;
 
         if (Hits >= hitsToRepair)
         {
             Complete();
         }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 자리가 찼지만 **붙은 사람이 쉬고 있어서** 이 사람이 넘겨받을 수 있는가.
+    /// 자재를 받은 구멍만 해당한다 — 자재가 없으면 넘겨받아 봐야 칠 수 없다.
+    /// </summary>
+    public bool CanTakeOver(TaskWorker worker)
+    {
+        return worker != null
+               && HasPlank
+               && !IsRepaired
+               && IsFull
+               && !IsWorking(worker)
+               && Time.time - _lastActiveTime >= idleHandOverSeconds;
+    }
+
+    /// <summary>이 사람이 이미 붙어 있는가. <see cref="TaskBase.Workers"/> 는 읽기 전용 목록이라 직접 센다.</summary>
+    private bool IsWorking(TaskWorker worker)
+    {
+        for (int i = 0; i < Workers.Count; i++)
+        {
+            if (ReferenceEquals(Workers[i], worker))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 쉬고 있는 사람을 떼어 내 이 사람 자리를 만든다. 붙을 수 있게 됐으면 true.
+    /// <b>계산하는 쪽에서만 부른다.</b> 떼어 낸 결과는 WorkerSync 가 모두에게 보낸다.
+    /// </summary>
+    public bool MakeRoomFor(TaskWorker worker)
+    {
+        if (CanJoin(worker))
+        {
+            return true;
+        }
+
+        if (!CanTakeOver(worker))
+        {
+            return false;
+        }
+
+        // LeaveCurrent 가 목록에서 빼므로 뒤에서부터 돈다.
+        for (int i = Workers.Count - 1; i >= 0; i--)
+        {
+            Workers[i].LeaveCurrent();
+        }
+
+        return CanJoin(worker);
+    }
+
+    /// <summary>
+    /// **자재를 받아 두드리기만 하면 되는** 손 닿는 구멍 중 가장 가까운 것. 없으면 null.
+    ///
+    /// 여기서는 Space 로 먼저 붙지 않아도 K 한 번에 붙고 친다(<see cref="TaskWorker"/>).
+    /// 자재를 건넨 뒤 "Space 로 붙기 → K 연타" 두 단계가 헷갈렸다 — 건넨 자재가 눈에 안 보여서
+    /// 다음에 무엇을 눌러야 할지 몰랐다. HUD 도 같은 판정으로 K 를 띄운다.
+    /// </summary>
+    public static RepairTask FindHammerable(TaskWorker worker, Vector3 position)
+    {
+        RepairTask best = null;
+        float bestSqr = float.MaxValue;
+
+        for (int i = 0; i < All.Count; i++)
+        {
+            if (All[i] is not RepairTask repair
+                || !repair.HasPlank
+                || repair.IsRepaired
+                || !(repair.CanJoin(worker) || repair.CanTakeOver(worker))
+                || !repair.IsInRange(position))
+            {
+                continue;
+            }
+
+            float sqr = (repair.transform.position - position).sqrMagnitude;
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = repair;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>아무도 없는 동안. 침수가 쌓여 배가 깎인다.</summary>
@@ -171,6 +286,12 @@ public class RepairTask : TaskBase
     /// </summary>
     public void ShowRepair(int hits, bool hasPlank, bool repaired)
     {
+        // 화면 쪽도 "쉬고 있는지" 를 알아야 HUD 가 넘겨받기 안내(K)를 띄운다. 친 횟수가 늘면 친 것이다.
+        if (hits != Hits)
+        {
+            _lastActiveTime = Time.time;
+        }
+
         Hits = hits;
         HasPlank = hasPlank;
         IsRepaired = repaired;
@@ -179,6 +300,7 @@ public class RepairTask : TaskBase
     /// <summary>붙으면 웅크려 망치질하는 자세로 바꾼다.</summary>
     protected override void OnWorkerJoined(TaskWorker worker)
     {
+        _lastActiveTime = Time.time;
         worker.GetComponent<ShipCoopCharacter>()?.SetRepairing(true);
     }
 
