@@ -157,6 +157,16 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         public void Rpc_DevCommand(int command, int index, float value)
         {
+            // ⚠ 서버가 -devmode 없이 떴으면 듣지 않는다. 클라이언트만 막으면 누구든 실행 인자
+            //    한 줄로 열 수 있다. 이 RPC 자체는 #if 로 감싸지 않는다 — 위 주석 참고.
+            if (!UnderTheSea.Core.DevMode.Enabled)
+            {
+                Debug.LogWarning(
+                    $"[개발자 모드] 개발자 명령 {(DevCommand)command} 이 왔지만 이 서버는 " +
+                    $"{UnderTheSea.Core.DevMode.Key} 없이 떴습니다. 실행하지 않습니다.");
+                return;
+            }
+
             RunDevCommand((DevCommand)command, index, value);
         }
 

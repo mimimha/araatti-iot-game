@@ -1001,6 +1001,17 @@ namespace Warriors.Net
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         public void Rpc_DevCommand(DevCommand command, int amount, RpcInfo info = default)
         {
+            // ⚠ 서버가 -devmode 없이 떴으면 듣지 않는다. 클라이언트만 막으면 누구든 실행 인자
+            //    한 줄로 열 수 있다. 이 RPC 자체는 #if 로 감싸지 않는다 — Fusion 은 RPC 에 컴파일 때
+            //    번호를 매겨서, 한쪽 빌드에만 있으면 클라이언트와 서버의 번호가 어긋난다.
+            if (!UnderTheSea.Core.DevMode.Enabled)
+            {
+                Debug.LogWarning(
+                    $"[Warriors 개발자] {info.Source} 의 '{command}' 가 왔지만 이 서버는 " +
+                    $"{UnderTheSea.Core.DevMode.Key} 없이 떴습니다. 실행하지 않습니다.");
+                return;
+            }
+
             if (IsOver || !HasStarted)
             {
                 Debug.Log($"[Warriors 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
