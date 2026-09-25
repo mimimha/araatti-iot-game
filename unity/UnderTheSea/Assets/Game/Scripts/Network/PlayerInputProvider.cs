@@ -11,6 +11,16 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
 {
+    [Header("IoT")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 씬에서 찾는다. 없으면 키보드만 쓴다.")]
+    [SerializeField] private MonoBehaviour playerControllerSource;
+
+    /// <summary>완드. 없으면 null 이고, 그때는 예전처럼 키보드만 읽는다.</summary>
+    private IPlayerController _wand;
+
+    /// <summary>다음에 완드를 다시 찾아볼 시각. 못 찾은 동안 매 tick 씬을 뒤지지 않으려고 둔다.</summary>
+    private float _nextWandSearchTime;
+
     public bool IsMovementLocked { get; private set; }
 
     public void SetMovementLocked(bool locked)
@@ -54,6 +64,45 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
                 (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed));
         }
 
+        // 완드도 같은 자리로 들어온다. **키보드를 대체하지 않고 더한다.**
+        //
+        // 장치가 없으면 _wand 가 null 이라 아래가 통째로 비고, 예전과 완전히 같아진다.
+        // 둘 다 있으면 둘 다 먹는다 — 완드를 들고도 키보드로 확인할 수 있어야 한다.
+        //
+        // ⚠ **네트워크는 손대지 않는다.** 완드는 여기까지만 오고, 서버로 실어 보내는 것은
+        //   예전 그대로 이 함수가 한다. 장치용 네트워크 경로를 따로 내면 같은 tick 에
+        //   입력이 두 번 들어간다. (IOT_INPUT.md 5장 "장치는 로컬에서 자기 값만 채운다")
+        //
+        // ⚠ 채팅 잠금은 완드에도 그대로 건다. 글자를 치는 동안 스틱으로 걸어가면
+        //   키보드만 막은 의미가 없다.
+        IPlayerController wand = ResolveWand();
+        if (wand != null && Application.isFocused && !ChatFocus.Typing)
+        {
+            rawDirection += wand.Move;
+
+            // 점프는 오른손 면버튼 1 (키보드 Space 자리), 달리기는 왼손 면버튼 2 (Shift 자리).
+            // IOT_INPUT.md 1장 표의 "Space = 그 게임의 주된 행동" 을 로비에 적용한 것이다.
+            //
+            // ⚠ 기기가 1대면 Right 가 Left 와 **같은 객체**라 점프와 상호작용이 겹친다.
+            //   그래서 점프는 2대일 때만 받는다. 광산이 달리기를 1대에서 빼는 것과 같은 이유다.
+            if (wand.HasTwoDevices && !IsMovementLocked && wand.Right.Button1)
+            {
+                data.Buttons.Set((int)LobbyButton.Jump, true);
+            }
+
+            if (!IsMovementLocked && wand.Left.Button2)
+            {
+                data.Buttons.Set((int)LobbyButton.Sprint, true);
+            }
+        }
+
+        // 키보드와 완드를 더했으므로 대각선이 1 을 넘을 수 있다. 서버가 이 값을 그대로
+        // 속도에 쓰므로 자르지 않으면 두 입력을 겹쳤을 때만 빨라진다.
+        if (rawDirection.sqrMagnitude > 1f)
+        {
+            rawDirection = rawDirection.normalized;
+        }
+
         data.Direction = ApplyMovementLock(rawDirection);
 
         // 이동을 카메라 기준으로 돌리기 위해 로컬 카메라의 Y 각도를 함께 보낸다.
@@ -68,6 +117,42 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         // 포커스가 없으면 Direction이 zero인 채로 전달된다. 입력을 아예 보내지 않으면
         // Host가 이전 tick 입력을 재사용해 캐릭터가 계속 미끄러진다.
         input.Set(data);
+    }
+
+    /// <summary>
+    /// 완드를 찾아 둔다. 없으면 null 이고 로비는 예전처럼 키보드로만 돈다.
+    ///
+    /// ⚠ <b>Awake 에서 찾을 수 없다.</b> 이 부품은 NetworkRunner 와 함께 있고
+    ///   FusionLauncher 가 실행 중에 만들기도 해서, 로비 씬의 완드보다 먼저 깨어날 수 있다.
+    ///   그래서 찾을 때까지 이따금 다시 본다. 매 tick 씬을 뒤지면 비싸므로 1초에 한 번만 본다.
+    /// </summary>
+    private IPlayerController ResolveWand()
+    {
+        if (_wand != null)
+        {
+            return _wand;
+        }
+
+        if (playerControllerSource is IPlayerController assigned)
+        {
+            _wand = assigned;
+            return _wand;
+        }
+
+        if (Time.unscaledTime < _nextWandSearchTime)
+        {
+            return null;
+        }
+
+        _nextWandSearchTime = Time.unscaledTime + 1f;
+
+        // ⚠ **KeyboardPlayerController 는 일부러 찾지 않는다.** 그것은 키보드를 장치처럼
+        //   흉내내는 부품이라, 여기 끼면 같은 W 가 위쪽 키보드 블록과 여기로 두 번 들어온다.
+        //   로비는 이미 자기 키보드 경로를 갖고 있어서 흉내가 필요 없다.
+        //   완드 경로를 장치 없이 확인해야 한다면 위 칸에 직접 지정한다.
+        _wand = FindAnyObjectByType<IotPlayerController>();
+
+        return _wand;
     }
 
     private Vector2 ApplyMovementLock(Vector2 direction)
