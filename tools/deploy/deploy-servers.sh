@@ -29,6 +29,12 @@ PUBLIC_IP=43.202.67.137    # -publicip. 이게 없으면 바깥에서 아무도 
 APPVER=prod                # -appver / -region 은 세션을 나누는 열쇠다.
 REGION=kr                  # 클라이언트와 같은 값이어야 서로 보인다.
 
+# 개발자 모드. 서버가 이것 없이 뜨면 클라이언트가 보낸 개발자 명령(무적 · 페이즈 넘기기 ·
+# 바로 도착 등)을 듣지 않는다. 지금은 시연 · 테스트를 우리끼리만 하므로 늘 켠다.
+# 끄려면 값을 비운다: DEVMODE=        (클라이언트 쪽은 pack-client.ps1 의 게임시작.bat)
+# 자세한 건 Assets/Game/Scripts/Core/DevMode.cs
+DEVMODE=-devmode
+
 # 폴더 | 실행파일 | 세션이름 | 포트 | 로그이름
 SERVERS="
 Server|AraAtti-Server.x86_64|lobby-ch1|27015|lobby
@@ -114,7 +120,8 @@ if [ -f "$STAGE/api.tar.gz" ]; then
     export ASPNETCORE_ENVIRONMENT=Production
     export ASPNETCORE_URLS=http://0.0.0.0:5080
     cd "$ROOT/api"
-    nohup ./AraAtti.Api >> "$ROOT/api.log" 2>&1 &
+    # DEVMODE 가 있으면 API 도 개발자 경로(로비의 섬 회복도 올리기)를 연다.
+    nohup ./AraAtti.Api ${DEVMODE:+--devmode} >> "$ROOT/api.log" 2>&1 &
     say "다시 띄웠습니다. pid $!"
     sleep 4
 fi
@@ -127,6 +134,7 @@ echo "$SERVERS" | grep -v '^$' | while IFS='|' read -r dir exe session port log;
         -logFile "$ROOT/$log.log" \
         -session "$session" -port "$port" \
         -publicip "$PUBLIC_IP" -appver "$APPVER" -region "$REGION" \
+        $DEVMODE \
         >/dev/null 2>&1 &
     printf "  %-12s 포트 %s  pid %s\n" "$session" "$port" "$!"
 done

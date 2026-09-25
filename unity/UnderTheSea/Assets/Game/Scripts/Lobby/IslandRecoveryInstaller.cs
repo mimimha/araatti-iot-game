@@ -117,6 +117,33 @@ namespace UnderTheSea.Lobby
         ///    <see cref="AltarState.RequestRefresh"/> 를 한 번 더 낸다. 미니게임을 다녀온 사이에
         ///    남이 봉헌했을 수 있으니 그게 맞다.
         /// </summary>
+        /// <summary>
+        /// 로비 안이라도 회복도 바를 잠시 감추게 한 것들. (포탈의 인원 선택 · 매칭 화면)
+        /// 채팅(<c>LobbyChatInstaller.SetHiddenBy</c>)과 같은 방식이다 — 하나라도 남아 있으면 감춘다.
+        /// </summary>
+        private static readonly System.Collections.Generic.HashSet<Object> hiders =
+            new System.Collections.Generic.HashSet<Object>();
+
+        /// <summary><paramref name="owner"/> 가 열려 있는 동안 회복도 바를 감춘다. 닫힐 때 false 로 다시 부른다.</summary>
+        public static void SetHiddenBy(Object owner, bool hidden)
+        {
+            if (owner == null)
+            {
+                return;
+            }
+
+            if (hidden)
+            {
+                hiders.Add(owner);
+            }
+            else
+            {
+                hiders.Remove(owner);
+            }
+
+            ShowOnlyInLobby();
+        }
+
         private static void ShowOnlyInLobby()
         {
             if (root == null)
@@ -124,11 +151,14 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
-            bool lobby = InLobby();
+            // 감춘 쪽이 씬과 함께 사라졌으면 그 이유도 버린다. 남겨 두면 바가 영영 안 나온다.
+            hiders.RemoveWhere(owner => owner == null);
 
-            if (root.activeSelf != lobby)
+            bool show = InLobby() && hiders.Count == 0;
+
+            if (root.activeSelf != show)
             {
-                root.SetActive(lobby);
+                root.SetActive(show);
             }
         }
 

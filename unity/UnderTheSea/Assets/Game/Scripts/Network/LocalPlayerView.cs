@@ -107,6 +107,9 @@ public class LocalPlayerView : NetworkBehaviour
         //    (ThirdPersonCamera 는 대상이 없는 동안 움직이지 않도록 고쳐 두었다)
         if (boundCamera is ThirdPersonCamera thirdPerson)
         {
+            // 캐릭터가 보는 방향 뒤에 선다. 미니게임에서 돌아와 포탈을 등지고 섰을 때
+            // 포탈에서 걸어 나온 모습이 된다. 처음 로그인 자리는 모두 북쪽을 보므로 예전과 같다.
+            thirdPerson.FaceYaw(transform.eulerAngles.y);
             thirdPerson.SnapToPlayer();
         }
 
@@ -155,6 +158,38 @@ public class LocalPlayerView : NetworkBehaviour
             // 사라진 캐릭터를 계속 따라가지 않게 풀어 준다.
             boundCamera.BindPlayer(null);
             boundCamera = null;
+        }
+    }
+
+    /// <summary>
+    /// **카메라를 그 자리에 얼리거나 다시 풀어 준다.** 순간이동 연출이 쓴다.
+    ///
+    /// <b>왜 필요한가.</b> 이정표로 옮길 때 캐릭터는 한 틱 만에 도착하지만 카메라는
+    /// 초당 90 유닛으로 뒤따라간다(<c>ThirdPersonCamera.m_CameraSpeed</c>). 화면을
+    /// 가려도 <b>어두워지는 동안</b> 카메라가 이미 날아가기 시작하므로 그 움직임이
+    /// 보인다. 어두워지기 시작할 때 얼려 두면 없어진다.
+    ///
+    /// <c>enabled</c> 를 끄면 <c>LateUpdate</c> 가 멈춰 카메라가 제자리에 선다.
+    /// <c>SetInput</c> 과 <see cref="SnapCameraToMe"/> 는 꺼져 있어도 부를 수 있다.
+    /// </summary>
+    public void FreezeCamera(bool frozen)
+    {
+        if (boundCamera != null)
+        {
+            boundCamera.enabled = !frozen;
+        }
+    }
+
+    /// <summary>
+    /// **카메라를 내 캐릭터 뒤 제자리로 즉시 옮긴다.** 보간하지 않는다.
+    ///
+    /// 화면이 까만 동안 불러야 뜻이 있다. 밝은 동안 부르면 화면이 툭 끊긴다.
+    /// </summary>
+    public void SnapCameraToMe()
+    {
+        if (boundCamera is ThirdPersonCamera thirdPerson)
+        {
+            thirdPerson.SnapToPlayer();
         }
     }
 

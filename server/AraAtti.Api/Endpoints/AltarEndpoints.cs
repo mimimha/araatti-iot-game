@@ -28,7 +28,7 @@ public static class AltarEndpoints
     /// ⚠ 이 행은 AddInventoryAndAltar 마이그레이션이 넣어 둔 것이다.
     ///    조회하다가 없다고 해서 여기서 만들지 않는다. 두 요청이 동시에 만들려다 부딪힌다.
     /// </summary>
-    private const int AltarStateId = 1;
+    internal const int AltarStateId = 1;
 
     public static void MapAltarEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -44,6 +44,23 @@ public static class AltarEndpoints
         group.MapPost("/offer", OfferAsync)
             .WithSummary("봉헌")
             .WithDescription("조각을 제단에 바친다. 부분 수락은 없다. 같은 requestId 재요청은 duplicate 로 처리한다.");
+    }
+
+    /// <summary>
+    /// 🛠 개발자 모드에서만 여는 경로. 로비 개발자 패널의 <c>]</c> <c>[</c> (±1) · <c>'</c> <c>;</c> (±10) 키가 부른다.
+    ///
+    /// ⚠ <b>개발자 모드가 아니면 이 경로를 아예 만들지 않는다</b>(Program.cs). 404 가 난다.
+    ///    조각 없이 섬 회복도를 바꾸므로 실제 서비스에 열려 있으면 안 된다.
+    /// </summary>
+    public static void MapAltarDevEndpoints(this IEndpointRouteBuilder routes)
+    {
+        routes
+            .MapGroup("/api/altar/dev")
+            .WithTags("Altar (개발자)")
+            .RequireAuthorization()
+            .MapPost("/recovery", DevAdjustAsync)
+            .WithSummary("🛠 섬 회복도 올리기 · 내리기 (개발자 모드)")
+            .WithDescription("조각 없이 전체 봉헌량을 delta(±1 · ±10)만큼 바꾼다. 끝에 닿으면 0 · 목표에서 멈춘다. 응답은 /state 와 같다.");
     }
 
     // ------------------------------------------------------------
@@ -82,6 +99,62 @@ public static class AltarEndpoints
             snapshot.RecoveryPercent,
             (ulong)myOfferedTotal,
             snapshot.UpdatedAt));
+    }
+
+    // ------------------------------------------------------------
+    // 🛠 개발자 — 섬 회복도 올리기 · 내리기
+    // ------------------------------------------------------------
+
+    /// <summary>한 번에 바꿀 수 있는 양. <c>[</c> <c>]</c> 는 1, <c>;</c> <c>'</c> 는 10. 목표가 100 이면 1% · 10%.</summary>
+    private static readonly int[] DevRecoverySteps = { 1, 10 };
+
+    /// <summary>
+    /// 전체 봉헌량만 바꾼다. 누구의 조각도 건드리지 않고, 기여 이력(altar_contributions)도 남기지 않는다.
+    ///
+    /// <b>끝에 닿으면 끝에서 멈춘다.</b> 95 에서 +10 이면 100, 3 에서 -10 이면 0 이다. 거절하지 않는다.
+    /// 읽고 판단하지 않고 한 문장의 UPDATE 안에서 자른다 — 동시에 눌러도 0 ~ 목표를 벗어나지 않는다.
+    ///
+    /// ⚠ 두 컬럼이 UNSIGNED 라 <c>total - 10</c> 이 0 아래로 가면 MySQL 오류다. 빼기 전에
+    ///    <c>total &gt;= step</c> 을 먼저 보고, 아니면 0 을 넣는다(IF 는 고른 쪽만 계산한다).
+    /// </summary>
+    private static async Task<IResult> DevAdjustAsync(
+        DevRecoveryRequest request,
+        ClaimsPrincipal principal,
+        AraAttiDbContext database,
+        CancellationToken cancellationToken)
+    {
+        if (!principal.TryGetUserId(out _))
+        {
+            return TokenInvalid();
+        }
+
+        if (request.Delta is not int delta || !DevRecoverySteps.Contains(Math.Abs(delta)))
+        {
+            return Results.BadRequest(new ErrorResponse("DELTA_INVALID", "delta 는 ±1 또는 ±10 이어야 합니다."));
+        }
+
+        uint step = (uint)Math.Abs(delta);
+        DateTime now = DateTime.UtcNow;
+
+        // EF 의 조건식 번역에 기대지 않고 SQL 한 문장으로 쓴다. 한 문장이라 동시에 눌러도 안전하다.
+        if (delta > 0)
+        {
+            await database.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE altar_state
+                   SET total_offered = LEAST(total_offered + {step}, target_offering),
+                       updated_at = {now}
+                 WHERE id = {AltarStateId}", cancellationToken);
+        }
+        else
+        {
+            await database.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE altar_state
+                   SET total_offered = IF(total_offered >= {step}, total_offered - {step}, 0),
+                       updated_at = {now}
+                 WHERE id = {AltarStateId}", cancellationToken);
+        }
+
+        return await GetAltarStateAsync(principal, database, cancellationToken);
     }
 
     // ------------------------------------------------------------
@@ -434,7 +507,7 @@ public static class AltarEndpoints
     ///    다른 제약을 위반한 것도 전부 duplicate 성공으로 둔갑한다.
     ///    MySQL 의 1062(ER_DUP_ENTRY)일 때만 참이다.
     /// </summary>
-    private static bool IsDuplicateKeyViolation(DbUpdateException exception)
+    internal static bool IsDuplicateKeyViolation(DbUpdateException exception)
     {
         return exception.InnerException is MySqlException { ErrorCode: MySqlErrorCode.DuplicateKeyEntry };
     }

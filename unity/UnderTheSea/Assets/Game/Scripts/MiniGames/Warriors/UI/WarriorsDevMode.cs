@@ -1,5 +1,5 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Text;
+using UnderTheSea.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Warriors.Net;
@@ -8,18 +8,25 @@ using Warriors.Net;
 /// 🛠 <b>검 게임 QA 를 빨리 돌리기 위한 개발자 모드.</b> 배 게임의 것과 같은 조작이다.
 ///
 /// <code>
-///   `   켜기 / 끄기
-///   [   앞 페이즈로
-///   ]   다음 페이즈로
-///   -   지금 페이즈의 목표를 채운다 (2·3 페이즈에서는 보스를 때리는 것)
-///   0   무적 켜기 / 끄기
+///   P 또는 `   켜기 / 끄기
+///   [          앞 페이즈로
+///   ]          다음 페이즈로
+///   -          지금 페이즈의 목표를 채운다 (2·3 페이즈에서는 보스를 때리는 것)
+///   0          무적 켜기 / 끄기
 /// </code>
 ///
 /// <b>화면에서 값을 직접 바꾸지 않는다.</b> 판의 상태는 전부 서버가 정하므로 부탁만 보내고
 /// 결과를 받는다. 직접 바꾸면 그 사람 화면만 바뀌고 서버와 어긋난다.
 ///
-/// ⚠ <b>이 파일 전체가 <c>UNITY_EDITOR || DEVELOPMENT_BUILD</c> 로 감싸여 있다.</b>
-///    출시 빌드에는 컴파일조차 되지 않는다. 치트가 제품에 남으면 안 된다.
+/// ⚠ <b>Release 빌드에도 들어간다. 실행 인자 <c>-devmode</c> 가 있어야 돈다.</b>
+///    (<see cref="DevMode"/>, 에디터는 항상) 전에는 파일 전체를 <c>UNITY_EDITOR || DEVELOPMENT_BUILD</c>
+///    로 감싸 두어 Release 빌드에서는 코드째로 빠졌고, 시연을 Release 로 하니 나오지 않았다.
+///    서버도 <c>-devmode</c> 없이 떴으면 <c>WarriorsMatchState.Rpc_DevCommand</c> 가 듣지 않는다.
+///
+/// ⚠ <b>켜는 키를 배 게임과 같은 P 로 맞췄다</b>(<see cref="DevMode.PanelKey"/>). 시연하는 사람이
+///    게임마다 다른 키를 외우지 않게. 예전 키 ` 도 그대로 먹는다. 검 게임은 P 를 다른 데 쓰지 않는다.
+///    ⚠ <c>toggleKey</c> 칸은 씬(<c>WarriorsNet.unity</c>)에 ` 로 저장돼 있어서 기본값을 바꿔도 소용이
+///    없다. 그래서 P 는 칸이 아니라 코드에서 늘 추가로 받는다.
 ///
 /// ⚠ <b>켜 둔 것은 판이 끝나면 저절로 풀린다.</b> 무적은 서버가 들고 있고
 ///    <c>WarriorsMatchState.ResetToWaiting</c> 이 끈다. 다음 사람이 무적으로 시작하지 않는다.
@@ -32,6 +39,7 @@ public sealed class WarriorsDevMode : MonoBehaviour
     ///
     /// F1 · F2 를 쓰지 않는 이유는 배 게임과 같다 — 에디터가 먼저 먹는다.
     /// </summary>
+    [Tooltip("P 말고 추가로 받는 켜고 끄기 키. P 는 늘 먹는다(DevMode.PanelKey).")]
     [SerializeField] private Key toggleKey = Key.Backquote;
 
     [Header("한 번에 채우는 양")]
@@ -53,12 +61,24 @@ public sealed class WarriorsDevMode : MonoBehaviour
     private GUIStyle style;
     private readonly StringBuilder text = new StringBuilder(512);
 
+    private void Awake()
+    {
+        // -devmode 없이 실행했으면 돌지 않는다. 키도 화면도 없다.
+        if (!DevMode.Enabled)
+        {
+            enabled = false;
+        }
+    }
+
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
 
-        if (toggleKey != Key.None && keyboard[toggleKey].wasPressedThisFrame)
+        bool toggled = keyboard[DevMode.PanelKey].wasPressedThisFrame
+                    || (toggleKey != Key.None && keyboard[toggleKey].wasPressedThisFrame);
+
+        if (toggled)
         {
             IsOn = !IsOn;
             Debug.Log($"[Warriors 개발자] {(IsOn ? "켜짐" : "꺼짐")}", this);
@@ -119,7 +139,7 @@ public sealed class WarriorsDevMode : MonoBehaviour
         };
 
         text.Clear();
-        text.AppendLine($"── 검 개발자 모드 ({toggleKey} 로 끈다) ──");
+        text.AppendLine($"── 검 개발자 모드 ({DevMode.PanelKey} 로 끈다) ──");
         text.AppendLine($"페이즈 {WarriorsMatchState.RoundOf(match.Phase)}  ·  {match.Phase}");
         text.AppendLine($"목표   {Progress(match)}");
         text.AppendLine($"점수   {match.Score}   경과 {match.Elapsed:0}초");
@@ -156,4 +176,3 @@ public sealed class WarriorsDevMode : MonoBehaviour
         _ => "—",
     };
 }
-#endif

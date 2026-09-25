@@ -1,0 +1,222 @@
+using System;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace UnderTheSea.Lobby.Dance
+{
+    /// <summary>
+    /// **로비 춤 선택 휠.** PEAK 의 가방 휠 같은 모양으로 춤 5개 중 하나를 고른다.
+    ///
+    /// <code>
+    ///   Q          열기 / 닫기
+    ///   마우스      가리키는 칸이 밝아지고 커진다 — 방향만 보므로 칸 위에 정확히 없어도 된다
+    ///   좌클릭      가리키는 칸의 춤을 고르고 닫는다
+    ///   1 ~ 5      그 번호의 춤을 바로 고르고 닫는다
+    ///   Esc        그냥 닫는다
+    /// </code>
+    ///
+    /// 칸은 위에서 시작해 시계 방향으로 1, 2, 3, 4, 5 다. 칸 모양은 <see cref="RingSegmentGraphic"/> 이 그린다.
+    ///
+    /// <b>지금은 고르기만 한다.</b> 고르면 <see cref="DanceSelected"/> 를 올린다. 춤 동작과 다른 사람에게
+    /// 보이게 하는 동기화는 이 이벤트를 듣는 쪽이 맡는다(다음 단계).
+    ///
+    /// ⚠ 채팅에 글을 쓰는 중에는 키를 받지 않는다(<see cref="ChatFocus.Typing"/>). 안 그러면 "q" 를 치는
+    ///    순간 휠이 열린다.
+    ///
+    /// 프리팹: <c>Resources/DanceWheel.prefab</c> — <c>Tools/아라아띠/로비 춤 휠 프리팹 만들기</c> 로 만든다.
+    /// 로비에만 뜨는 것은 <see cref="DanceWheelInstaller"/> 가 정한다.
+    /// </summary>
+    public sealed class DanceWheelView : MonoBehaviour
+    {
+        /// <summary>휠을 여닫는 키. 로비에서 Q 를 쓰는 곳이 없다(2026-09 확인). E 는 제단 봉헌이다.</summary>
+        public const Key ToggleKey = Key.Q;
+
+        [Header("연결 (프리팹 만들기가 채운다)")]
+        [SerializeField] private Canvas canvas;
+        [SerializeField] private RectTransform wheel;
+        [SerializeField] private RingSegmentGraphic[] slots = Array.Empty<RingSegmentGraphic>();
+        [SerializeField] private TMP_Text[] slotLabels = Array.Empty<TMP_Text>();
+        [SerializeField] private TMP_Text centerLabel;
+
+        [Header("춤")]
+        [Tooltip("칸 순서대로의 이름. 위에서부터 시계 방향.")]
+        [SerializeField] private string[] danceNames = { "춤 1", "춤 2", "춤 3", "춤 4", "춤 5" };
+
+        [Header("모양")]
+        [SerializeField] private Color normalColor = new Color(0.96f, 0.93f, 0.86f, 0.78f);
+        [SerializeField] private Color hoverColor = new Color(1f, 1f, 1f, 0.97f);
+        [SerializeField] private Color labelColor = new Color(0.32f, 0.24f, 0.16f, 1f);
+
+        [Tooltip("가리킨 칸을 이만큼 키운다. 휠 중심 기준이라 바깥으로 튀어나온다.")]
+        [SerializeField, Range(1f, 1.3f)] private float hoverScale = 1.07f;
+
+        [Tooltip("휠 중심에서 이 반지름 안쪽이면 아무 칸도 가리키지 않는다(1920×1080 기준 px).")]
+        [SerializeField, Min(0f)] private float deadZone = 40f;
+
+        /// <summary>
+        /// 춤을 골랐다. 값은 칸 번호(0 부터). 춤 동작 · 동기화가 이것을 듣는다.
+        ///
+        /// ⚠ 휠이 닫힌 <b>뒤에</b> 올린다. 듣는 쪽이 곧바로 다른 화면을 열어도 휠과 겹치지 않는다.
+        /// </summary>
+        public static event Action<int> DanceSelected;
+
+        /// <summary>휠이 지금 열려 있는가. 다른 입력(카메라 · 상호작용)이 비켜 줄 때 본다.</summary>
+        public static bool IsOpen { get; private set; }
+
+        private int hovered = -1;
+
+        private static readonly Key[] NumberKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5 };
+
+        private void Awake()
+        {
+            for (int i = 0; i < slotLabels.Length; i++)
+            {
+                if (slotLabels[i] != null)
+                {
+                    slotLabels[i].text = NameOf(i);
+                    slotLabels[i].color = labelColor;
+                }
+            }
+
+            SetOpen(false);
+        }
+
+        private void OnDisable()
+        {
+            // 로비를 떠나며 숨겨질 때 열린 채로 남지 않게.
+            SetOpen(false);
+        }
+
+        private void Update()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || ChatFocus.Typing)
+            {
+                return;
+            }
+
+            if (keyboard[ToggleKey].wasPressedThisFrame)
+            {
+                SetOpen(!IsOpen);
+                return;
+            }
+
+            if (!IsOpen)
+            {
+                return;
+            }
+
+            if (keyboard.escapeKey.wasPressedThisFrame)
+            {
+                SetOpen(false);
+                return;
+            }
+
+            for (int i = 0; i < NumberKeys.Length && i < slots.Length; i++)
+            {
+                if (keyboard[NumberKeys[i]].wasPressedThisFrame)
+                {
+                    Select(i);
+                    return;
+                }
+            }
+
+            Mouse mouse = Mouse.current;
+            SetHovered(mouse != null ? SlotUnder(mouse.position.ReadValue()) : -1);
+
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && hovered >= 0)
+            {
+                Select(hovered);
+            }
+        }
+
+        /// <summary>
+        /// 화면 좌표가 가리키는 칸. <b>방향만 본다</b> — 칸 바깥이어도 그 방향의 칸이다(PEAK 와 같다).
+        /// 중심 가까이(<see cref="deadZone"/>)면 -1.
+        /// </summary>
+        private int SlotUnder(Vector2 screenPoint)
+        {
+            if (wheel == null || slots.Length == 0)
+            {
+                return -1;
+            }
+
+            Camera eventCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                ? canvas.worldCamera
+                : null;
+            Vector2 center = RectTransformUtility.WorldToScreenPoint(eventCamera, wheel.position);
+            Vector2 offset = screenPoint - center;
+
+            float scale = canvas != null ? canvas.scaleFactor : 1f;
+            if (offset.magnitude < deadZone * scale)
+            {
+                return -1;
+            }
+
+            // 위(90°)에서 시계 방향으로 잰 각도. 칸 0 은 위쪽 가운데에 걸쳐 있으므로 반 칸만큼 돌려 잰다.
+            float mathAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+            float slotSweep = 360f / slots.Length;
+            float clockwiseFromTop = Mathf.Repeat(90f - mathAngle + slotSweep * 0.5f, 360f);
+
+            return Mathf.Clamp(Mathf.FloorToInt(clockwiseFromTop / slotSweep), 0, slots.Length - 1);
+        }
+
+        private void SetHovered(int index)
+        {
+            if (index == hovered)
+            {
+                return;
+            }
+
+            hovered = index;
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                if (slots[i] == null) continue;
+
+                bool on = i == hovered;
+                slots[i].color = on ? hoverColor : normalColor;
+                slots[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+
+                if (i < slotLabels.Length && slotLabels[i] != null)
+                {
+                    slotLabels[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                }
+            }
+
+            if (centerLabel != null)
+            {
+                centerLabel.text = hovered >= 0 ? NameOf(hovered) : string.Empty;
+            }
+        }
+
+        private void Select(int index)
+        {
+            SetOpen(false);
+            Debug.Log($"[춤] {index + 1}번 '{NameOf(index)}' 을 골랐습니다.", this);
+            DanceSelected?.Invoke(index);
+        }
+
+        private void SetOpen(bool open)
+        {
+            IsOpen = open;
+
+            if (canvas != null)
+            {
+                canvas.enabled = open;
+            }
+
+            // 열 때마다 가리킴을 비운다. 마지막에 가리키던 칸이 밝은 채로 열리지 않게.
+            hovered = int.MinValue;
+            SetHovered(-1);
+        }
+
+        private string NameOf(int index)
+        {
+            return index >= 0 && index < danceNames.Length && !string.IsNullOrEmpty(danceNames[index])
+                ? danceNames[index]
+                : $"춤 {index + 1}";
+        }
+    }
+}

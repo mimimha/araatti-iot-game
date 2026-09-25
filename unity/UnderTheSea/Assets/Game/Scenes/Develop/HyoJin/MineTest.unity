@@ -78099,6 +78099,11 @@ MonoBehaviour:
   diggers:
   - {fileID: 1398097736}
   playerCount: 4
+  drawings:
+  - {fileID: 11400000, guid: 6ac61d306d444c24d9a0f2382e4e7103, type: 2}
+  - {fileID: 11400000, guid: 0f0f09ced8f8d4f449716ccb3210df4c, type: 2}
+  - {fileID: 11400000, guid: 4aaeb000e0c18e646aef2580c48001d9, type: 2}
+  - {fileID: 11400000, guid: 0e1bc2248b1ead845b860daf4964680b, type: 2}
   countdownSeconds: 3
   revealSeconds: 7
   turnSeconds: 30

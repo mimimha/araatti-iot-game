@@ -68,11 +68,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             count += DisableAll<ShipCoopDebugHud>("디버그 HUD");
             count += DisableAll<ShipCoopResultView>("결과창");
             count += DisableAll<ShipCoopPortrait>("프로필 사진");
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // ShipCoopDevMode 는 파일 전체가 이 조건으로 감싸여 있다.
-            // 일반 Dedicated Server 빌드에는 타입 자체가 없어 이 줄이 컴파일되지 않는다.
             count += DisableAll<ShipCoopDevMode>("DevMode");
-#endif
             count += DisableAll<ShipCoopHelp>("도움말");
 
             // 연출

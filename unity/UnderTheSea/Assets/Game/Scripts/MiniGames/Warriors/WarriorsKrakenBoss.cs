@@ -453,6 +453,9 @@ namespace Warriors
 
         public void ShowFinalForm()
         {
+            // 지난 판에서 바다로 가라앉혔으면 제자리로 되돌린다. 안 그러면 다음 판에 물속에서 시작한다.
+            RestoreAfterSink();
+
             if (tentaclePhaseHead != null) tentaclePhaseHead.SetActive(false);
             foreach (WarriorsTarget tentacle in tentacles)
                 if (tentacle != null) tentacle.gameObject.SetActive(false);
@@ -776,6 +779,139 @@ namespace Warriors
             ParticleSystem.ShapeModule shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Sphere;
             shape.radius = .22f;
+            particles.Play();
+        }
+
+        // ------------------------------------------------------------
+        // 3라운드 승리 — 바다 밑으로 가라앉는다
+        // ------------------------------------------------------------
+
+        private Coroutine sinkRoutine;
+        private bool sinkRestSaved;
+        private Vector3 sinkRestPosition;
+        private Quaternion sinkRestRotation;
+
+        private Transform SinkRoot => finalFormRoot != null ? finalFormRoot.transform : transform;
+
+        /// <summary>
+        /// **쓰러진 크라켄이 바다 밑으로 가라앉는다.** 3라운드를 깬 순간 각 화면이 부른다.
+        ///
+        /// 예전에는 이긴 뒤에도 크라켄이 그대로 서 있다가 화면이 어두워지며 결과 판이 떠서
+        /// "갑자기 사라진" 것처럼 보였다. 이제 <b>천천히 물속으로 잠겨 사라진다.</b>
+        /// <code>
+        ///   시작   수면에 잔잔한 물결 한 번
+        ///   내내   같은 빠르기로 부드럽게(처음과 끝만 살짝 느리게) 내려간다
+        ///   끝     머리 끝까지 잠기면 끈다 (다음 판은 ShowFinalForm 이 되돌린다)
+        /// </code>
+        /// ⚠ 떨림 · 포효 · 큰 물보라를 넣지 않는다. 처음에 넣었더니 가라앉는 게 아니라
+        ///    "눈앞에서 터지는" 것처럼 보였다.
+        /// ⚠ 서버에서 부르지 않는다. 서버 화면은 아무도 보지 않는다 (PlayRhythmHit 과 같은 이유).
+        /// </summary>
+        public void PlayDefeatSink(float seconds)
+        {
+            Transform root = SinkRoot;
+            if (!isActiveAndEnabled || root == null || !root.gameObject.activeInHierarchy) return;
+
+            if (!sinkRestSaved)
+            {
+                sinkRestPosition = root.localPosition;
+                sinkRestRotation = root.localRotation;
+                sinkRestSaved = true;
+            }
+
+            SpawnDefeatSplash(root.position);
+
+            if (sinkRoutine != null) StopCoroutine(sinkRoutine);
+            sinkRoutine = StartCoroutine(DefeatSinkRoutine(root, Mathf.Max(1f, seconds)));
+        }
+
+        private IEnumerator DefeatSinkRoutine(Transform root, float seconds)
+        {
+            Vector3 start = root.position;
+
+            // 모델 키보다 조금 더 내려가야 머리 끝까지 수면 아래로 잠긴다.
+            // ⚠ 키는 메시로만 잰다. 파티클까지 넣어 쟀더니 수십 m 로 나와 한순간에 화면 밖으로 떨어졌다.
+            float depth = Mathf.Clamp(MeasureMeshHeight(root) * 1.1f, 3f, 20f);
+            Debug.Log($"[WarriorsKraken] 바다 밑으로 가라앉습니다 — 깊이 {depth:F1}m, {seconds:F1}초 ({root.name})", this);
+
+            for (float t = 0f; t < seconds; t += Time.deltaTime)
+            {
+                float u = t / seconds;
+                root.position = start + Vector3.down * depth * Mathf.SmoothStep(0f, 1f, u);
+                yield return null;
+            }
+
+            root.position = start + Vector3.down * depth;
+            root.gameObject.SetActive(false);
+            sinkRoutine = null;
+        }
+
+        /// <summary>가라앉힌 것을 되돌린다. 새 판을 세울 때 부른다.</summary>
+        private void RestoreAfterSink()
+        {
+            if (!sinkRestSaved) return;
+
+            if (sinkRoutine != null)
+            {
+                StopCoroutine(sinkRoutine);
+                sinkRoutine = null;
+            }
+
+            Transform root = SinkRoot;
+            if (root != null)
+            {
+                root.localPosition = sinkRestPosition;
+                root.localRotation = sinkRestRotation;
+            }
+        }
+
+        /// <summary>메시(겉모습)만으로 잰 키. 파티클 · 잔상은 범위가 커서 넣지 않는다.</summary>
+        private static float MeasureMeshHeight(Transform root)
+        {
+            bool found = false;
+            Bounds bounds = default;
+
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
+            {
+                if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)) continue;
+
+                if (!found) { bounds = renderer.bounds; found = true; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+
+            return found ? bounds.size.y : 0f;
+        }
+
+        /// <summary>잔잔한 물결. 잠기기 시작할 때 수면에 한 번만 인다. 크게 튀지 않는다.</summary>
+        private static void SpawnDefeatSplash(Vector3 at)
+        {
+            GameObject burst = new("KrakenDefeatSplash");
+            burst.transform.position = at + Vector3.up * .2f;
+            ParticleSystem particles = burst.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = .4f;
+            main.loop = false;
+            main.startLifetime = .7f;
+            main.startSpeed = 1.8f;
+            main.startSize = .18f;
+            main.gravityModifier = .8f;
+            main.startColor = new Color(.85f, .96f, 1f, .55f);
+            main.maxParticles = 24;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)16) });
+
+            // 낮게 퍼지는 원뿔. 솟구치지 않고 수면 가까이서 번진다.
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 60f;
+            shape.radius = 1.4f;
+            shape.rotation = new Vector3(-90f, 0f, 0f);
+
             particles.Play();
         }
 

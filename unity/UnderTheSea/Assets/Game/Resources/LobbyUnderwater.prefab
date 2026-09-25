@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &306741948466095805
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6472660403806166057}
+  - component: {fileID: 8282277752313357014}
+  - component: {fileID: 5426450167325187773}
+  m_Layer: 0
+  m_Name: LobbyUnderwater
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6472660403806166057
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 306741948466095805}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8282277752313357014
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 306741948466095805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62e05fba113aa5849bdb20a5682e8498, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.LobbyUnderwaterView
+  seaLevel: 0
+  headHeight: 0.6
+  submergedLookHeight: 0.3
+  cameraBelowSurface: 0.15
+  lookHeightSpeed: 3
+  underwaterProfile: {fileID: 11400000, guid: cb8a9dd03032be84fbc5870a9f5cc8f6, type: 2}
+  fogColor: {r: 0.2, g: 0.78, b: 0.68, a: 1}
+  fogDensity: 0.055
+  blendSpeed: 8
+  surfaceMaterial: {fileID: 2100000, guid: dfae8dbcb0112f54f8b465c6d2ecf89f, type: 2}
+  surfaceTintMaterial: {fileID: 2100000, guid: 7d847134433cca74a93fe15ac7de3996, type: 2}
+  surfaceSize: 300
+  surfaceTiles: 40
+  surfaceScroll: {x: 0.03, y: 0.018}
+  bubblesPrefab: {fileID: 2311965045380227588, guid: 6744686723b90774384d9c57fb0060c1, type: 3}
+  bubbleOffset: {x: 0, y: 0.6, z: 0.35}
+--- !u!114 &5426450167325187773
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 306741948466095805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: daf99ed5cda0e2f45ad0cbdb1b4b1aad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.LobbySwimAudio
+  swimStrokes:
+  - {fileID: 8300000, guid: 912fa5504faecca44954068ccd4f3915, type: 3}
+  - {fileID: 8300000, guid: 6f48a850bc7f50847a4737dbdc2bf62a, type: 3}
+  strokeInterval: 1.1
+  sprintStrokeInterval: 0.8
+  diveIn: {fileID: 8300000, guid: 739d6a56852fbf944825a1781515cd62, type: 3}
+  surfaceOut: {fileID: 8300000, guid: 31fa45272cdc095409959e814171652b, type: 3}
+  underwaterLoop: {fileID: 8300000, guid: 20f5d4a1c918d1c43810bbe56c5828e7, type: 3}
+  strokeLevel: 0.6
+  underwaterStrokeScale: 0.5
+  diveLevel: 0.8
+  underwaterLoopLevel: 0.5

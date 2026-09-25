@@ -17,3 +17,22 @@ public sealed record InventoryItemResponse(string ItemId, string DisplayName, ui
 ///    (CharacterListResponse 가 같은 이유로 같은 모양이다)
 /// </summary>
 public sealed record InventoryResponse(InventoryItemResponse[] Items);
+
+/// <summary>
+/// 미니게임을 이긴 보상을 달라는 요청.
+///
+/// ⚠ <b>수량이 없다.</b> 한 판에 언제나 1개이고 서버가 정한다. 클라이언트가 수량을 보낼 여지를 없앤다.
+/// </summary>
+/// <param name="GameId">어느 게임인가. <c>sword</c> · <c>mining</c> · <c>ship</c> (MiniGameConfig.fragmentId)</param>
+/// <param name="MatchKey">판 하나를 가리키는 문자열. 같은 값은 두 번 지급하지 않는다. 128자 이하.</param>
+public sealed record ClearRewardRequest(string? GameId, string? MatchKey);
+
+/// <summary>
+/// 보상 결과. <b>지급하지 않았을 때도 200</b> 이다 — 게임을 이긴 것 자체는 정상이다.
+/// </summary>
+/// <param name="Success">요청을 처리했는가. 이 응답에서는 늘 true.</param>
+/// <param name="Granted">조각을 줬는가(이번에 줬거나, 전에 같은 판으로 이미 줬거나).</param>
+/// <param name="Quantity">지금 가진 조각 수. 화면이 그대로 받아 그린다.</param>
+/// <param name="Duplicate">같은 판으로 이미 받은 요청을 다시 받았는가.</param>
+/// <param name="Code">지급하지 않은 이유. 줬으면 null. 예: <c>ALTAR_COMPLETED</c></param>
+public sealed record ClearRewardResponse(bool Success, bool Granted, uint Quantity, bool Duplicate, string? Code);

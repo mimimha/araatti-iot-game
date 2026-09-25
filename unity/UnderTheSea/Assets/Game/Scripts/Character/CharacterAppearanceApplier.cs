@@ -122,6 +122,19 @@ namespace UnderTheSea.Character
         private readonly Dictionary<WearSlot, CharacterPartCatalog.Entry> equippedParts =
             new Dictionary<WearSlot, CharacterPartCatalog.Entry>();
 
+        /// <summary>
+        /// 이 자리의 파츠가 가려서 벗겨 둔 파츠들. 그 파츠를 벗으면 되돌려 입힌다.
+        ///
+        /// 모자는 머리카락을 가린다(<c>covers: Hair</c>). 가린 쪽을 <b>지워 버리면</b>
+        /// 모자를 벗었을 때 민머리가 된다. 사용자는 머리카락을 벗은 적이 없다.
+        /// 그래서 가려서 벗긴 것은 여기 적어 뒀다가, 가린 파츠를 벗을 때 돌려준다.
+        ///
+        /// ⚠ 입고 있는 목록(<see cref="equippedParts"/>)에는 넣지 않는다. 저장 · 복제되는 값은
+        ///    예전처럼 <b>보이는 것만</b>이다. 이 목록은 이 화면에서 벗을 때만 쓰인다.
+        /// </summary>
+        private readonly Dictionary<WearSlot, List<CharacterPartCatalog.Entry>> displacedBy =
+            new Dictionary<WearSlot, List<CharacterPartCatalog.Entry>>();
+
         private Color currentSkinColor = Color.white;
         private Material originalSkinMaterial;
         private Texture2D originalSkinTexture;
@@ -189,7 +202,8 @@ namespace UnderTheSea.Character
                 {
                     foreach (CharacterPartSnapshot part in snapshot.parts)
                     {
-                        if (!string.Equals(part.slot, category, StringComparison.Ordinal))
+                        if (!string.Equals(
+                                CharacterPartCatalog.CategoryOfSnapshotSlot(part.slot), category, StringComparison.Ordinal))
                         {
                             continue;
                         }
@@ -267,8 +281,58 @@ namespace UnderTheSea.Character
 
             equippedObjects.Remove(entry.slot);
             equippedParts.Remove(entry.slot);
+
+            // 이 파츠가 가려서 벗겨 뒀던 것을 돌려 입힌다. (모자를 벗으면 머리카락이 돌아온다)
+            if (displacedBy.TryGetValue(entry.slot, out List<CharacterPartCatalog.Entry> displaced))
+            {
+                displacedBy.Remove(entry.slot);
+                foreach (CharacterPartCatalog.Entry back in displaced)
+                {
+                    RestoreDisplaced(back);
+                }
+            }
+
             RefreshVisibility();
             return true;
+        }
+
+        /// <summary>
+        /// 가려서 벗겨 뒀던 파츠를 되돌린다.
+        ///
+        /// 그 사이 같은 자리에 다른 것을 입었으면 돌려주지 않는다. 사용자가 새로 고른 쪽이 이긴다.
+        /// 아직 다른 파츠가 그 자리를 가리고 있으면 그 파츠의 목록으로 옮긴다.
+        /// </summary>
+        private void RestoreDisplaced(CharacterPartCatalog.Entry back)
+        {
+            if (back?.prefab == null || equippedParts.ContainsKey(back.slot))
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<WearSlot, CharacterPartCatalog.Entry> other in equippedParts)
+            {
+                if ((other.Value.covers & back.slot) != 0)
+                {
+                    AddDisplaced(other.Key, back);
+                    return;
+                }
+            }
+
+            ApplyEntry(back);
+        }
+
+        private void AddDisplaced(WearSlot coverer, CharacterPartCatalog.Entry covered)
+        {
+            if (!displacedBy.TryGetValue(coverer, out List<CharacterPartCatalog.Entry> list))
+            {
+                list = new List<CharacterPartCatalog.Entry>();
+                displacedBy[coverer] = list;
+            }
+
+            if (!list.Contains(covered))
+            {
+                list.Add(covered);
+            }
         }
 
         /// <summary>이 프리팹을 지금 입고 있는가.</summary>
@@ -321,14 +385,30 @@ namespace UnderTheSea.Character
             }
 
             // 같은 자리에 있던 것과, 서로 가리는 관계인 것을 먼저 벗는다.
+            //   · 같은 자리          바꿔 입는다. 앞의 것이 가려 두었던 목록은 이어받는다
+            //   · 새 것을 가리던 것   벗는다. 새로 고른 것이 보여야 한다
+            //   · 새 것이 가리는 것   벗되 기억해 둔다. 새 것을 벗으면 돌려준다
             List<WearSlot> replaced = new List<WearSlot>();
+            List<CharacterPartCatalog.Entry> carried = new List<CharacterPartCatalog.Entry>();
             foreach (KeyValuePair<WearSlot, CharacterPartCatalog.Entry> old in equippedParts)
             {
-                if (old.Key == entry.slot
-                    || (old.Value.covers & entry.slot) != 0
-                    || (entry.covers & old.Key) != 0)
+                bool sameSlot = old.Key == entry.slot;
+                bool coveredByNew = !sameSlot && (entry.covers & old.Key) != 0;
+                if (!sameSlot && !coveredByNew && (old.Value.covers & entry.slot) == 0)
                 {
-                    replaced.Add(old.Key);
+                    continue;
+                }
+
+                replaced.Add(old.Key);
+                if (coveredByNew)
+                {
+                    carried.Add(old.Value);
+                }
+
+                if ((sameSlot || coveredByNew)
+                    && displacedBy.TryGetValue(old.Key, out List<CharacterPartCatalog.Entry> inherited))
+                {
+                    carried.AddRange(inherited);
                 }
             }
 
@@ -342,6 +422,7 @@ namespace UnderTheSea.Character
 
                 equippedObjects.Remove(slot);
                 equippedParts.Remove(slot);
+                displacedBy.Remove(slot);
             }
 
             GameObject root = new GameObject(entry.prefab.name + " Equipped");
@@ -387,7 +468,7 @@ namespace UnderTheSea.Character
                 renderer.localBounds = source.localBounds;
                 renderer.updateWhenOffscreen = true;
 
-                if (entry.skin)
+                if (NeedsSkinMaterial(entry))
                 {
                     ApplySkinMaterialTo(renderer);
                 }
@@ -395,7 +476,29 @@ namespace UnderTheSea.Character
 
             equippedObjects[entry.slot] = root;
             equippedParts[entry.slot] = entry;
+
+            // 이어받은 것 중 새 것이 가리지 않는 자리는 바로 돌려준다.
+            // (앞의 모자는 머리를 가렸는데 새로 고른 것은 안 가리는 경우)
+            List<CharacterPartCatalog.Entry> uncovered = new List<CharacterPartCatalog.Entry>();
+            foreach (CharacterPartCatalog.Entry covered in carried)
+            {
+                if ((entry.covers & covered.slot) != 0)
+                {
+                    AddDisplaced(entry.slot, covered);
+                }
+                else
+                {
+                    uncovered.Add(covered);
+                }
+            }
+
             RefreshVisibility();
+
+            foreach (CharacterPartCatalog.Entry back in uncovered)
+            {
+                RestoreDisplaced(back);
+            }
+
             return true;
         }
 
@@ -525,7 +628,7 @@ namespace UnderTheSea.Character
             // 이미 입은 파츠 중 피부 취급인 것들도 다시 칠한다.
             foreach (KeyValuePair<WearSlot, CharacterPartCatalog.Entry> entry in equippedParts)
             {
-                if (!entry.Value.skin || !equippedObjects.TryGetValue(entry.Key, out GameObject equipped))
+                if (!NeedsSkinMaterial(entry.Value) || !equippedObjects.TryGetValue(entry.Key, out GameObject equipped))
                 {
                     continue;
                 }
@@ -535,6 +638,21 @@ namespace UnderTheSea.Character
                     ApplySkinMaterialTo(renderer);
                 }
             }
+        }
+
+        /// <summary>
+        /// 이 파츠에 피부 재질을 입혀야 하는가.
+        ///
+        /// ⚠ <b>표정(<see cref="WearSlot.Face"/>)은 카탈로그에 skin 으로 표시돼 있어도 입히지 않는다.</b>
+        ///    표정 메시는 눈 · 입 · 볼터치만 있는 얹는 메시라 피부 칸을 한 군데도 쓰지 않는다.
+        ///    (40개 전부 UV 로 실측. 머리 피부는 Body 메시에 있다)
+        ///    그런데 피부 재질은 <see cref="CreateRecoloredSkinTexture"/> 가 팔레트의 빨강 · 주황 칸을
+        ///    전부 피부색으로 바꾼 것이라, 입히면 입술 · 볼터치 · 하트 눈 · 혀가 피부색으로 지워진다.
+        ///    표정 25개가 그런 빨강 계열 칸을 쓴다. 원래 재질 그대로 두면 제 색이 나온다.
+        /// </summary>
+        private static bool NeedsSkinMaterial(CharacterPartCatalog.Entry entry)
+        {
+            return entry.skin && entry.slot != WearSlot.Face;
         }
 
         /// <summary>지금 피부 재질을 이 렌더러에 입힌다.</summary>

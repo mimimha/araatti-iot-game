@@ -705,6 +705,23 @@ namespace FishingMiniGame.Tests.EditMode
         }
 
         [Test]
+        public void SpotOwnedPresentationAnchor_MovesFishWithSpotTransform()
+        {
+            Fixture fixture = CreateFixture(
+                FishingV3FishProfileId.Normal,
+                useSpotPresentationAnchor: true);
+
+            EnterFighting(fixture);
+
+            Transform anchor = fixture.Presenter.PresentationAnchor;
+            Assert.That(anchor, Is.Not.Null);
+            Assert.That(anchor.name, Is.EqualTo("FishPresentationAnchor"));
+            Assert.That(fixture.Presenter.ActiveVisual.transform.parent, Is.SameAs(anchor));
+            Assert.That(fixture.Presenter.ActiveVisual.transform.localPosition,
+                Is.EqualTo(Vector3.zero));
+        }
+
+        [Test]
         public void PlayerIntegrationScene_WiresFishPresenterToCatalogAndSpot()
         {
             const string scenePath =
@@ -728,7 +745,8 @@ namespace FishingMiniGame.Tests.EditMode
             FishingV3FishProfileId profileId,
             Transform presentationAnchor = null,
             FishingV3FishBehaviorTuning behaviorTuning = null,
-            FishingV3Tuning modelTuning = null)
+            FishingV3Tuning modelTuning = null,
+            bool useSpotPresentationAnchor = false)
         {
             GameObject host = new GameObject("FishingV3FishVisualPresenterTests");
             GameObject spotObject = new GameObject("FishingSpot");
@@ -768,6 +786,16 @@ namespace FishingMiniGame.Tests.EditMode
             controller.BeginRound();
 
             FishingSpot spot = spotObject.AddComponent<FishingSpot>();
+            if (useSpotPresentationAnchor)
+            {
+                GameObject spotAnchorObject = new GameObject("FishPresentationAnchor");
+                spotAnchorObject.transform.SetParent(spotObject.transform, false);
+                spotAnchorObject.transform.localPosition = new Vector3(2.1f, -1.67f, 0.81f);
+                SerializedObject spotSerialized = new SerializedObject(spot);
+                spotSerialized.FindProperty("presentationAnchor").objectReferenceValue =
+                    spotAnchorObject.transform;
+                spotSerialized.ApplyModifiedPropertiesWithoutUndo();
+            }
             FishingV3FishVisualPresenter presenter =
                 host.AddComponent<FishingV3FishVisualPresenter>();
             presenter.Configure(

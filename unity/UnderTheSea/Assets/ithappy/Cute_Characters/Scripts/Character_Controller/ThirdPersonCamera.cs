@@ -18,6 +18,29 @@ namespace ithappy.Cute_Characters.Controller
         private Vector3 m_LookPoint;
         private Vector3 m_TargetPos;
 
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 주시점 높이(플레이어 발 기준, m). 원래 값은 인스펙터의 m_Offset 이다.
+        ///
+        /// 로비 물속 연출(<c>LobbyUnderwaterView</c>)이 잠수 중에 낮춘다. 발 위 1.5m 를 보고 있으면
+        /// 얕은 바다에서는 카메라가 늘 수면 위에 남아 물속이 보이지 않는다.
+        /// </summary>
+        public float LookHeight
+        {
+            get => m_Offset;
+            set => m_Offset = value;
+        }
+
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 카메라가 올라갈 수 있는 가장 높은 곳(월드 y). null 이면 제한이 없다.
+        ///
+        /// 잠수 중에 수면 바로 아래로 둔다. 넘으면 <b>각도는 두고 주시점 쪽으로 당겨</b> 이 높이에 맞춘다.
+        /// 기본 거리(5.5m)로 내려다보면 얕은 바다에서도 카메라가 물 밖에 있어 물속이 안 보인다.
+        /// </summary>
+        public float? CameraCeiling { get; set; }
+
+        /// <summary>천장에 맞춰 당길 때 주시점에서 이보다 가까이 오지 않는다. 캐릭터 머리 속으로 들어가지 않게.</summary>
+        private const float CEILING_MIN_DISTANCE = 0.8f;
+
         private void LateUpdate()
         {
             // ⚠ 아라아띠 수정 — 따라갈 대상이 없으면 아예 움직이지 않는다.
@@ -45,6 +68,18 @@ namespace ithappy.Cute_Characters.Controller
         ///
         /// 첫 Snap 이후의 평상시 추적은 그대로 <see cref="Move"/> 가 맡는다.
         /// </summary>
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 카메라를 이 좌우 각도(도)에서 보게 한다. 위아래 각도는 그대로 둔다.
+        ///
+        /// 접속할 때마다 카메라는 늘 북쪽(+Z)을 보고 시작한다. 미니게임에서 돌아와 포탈을 등지고
+        /// 선 캐릭터를 엉뚱한 쪽에서 보면 "포탈에서 나왔다" 는 느낌이 안 난다. 캐릭터가 보는
+        /// 방향을 넘겨 그 뒤에 서게 한다. 곧바로 <see cref="SnapToPlayer"/> 를 부르면 보간 없이 자리를 잡는다.
+        /// </summary>
+        public void FaceYaw(float yawDegrees)
+        {
+            m_Angles.y = yawDegrees;
+        }
+
         public void SnapToPlayer()
         {
             if (m_Player == null)
@@ -89,6 +124,16 @@ namespace ithappy.Cute_Characters.Controller
             {
                 m_TargetPos.y += lift;
                 m_LookPoint.y += lift;
+            }
+
+            // ⚠ 아라아띠 추가 — 천장(CameraCeiling)을 넘으면 주시점 쪽으로 당긴다. 위 설명 참고.
+            if (CameraCeiling is float ceiling && m_TargetPos.y > ceiling && m_LookPoint.y < ceiling)
+            {
+                Vector3 arm = m_TargetPos - m_LookPoint;
+                float t = (ceiling - m_LookPoint.y) / arm.y;
+                float length = Mathf.Max(arm.magnitude * t, CEILING_MIN_DISTANCE);
+
+                m_TargetPos = m_LookPoint + arm.normalized * length;
             }
         }
 

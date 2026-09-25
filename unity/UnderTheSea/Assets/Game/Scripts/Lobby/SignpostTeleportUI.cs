@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Fusion;
 using TMPro;
+using UnderTheSea.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -29,7 +31,7 @@ namespace UnderTheSea.Lobby
     ///    같은 씬을 한 벌 더 올려 이정표가 두 벌이 된다. 그대로 두면 목록이 두 번 나온다.
     ///
     /// ⚠ <b>창이 열린 동안 이동과 다른 상호작용을 막는다.</b> <see cref="ChatFocus"/> 로
-    ///    잠근다. 이것은 채팅 전용이 아니라 로비의 공용 입력 잠금이고, 도감·제단 창도 쓴다.
+    ///    잠근다. 이것은 채팅 전용이 아니라 로비의 공용 입력 잠금이고, 제단 창도 쓴다.
     ///    내 창에서 Esc 를 볼 때는 <see cref="ChatFocus.Typing"/> 이 아니라
     ///    <see cref="ChatFocus.HeldByOther"/> 를 봐야 한다 — 열려 있는 동안 나 자신이 보유자다.
     ///
@@ -200,11 +202,30 @@ namespace UnderTheSea.Lobby
             closeRect.anchoredPosition = new Vector2(0f, top - HeadH - listH - 56f);
         }
 
+        /// <summary>한쪽 방향 페이드에 걸리는 시간(초). 왕복은 그 두 배다.</summary>
+        private const float FadeSeconds = 0.25f;
+
+        /// <summary>도착했다고 볼 거리(m). 서버가 옮긴 뒤 내 쪽에 반영되는 것을 기다린다.</summary>
+        private const float ArrivedWithin = 2f;
+
+        /// <summary>
+        /// 도착을 기다리는 최대 시간(초).
+        ///
+        /// 서버 왕복은 보통 20~60ms 다. 그보다 훨씬 길게 잡아 두되, 네트워크가 끊겨
+        /// 영영 안 오는 경우에도 <b>화면이 까만 채로 남지는 않게</b> 한다.
+        /// </summary>
+        private const float ArrivalTimeout = 1.5f;
+
         /// <summary>
         /// 목록에서 한 곳을 골랐을 때. <b>서버에 보내 달라고 청한다.</b>
         ///
         /// 여기서 <c>transform.position</c> 을 직접 바꾸면 안 된다. 로비 캐릭터의 위치는
         /// 서버만 정하므로 다음 틱에 되돌아간다.
+        ///
+        /// <b>화면을 가리고 그 안에서 옮긴다.</b> 캐릭터는 한 틱 만에 도착하지만 카메라는
+        /// 초당 90 유닛으로 뒤따라가므로(<c>ThirdPersonCamera</c>), 로비 끝에서 끝인
+        /// 118m 면 1.3초 동안 화면이 날아간다. 거리마다 시간이 달라 순간이동처럼 안 보인다.
+        /// 가려 두고 그 안에서 카메라를 제자리에 놓으면 <b>어디로 가든 같은 시간</b>이 된다.
         /// </summary>
         private void Go(SignpostTeleport target)
         {
@@ -227,7 +248,86 @@ namespace UnderTheSea.Lobby
             }
 
             Debug.Log($"[이정표] \"{from}\" 에서 \"{target.DisplayName}\" 으로 갑니다.");
-            mover.RpcRequestTeleport(target.ArrivalPoint);
+
+            var view = me.GetComponent<LocalPlayerView>();
+            Vector3 arrival = target.ArrivalPoint;
+
+            // 어두워지기 시작할 때 얼린다. 이 한 줄이 빠지면 페이드 중에 카메라가
+            // 날아가기 시작하는 것이 보인다.
+            view?.FreezeCamera(true);
+
+            // ⚠ **얼렸으면 반드시 풀어야 한다.** 가리기가 시작되지 않으면 Ride 도 돌지
+            //    않으므로 얼음을 풀어 줄 사람이 없다. 그대로 두면 카메라가 캐릭터에서
+            //    떨어진 채 영영 굳는다. 실제로 그렇게 됐다.
+            if (!ScreenFade.Cover(() => Ride(mover, view, me.transform, arrival), FadeSeconds))
+            {
+                view?.FreezeCamera(false);
+                Debug.LogWarning("[이정표] 이미 이동 연출이 도는 중이라 이번 선택은 무시합니다.");
+            }
+        }
+
+        /// <summary>
+        /// **화면이 까만 동안 벌어지는 일.**
+        ///
+        /// <code>
+        ///   1. 서버에 보내 달라고 청한다
+        ///   2. 내 캐릭터가 그 자리에 오는 것을 기다린다
+        ///   3. 카메라를 그 자리로 옮기고 얼음을 푼다
+        /// </code>
+        ///
+        /// ⚠ <b>2번을 기다려야 한다.</b> 안 기다리고 바로 카메라를 옮기면 아직 옛 자리에
+        ///    있는 캐릭터 뒤에 카메라가 서고, 그 뒤에 캐릭터가 도착하면서 다시 날아간다.
+        ///
+        /// ⚠ <b>서버가 거절할 수 있다.</b> 좌표가 이정표 앞이 아니면 보내 주지 않는다
+        ///    (<see cref="SignpostTeleport.IsKnownArrival"/>). 그때는 영영 도착하지 않으므로
+        ///    <see cref="ArrivalTimeout"/> 이 지나면 포기하고 화면을 되돌린다.
+        /// </summary>
+        private IEnumerator Ride(
+            NetworkPlayerMover mover, LocalPlayerView view, Transform me, Vector3 arrival)
+        {
+            // ⚠ **어떻게 끝나든 얼음은 풀어야 한다.** 중간에 캐릭터가 사라져 빠져나가도,
+            //    서버가 거절해 시간이 다 지나가도 마찬가지다. 한 번이라도 안 풀리면
+            //    카메라가 캐릭터에서 떨어진 채 굳어 버린다.
+            try
+            {
+                mover.RpcRequestTeleport(arrival);
+
+                float waited = 0f;
+                bool arrived = false;
+
+                while (waited < ArrivalTimeout)
+                {
+                    if (me == null)
+                    {
+                        // 기다리는 사이 캐릭터가 사라졌다(접속 종료 등). 더 할 것이 없다.
+                        yield break;
+                    }
+
+                    if ((me.position - arrival).sqrMagnitude <= ArrivedWithin * ArrivedWithin)
+                    {
+                        arrived = true;
+                        break;
+                    }
+
+                    waited += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+
+                if (!arrived)
+                {
+                    Debug.LogWarning(
+                        $"[이정표] {ArrivalTimeout:0.0}초를 기다렸는데 {arrival.ToString("F2")} 에 " +
+                        "도착하지 않았습니다. 서버가 거절했거나 응답이 늦습니다. 화면만 되돌립니다.");
+                }
+
+                // 카메라를 제자리에 놓는다. 푸는 것보다 먼저다 — 풀고 나서 옮기면
+                // 한 프레임 동안 옛 자리에서 따라가기가 돌아 버린다.
+                view?.SnapCameraToMe();
+            }
+            finally
+            {
+                view?.FreezeCamera(false);
+            }
         }
 
         // ───────────────────────────── 그리기 ─────────────────────────────

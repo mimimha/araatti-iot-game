@@ -1,4 +1,5 @@
 using System;
+using MiniGames.Common.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,6 +36,9 @@ public class MineHud : MonoBehaviour
         public Image frame;
         public TMP_Text nameText;
         public TMP_Text stateText;
+
+        [Tooltip("프로필 사진. 줄 그림의 빈 네모 칸 위에 얹는다. 아직 못 찍었으면 감춘다.")]
+        public RawImage portrait;
     }
 
     [Header("연결 — 비워두면 씬에서 찾는다")]
@@ -124,7 +128,7 @@ public class MineHud : MonoBehaviour
     [Tooltip("① 큰 칸 — 최종 점수. 그림에 박힌 \"도안 유사도\" 라벨 위다.")]
     [SerializeField] private TMP_Text resultScoreText;
 
-    [Tooltip("② 가로 칸 — 점수 구간별 한 줄 평.")]
+    [Tooltip("② 가로 칸 — AI 한 줄 평. 아직 안 왔으면 점수 구간별 고정 문구.")]
     [SerializeField] private TMP_Text resultCommentText;
 
     [Tooltip("③ 왼쪽 — 도안 전체 칸 수. 그림에 박힌 \"목표\" 라벨 아래다.")]
@@ -292,10 +296,14 @@ public class MineHud : MonoBehaviour
     /// <summary>실제로 판 전체 칸 수. 맞힌 칸 수가 아니다.</summary>
     public int NetworkResultDugCount { get; set; }
 
+    /// <summary>AI 한 줄 평. 비어 있으면 점수 구간별 고정 문구를 쓴다. (MINE.md 7장)</summary>
+    public string NetworkResultComment { get; set; }
+
     /// <summary>
     /// 화면 한가운데에 띄울 한마디. 빈 문자열이면 안 띄운다.
     ///
-    /// 남이 힌트를 보는 동안 관전자에게 "누군가 컨닝 중!" 을 알리는 데 쓴다.
+    /// 동료를 기다리는 동안 대기 문구를 띄우는 데 쓴다. (예전에는 남이 힌트를 볼 때 관전자에게
+    /// "누군가 컨닝 중!" 도 띄웠는데, 이제 힌트는 모두가 같이 봐서 쓰지 않는다)
     ///
     /// ⚠ 카운트다운 숫자와 <b>같은 오브젝트</b>를 쓴다. 둘은 겹치지 않는다 —
     ///   카운트다운은 시작 전(Countdown), 힌트는 턴 중(Turn)에만 나온다.
@@ -325,15 +333,6 @@ public class MineHud : MonoBehaviour
     /// <summary>복구 블록이 아직 남았는가. 0 이 되면 판이 흑백으로 바뀐다.</summary>
     public bool NetworkRestoreLit { get; set; } = true;
 
-    /// <summary>
-    /// 내 힌트 상태. "J · 1회" · "사용함" · "보는 중" · "대기" 중 하나다.
-    ///
-    /// ⚠ <b>내 것만 적는다.</b> 남이 힌트를 쓰는 중이라도 이 칸은 내 것을 보여 준다 —
-    ///   남의 힌트는 화면을 덮는 <see cref="NetworkCenterNotice"/> 가 알린다.
-    ///   그래서 이 값은 판 전체를 보는 <c>MineMatchState</c> 가 아니라
-    ///   내가 누구인지 아는 <c>MineLocalView</c> 가 넣는다.
-    /// </summary>
-    public string NetworkHintText { get; set; }
 
     /// <summary>힌트가 아직 살아 있는가. 글자와 아이콘 색을 가른다.</summary>
     public bool NetworkHintLit { get; set; }
@@ -343,6 +342,31 @@ public class MineHud : MonoBehaviour
 
     /// <summary>지금 파는 사람의 자리. -1 이면 아무도 아니다(대기 · 공개 · 종료).</summary>
     public int NetworkCurrentSlot { get; set; } = -1;
+
+    // 자리별 이름과 몸. MineMatchState 가 매 프레임 채운다. 비어 있으면 "P1" 로 둔다.
+    private string[] _networkNames = Array.Empty<string>();
+    private Transform[] _networkBodies = Array.Empty<Transform>();
+
+    /// <summary>프로필 사진을 찍는 공통 부품. 처음 쓸 때 이 오브젝트에 붙인다.</summary>
+    private CharacterPortraitStudio _portraits;
+
+    /// <summary>
+    /// 그 자리에 선 사람의 이름과 몸. 나갔으면 둘 다 null 을 준다.
+    /// 이름이 비어 있으면(아직 닉네임이 안 왔으면) "P1" 로 그린다.
+    /// </summary>
+    public void SetNetworkPlayer(int slot, string displayName, Transform body)
+    {
+        if (slot < 0 || rows == null || slot >= rows.Length) return;
+
+        if (_networkNames.Length != rows.Length)
+        {
+            _networkNames = new string[rows.Length];
+            _networkBodies = new Transform[rows.Length];
+        }
+
+        _networkNames[slot] = displayName;
+        _networkBodies[slot] = body;
+    }
 
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
@@ -368,7 +392,11 @@ public class MineHud : MonoBehaviour
             SetActive(RowObject(row), used);
             if (!used) continue;
 
-            if (row.nameText != null) row.nameText.text = NameOf(i);
+            string shownName = i < _networkNames.Length ? _networkNames[i] : null;
+            if (row.nameText != null) row.nameText.text = string.IsNullOrWhiteSpace(shownName) ? NameOf(i) : shownName.Trim();
+
+            DrawPortrait(row.portrait, i, i < _networkBodies.Length ? _networkBodies[i] : null);
+
             if (row.stateText == null) continue;
 
             // 상태는 셋뿐이다.
@@ -391,6 +419,38 @@ public class MineHud : MonoBehaviour
             //   내 턴에는 내 줄이 금색이 되는데, 그때는 내가 조작하고 있어 헷갈리지 않는다.
             DrawRowFrame(row.frame, digging, i == NetworkSelfSlot);
         }
+    }
+
+    /// <summary>
+    /// 그 자리 사람의 사진을 칸에 끼운다. 아직 못 찍었으면(외형이 안 왔거나 몸이 감춰져 있으면)
+    /// 칸을 감춰 줄 그림의 빈 틀이 그대로 보이게 둔다.
+    /// </summary>
+    private void DrawPortrait(RawImage slot, int index, Transform body)
+    {
+        if (slot == null) return;
+
+        if (_portraits == null && body != null)
+        {
+            _portraits = GetComponent<CharacterPortraitStudio>();
+            if (_portraits == null) _portraits = gameObject.AddComponent<CharacterPortraitStudio>();
+        }
+
+        Texture photo = body != null ? _portraits.Take(index, body, PixelSizeOf(slot)) : null;
+
+        if (slot.texture != photo) slot.texture = photo;
+        SetActive(slot, photo != null);
+    }
+
+    private readonly Vector3[] _corners = new Vector3[4];
+
+    /// <summary>
+    /// 칸 한 변의 화면 픽셀 수. 사진을 그 크기에 맞춰 찍어야 줄여 그리며 뿌예지지 않는다.
+    /// 이 HUD 는 Screen Space - Overlay 라 월드 좌표가 곧 화면 픽셀이다.
+    /// </summary>
+    private int PixelSizeOf(RawImage slot)
+    {
+        slot.rectTransform.GetWorldCorners(_corners);
+        return Mathf.RoundToInt(Vector3.Distance(_corners[0], _corners[1]));
     }
 
     /// <summary>
@@ -504,15 +564,7 @@ public class MineHud : MonoBehaviour
     /// </summary>
     private void DrawNetworkHint()
     {
-        bool show = !string.IsNullOrEmpty(NetworkHintText);
-        SetActive(hintText, show);
-
-        if (show && hintText != null)
-        {
-            hintText.text = NetworkHintText;
-            hintText.color = NetworkHintLit ? hintReady : hintUsed;
-        }
-
+        HideHintText();
         DrawHintArt(NetworkHintLit);
     }
 
@@ -578,7 +630,7 @@ public class MineHud : MonoBehaviour
         if (NetworkResultShow)
         {
             DrawResultCard(NetworkResultSuccess, NetworkResultScore,
-                           NetworkResultTargetCount, NetworkResultDugCount);
+                           NetworkResultTargetCount, NetworkResultDugCount, NetworkResultComment);
         }
 
         if (phaseText != null) phaseText.text = NetworkPhaseText ?? string.Empty;
@@ -792,7 +844,8 @@ public class MineHud : MonoBehaviour
             game.Success,
             Mathf.Clamp(Mathf.RoundToInt(game.Result.Percent), 0, 100),
             game.Result.TargetCount,
-            game.Result.DugCount);
+            game.Result.DugCount,
+            null);
     }
 
     /// <summary>
@@ -807,8 +860,11 @@ public class MineHud : MonoBehaviour
     ///
     /// ⚠ <b>목표·채굴은 맞힌 칸 수가 아니다.</b> 목표는 도안 전체 칸 수, 채굴은 실제로
     ///   판 전체 칸 수다. 둘이 같아도 그림이 맞다는 뜻이 아니다.
+    ///
+    /// <paramref name="aiComment"/> 는 네트워크 판에서만 온다. 비어 있으면(솔로 · 아직 안 옴 · 실패)
+    /// 점수 구간별 고정 문구를 쓴다.
     /// </summary>
-    private void DrawResultCard(bool success, int score, int targetCount, int dugCount)
+    private void DrawResultCard(bool success, int score, int targetCount, int dugCount, string aiComment)
     {
         if (resultPanelImage != null)
         {
@@ -823,17 +879,26 @@ public class MineHud : MonoBehaviour
         //   같은 말을 두 번 하는 셈이고 금속·주황 판 위에서 색만 겉돈다.
         if (resultScoreText != null) resultScoreText.text = score + "점";
 
-        if (resultCommentText != null) resultCommentText.text = CommentFor(score);
+        if (resultCommentText != null)
+        {
+            bool fromAi = !string.IsNullOrEmpty(aiComment);
+            string shown = fromAi ? aiComment : CommentFor(score);
+
+            // 바뀔 때만 찍는다. 고정 문구 → AI 문장으로 바뀌면 두 줄이 남는다.
+            if (resultCommentText.text != shown)
+                Debug.Log($"[MineHud] 성적표 한 줄 평 — {(fromAi ? "AI" : "고정 문구")} · {score}점 · {shown}");
+
+            resultCommentText.text = shown;
+        }
         if (resultTargetText != null) resultTargetText.text = targetCount + "칸";
         if (resultDugText != null) resultDugText.text = dugCount + "칸";
     }
 
     /// <summary>
-    /// 점수 구간별 한 줄 평. <b>AI 가 아니라 표다.</b>
+    /// 점수 구간별 한 줄 평. <b>AI 한 줄 평이 없을 때 쓰는 대체 문구다.</b>
     ///
-    /// MINE.md 7장은 한 줄 평을 AI 몫으로 뒀지만, 표로 둔 이유는 그 장이 판정과 AI 를
-    /// 가른 이유와 같다 — 같은 점수면 늘 같은 말이 나오고, 왕복을 기다리지 않고,
-    /// 오프라인에서도 된다. 승패도 점수도 AI 가 건드리지 않는 자리다.
+    /// AI 문장은 채점보다 1~2초 늦게 오고, 서버가 없거나 실패하면 아예 안 온다.
+    /// 그동안 칸이 비지 않게 이 표가 먼저 뜬다. 솔로 판은 AI 를 안 불러서 언제나 이 표다.
     ///
     /// ⚠ <b>성공선이 70 이라는 것이 이 표에 박혀 있다.</b> 70 부터가 성공 말투이고
     ///   60~69 는 아쉬워하는 말투다. 씬의 <c>successThreshold</c> 를 바꾸면
@@ -901,20 +966,20 @@ public class MineHud : MonoBehaviour
         bool ready = game.HintAvailable;
         bool lit = ready || game.HintShowing;
 
-        if (hintText != null)
-        {
-            // ⚠ HintAvailable 은 "지금 쓸 수 있는가" 라서 내 턴이 아니면 false 다.
-            //   그걸 그대로 "사용함" 으로 적으면, 공개 7초에 쓰지도 않은 힌트가
-            //   이미 쓴 것처럼 보인다. 쓸 수 없는 때와 써버린 때를 갈라야 한다.
-            if (game.HintShowing) hintText.text = "보는 중";
-            else if (game.State != MineState.Turn) hintText.text = "대기";
-            else hintText.text = ready ? "J · 1회" : "사용함";
-
-            hintText.color = lit ? hintReady : hintUsed;
-        }
-
+        HideHintText();
         DrawHintArt(lit);
     }
+
+    /// <summary>
+    /// 힌트 칸의 상태 글자("J · 1회" · "사용함" …)는 <b>띄우지 않는다.</b>
+    ///
+    /// 그림에 박힌 "힌트" 글씨와 같은 자리라 겹쳐서 "1회" 만 삐져나와 보였다.
+    /// 쓸 수 있는지는 그림의 컬러/흑백이, 키(J)는 아래 조작 안내가 이미 알려 준다.
+    ///
+    /// ⚠ 필드를 지우지 않고 끈다. 글자 오브젝트는 프리팹에 남아 있어서, 연결만 끊으면
+    ///   프리팹에 적힌 기본 글자가 그대로 보인다.
+    /// </summary>
+    private void HideHintText() => SetActive(hintText, false);
 
     private static GameObject RowObject(PlayerRow row)
     {

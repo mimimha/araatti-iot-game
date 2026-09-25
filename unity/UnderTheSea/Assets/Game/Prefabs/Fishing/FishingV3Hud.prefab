@@ -62,6 +62,7 @@ MonoBehaviour:
   gaugeFillSprite: {fileID: 21300000, guid: 03a4f2c101f649d1b75ed5905d0af45d, type: 3}
   tensionMarkerSprite: {fileID: 21300000, guid: 5e40fb83fb78c7c4f8446062680659f8, type: 3}
   resultDisplaySeconds: 1.75
+  caughtResultDelaySeconds: 3.5
 --- !u!1 &1229922842843326936
 GameObject:
   m_ObjectHideFlags: 0
@@ -79,7 +80,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &7955294084072831351
 RectTransform:
   m_ObjectHideFlags: 0
@@ -140,7 +141,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: C  START   |   J  HOOK / TIMING
+  m_Text:
 --- !u!1 &1614017953264537052
 GameObject:
   m_ObjectHideFlags: 0
@@ -219,7 +220,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: TENSION
+  m_Text: 장력
 --- !u!1 &1626233071555257799
 GameObject:
   m_ObjectHideFlags: 0
@@ -298,7 +299,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: CATCH PROGRESS
+  m_Text: 포획 진행도
 --- !u!1 &1994931026920350095
 GameObject:
   m_ObjectHideFlags: 0
@@ -1126,7 +1127,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: FISHING
+  m_Text: 낚시
 --- !u!1 &8487095605577912691
 GameObject:
   m_ObjectHideFlags: 0

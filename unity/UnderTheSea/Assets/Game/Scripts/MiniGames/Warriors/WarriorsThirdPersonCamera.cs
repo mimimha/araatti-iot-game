@@ -45,6 +45,18 @@ namespace Warriors
         /// <summary>다시 캐릭터를 따라가게 한다. (1페이즈)</summary>
         public void ReleaseFixed() => fixedShot = false;
 
+        /// <summary>
+        /// **화면이 향하려는 방향(도).** 이동 입력을 화면 기준으로 돌릴 때 이 값을 쓴다.
+        ///
+        /// ⚠ <c>transform.eulerAngles.y</c> 를 쓰면 안 된다. 카메라 자리는 캐릭터를 늦게 따라가고
+        ///    시선은 <c>LookAt</c> 으로 캐릭터를 바로 보므로, <b>옆으로 걸으면 카메라가 돌아간다.</b>
+        ///    그 각도로 이동을 돌리면 옆걸음이 휘고 → 카메라가 또 돌고 → 네트워크 지연만큼 늦게
+        ///    되먹임되어 화면이 덜덜 떨렸다. (앞뒤로 걸을 때는 각도가 안 바뀌어 멀쩡했다)
+        ///    궤도 각도(<see cref="yaw"/>)는 마우스 · 스틱으로만 바뀌므로 되먹임이 없다.
+        ///    카메라가 멈춰 있을 때는 두 값이 같다.
+        /// </summary>
+        public float HeadingYaw => fixedShot ? transform.eulerAngles.y : yaw;
+
         private void LateUpdate()
         {
             if (fixedShot)

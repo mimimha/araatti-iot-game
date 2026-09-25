@@ -393,7 +393,7 @@ MonoBehaviour:
   - {fileID: 4314159039576879615}
   - {fileID: 1000972543256861106}
   - {fileID: 2609532915910849623}
-  ForceRemoteRenderTimeframe: 0
+  ForceRemoteRenderTimeframe: 1
 --- !u!114 &1330021359424559203
 MonoBehaviour:
   m_ObjectHideFlags: 0

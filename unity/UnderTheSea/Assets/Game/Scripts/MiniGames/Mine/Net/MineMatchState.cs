@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using Fusion;
 using MiniGames.Common;
+using UnderTheSea.Network;
 using UnityEngine;
 
 namespace Mine.Net
@@ -97,7 +98,7 @@ namespace Mine.Net
         [SerializeField, Min(0f)] private float resultHoldSeconds = 3.5f;
 
         [Header("채점 (MINE.md 7장 — MineGame 과 같은 값)")]
-        [Tooltip("이 값 이상이면 성공.")]
+        [Tooltip("점수(유사도를 반올림한 값)가 이 값 이상이면 성공.")]
         [SerializeField, Range(0f, 100f)] private float successThreshold = 70f;
 
         // ------------------------------------------------------------
@@ -122,6 +123,15 @@ namespace Mine.Net
         /// 2명으로 시작했으면 2다. 없는 P3 · P4 를 기다리지 않는다.
         /// </summary>
         [Networked] public int RosterSize { get; private set; }
+
+        /// <summary>
+        /// **몇 명이 모이면 시작하는가.** 서버가 정해 복제한다.
+        ///
+        /// ⚠ 클라이언트가 스스로 계산하면 안 된다. 시작 인원은 서버의 실행 인자
+        ///   (<c>-crew</c>)나 매칭이 정하는데 클라이언트에는 그 값이 없어서, 인스펙터 기본값(2)이
+        ///   나온다. 3인 판에서 먼저 들어온 사람들 화면에 "동료를 기다리는 중 (1 / 2)" 가 떴다.
+        /// </summary>
+        [Networked] public int CrewToStart { get; private set; }
 
         /// <summary>지금 몇 번 자리의 턴인가. 0부터. 턴이 아니면 -1.</summary>
         [Networked] public int CurrentSlot { get; private set; }
@@ -168,6 +178,14 @@ namespace Mine.Net
 
         [Networked] public int ResultAlignY { get; private set; }
 
+        /// <summary>
+        /// AI 한 줄 평. 비어 있으면 성적표가 점수 구간별 고정 문구를 쓴다.
+        ///
+        /// 채점보다 <b>1~2초 늦게</b> 채워진다. 성적표는 판이 끝나고 3.5초 뒤에 뜨므로
+        /// 대개 그 전에 도착하고, 늦으면 고정 문구가 떠 있다가 이 문장으로 바뀐다.
+        /// </summary>
+        [Networked] public NetworkString<_128> ResultComment { get; private set; }
+
         /// <summary>판이 시작한 뒤 흐른 시간. 결과 화면의 플레이 시간으로 쓴다.</summary>
         [Networked] public float Elapsed { get; private set; }
 
@@ -184,24 +202,11 @@ namespace Mine.Net
         public bool ShowingTarget => Phase == MineMatchPhase.Reveal || HintLeft > 0f;
 
         /// <summary>
-        /// 목표를 보여 주는 동안 <b>미리 움직여 볼 수 있는 자리.</b> 아니면 -1.
-        ///
-        /// 공개가 끝나면 <see cref="DriveReveal"/> 가 <c>OpenTurnFrom(0)</c> 로
-        /// 첫 턴을 여므로, 미리 움직일 수 있는 사람도 그 0번이다.
-        /// 걸어놓은 자리가 그대로 첫 턴의 시작 자리가 된다 — 턴이 열릴 때
-        /// 아무도 자리를 옮기지 않는다.
-        ///
-        /// ⚠ <b>힐트는 여기 해당하지 않는다.</b> 힐트 중에도 <c>ShowingTarget</c> 은
-        ///   참이지만 그때는 <c>Phase</c> 가 <c>Turn</c> 이라 본인은 이미 움직일 수 있다.
-        /// </summary>
-        public int WarmupSlot => Phase == MineMatchPhase.Reveal ? 0 : -1;
-
-        /// <summary>
         /// <b>참가자 전원이 제 몸을 쥐는 시간.</b> 카운트다운 3초와 턴 내내다.
         ///
         /// <code>
-        ///   카운트다운  넷이 다 움직인다. 아무도 못 판다 (CurrentSlot 이 -1)
-        ///   공개 7초    첫 턴 예정자만 움직인다. 나머지 셋은 보이되 그 자리에 굳는다
+        ///   카운트다운  넷이 다 제 캐릭터를 본다. 몸은 굳어 있다(MineNetPlayerMover). 아무도 못 판다
+        ///   공개 7초    넷이 다 움직인다. 화면은 모두 탑뷰다 (이 값에는 안 든다 — 아래 ⚠)
         ///   턴          넷이 다 움직인다. 파는 것은 턴 주인만
         /// </code>
         ///
@@ -210,7 +215,7 @@ namespace Mine.Net
         /// 릴레이와 어울린다. 그래서 <b>이동은 열고 채굴만 잠근다.</b>
         ///
         /// 이 값은 셋을 한꺼번에 정한다 — 누가 보이는가(<c>MineNetPlayer.ApplyPresence</c>),
-        /// 누구의 몸을 굴리는가(<c>MineNetPlayerMover.SetSimulated</c>),
+        /// 누구의 몸을 굴리는가(<c>MineNetPlayerMover.FixedUpdateNetwork</c>),
         /// 사람끼리 부딪히는가(<c>MineNetPlayerMover.ApplyCrowdCollision</c>).
         /// 셋이 같이 움직여야 한다 — 안 보이는 몸이 길을 막는 것이 제일 나쁘다.
         ///
@@ -218,23 +223,25 @@ namespace Mine.Net
         ///   <c>IsMyTurn</c> 으로 따로 막는다. 카운트다운에는 <see cref="CurrentSlot"/> 이
         ///   -1 이라 아무도 해당되지 않고, 턴에는 그 한 사람만 해당된다.
         ///
-        /// ⚠ 공개(<see cref="MineMatchPhase.Reveal"/>)는 <b>일부러 뺐다.</b> 그 7초는
-        ///   도안을 외우는 시간이라 <see cref="WarmupSlot"/> 한 명만 미리 자리를 잡는다.
-        ///   <b>움직이지 못할 뿐 넷 다 보인다</b> — 보이는 것은 <see cref="CrewOnBoard"/>
-        ///   가 따로 정한다.
+        /// ⚠ 공개(<see cref="MineMatchPhase.Reveal"/>)는 <b>여기 넣지 않는다.</b> 그 7초에도
+        ///   넷이 다 걷지만(<c>MineNetPlayer.CanMoveNow</c> 가 따로 연다), 이 값은 카메라가
+        ///   "각자 자기 캐릭터를 따라가는가" 도 정한다. 공개 때는 모두가 탑뷰로 도안을
+        ///   외워야 하므로 그 판단에 섞지 않는다. 보이는 것은 <see cref="CrewOnBoard"/> 가 정한다.
         ///
-        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는
-        ///   멈춰 있다가 "3" 과 함께 한꺼번에 풀리는 편이 신호로 읽힌다.
+        /// ⚠ 대기(<see cref="MineMatchPhase.Waiting"/>)도 뺐다. 사람이 모일 때까지는 멈춰 있는다.
+        ///
+        /// ⚠ 카운트다운은 여기 들지만 <b>몸은 굳어 있다</b>(<c>MineNetPlayerMover</c>). 이 값은
+        ///   카메라가 "각자 자기 캐릭터를 따라가는가" 를 정하는 데도 쓰여서, 카운트다운을 빼면
+        ///   그 3초 동안 화면이 판 전체 탑뷰로 바뀐다. 흩뿌려진 자리에서 다 같이 출발하게
+        ///   하려고 이동만 따로 막았다.
         /// </summary>
         public bool FreeRoam => Phase == MineMatchPhase.Countdown || Phase == MineMatchPhase.Turn;
 
         /// <summary>
         /// <b>참가자의 몸이 격자 위에 보이는 시간.</b> 카운트다운 · 공개 · 턴.
         ///
-        /// <b>보이는 것과 움직이는 것은 다른 문이다.</b> 공개 7초에는 넷이 다 서 있되
-        /// <see cref="WarmupSlot"/> 한 명만 걷는다 — 나머지 셋은 그 자리에 굳어 있다.
-        /// 넷이 같이 도안을 올려다보는 그림이 되고, 누가 첫 턴인지도 그 한 명이
-        /// 움직이는 것으로 드러난다.
+        /// <b>보이는 것과 움직이는 것은 다른 문이다.</b> 카운트다운 3초에는 넷이 다
+        /// 서 있되 아무도 못 걷는다(<c>MineNetPlayerMover</c>).
         ///
         /// <b>부딪히는 것도 이 값을 따른다.</b> (<c>MineNetPlayerMover.ApplyCrowdCollision</c>)
         /// 굳어 있어도 보이면 몸이고, 보이는 몸은 길을 막아도 된다. 막으면 안 되는 것은
@@ -316,10 +323,9 @@ namespace Mine.Net
         /// <b>올라온 블록이 캐릭터를 떠민다.</b> 솔로에서 토글마다 점프하던 것과 같다.
         /// (<c>MineGame.SyncFrozen</c>)
         ///
-        /// 서버 화면에 정답이 뜨는 경우는 하나다 — <b>호스트를 맡은 사람이 자기 힌트를
-        /// 볼 때.</b> <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
-        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다. 남이 힌트를 보는 것은
-        /// 그 사람 화면에서만 일어나므로 서버 물리와 상관이 없다.
+        /// 힌트는 <b>모두의 화면</b>에 뜨므로, 서버 PC 에 플레이어가 있으면(호스트 방식)
+        /// 서버 화면에도 뜬다. <c>MineLocalView</c> 는 입력 권한이 있는 몸 하나에서만 도는데,
+        /// 호스트 프로세스에서 그것은 호스트 자신이기 때문이다.
         /// (전용 서버로 돌리면 화면 자체가 없어 언제나 거짓이다)
         ///
         /// ⚠ <b><see cref="HintLeft"/> 에서 파생시킨다.</b> 켜는 곳과 끄는 곳을 따로 두면
@@ -361,7 +367,8 @@ namespace Mine.Net
         ///   새 타이머 그림에 글자 줄이 들어갈 자리가 없었기 때문이다. 나머지 문구는
         ///   그림이나 다른 칸이 대신 맡았지만 이것만 갈 데가 없었다.
         /// </summary>
-        public string WaitingLine => $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
+        public string WaitingLine =>
+            $"동료를 기다리는 중  ({Crew} / {(CrewToStart > 0 ? CrewToStart : RequiredCrew)})";
 
         public override void Spawned()
         {
@@ -373,6 +380,7 @@ namespace Mine.Net
             Countdown = 0f;
             CurrentSlot = -1;
             RosterSize = 0;
+            CrewToStart = RequiredCrew;
 
             Debug.Log($"[MineMatch] 매치 준비 — {RequiredCrew}명 대기, 턴 {turnSeconds:0}초");
         }
@@ -434,6 +442,9 @@ namespace Mine.Net
             ReseatWaitingCrew();
 
             int required = RequiredCrew;
+
+            // 매칭 인원은 첫 사람이 접속할 때 토큰으로 들어와 바뀔 수 있다. 그래서 매 틱 싣는다.
+            CrewToStart = required;
 
             if (Crew < required)
             {
@@ -560,12 +571,59 @@ namespace Mine.Net
                 Vector3 top = grid.CellToWorld(cell % grid.Size, cell / grid.Size);
                 Vector3 here = one.transform.position;
 
-                mover.PlaceAt(new Vector3(top.x, here.y, top.z), one.transform.rotation);
+                // ⚠ **발을 칸 윗면에 맞춰 놓는다.** 예전에는 서 있던 높이(스폰 높이)를 그대로 써서
+                //   조금 떠서 시작했는데, 카운트다운 동안 중력으로 내려앉아 티가 안 났다. 카운트다운에
+                //   몸을 굳히면서(MineNetPlayerMover) 목표 공개가 끝날 때까지 공중에 떠 있게 됐다.
+                //   첫 턴 사람만 공개 동안 움직일 수 있어 내려앉고, 나머지는 턴까지 떠 있었다.
+                float ground = GroundHeightAt(top, here.y, out string standingOn);
+                mover.PlaceAt(new Vector3(top.x, ground, top.z), one.transform.rotation);
+
+                Debug.Log($"[MineMatch] P{one.Slot + 1} → 칸 ({cell % grid.Size}, {cell / grid.Size}) " +
+                          $"발 높이 {ground:F2} ({standingOn})");
             }
 
             Debug.Log($"[MineMatch] 참가자 {count}명을 판 위에 흩뿌렸습니다. " +
                       $"(가장자리 {low}칸은 비운다)");
         }
+
+        /// <summary>
+        /// 칸 위에서 아래로 쏴 **밟고 설 면의 높이**를 잰다. 못 찾으면 <paramref name="fallback"/>.
+        ///
+        /// 캐릭터 캡슐은 건너뛴다. 그 칸에 아직 다른 사람이 서 있으면 그 머리 위에 올라서게 된다.
+        ///
+        /// ⚠ 캐릭터 키보다 조금 높은 곳에서 쏜다. 더 높이서 쏘면 동굴 천장 위에서 출발해
+        ///   천장 윗면을 바닥으로 잴 수 있다.
+        ///
+        /// ⚠ <b><c>Physics.Raycast</c> 로 쏘면 안 된다.</b> 광산은 <c>PeerMode.Multiple</c> 이라
+        ///   Fusion 이 게임 씬을 <b>따로 된 물리 씬</b>에 올린다. <c>Physics.*</c> 는 기본 물리 씬을
+        ///   보므로 판을 못 찾고, 못 찾으면 스폰 높이(2m)를 그대로 써서 공중에 뜬다. 실제로 그랬다.
+        ///   이 부품이 올라가 있는 씬의 물리 씬으로 쏜다(멀티 피어가 아니면 그게 기본 물리 씬이다).
+        /// </summary>
+        private float GroundHeightAt(Vector3 cellTop, float fallback, out string standingOn)
+        {
+            PhysicsScene physics = gameObject.scene.GetPhysicsScene();
+
+            int count = physics.Raycast(
+                cellTop + Vector3.up * 1.5f, Vector3.down, _groundHits, 5f, ~0, QueryTriggerInteraction.Ignore);
+
+            float best = float.MinValue;
+            standingOn = "바닥을 못 찾아 원래 높이";
+
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = _groundHits[i];
+                if (hit.collider is CharacterController) continue;
+                if (hit.point.y <= best) continue;
+
+                best = hit.point.y;
+                standingOn = hit.collider.name;
+            }
+
+            return best > float.MinValue ? best : fallback;
+        }
+
+        /// <summary><see cref="GroundHeightAt"/> 이 쓰는 칸. 흩뿌릴 때마다 새로 만들지 않는다.</summary>
+        private readonly RaycastHit[] _groundHits = new RaycastHit[16];
 
         /// <summary>아직 아무도 안 쓴 칸을 하나 고른다. 못 고르면 -1.</summary>
         private int PickFreeCell(MineGrid grid, int low, int high, int[] taken, int count)
@@ -633,7 +691,9 @@ namespace Mine.Net
             if (MineGridSync.Current == null) return;
 
             BoardSeed = Runner.Tick == 0 ? 1 : Runner.Tick;
-            MineGridSync.Current.ServerOpenBoard(BoardSeed);
+
+            // 아직 인원이 안 굳었으므로 **예정 인원**으로 도안을 고른다. 시작할 때 다시 고른다.
+            MineGridSync.Current.ServerOpenBoard(BoardSeed, RequiredCrew);
         }
 
 
@@ -665,6 +725,10 @@ namespace Mine.Net
             // 판은 기다리는 동안 이미 깔렸다. 여기서는 혹시 못 깔았을 때를 대비한다.
             // 이미 깔렸으면 아무것도 하지 않는다 — 시드가 바뀌면 시작 순간 판이 바뀐다.
             EnsureBoardOpen();
+
+            // 인원이 곧 난이도다(MINE.md 2장). 판을 깔 때는 예정 인원으로 골랐으니
+            // 실제로 모인 인원에 맞춰 다시 고른다. 같으면 아무것도 바뀌지 않는다.
+            if (MineGridSync.Current != null) MineGridSync.Current.ServerPickDrawing(RosterSize);
 
             Phase = MineMatchPhase.Reveal;
             RevealLeft = revealSeconds;
@@ -737,8 +801,19 @@ namespace Mine.Net
 
             // 이 힌트가 **서버 화면**에 뜨는 것인지 여기서 한 번만 가린다.
             // 매 틱 다시 찾으면 3초 동안 씬을 수백 번 훑게 된다.
-            MineNetPlayer viewer = FindBySlot(slot);
-            _hintIsOnServerScreen = viewer != null && viewer.Object != null && viewer.Object.HasInputAuthority;
+            //
+            // 힌트는 **모두의 화면**에 뜬다. 그러니 서버 PC 에 플레이어가 한 명이라도 있으면
+            // (호스트 방식) 서버 화면에도 뜬다. 전용 서버에는 플레이어가 없어 늘 거짓이다.
+            _hintIsOnServerScreen = false;
+            for (int s = 0; s < RosterSize; s++)
+            {
+                MineNetPlayer one = FindBySlot(s);
+                if (one != null && one.Object != null && one.Object.HasInputAuthority)
+                {
+                    _hintIsOnServerScreen = true;
+                    break;
+                }
+            }
 
             Debug.Log($"[MineMatch] P{slot + 1} 힌트 — {hintSeconds:0}초 동안 보여 줍니다." +
                       (BoardLifted ? " (서버 화면이라 그동안 모두 멈춥니다)" : string.Empty));
@@ -785,8 +860,8 @@ namespace Mine.Net
                 //   걷고 있던 사람을 끌어오면 그 순간 조작이 끊기고, 앞사람 몸과 겹쳐
                 //   서로 밀어낸다. 자기 턴이 된 것은 발밑에 뜨는 조준 표시로 안다.
                 //
-                //   몸은 이미 굴러가고 있다(FreeRoam 이 턴을 포함한다). 여기서 한 번 더
-                //   켜 두는 것은 Phase 가 막 Turn 으로 바뀐 첫 틱의 빈틈을 없애기 위해서다.
+                //   몸은 이미 굴러가고 있다(FreeRoam 이 턴을 포함한다). 굴릴지는
+                //   MineNetPlayerMover 가 틱마다 CanMoveNow 를 보고 정하므로 여기서 켤 것이 없다.
                 //
                 // ⚠ **앞사람의 시야 각도도 물려주지 않는다.** 자리를 물려주던 때에는
                 //   "같은 자리에서 시점만 홱 도는" 것을 막으려고 넘겼지만(c1b7d037),
@@ -794,9 +869,6 @@ namespace Mine.Net
                 //   게다가 복제된 각도는 입력이 빠진 틱의 대비책으로도 쓰여서
                 //   (MineNetPlayerMover), 남겨 두면 다음 턴 주인의 몸이 그 한 틱 동안
                 //   앞사람이 보던 쪽을 향한다. 건희님과 빼기로 정했다.
-                MineNetPlayerMover mover = next.GetComponent<MineNetPlayerMover>();
-                if (mover != null) mover.SetSimulated(true);
-
                 CurrentSlot = slot;
                 TurnTimeLeft = turnSeconds;
 
@@ -925,9 +997,15 @@ namespace Mine.Net
             ResultDugCount = 0;
             ResultAlignX = 0;
             ResultAlignY = 0;
+            ResultComment = default;
         }
 
-        private void EnterFinished()
+        /// <param name="forceSuccess">
+        /// 개발자 모드의 "무조건 성공". 채점은 그대로 하되 승패를 성공으로 굳히고,
+        /// 점수가 기준치보다 낮으면 기준치까지 올린다. 그래야 "성공!" 제목 밑에
+        /// 실패 점수의 멘트(MineHud.CommentFor)가 뜨지 않는다.
+        /// </param>
+        private void EnterFinished(bool forceSuccess = false)
         {
             Phase = MineMatchPhase.Finished;
             CurrentSlot = -1;
@@ -946,8 +1024,14 @@ namespace Mine.Net
             MineSimilarityResult result = board.ServerScore();
 
             ResultPercent = result.Percent;
-            ResultSuccess = result.Percent >= successThreshold;
             ResultScore = Mathf.Clamp(Mathf.RoundToInt(result.Percent), 0, 100);
+
+            // ⚠ **판정은 화면에 보이는 점수로 한다.** 반올림 전 값(Percent)으로 재면
+            //   69.5~69.99% 가 "70점" 으로 보이면서 실패가 된다. 실제로 겪었다.
+            //   그러면 "실패!" 제목 밑에 70점 성공 멘트(MineHud.CommentFor)까지 뜬다.
+            if (forceSuccess) ResultScore = Mathf.Max(ResultScore, Mathf.CeilToInt(successThreshold));
+
+            ResultSuccess = ResultScore >= successThreshold;
             ResultTargetCount = result.TargetCount;
             ResultDugCount = result.DugCount;
             ResultAlignX = result.Alignment.x;
@@ -961,6 +1045,138 @@ namespace Mine.Net
             Debug.Log(
                 $"[MineMatch] 끝 — {(ResultSuccess ? "성공" : "실패")} · {result} " +
                 $"(참가 {RosterSize}명 · 복구 {TotalRestores - RestoresLeft}개 씀, 틱 {ResultTick})");
+
+            RequestReview(board.Grid);
+        }
+
+        // ------------------------------------------------------------
+        // 개발자 모드 — 시연을 빨리 넘기기 위한 것. 서버가 실행한다.
+        // ------------------------------------------------------------
+
+        /// <summary>개발자 모드가 서버에 부탁할 수 있는 일.</summary>
+        public enum DevCommand
+        {
+            /// <summary>지금 턴인 사람을 건너뛴다. 마지막 사람이면 판이 끝나고 평소대로 채점한다.</summary>
+            SkipTurn = 0,
+
+            /// <summary>판을 지금 끝내고 무조건 성공으로 채점한다.</summary>
+            ForceSuccess = 1,
+        }
+
+        /// <summary>
+        /// <b>개발자 모드의 부탁을 서버가 실행한다.</b> 검 게임과 같은 방식이다.
+        ///
+        /// ⚠ 끝난 판이나 시작 전 판에는 듣지 않는다. 결과 화면에서 눌러 판이 되살아나면 안 된다.
+        /// </summary>
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void Rpc_DevCommand(DevCommand command, RpcInfo info = default)
+        {
+            // ⚠ 서버가 -devmode 없이 떴으면 듣지 않는다. 클라이언트만 막으면 누구든 실행 인자
+            //    한 줄로 열 수 있다. 이 RPC 자체는 #if 로 감싸지 않는다 — Fusion 은 RPC 에 컴파일 때
+            //    번호를 매겨서, 한쪽 빌드에만 있으면 클라이언트와 서버의 번호가 어긋난다.
+            if (!UnderTheSea.Core.DevMode.Enabled)
+            {
+                Debug.LogWarning(
+                    $"[Mine 개발자] {info.Source} 의 '{command}' 가 왔지만 이 서버는 " +
+                    $"{UnderTheSea.Core.DevMode.Key} 없이 떴습니다. 실행하지 않습니다.");
+                return;
+            }
+
+            if (IsOver || !HasStarted)
+            {
+                Debug.Log($"[Mine 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
+                return;
+            }
+
+            switch (command)
+            {
+                case DevCommand.SkipTurn:
+                    // 공개 중에는 아직 턴이 없다. 건너뛸 사람이 없다.
+                    if (Phase != MineMatchPhase.Turn)
+                    {
+                        Debug.Log($"[Mine 개발자] 아직 턴이 아니라 건너뛰지 않습니다. (지금 {Phase})");
+                        return;
+                    }
+
+                    Debug.Log($"[Mine 개발자] {info.Source} 가 P{CurrentSlot + 1} 의 턴을 건너뜁니다.");
+                    AdvanceTurn();
+                    break;
+
+                case DevCommand.ForceSuccess:
+                    Debug.Log($"[Mine 개발자] {info.Source} 가 판을 성공으로 끝냅니다.");
+                    EnterFinished(forceSuccess: true);
+                    break;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // AI 한 줄 평 — 판당 한 번, 서버만 (MINE.md 7장)
+        // ------------------------------------------------------------
+
+        /// <summary><see cref="ResultComment"/> 의 글자 수. 넘치면 잘라서 담는다.</summary>
+        private const int ReviewCapacity = 128;
+
+        /// <summary>
+        /// 판 그림을 보내고 한 줄 평을 받아 <see cref="ResultComment"/> 에 담는다.
+        ///
+        /// ⚠ <b>승패와 점수는 이미 정해진 뒤다.</b> AI 는 그것을 바꾸지 않는다.
+        ///
+        /// ⚠ 답을 기다리는 동안 판이 되돌려지면(모두 나감) 늦게 온 답을 버린다.
+        ///    <see cref="ResultTick"/> 이 요청할 때와 다르면 다른 판이다.
+        /// </summary>
+        private void RequestReview(MineGrid grid)
+        {
+            if (grid == null) return;
+
+            byte[] png;
+            try
+            {
+                png = MineBoardImage.EncodePng(grid.Cells, grid.Size);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning($"[MineMatch] 판 그림을 만들지 못해 한 줄 평을 건너뜁니다. — {exception.Message}");
+                return;
+            }
+
+            var request = new MineReviewRequest
+            {
+                targetName = grid.Target != null ? grid.Target.displayName : string.Empty,
+                score = ResultScore,
+                success = ResultSuccess,
+                imagePngBase64 = System.Convert.ToBase64String(png),
+            };
+
+            int tick = ResultTick;
+            float askedAt = Time.realtimeSinceStartup;
+
+            // ⚠ 요청 · 응답 줄에 점수와 승패를 같이 찍는다. 한 줄 평이 성공하든 실패하든
+            //    두 줄의 값이 같아야 한다. (MINE.md 7장 "장애 재현")
+            Debug.Log($"[MineReview] 요청 — 틱 {tick} · {ResultScore}점 · {(ResultSuccess ? "성공" : "실패")} · " +
+                      $"{System.DateTime.Now:HH:mm:ss.fff}");
+
+            StartCoroutine(MineReviewServices.Create().Request(request, comment =>
+            {
+                string took = $"{Time.realtimeSinceStartup - askedAt:0.00}초 · {System.DateTime.Now:HH:mm:ss.fff}";
+
+                if (string.IsNullOrWhiteSpace(comment))
+                {
+                    Debug.Log($"[MineReview] 버림(실패 · 빈 문장) — 틱 {tick} · {took} · 고정 문구 유지");
+                    return;
+                }
+
+                if (ResultTick != tick)
+                {
+                    Debug.Log($"[MineReview] 버림(다른 판) — 요청 틱 {tick} · 지금 틱 {ResultTick} · {took}");
+                    return;
+                }
+
+                if (comment.Length > ReviewCapacity) comment = comment.Substring(0, ReviewCapacity);
+                ResultComment = comment;
+
+                Debug.Log($"[MineReview] 적용 — 틱 {tick} · {took} · 판 끝나고 {SinceResult:0.0}초 · " +
+                          $"{ResultScore}점 · {(ResultSuccess ? "성공" : "실패")} · {comment}");
+            }));
         }
 
         // ------------------------------------------------------------
@@ -1036,6 +1252,9 @@ namespace Mine.Net
                 extraStatValue: dug.ToString(),
                 playerCount: crew));
 
+            // 한 줄 평이 오든 안 오든 같은 박자에 이 줄이 떠야 한다.
+            Debug.Log($"[MineMatch] 공용 결과로 넘깁니다 — {score}점 · {(clear ? "성공" : "실패")} · 판 끝나고 {SinceResult:0.0}초");
+
             resultRelease = null;
         }
 
@@ -1092,6 +1311,7 @@ namespace Mine.Net
                 _hud.NetworkResultScore = ResultScore;
                 _hud.NetworkResultTargetCount = ResultTargetCount;
                 _hud.NetworkResultDugCount = ResultDugCount;
+                _hud.NetworkResultComment = ResultComment.ToString();
             }
             _hud.NetworkPhaseText = PhaseLine();
 
@@ -1105,6 +1325,20 @@ namespace Mine.Net
 
             _hud.NetworkRosterSize = RosterSize;
             _hud.NetworkCurrentSlot = CurrentSlot;
+
+            // 명단의 이름과 프로필 사진. 이름은 로비에서처럼 NetworkPlayerIdentity 가 들고 온다.
+            // ⚠ DisplayName 이 아니라 Nickname 을 읽는다. 닉네임이 오기 전 DisplayName 은
+            //   "이름 없음" 인데, 그때는 HUD 가 원래대로 "P1" 을 적는 편이 낫다.
+            for (int slot = 0; slot < RosterSize; slot++)
+            {
+                MineNetPlayer one = FindBySlot(slot);
+                NetworkPlayerIdentity identity = one != null ? one.GetComponent<NetworkPlayerIdentity>() : null;
+
+                _hud.SetNetworkPlayer(
+                    slot,
+                    identity != null ? identity.Nickname.Value : null,
+                    one != null ? one.transform : null);
+            }
 
             // 복구 총량은 BeginMatch 에서야 정해진다. 그 전에 그리면 "0 / 0" 이 뜬다.
             _hud.NetworkRestoreText = TotalRestores > 0

@@ -17,7 +17,7 @@
 
 | 에셋 이름 | 출처 | 라이선스 | 폴더 | 용도 | 추가한 사람 | 날짜 |
 | --- | --- | --- | --- | --- | --- | --- |
-| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 · 목적지 섬 | 효진 | 2026-09-07 |
+| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 · 목적지 섬 · 로비 물속 물방울(`FX_Bubbles_01`) · 아래에서 본 수면 물결 무늬(`caustics_color_split`) | 효진 | 2026-09-07 |
 | Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
 | ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
 | Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 · 배 협동 게임 적선 | 효진 | 2026-09-08 |
@@ -31,12 +31,13 @@
 | 광산 HUD 그림 12종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 · 채굴 결과 판(성공·실패) | 효진 | 2026-09-20 |
 | Fredoka | fonts.google.com/specimen/Fredoka | 무료 (SIL Open Font License 1.1) | `Assets/Game/Fonts/Fredoka-Bold.ttf` (Bold 굵기 한 벌만. 라이선스 전문은 같은 폴더 `Fredoka-OFL.txt`) | 배 협동 — 상호작용 링 안 키캡 글자(Space · K · J · L) 전용. 본문 글꼴은 NotoSansKR 그대로 | 민화 | 2026-09-22 |
 | Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
-| 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만), `Assets/Game/Audio/Fishing/Fishing_FishEscaped.ogg` | 배 협동 — 물 뜨기 · 물 버림, 낚시 — FishEscaped | 민화 | 2026-09-20 |
+| 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만), `Assets/Game/Audio/Fishing/Fishing_FishEscaped.ogg`, `Assets/Game/Audio/Lobby/` (5개. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 — 물 뜨기 · 물 버림, 낚시 — FishEscaped, 로비 — 헤엄 · 잠수 (2026-09-25 추가) | 민화 | 2026-09-20 |
 | Fisheefects | https://opengameart.org/content/fisheefects | CC0 | `Assets/Game/Audio/Fishing/Fishing_Bite.wav` | 낚시 — Bite | 용주 | 2026-09-22 |
 | Kenney Interface Sounds | https://kenney.nl/assets/interface-sounds | CC0 | `Assets/Game/Audio/Fishing/` (HookSuccess, Perfect, Good, Miss, Caught, LineBroken) | 낚시 효과음 — Hook 성공 · Timing 결과 · Caught · LineBroken | 용주 | 2026-09-22 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
 | Kenney RPG Audio | kenney.nl/assets/rpg-audio | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만. 팩 본체는 저장소에 없음) | 배 협동 — 망치 · 수리 완료 · 상자 뚜껑 | 민화 | 2026-09-20 |
 | Sea and River Wave Sounds | opengameart.org/content/sea-and-river-wave-sounds | CC0 | `Assets/Game/Audio/ShipCoop/seaLoop.mp3` | 배 협동 — 바다 배경 루프 (아주 얕게) | 민화 | 2026-09-20 |
+| Mixamo Swimming 모션 | mixamo.com (Adobe) | 무료 (Adobe 계정 · 로열티 없음, 모션 파일 단독 재배포는 금지) | `Assets/Game/Art/Animations/Lobby/Swimming.fbx` (스킨 없음. 캐릭터 비율에 맞춘 클립은 같은 폴더 `Swim.anim`) | 로비 바다 헤엄 | 민화 | 2026-09-25 |
 | Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 20~30초마다 돌아가며 | 민화 | 2026-09-20 |
 | Short Alarm | opengameart.org/content/short-alarm | CC0 | `Assets/Game/Audio/ShipCoop/warnChime.ogg` | 배 협동 — 사건 예고 종 | 민화 | 2026-09-20 |
 | Rope & Leather tension 2 (OxidVideos) | pixabay.com/sound-effects/rope-amp-leather-tension-2-449631/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/ropeLoop.mp3` | 배 협동 — 돛 당기고 풀 때 밧줄 끼익 | 민화 | 2026-09-21 |

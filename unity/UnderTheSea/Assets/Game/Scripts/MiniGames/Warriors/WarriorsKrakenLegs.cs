@@ -12,7 +12,7 @@ namespace Warriors
     ///
     /// <code>
     ///   잔물결   늘. 다리마다 위상을 조금씩 어긋내 물속처럼 흐른다
-    ///   움찔     노트 정타 (PlayHit). 모든 다리가 같은 방향으로 한 번 튕겼다 돌아온다
+    ///   움찔     노트 정타 (PlayHit). 팔마다 끝이 뒤로 한 번 움츠렸다 돌아온다 (좌우로 쏠리지 않는다)
     ///   포효     콤보 피니시 · 최종 형태 등장 (PlayRoar). 크게 벌렸다 천천히 돌아온다
     /// </code>
     ///
@@ -334,8 +334,15 @@ namespace Warriors
 
             float time = Time.time;
 
-            // 움찔은 짧게 한 번 튕겼다 돌아온다. 사인 반 주기를 세기로 줄여 가며 그린다.
-            float hitAngle = _hitPeak * _hit * Mathf.Sin((1f - _hit) * Mathf.PI * 2f);
+            // 움찔은 팔마다 **제 축으로 뒤로 한 번 움츠렸다 돌아온다.**
+            //
+            // ⚠ 예전에는 여덟 팔을 모두 같은 축(swayAxis)으로 같은 각도만큼 돌렸다. 화면에서는 크라켄
+            //    전체가 오른쪽으로 쏠렸다가 왼쪽으로 돌아오는 흔들림으로 보여 어색했다 (사인 한 주기라
+            //    오른쪽 → 왼쪽 두 번 움직였다). 지금은 팔 끝이 플레이어 반대쪽으로 짧게 젖혀졌다가
+            //    돌아온다. 모든 팔이 몸 기준으로 같은 쪽이라 이웃 팔이 닿은 자리가 찢어지지 않는다.
+            //    세기 곡선은 빨리 들어가 천천히 풀린다 — 맞은 순간이 눈에 박히게.
+            float flinch = _hit > 0f ? _hitPeak * Mathf.Sin(Mathf.PI * Mathf.Sqrt(1f - _hit)) : 0f;
+            float flinchSign = FlinchSign(axis);
             // 포효는 벌렸다 천천히 닫힌다. 방향은 모든 다리가 같다 — 반대로 꺾으면 닿은 자리가 찢어진다.
             float roarAngle = roarDegrees * _roar * Mathf.Sin(Mathf.Clamp01(1f - _roar) * Mathf.PI);
 
@@ -369,7 +376,17 @@ namespace Warriors
                 Leg leg = _legs[k];
                 float phase = _phase != null && k < _phase.Length ? _phase[k] : 0f;
                 float idle = idleDegrees * Mathf.Sin(time * idleSpeed + phase);
-                float baseAngle = idle + hitAngle + roarAngle;
+                float baseAngle = idle + roarAngle;
+
+                // 이 팔만의 움찔 축: 팔이 뻗은 방향과 판의 법선에 수직. 이 축으로 돌면 팔 끝이
+                // 판 밖으로(앞뒤로) 움직인다. 쉬는 자세 기준으로 재야 매 프레임 같은 방향이다.
+                Vector3 flinchAxis = Vector3.zero;
+                if (flinch > 0.001f && leg.Bones.Count > 1)
+                {
+                    Vector3 reach = leg.Bones[leg.Bones.Count - 1].position - leg.Bones[0].position;
+                    flinchAxis = Vector3.Cross(axis, reach);
+                    if (flinchAxis.sqrMagnitude > 0.0001f) flinchAxis.Normalize();
+                }
 
                 // 팔 하나짜리 반응 — 들기 · 움찔 · 늘어짐
                 if (_legHit != null)
@@ -386,8 +403,29 @@ namespace Warriors
                 // ⚠ 뿌리부터 순서대로 돌린다. 자식은 부모가 돌아간 뒤의 자리에서 자기 몫을 더한다
                 //    (블렌더의 FK 와 같다). 순서가 바뀌면 사슬이 접힌다.
                 for (int s = 0; s < leg.Bones.Count; s++)
-                    leg.Bones[s].Rotate(axis, baseAngle * (rootGain + stepGain * s), Space.World);
+                {
+                    float gain = rootGain + stepGain * s;
+                    leg.Bones[s].Rotate(axis, baseAngle * gain, Space.World);
+                    if (flinchAxis != Vector3.zero)
+                        leg.Bones[s].Rotate(flinchAxis, flinchSign * flinch * gain, Space.World);
+                }
             }
+        }
+
+        /// <summary>
+        /// 움찔할 때 돌리는 방향(+1 / −1). <b>팔 끝이 카메라(플레이어) 반대쪽으로</b> 젖혀지게 고른다.
+        ///
+        /// 팔 축 a = n × d 로 +θ 돌리면 팔 끝은 −n 쪽으로 간다(n: 판 법선, d: 팔 방향).
+        /// 그래서 n 이 카메라에서 멀어지는 쪽을 향하면 −, 아니면 + 로 돌린다.
+        /// 카메라가 없으면(서버 · 에디터 미리보기) 기본값 +1.
+        /// </summary>
+        private float FlinchSign(Vector3 planeNormal)
+        {
+            Camera view = Camera.main;
+            if (view == null) return 1f;
+
+            Vector3 away = _rigRoot.position - view.transform.position;
+            return Vector3.Dot(planeNormal, away) > 0f ? -1f : 1f;
         }
     }
 }

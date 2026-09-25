@@ -17,8 +17,10 @@
 | 파일 | 원본 | 작성자 | 출처 |
 | --- | --- | --- | --- |
 | ropeLoop | Rope & Leather tension 2 (0:02) | OxidVideos | https://pixabay.com/sound-effects/rope-amp-leather-tension-2-449631/ |
+| waveHit | water splash (2) (0:03, AI 생성 표기) | KoiRoylers | https://pixabay.com/sound-effects/nature-water-splash-2-355957/ |
 
 돛을 당기거나 풀 때 도르래 · 밧줄이 끼익 하는 소리. 짧은 클립을 `ropeRepeat`(기본 2 = 클립 길이만큼 쉬고) 간격으로 반복한다.
+waveHit 은 큰 파도가 배에 닥치는 순간(BigWave 가 Running 에 들어갈 때) 한 번 난다. 받은 날: 2026-09-25.
 
 ## 배경음악 (Pixabay, 무료 · Pixabay Content License)
 

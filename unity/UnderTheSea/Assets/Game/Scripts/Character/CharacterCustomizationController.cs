@@ -163,11 +163,12 @@ namespace UnderTheSea.Character
                 return;
 
             GameObject selectedPrefab = collection.partPrefabs[partIndex];
-            if (selectedOptions.TryGetValue(activeCategory, out int equippedIndex)
-                && equippedIndex == partIndex
-                && TryUnequipPart(collection, selectedPrefab))
+            // 입고 있으면 벗긴다. "마지막에 고른 것" 이 아니라 "지금 입고 있는가" 로 판단한다.
+            // 한 카테고리에 여럿을 함께 입을 수 있어서다. (Accessory 의 모자 · 안경 · 얼굴장식)
+            if (IsOptionWorn(activeCategory, partIndex) && TryUnequipPart(collection, selectedPrefab))
             {
-                selectedOptions.Remove(activeCategory);
+                if (selectedOptions.TryGetValue(activeCategory, out int lastIndex) && lastIndex == partIndex)
+                    selectedOptions.Remove(activeCategory);
                 RefreshOptionColors(-1);
                 return;
             }
@@ -175,6 +176,26 @@ namespace UnderTheSea.Character
             ApplyPart(collection, selectedPrefab);
             selectedOptions[activeCategory] = partIndex;
             RefreshOptionColors(partIndex);
+        }
+
+        /// <summary>
+        /// 이 파츠를 지금 입고 있는가.
+        ///
+        /// 카탈로그 파츠는 Applier 가 기준이다. 카탈로그에 없는 파츠(targetRenderer 경로)는
+        /// 카테고리에 하나뿐이라 마지막에 고른 번호(selectedOptions)로 판단한다.
+        /// </summary>
+        private bool IsOptionWorn(Category category, int partIndex)
+        {
+            PartCollection collection = GetCollection(category);
+            if (collection?.partPrefabs == null || partIndex < 0 || partIndex >= collection.partPrefabs.Length)
+                return false;
+
+            if (IsCatalogPartEquipped(collection.partPrefabs[partIndex]))
+                return true;
+
+            return collection.activePart != null
+                && selectedOptions.TryGetValue(category, out int lastIndex)
+                && lastIndex == partIndex;
         }
 
         private bool TryUnequipPart(PartCollection collection, GameObject partPrefab)
@@ -232,8 +253,8 @@ namespace UnderTheSea.Character
             runtimeRenderer.localBounds = source.localBounds;
             runtimeRenderer.updateWhenOffscreen = collection.targetRenderer.updateWhenOffscreen;
 
-            if (ReferenceEquals(collection, face) && appearance != null)
-                appearance.ApplySkinMaterialTo(runtimeRenderer);
+            // 표정에는 피부 재질을 입히지 않는다. 입술 · 볼터치 같은 빨강 계열이 피부색으로 지워진다.
+            // (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
 
             collection.targetRenderer.enabled = false;
 
@@ -288,15 +309,10 @@ namespace UnderTheSea.Character
         {
             currentSkinColor = skinColors[colorIndex];
 
+            // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
+            // 표정은 칠하지 않는다. (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
             if (appearance != null)
-            {
-                // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
                 appearance.ApplySkinColor(currentSkinColor);
-
-                // 카탈로그에 없는 파츠는 컨트롤러가 targetRenderer 경로로 붙였다. 그것만 여기서 칠한다.
-                if (face.activePart != null)
-                    appearance.ApplySkinMaterialTo(face.activePart.GetComponent<SkinnedMeshRenderer>());
-            }
 
             RefreshSkinColorOptions();
         }

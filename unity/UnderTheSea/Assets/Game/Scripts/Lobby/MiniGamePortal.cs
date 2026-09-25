@@ -56,11 +56,56 @@ public sealed class MiniGamePortal : MonoBehaviour
     [Tooltip("가까이 갔을 때 켤 것. 비워 둬도 동작한다.")]
     [SerializeField] private GameObject promptRoot;
 
+    [Header("돌아올 때")]
+    [Tooltip("이 게임을 마치고 로비로 돌아온 사람이 설 자리. 파란 화살표(앞)가 포탈 반대쪽을 보게 둔다 — " +
+             "포탈을 등지고 나온 모습이 된다.\n\n" +
+             "비워 두면 처음 로그인할 때와 같은 기본 자리에 선다.\n" +
+             "메뉴: Tools > 아라아띠 > 포탈 앞 돌아오는 자리 만들기")]
+    [SerializeField] private Transform returnPoint;
+
     private bool shownNear;
     private bool entering;
 
     /// <summary>지금 들어갈 수 있는가. 안내를 켜고 끄는 기준이기도 하다.</summary>
     public bool PlayerIsNear { get; private set; }
+
+    /// <summary>이 포탈이 여는 미니게임의 씬 이름. 설정이 없으면 null.</summary>
+    public string SceneName => config != null ? config.SceneName : null;
+
+    /// <summary>돌아온 사람이 설 자리. 비어 있을 수 있다.</summary>
+    public Transform ReturnPoint => returnPoint;
+
+    /// <summary>
+    /// **그 미니게임에서 돌아온 사람을 어디에 세울까.** 로비 서버의 <c>PlayerSpawner</c> 가 부른다.
+    ///
+    /// 씬에 놓인 포탈 가운데 <paramref name="sceneName"/> 으로 가는 것을 찾아 그 돌아오는 자리를
+    /// 준다. 없으면 false — 부르는 쪽이 기본 자리를 쓴다.
+    ///
+    /// ⚠ <b>회전은 좌우(Y)만 쓴다.</b> 표식을 조금 기울여 놓았어도 캐릭터가 비스듬히 서면 안 된다.
+    /// ⚠ <b>꺼진 포탈도 본다.</b> 서버는 화면이 없어 포탈 연출을 꺼 둘 수 있다. 자리 정보는 그대로다.
+    /// </summary>
+    public static bool TryFindReturnPoint(
+        string sceneName, out Vector3 position, out Quaternion rotation, out string portalName)
+    {
+        position = default;
+        rotation = Quaternion.identity;
+        portalName = null;
+
+        if (string.IsNullOrEmpty(sceneName)) return false;
+
+        foreach (MiniGamePortal portal in FindObjectsByType<MiniGamePortal>(FindObjectsInactive.Include))
+        {
+            if (portal == null || portal.returnPoint == null) continue;
+            if (!string.Equals(portal.SceneName, sceneName, System.StringComparison.Ordinal)) continue;
+
+            position = portal.returnPoint.position;
+            rotation = Quaternion.Euler(0f, portal.returnPoint.eulerAngles.y, 0f);
+            portalName = portal.name;
+            return true;
+        }
+
+        return false;
+    }
 
     private void Awake()
     {
@@ -84,7 +129,7 @@ public sealed class MiniGamePortal : MonoBehaviour
 
         if (!PlayerIsNear || entering) return;
 
-        // 도감 · 제단 창이 열려 있거나 채팅을 치는 중이면 들어가지 않는다.
+        // 제단 창이 열려 있거나 채팅을 치는 중이면 들어가지 않는다.
         // 그 화면들이 이동을 막을 때 거는 잠금을 그대로 본다.
         if (ChatFocus.Typing) return;
 
@@ -164,5 +209,18 @@ public sealed class MiniGamePortal : MonoBehaviour
     {
         Gizmos.color = new Color(0.3f, 0.9f, 1f, 0.35f);
         Gizmos.DrawWireSphere(transform.position, interactDistance);
+
+        // 돌아오는 자리와 바라보는 쪽. 화살표가 포탈 반대쪽을 봐야 한다.
+        if (returnPoint != null)
+        {
+            Vector3 at = returnPoint.position;
+            Vector3 forward = Quaternion.Euler(0f, returnPoint.eulerAngles.y, 0f) * Vector3.forward;
+
+            Gizmos.color = new Color(1f, 0.8f, 0.2f, 0.9f);
+            Gizmos.DrawWireSphere(at, 0.5f);
+            Gizmos.DrawLine(at, at + forward * 2f);
+            Gizmos.DrawLine(at + forward * 2f, at + forward * 1.5f + Vector3.Cross(Vector3.up, forward) * 0.4f);
+            Gizmos.DrawLine(at + forward * 2f, at + forward * 1.5f - Vector3.Cross(Vector3.up, forward) * 0.4f);
+        }
     }
 }
