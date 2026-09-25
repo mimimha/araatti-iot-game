@@ -12,8 +12,9 @@
 |---|---|
 | 브랜치 | `feature/jy-iot-wand-tuning` |
 | 담당 | IoT (`jy`) |
-| 대상 파일 | `IotPlayerController.cs` (1319줄) |
-| | `firmware/dongle_esp32s3/dongle_esp32s3.ino` (324줄) |
+| 대상 파일 | `IotPlayerController.cs` (1603줄) |
+| | `firmware/dongle_esp32s3/dongle_esp32s3.ino` (334줄) |
+| | 로비 · 낚시: `IotLobbyInteract.cs` · `IotFishingBridge.cs` · `WandFishingInputSource.cs` (키 배치는 `KEY_MAPPING.md`) |
 | | `firmware/wand_tinys3/wand_tinys3.ino` (756줄) |
 | | `firmware/tools/tilt_sign.ps1` (510줄) · `steer_verify.ps1` (285줄) |
 | 보드에 굽혀 있는 것 | 7-3 |
@@ -57,7 +58,7 @@
 
 | 그룹 | 항목 | 기본값 | 설명 |
 |---|---|---|---|
-| 시리얼 포트 | `portName` | `COM3` | 장치 관리자에서 확인 |
+| 시리얼 포트 | `portName` | 비어 있음 | **비워두면 COM 포트를 훑어 동글을 스스로 찾는다** (CSV 또는 `#MAC` 이 들리면 동글, 조용하면 `?` 를 보내 묻는다). 적어두면 그 포트만 연다. 이미 씬에 `COM3` 이 적혀 있으면 그대로 쓰이니 지워야 자동이 된다 |
 | | `baudRate` | `115200` | 펌웨어와 같아야 함 |
 | | `pollIntervalMs` | `5` | 받은 것이 있는지 확인하는 간격 |
 | | `dtrEnable` | `true` | 아래 4-2 참고 |
@@ -161,7 +162,7 @@ bool enabled = sprintToggle
 
 1. `Player_01` 의 **`KeyboardPlayerController` 를 지운다** (체크박스 아님, 컴포넌트 제거)
 2. `IotPlayerController` 를 추가한다
-3. `portName` 을 동글 COM 번호로, `controlProfile` 은 **`Shared`** 로 둔다
+3. `portName` 은 비워 두고(자동 탐색, 2-2), `controlProfile` 은 **`Shared`** 로 둔다
 
 확인 — `IOT_INPUT.md` 2장 표 그대로입니다.
 
@@ -649,14 +650,19 @@ powershell -ExecutionPolicy Bypass -File firmware\tools\tilt_sign.ps1 -SelfTest
 | 3 | ~~진동 역방향 프로토콜~~ | **됐음.** `V,id,세기,ms` 로 정하고 `SendVibrate` 를 채웠다 (아래 "진동에 대해") |
 | 3b | **진동 모터가 안 달려 있다** | 부품 문제. 경로는 `#VIB` 로그로만 확인된다 |
 | 4 | ~~실기 연결 확인~~ | **됐음.** 완드 **2대** 동시 15초 1485줄, 양쪽 유실 0. 양방향 왕복까지 확인 (아래 7-3) |
-| 5 | 낚시(`IFishingInputSource`) | 이번 스코프 밖. 별도 asmdef라 참조 관계부터 손봐야 함 |
+| 5 | ~~낚시(`IFishingInputSource`)~~ | **코드 됐음.** 낚시 쪽이 연 외부 입력 입구(`SetInputSource`)에 `IotFishingBridge` 로 꽂았다. 낚시 폴더는 안 고쳤다. **씬에 안 붙였고 실기 확인 전** (아래 7-7) |
 | 6 | 무쌍 게임 로직 | 이번 스코프 밖. 프로필 연결(2-4)만 했다 |
 | 7 | ~~광산 힌트가 키보드로 안 눌린다~~ | **해결됨.** 키보드에 `Mine` 프로필이 생겼다 (아래) |
 | 8 | ~~`TILT_SIGN` 좌우 방향 미정~~ | **정해짐.** `+1` · `mirroredGrip` 끔. 실측 3회 (아래 7-5) |
-| 9 | **조타 중립이 매번 다르다** | 배협동 인계. 잡는 각도가 세션마다 70도씩 달라진다 (아래 7-5) |
+| 9 | ~~조타 중립이 매번 다르다~~ | **고침.** `HelmTask` 가 붙는 순간을 0 으로 잡는다. 실기 확인 남음 (아래 7-5) |
 | 10 | ~~광산 이동이 완드로 안 된다~~ | **됐음.** `MineMoveInput` 을 `IPlayerController` 로 옮겼다 (아래 7-6) |
 | 11 | **광산 씬이 컴포넌트 순서에 기대고 있다** | `Player Controller Source` 두 칸이 비어 있다 (2-5) |
 | 12 | **배 협동 실기 확인** | 코드는 다 되어 있다. 씬에 붙이기만 하면 된다 (2-5) |
+| 13 | **로비 · 낚시가 씬에 안 붙어 있다** | 코드만 있다. `Lobby.unity` 에 `IotPlayerController` · `IotLobbyInteract` · `IotFishingBridge` 가 하나도 없다 (7-7) |
+| 14 | **완드가 씬을 넘어가지 못한다** | `IotPlayerController` 가 씬마다 따로 있다. 로비 → 미니게임에서 사라진다 (7-7) |
+| 15 | **네트워크 광산 · 무쌍에 완드가 안 닿는다** | `MineInputProvider` · `WarriorsInputProvider` 가 키보드를 직접 읽는다. 담당자와 합의 필요 (7-7) |
+| 16 | ~~develop 을 받으면 컴파일이 깨진다~~ | **고침.** `AnyWandConnected` 를 공개 프로퍼티 하나로 합쳤다. batchmode 컴파일 에러 0 (7-7) |
+| 17 | **포탈 인원 선택 화면이 마우스 전용이다** | develop 에서 포탈이 `CrewPickerScreen` 을 먼저 띄운다. 완드로 포탈은 열리지만 인원은 마우스로 골라야 한다 (7-7) |
 
 ### 광산 힌트 (7번) — 해결됨
 
@@ -880,7 +886,7 @@ IMU 가 뒤집혀 붙어 있어 기준 자세에서 `az ≈ -0.97` 입니다. �
 
 `mirroredGrip`(2-2)도 같은 문제를 다룹니다. 조타륜을 잡듯 손바닥을 마주 보게 쥐면 두 완드의 roll 부호가 반대로 나와 평균이 상쇄됩니다. 지금 배치에서는 **끔** 입니다.
 
-#### 아직 안 푼 것 — 조타 중립이 매번 다릅니다
+#### 조타 중립이 매번 다릅니다 — `HelmTask` 에서 잡았습니다
 
 부호는 정해졌지만 **0 이 어디인지는 못 정했습니다.** 같은 사람이 "조타 자세로 가만히" 를 세 번 잡았는데 왼손 기준 각도가 이렇게 나왔습니다.
 
@@ -892,11 +898,39 @@ IMU 가 뒤집혀 붙어 있어 기준 자세에서 `az ≈ -0.97` 입니다. �
 
 좌우 폭 자체는 160~209도로 충분히 넓습니다. 문제는 폭이 아니라 **원점**입니다.
 
-푸는 방법은 *"조타를 잡는 순간의 각도를 0 으로 삼는다"* 인데, 그 순간을 아는 것은 장치가 아니라 **게임** 입니다. `HelmTask` 가 사람이 조타륜을 잡았을 때를 알고 있습니다.
+**해결 — 붙는 순간의 값을 빼서 그 자리를 중립으로 삼습니다.** (`HelmTask`, 배 협동 담당 동의를 받고 넣음)
 
-> ⚠ **`IHandDevice.Tilt` 의 뜻을 바꾸지 않았습니다.** 여기를 상대 각도로 바꾸면 광산 · 무쌍도 같이 영향을 받습니다. 공용 경계라 미니게임 담당자들과 함께 정할 일입니다. (`GAME_STRUCTURE.md` 9장)
->
-> 배 협동만의 해석이면 `ShipCoopInput.Steer` 나 `HelmTask` 쪽이 맞는 자리입니다. 그쪽에서 잡은 순간의 `Tilt` 를 기억해 두고 빼면 장치는 그대로 두고 풀립니다.
+```csharp
+protected override void OnWorkerJoined(TaskWorker worker)
+{
+    _neutralSteer[worker] = ShipCoopInput.Steer(worker.Input);
+}
+
+private float SteerOf(TaskWorker worker)
+{
+    float raw = ShipCoopInput.Steer(worker.Input);
+    if (_neutralSteer.TryGetValue(worker, out float neutral)) { raw -= neutral; }
+    return Mathf.Clamp(raw, -1f, 1f);
+}
+```
+
+`Work()` 가 `ShipCoopInput.Steer(...)` 대신 `SteerOf(...)` 를 부릅니다. 그게 전부입니다.
+
+**왜 `HelmTask` 인가.** `ShipCoopInput.Steer` 는 상태가 없는 정적 함수입니다. 중립은 **사람마다 · 붙을 때마다** 달라서 상태가 필요하고, `TaskBase` 에 `OnWorkerJoined` / `OnWorkerLeft` 훅이 이미 있었습니다.
+
+같이 챙긴 것:
+
+| | |
+|---|---|
+| `Clamp(-1, 1)` | 중립을 뺀 뒤 한쪽으로 1 을 넘을 수 있다. 그대로 두면 `Capacity` 계산이 틀어진다 |
+| `OnWorkerLeft` 에서 제거 | 안 지우면 `Dictionary` 가 샌다 |
+| `ResetHelm` 에서 **재포착** | 지우기만 하면 다음 판이 중립 없이 시작한다 |
+
+**키보드는 영향이 없습니다.** `KeyboardPlayerController` 는 안 누르면 `Tilt` 가 0 이라 빼는 값도 0 입니다. A/D 조작은 그대로입니다.
+
+> ⚠ **`IHandDevice.Tilt` 의 뜻은 바꾸지 않았습니다.** 여기를 상대 각도로 바꾸면 광산 · 무쌍도 같이 영향을 받습니다. 공용 경계라 미니게임 담당자들과 함께 정할 일입니다. (`GAME_STRUCTURE.md` 9장) 배 협동만의 해석이라 그쪽 파일에서 풀었습니다.
+
+> ⚠ **남은 한계 — 잡는 순간의 자세가 중립이 됩니다.** 팔을 내린 채로 상호작용하면 그 각도가 0 이 되어, 손을 들어올리는 것만으로 배가 돕니다. 지금은 **붙는 순간 한 번만** 잡습니다. 거슬리면 "붙고 한 박자 뒤에 잡기" 나 "버튼으로 다시 잡기" 를 얹어야 하는데, 어느 쪽이 나은지는 쥐어보고 정할 일이라 가장 단순한 것만 넣었습니다.
 
 > ⚠ **`tilt` 는 ±90도에서 잘립니다.** (`roll * 127/90` 을 ±127 로 자름) 실측 반폭이 80~105도라 **끝자락이 잘립니다.** 원점만 제대로 잡으면 "90도만 돌려도 최대 조타" 가 되어 오히려 편할 수 있습니다. 넓혀야 한다고 판단되면 그때 펌웨어를 고칩니다 — 지금 값으로 못 쓸 정도는 아닙니다.
 
@@ -955,6 +989,40 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
 
 - **카메라** — `MineCamera` 는 이미 우클릭 드래그이고 커서도 안 잠급니다. `IOT_INPUT.md` 7장의 광산 카메라 항목은 **이미 끝나 있었습니다.** MINE.md 8장 IoT 표에도 카메라가 없어 스코프 밖입니다.
 - **네트워크 광산** — `MineInputProvider` 가 새 Input System 으로 키를 직접 읽습니다. `IPlayerController` 를 안 봐서 **네트워크에서는 완드가 안 닿습니다.** 무쌍 7-2 와 같은 구조이고, 로컬을 먼저 하기로 해서 미뤘습니다.
+
+### 7-7. 로컬은 끝, 네트워크는 남음 (2026-09-25 기준)
+
+> 이 절은 `origin/develop` `812788cb` 까지 이 브랜치에 병합(`1248a6d2`)하고 적었습니다. 그 뒤로는 다시 확인해야 합니다.
+
+#### 어디까지 됐나
+
+| 게임 | 로컬 씬 (테스트용) | 실제 네트워크 씬 | 완드가 닿는가 |
+|---|---|---|---|
+| 로비 이동 · 점프 · 달리기 | — | `Lobby` | **코드 됐음, 씬에 안 붙음.** `PlayerInputProvider.OnInput` 안에서 더하므로 Fusion 입력으로 그대로 서버에 간다 |
+| 로비 카메라 | — | `Lobby` | 같음. `LocalPlayerView` (카메라는 로컬 전용이라 네트워크 불필요) |
+| 로비 상호작용 (낚시 · 포탈 · 제단) | — | `Lobby` | 같음. `IotLobbyInteract` 가 키와 똑같은 함수(`Enter` · `InteractPressed`)를 부른다 |
+| 낚시 | — | `Lobby` | 같음. 낚시는 로컬 권한(`LocalFishingAuthority`)이고 연출만 동기화하므로 입력을 네트워크에 실을 필요가 없다 |
+| 배 협동 | `ShipCoopTest` 실기 확인 | `ShipCoopBoot` | **안 닿음.** 러너에 `KeyboardPlayerController` 가 붙어 있다. `IotPlayerController` 로 바꾸면 값 전송 · 진동 RPC 는 이미 있다 |
+| 광산 | `MineTest` 실기 확인 | `MineNet` | **안 닿음.** `MineInputProvider` 가 키보드를 직접 읽는다 |
+| 무쌍 | `WarriorsTest` 실기 확인 | `WarriorsNet` | **안 닿음.** `WarriorsInputProvider` 가 키보드를 직접 읽는다 (7-2) |
+
+`IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. `IotLobbyInteract` · `IotFishingBridge` 는 어느 씬에도 없습니다.
+
+#### 남은 일 — 순서대로
+
+1. ~~develop 을 받고 `AnyWandConnected` 이름 겹침을 푼다.~~ **됐음.** git 은 충돌 없이 합쳐 주지만 합친 파일에 `public bool AnyWandConnected { get; }`(배 협동 HUD 용, `4e9d3f09`)와 `private bool AnyWandConnected()`(키보드 자동 전환용)가 함께 생겨 CS0102 로 깨지는 자리였습니다.
+   - **이름과 공개 여부는 HUD 쪽을 따랐습니다.** `ShipCoopHud` 가 `wand.AnyWandConnected` 로 읽습니다.
+   - **판정은 완드 전체를 훑는 쪽으로 했습니다.** HUD 원본은 `_left.Connected` 만 봤는데, 손 배정이 다시 돌기 전에는 방금 붙은 완드가 왼손 자리에 없을 수 있습니다. 키보드 자동 전환도 같은 프로퍼티를 보므로 **키캡과 실제 입력이 같은 답을 냅니다.**
+   - `EnsureWands` → `EnsureKeyboardFallback` → `RefreshKeyboardFallback` → `AnyWandConnected` → `EnsureWands` 로 돌아오지만, 그때는 `_wands` 가 이미 있어 곧바로 빠집니다. 되부름이 아닙니다.
+   - Unity 6000.5.9f1 batchmode 로 전체 컴파일 — 에러 0.
+2. **완드를 게임 내내 하나로 둔다.** 씬이 `SceneManager.LoadScene` 으로 통째로 바뀌므로 로비에 둔 컨트롤러는 미니게임에서 사라지고 포트를 다시 찾습니다. `DontDestroyOnLoad` 로 하나만 두고, 씬에 들어갈 때 `SetControlProfile` 을 부르게 합니다. (지금은 무쌍만 부른다)
+3. **로비에 붙이고 확인한다.** `IotPlayerController` · `IotLobbyInteract` 하나씩, `PlayerFishingAdapter` 옆에 `IotFishingBridge`. 두 클라이언트를 띄워 **상대 화면에서도** 내 캐릭터가 완드로 움직이는지 봅니다.
+4. **배 협동** — `ShipCoopInputProvider.Awake` 가 `GetComponent` 로만 찾는다. 2번의 컨트롤러를 찾는 한 줄이 필요하다. 배 협동 담당에게 알리고 넣는다.
+5. **광산 · 무쌍** — 담당자 파일이라 방식부터 합의한다. 광산 파기와 무쌍 공격은 "사건" 이라 감지한 틱에만 켜서 보내야 한다 (서버가 `GetPressed` 로 판정). 무쌍은 7-2 의 쿨다운 이중 · `minimumStrength` 도 같이 정한다.
+
+> ⚠ **포탈 뒤의 인원 선택 화면은 마우스 버튼뿐입니다.** develop 에서 `MiniGamePortal.Enter` 가 바로 떠나지 않고 `MatchScreenFlow.Begin` → `CrewPickerScreen` 을 띄웁니다. `TryEnterFromDevice` 는 키와 같은 `Enter` 를 부르므로 **화면은 완드로 열리지만 인원은 마우스로 고릅니다.** 완드로 끝까지 가려면 그 화면이 `IPlayerController` 를 읽거나 UI 내비게이션을 받아야 합니다 — 매칭 화면 담당과 정할 일입니다.
+
+> ⚠ **장치용 네트워크 경로를 따로 내지 않습니다.** 각 게임의 `OnInput` 안에서 키보드와 같은 자리에 더합니다. 따로 보내면 같은 틱에 입력이 두 번 들어갑니다. (`IOT_INPUT.md` 5장)
 
 ### 진동에 대해
 
