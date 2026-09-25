@@ -97,6 +97,18 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ------------------------------------------------------------
+// 광산 한 줄 평 (LLM)
+//
+// 키도 JWT 와 같은 방식으로 넣는다.
+//   1. 개발용 파일:  appsettings.Development.json 의 "MineReview:ApiKey"
+//   2. 환경 변수:    MineReview__ApiKey
+// 키가 없어도 서버는 켜진다. 그때 한 줄 평 API 만 503 을 돌려준다.
+// ------------------------------------------------------------
+
+builder.Services.Configure<MineReviewOptions>(builder.Configuration.GetSection(MineReviewOptions.SectionName));
+builder.Services.AddHttpClient();
+
+// ------------------------------------------------------------
 // Swagger
 // ------------------------------------------------------------
 
@@ -176,6 +188,12 @@ app.MapCharacterEndpoints();
 app.MapInventoryEndpoints();
 
 app.MapAltarEndpoints();
+
+// ------------------------------------------------------------
+// 광산 결과 한 줄 평 (로그인 없음 · 같은 머신에서 온 요청만)
+// ------------------------------------------------------------
+
+app.MapMineReviewEndpoints();
 
 app.Run();
 

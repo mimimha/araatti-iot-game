@@ -41,6 +41,7 @@ namespace FishingMiniGame.Runtime
             else _rodPose.Step(pitchDirection, yawDirection, Time.unscaledDeltaTime);
 
             bool spaceDown = Input.GetKeyDown(KeyCode.Space);
+            bool fishingActionDown = Input.GetKeyDown(KeyCode.J);
             return new FishingInputFrame
             {
                 ParticipantId = _participantId,
@@ -48,7 +49,10 @@ namespace FishingMiniGame.Runtime
                 TimestampSeconds = Time.unscaledTimeAsDouble,
                 CastPressed = spaceDown,
                 CastReleased = Input.GetKeyUp(KeyCode.Space),
-                HookPressed = Input.GetKeyDown(KeyCode.F),
+                // The physical J key is intentionally shared, while the
+                // gameplay meanings remain separate for future device bindings.
+                HookPressed = fishingActionDown,
+                TimingPressed = fishingActionDown,
                 ReelDelta = Input.GetKey(KeyCode.R) || Input.GetMouseButton(0) ? 1f : 0f,
                 TensionNormalized = _mockTension,
                 RodPitch = _rodPose.Pitch,

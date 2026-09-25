@@ -53,6 +53,9 @@ namespace UnderTheSea.Account
         /// <summary>봉헌. 409 실패에도 최신 상태가 함께 온다.</summary>
         public const string AltarOfferPath = "/api/altar/offer";
 
+        /// <summary>광산 결과 한 줄 평. 서버가 LLM 을 부른다. (MINE.md 7장 — 아직 서버에 없다)</summary>
+        public const string MineReviewPath = "/api/mine/review";
+
         /// <summary>
         /// <b>지금 실제로 쓸 서버 주소.</b> 정하는 순서는 하나뿐이다.
         ///

@@ -32,12 +32,17 @@ public class ShipFlooding : MonoBehaviour
     [SerializeField] private ShipHealth health;
 
     [Header("물이 차 있는 동안")]
-    [Tooltip("물이 가득 찼을 때 초당 이만큼 배 HP 가 깎인다. 물이 절반이면 절반만 깎인다.\n\n" +
+    [Tooltip("물이 조금이라도 차 있으면 초당 이만큼 배 HP 가 깎인다. **찬 양과 상관없이 같다.**\n\n" +
              "속도가 주는 것만으로는 아무도 못 느낀다. 진행도 바를 계속 쳐다봐야 알 수 있는데,\n" +
              "물이 찼을 때는 그럴 여유가 없다. HP 는 줄어드는 것이 바로 보인다.\n\n" +
-             "찬 양에 비례시키는 이유는 **양동이 한 번이 바로 보상이 되게** 하기 위해서다.\n" +
-             "다 퍼내야만 멈추면 마지막 한 통 전까지는 퍼내도 달라지는 게 없다.")]
-    [SerializeField, Min(0f)] private float damagePerSecondWhenFull = 6f;
+             "예전에는 찬 양에 비례했는데, 조금 찬 물은 거의 안 깎여서 퍼낼 이유가 약했다.\n" +
+             "지금은 다 퍼내야 멈춘다.")]
+    [SerializeField, Min(0f)] private float damagePerSecondWhileWet = 2f;
+
+    [Tooltip("물이 차기 시작하고 이 시간(초)이 지나야 HP 가 깎이기 시작한다.\n\n" +
+             "차자마자 깎이면 무슨 일인지 알아채기도 전에 HP 가 줄어 억울하다.\n" +
+             "그 사이에 구멍을 막고 퍼내라는 여유다. 다 퍼내면 다시 처음부터 센다.")]
+    [SerializeField, Min(0f)] private float damageGraceSeconds = 10f;
 
     [Header("차오르는 속도")]
     [Tooltip("막지 못한 파손 지점 하나당 초당 이만큼 찬다.\n" +
@@ -57,7 +62,7 @@ public class ShipFlooding : MonoBehaviour
     public bool HasWater => Level01 > 0.01f;
 
     /// <summary>지금 초당 깎이는 HP. HUD 가 이 숫자를 그대로 띄운다.</summary>
-    public float DamagePerSecond => damagePerSecondWhenFull * Level01;
+    public float DamagePerSecond => Level01 > 0f ? damagePerSecondWhileWet : 0f;
 
     /// <summary>
     /// 아직 막지 못한 파손 지점의 수. **0 이 아니면 퍼내도 헛수고다.**
@@ -72,6 +77,9 @@ public class ShipFlooding : MonoBehaviour
 
     /// <summary>지금 퍼내는 것이 의미가 있는지. 구멍이 열려 있으면 거짓이다.</summary>
     public bool BailingHelps => HasWater && LeakingPoints == 0;
+
+    /// <summary>물이 찬 채로 지난 시간 (초). 다 퍼내면 0 으로 돌아간다. 계산하는 쪽에서만 센다.</summary>
+    private float _wetSeconds;
 
     private void Awake()
     {
@@ -107,9 +115,12 @@ public class ShipFlooding : MonoBehaviour
             Level01 = Mathf.Clamp01(Level01 + risePerPointPerSecond * LeakingPoints * deltaTime);
         }
 
-        // 물이 남아 있는 동안 계속 깎인다. 다 퍼내야 멈춘다.
+        // 다 퍼냈으면 유예를 처음부터 다시 센다.
+        _wetSeconds = Level01 > 0f ? _wetSeconds + deltaTime : 0f;
+
+        // 물이 남아 있는 동안 계속 깎인다. 다 퍼내야 멈춘다. 단, 차기 시작하고 유예가 지난 뒤부터.
         // reason 을 매 프레임 넘기면 콘솔이 도배된다. 원인은 HUD 의 침수 게이지가 말해준다.
-        if (health != null && Level01 > 0f)
+        if (health != null && Level01 > 0f && _wetSeconds >= damageGraceSeconds)
         {
             health.TakeDamage(DamagePerSecond * deltaTime);
         }
@@ -166,6 +177,7 @@ public class ShipFlooding : MonoBehaviour
     public void ResetFlooding()
     {
         Level01 = 0f;
+        _wetSeconds = 0f;
     }
 
     /// <summary>아직 막지 못한 파손 지점의 수</summary>

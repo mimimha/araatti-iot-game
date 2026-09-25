@@ -31,7 +31,14 @@ public class RepairTask : TaskBase
 
     [Header("방치했을 때")]
     [Tooltip("아무도 붙어 있지 않은 동안 초당 이만큼 배 HP 가 깎인다. (4장)")]
-    [SerializeField, Min(0f)] private float leakDamagePerSecond = 2f;
+    [SerializeField, Min(0f)] private float leakDamagePerSecond = 1f;
+
+    [Tooltip("구멍이 뚫리고 이 시간(초)이 지나야 HP 가 깎이기 시작한다.\n" +
+             "뚫리자마자 깎이면 달려갈 틈도 없이 줄어 억울하다.")]
+    [SerializeField, Min(0f)] private float leakGraceSeconds = 10f;
+
+    /// <summary>뚫린 뒤 지난 시간 (초). 계산하는 쪽에서만 센다.</summary>
+    private float _openSeconds;
 
     [Header("연결")]
     [Tooltip("비워두면 씬에서 자동으로 찾는다.")]
@@ -103,6 +110,9 @@ public class RepairTask : TaskBase
     /// <summary>누군가 붙어 있는 동안. 내리친 횟수를 센다.</summary>
     protected override void Work(float deltaTime)
     {
+        // 누가 붙어 있어도 유예는 흐른다. 붙었다 떨어질 때마다 다시 10초를 주면 안 된다.
+        _openSeconds += deltaTime;
+
         if (IsRepaired)
         {
             return;
@@ -133,7 +143,9 @@ public class RepairTask : TaskBase
     /// <summary>아무도 없는 동안. 침수가 쌓여 배가 깎인다.</summary>
     protected override void Idle(float deltaTime)
     {
-        if (IsRepaired || leakDamagePerSecond <= 0f || health == null)
+        _openSeconds += deltaTime;
+
+        if (IsRepaired || leakDamagePerSecond <= 0f || health == null || _openSeconds < leakGraceSeconds)
         {
             return;
         }

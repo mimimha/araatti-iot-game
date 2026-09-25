@@ -12,7 +12,12 @@
     "  이 키를 아는 사람은 아무 계정의 토큰이나 위조할 수 있습니다.",
     "  만드는 법 (PowerShell):",
     "    [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))",
-    "  Issuer / Audience / ExpiresMinutes 는 appsettings.json 에 있으므로 여기 적지 않아도 됩니다."
+    "  Issuer / Audience / ExpiresMinutes 는 appsettings.json 에 있으므로 여기 적지 않아도 됩니다.",
+    "",
+    "MineReview.ApiKey  광산 결과 한 줄 평에 쓰는 Gemini 키 (선택)",
+    "  Google AI Studio(https://aistudio.google.com) → Get API key 에서 받습니다. 결제 정보는 필요 없습니다.",
+    "  비워 두면 서버는 그대로 켜지고, 한 줄 평 API 만 503 을 돌려줍니다. 게임에는 고정 문구가 뜹니다.",
+    "  BaseUrl / Model / TimeoutSeconds 는 appsettings.json 에 있으므로 여기 적지 않아도 됩니다."
   ],
 
   "ConnectionStrings": {
@@ -21,5 +26,9 @@
 
   "Jwt": {
     "Key": "change-me-이-값을-반드시-본인만의-32자-이상-임의-문자열로-바꾸세요"
+  },
+
+  "MineReview": {
+    "ApiKey": ""
   }
 }

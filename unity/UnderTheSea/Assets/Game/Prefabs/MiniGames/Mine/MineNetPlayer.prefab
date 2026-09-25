@@ -2867,6 +2867,7 @@ GameObject:
   - component: {fileID: 2374415249255082345}
   - component: {fileID: 2401412249422510502}
   - component: {fileID: 767444123376367489}
+  - component: {fileID: 8795929401978136956}
   m_Layer: 0
   m_Name: MineNetPlayer
   m_TagString: Untagged
@@ -3003,8 +3004,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b3b6be4ac524bbeb77f57c077db58a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: ithappy.Cute_Characters::ithappy.Cute_Characters.Controller.CharacterMover
-  m_WalkSpeed: 1
-  m_RunSpeed: 4
+  m_WalkSpeed: 2
+  m_RunSpeed: 6
   m_RotateSpeed: 720
   m_Space: 1
   m_JumpHeight: 0.2
@@ -3043,7 +3044,8 @@ MonoBehaviour:
   - {fileID: 2327441312921421817}
   - {fileID: 2401412249422510502}
   - {fileID: 767444123376367489}
-  ForceRemoteRenderTimeframe: 0
+  - {fileID: 8795929401978136956}
+  ForceRemoteRenderTimeframe: 1
 --- !u!114 &2702322525704471838
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3103,6 +3105,8 @@ MonoBehaviour:
   _CameraYaw: 0
   _CameraPitch: 0
   _FocusCell: 0
+  _SceneReady:
+    RawValue: 0
 --- !u!114 &1334800601220584296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3117,7 +3121,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineNetPlayerMover
   lookAhead: 10
   lookHeight: 1
-  walkSpeed: 1
+  walkSpeed: 2
+  runSpeed: 6
+  rotateSpeed: 720
+  jumpHeight: 0.2
+  jumpReload: 1
   animFlow: 4.5
   _MoveAxis: {x: 0, y: 0}
   _AnimAxis: {x: 0, y: 0}
@@ -3239,6 +3247,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MiniGames.Common.MiniGameDefaultAppearance
   waitSeconds: 20
+--- !u!114 &8795929401978136956
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741856755184999703}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb808c78b4ad31146bd87ca4c75615e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Network.NetworkPlayerIdentity
+  _Nickname:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 --- !u!1 &6783612424117079814
 GameObject:
   m_ObjectHideFlags: 0

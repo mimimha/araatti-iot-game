@@ -103,14 +103,18 @@ namespace Lobby.Editor
         /// </summary>
         internal static float ShoulderDepth()
         {
+            return CapsuleHeight() * ShoulderRatio;
+        }
+
+        /// <summary>캐릭터 캡슐의 키(발끝 ~ 정수리). <c>NetworkPlayer</c> 프리팹에서 읽는다.</summary>
+        internal static float CapsuleHeight()
+        {
             GameObject player = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
             CharacterController cc = player != null ? player.GetComponent<CharacterController>() : null;
 
-            float capsule = cc != null
+            return cc != null
                 ? Mathf.Max(cc.height, cc.radius * 2f)
                 : FallbackCapsuleHeight;
-
-            return capsule * ShoulderRatio;
         }
 
         [MenuItem("Tools/아라아띠/로비 물 투명벽 세우기")]
