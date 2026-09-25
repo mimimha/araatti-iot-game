@@ -47,6 +47,9 @@ namespace UnderTheSea.Account
         /// <summary>내 인벤토리. 가진 것이 없으면 200 + 빈 배열이다 (404 아님).</summary>
         public const string InventoryPath = "/api/inventory";
 
+        /// <summary>미니게임을 이긴 보상. 조각 1개. (server InventoryEndpoints.ClearRewardAsync)</summary>
+        public const string ClearRewardPath = "/api/inventory/clear-reward";
+
         /// <summary>제단 상태. 파생값(남은 칸 · 최대 봉헌량 · 회복률)까지 서버가 계산해서 준다.</summary>
         public const string AltarStatePath = "/api/altar/state";
 
