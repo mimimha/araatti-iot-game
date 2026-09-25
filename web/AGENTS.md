@@ -30,23 +30,28 @@ npm run deploy       빌드 + 서버에 올리기 + 실제로 떴는지 확인
 ```
 araatti.site ─▶ nginx (EC2 43.202.67.137) ─▶ /var/www/araatti/
                                               ├─ index.html, assets/ ...  ← dist/ 가 여기로
-                                              └─ AraAtti.zip              ← 게임 다운로드. 이 저장소가 만들지 않음
+                                              └─ AraAtti.zip              ← 게임 다운로드. 게임 배포가 바꾼다
 ```
+
+`AraAtti.zip` 은 **게임 클라이언트**다. develop 의 게임을 새로 빌드해 배포할 때마다
+`tools/deploy/`(`build-release.ps1` → `pack-client.ps1` → 서버로 복사)가 이 파일을 새것으로 바꾼다.
+**홈페이지 배포(`web/`)와는 따로 움직인다.** 홈페이지를 올릴 때는 이 파일을 건드리지 않고,
+게임을 올릴 때는 홈페이지를 건드리지 않는다.
 
 ---
 
 ## 절대 하지 말 것
 
 1. **`/var/www/araatti/AraAtti.zip` 을 지우거나 덮어쓰지 않는다.**
-   게임 다운로드 파일(400MB 남짓)이다. 사이트 폴더에 같이 있지만 여기서 만드는 파일이 아니다.
-   지우면 게임을 다시 빌드해야 되살릴 수 있다. `deploy.mjs` 가 막고 있으니 **배포는 반드시
-   `npm run deploy` 로만** 한다. 서버에서 `rm`, `scp` 로 직접 사이트 폴더를 만지지 않는다.
+   게임 다운로드 파일(400MB 남짓)이다. 사이트 폴더에 같이 있지만 `web/` 이 만드는 파일이 아니라
+   게임 배포가 올린다(위 설명). 지우면 게임을 다시 빌드해야 되살릴 수 있다. `deploy.mjs` 가 막고
+   있으니 **배포는 반드시 `npm run deploy` 로만** 한다. 서버에서 `rm`, `scp` 로 직접 사이트 폴더를
+   만지지 않는다.
 
-2. **다운로드 링크 주소를 바꾸지 않는다.**
-   - `/AraAtti.zip` — nginx 가 이 주소에 다운로드 헤더를 붙인다(`Content-Disposition`). 주소가 바뀌면
-     다운로드가 안 되거나 파일 이름이 달라진다.
-   - 구글 드라이브 링크 `https://drive.google.com/drive/folders/1t9UZUoNr1hJKrHk0BR8J_Q1IgsyZcpQI` —
-     대체 다운로드. 디자인을 바꿔도 **두 링크는 남긴다.**
+2. **다운로드 버튼의 주소 `/AraAtti.zip` 을 바꾸지 않는다.**
+   nginx 가 이 주소에 다운로드 헤더를 붙인다(`Content-Disposition`). 주소가 바뀌면 다운로드가 안
+   되거나 파일 이름이 달라진다. **게임은 이 사이트에서만 받는다.** 구글 드라이브 등 다른 다운로드
+   경로를 넣지 않는다.
 
 3. **`web/` 밖을 건드리지 않는다.** 저장소의 나머지(`unity/`, `server/`, `tools/` …)는 게임이다.
 
