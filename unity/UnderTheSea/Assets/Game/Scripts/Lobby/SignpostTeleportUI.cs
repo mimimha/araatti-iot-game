@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Fusion;
+using MiniGames.Common;
+using MiniGames.Common.UI;
 using TMPro;
 using UnderTheSea.UI;
 using UnityEngine;
@@ -20,7 +22,8 @@ namespace UnderTheSea.Lobby
     /// </code>
     ///
     /// <b>화면을 코드로 그린다.</b> 미니게임 인원 선택 창(<c>CrewPickerScreen</c>)과 같은
-    /// 방식·같은 모양이다. 프리팹으로 만들었더니 목록 길이에 따라 판이 안 늘어나고 줄이
+    /// 방식이고, 모양은 매칭 화면에서 빌린다(금테 남색 판 · 금색 버튼 · 제목 글꼴).
+    /// 프리팹으로 만들었더니 목록 길이에 따라 판이 안 늘어나고 줄이
     /// 틀 밖으로 삐져나왔다. 개수가 달라지는 목록은 코드로 그리는 편이 낫다.
     ///
     /// <b>목록은 씬에서 저절로 모인다.</b> <see cref="SignpostTeleport.Registry"/> 가 놓여 있는
@@ -45,7 +48,7 @@ namespace UnderTheSea.Lobby
     {
         private const string HostName = "[이정표 이동]";
 
-        // CrewPickerScreen 과 같은 색을 쓴다. 같은 게임의 같은 창으로 보여야 한다.
+        // 매칭 화면 · 금테 판을 못 찾았을 때만 쓰는 예비 색. 평소에는 빌려 온 모양으로 그린다.
         private static readonly Color Shade = new Color(0f, .02f, .06f, .78f);
         private static readonly Color Panel = new Color(.047f, .149f, .286f, 1f);
         private static readonly Color Row = new Color(.10f, .32f, .55f, 1f);
@@ -53,7 +56,11 @@ namespace UnderTheSea.Lobby
         private static readonly Color Muted = new Color(.72f, .81f, .92f, 1f);
 
         private const float PanelW = 760f;
-        private const float RowW = 620f, RowH = 68f, RowGap = 10f;
+        // 줄 폭은 이름 · 거리만 들어갈 만큼. 620 이었을 때는 버튼 안 양옆이 너무 비었다.
+        private const float RowW = 480f, RowH = 68f, RowGap = 10f;
+
+        /// <summary>줄 왼쪽 징의 지름과 자리(줄 왼쪽 끝에서 징 가운데까지).</summary>
+        private const float StudSize = 14f, StudFromLeft = 56f;
         private const float HeadH = 150f, FootH = 120f;
 
         private static SignpostTeleportUI instance;
@@ -89,7 +96,7 @@ namespace UnderTheSea.Lobby
 
         private void Awake()
         {
-            Build();
+            // 그리기는 처음 열 때 한다. 모양을 빌려 올 매칭 화면이 이 시점에는 아직 없을 수 있다.
             SignpostTeleport.Requested += Open;
         }
 
@@ -124,6 +131,8 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
+            EnsureBuilt();
+
             origin = from;
             fromText.text = $"지금 있는 곳 — {from.DisplayName}";
 
@@ -136,7 +145,7 @@ namespace UnderTheSea.Lobby
         /// <summary>창을 닫는다.</summary>
         public void Close()
         {
-            root.SetActive(false);
+            if (root != null) root.SetActive(false);
             Release();
         }
 
@@ -331,9 +340,40 @@ namespace UnderTheSea.Lobby
         }
 
         // ───────────────────────────── 그리기 ─────────────────────────────
+        //
+        // 매칭 화면과 같은 창으로 보여야 한다. 색을 따로 정하지 않고 빌려 온다.
+        //   판        LobbyPanelSkin 의 9-slice 금테 남색 판 (목록 길이에 따라 세로로 늘어나도 테가 안 찌그러진다)
+        //   글자      매칭 판의 큰 제목(흰색) · 작은 게임 이름(금색)을 복제한다
+        //   줄 · 닫기  매칭 판의 [게임 시작](금색 글자) · [매칭 취소](흰 글자) 버튼을 복제한다
+        // 둘 다 없으면(매칭 화면이 없는 씬) 예전 단색으로 그린다.
+        //
+        // ⚠ 줄 폭(620 → 480) 말고는 크기 · 자리를 바꾸지 않았다. 판 760 폭, 줄 480×68, 머리 150 · 발 120, 닫기 200×64.
 
-        private void Build()
+        /// <summary>모양을 빌려 온 매칭 판. 바뀌면(씬이 바뀌어 새 판이 생기면) 다시 그린다.</summary>
+        private MatchPanelPresenter styledFrom;
+
+        private static MatchPanelPresenter FindStyle()
         {
+            return CommonMatchingUI.Current != null
+                ? CommonMatchingUI.Current.GetComponentInChildren<MatchPanelPresenter>(includeInactive: true)
+                : null;
+        }
+
+        /// <summary>처음 열 때, 또는 빌려 올 매칭 판이 바뀌었을 때만 다시 그린다.</summary>
+        private void EnsureBuilt()
+        {
+            MatchPanelPresenter style = FindStyle();
+            if (root != null && styledFrom == style) return;
+
+            if (root != null) Destroy(root);
+            rows.Clear();
+            Build(style);
+        }
+
+        private void Build(MatchPanelPresenter style)
+        {
+            styledFrom = style;
+
             root = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, worldPositionStays: false);
 
@@ -353,12 +393,23 @@ namespace UnderTheSea.Lobby
             panel = (RectTransform)panelGo.transform;
             panel.anchoredPosition = Vector2.zero;
 
-            titleText = MakeText(panel, "Title", 40f, Color.white);
+            LobbyPanelSkin skin = LobbyPanelSkin.Load();
+            if (skin != null && skin.panelFrame != null)
+            {
+                Image frame = panelGo.GetComponent<Image>();
+                frame.sprite = skin.panelFrame;
+                frame.type = Image.Type.Sliced;
+                frame.pixelsPerUnitMultiplier = skin.framePixelsPerUnitMultiplier;
+                frame.color = Color.white;
+            }
+
+            titleText = MakeText(panel, "Title", style != null ? style.TitleTemplate : null, 40f, Color.white);
             ((RectTransform)titleText.transform).sizeDelta = new Vector2(PanelW - 60f, 56f);
             titleText.text = "어디로 갈까요";
 
-            fromText = MakeText(panel, "From", 22f, Muted);
+            fromText = MakeText(panel, "From", style != null ? style.GameTitleTemplate : null, 22f, Muted);
             ((RectTransform)fromText.transform).sizeDelta = new Vector2(PanelW - 60f, 30f);
+            fromText.fontSize = 22f;
 
             var listGo = new GameObject("List", typeof(RectTransform), typeof(VerticalLayoutGroup));
             listGo.transform.SetParent(panel, worldPositionStays: false);
@@ -375,36 +426,75 @@ namespace UnderTheSea.Lobby
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
 
-            GameObject close = MakeButton(panel, "닫기", CloseTint, Close, new Vector2(200f, 64f));
+            Button close = MakeButton(panel, "닫기", primary: false, CloseTint, Close, new Vector2(200f, 64f));
             closeRect = (RectTransform)close.transform;
+            closeRect.anchorMin = closeRect.anchorMax = new Vector2(.5f, .5f);
+            closeRect.pivot = new Vector2(.5f, .5f);
 
             Resize(0);
             root.SetActive(false);
         }
 
-        private static GameObject MakeRow(Transform parent, string name, string distance, Action onClick)
+        private GameObject MakeRow(Transform parent, string name, string distance, Action onClick)
         {
-            GameObject go = MakeImage(parent, $"Row {name}", Row);
-            ((RectTransform)go.transform).sizeDelta = new Vector2(RowW, RowH);
+            Button button = MakeButton(parent, name, primary: true, Row, onClick, new Vector2(RowW, RowH));
 
-            TMP_Text label = MakeText(go.transform, "Name", 28f, Color.white);
-            var labelRect = (RectTransform)label.transform;
-            labelRect.sizeDelta = new Vector2(RowW - 200f, RowH);
-            labelRect.anchoredPosition = new Vector2(-70f, 0f);
-            label.alignment = TextAlignmentOptions.Left;
-            label.text = name;
+            // 줄 버튼 그림은 따로 둔다. 매칭 버튼은 양 끝에 큰 징이 있어 목록에선 무거웠다 —
+            // 작게 줄인 징을 왼쪽에만 둔 그림(LobbyPanelSkin.rowButton)을 쓴다.
+            LobbyPanelSkin skin = LobbyPanelSkin.Load();
+            Image face = button.GetComponent<Image>();
+            if (skin != null && skin.rowButton != null && face != null)
+            {
+                face.sprite = skin.rowButton;
+                face.type = Image.Type.Sliced;
 
-            TMP_Text far = MakeText(go.transform, "Distance", 22f, Muted);
+                // 그림 높이(94) ÷ 줄 높이(68). 양 끝 둥근 테가 가로 · 세로 같은 비율로 줄어든다.
+                face.pixelsPerUnitMultiplier = skin.rowButton.rect.height / RowH;
+            }
+
+            // 작은 둥근 징 하나를 왼쪽에만 단다. 정사각형 칸이라 늘 동그랗다.
+            if (skin != null && skin.rowStud != null)
+            {
+                GameObject stud = MakeImage(button.transform, "Stud", Color.white);
+                Image studImage = stud.GetComponent<Image>();
+                studImage.sprite = skin.rowStud;
+                studImage.preserveAspect = true;
+                studImage.raycastTarget = false;
+                var studRect = (RectTransform)stud.transform;
+                studRect.anchorMin = studRect.anchorMax = new Vector2(.5f, .5f);
+                studRect.sizeDelta = new Vector2(StudSize, StudSize);
+                studRect.anchoredPosition = new Vector2(-RowW * .5f + StudFromLeft, 0f);
+            }
+
+            // 버튼 글자를 이정표 이름으로 쓰고 왼쪽에 둔다. 오른쪽엔 거리를 따로 적는다.
+            TMP_Text label = button.GetComponentInChildren<TMP_Text>(includeInactive: true);
+            if (label != null)
+            {
+                var labelRect = label.rectTransform;
+                labelRect.anchorMin = labelRect.anchorMax = new Vector2(.5f, .5f);
+                labelRect.pivot = new Vector2(.5f, .5f);
+                // 왼쪽 끝에 작은 징이 있다(줄 왼쪽에서 49~63). 글자는 그 오른쪽 72 에서 시작한다.
+                const float nameInset = 72f;
+                float nameWidth = RowW - 220f;
+                labelRect.sizeDelta = new Vector2(nameWidth, RowH);
+                labelRect.anchoredPosition = new Vector2(-RowW * .5f + nameInset + nameWidth * .5f, 0f);
+                label.alignment = TextAlignmentOptions.Left;
+                label.fontSize = 26f;
+                label.text = name;
+            }
+
+            TMP_Text far = MakeText(button.transform, "Distance", label, 22f, Muted);
+            far.color = Muted;
+            far.fontSize = 22f;
             var farRect = (RectTransform)far.transform;
+            farRect.anchorMin = farRect.anchorMax = new Vector2(.5f, .5f);
+            farRect.pivot = new Vector2(.5f, .5f);
             farRect.sizeDelta = new Vector2(120f, RowH);
-            farRect.anchoredPosition = new Vector2(RowW * 0.5f - 80f, 0f);
+            farRect.anchoredPosition = new Vector2(RowW * 0.5f - 116f, 0f);   // 오른쪽 마개 안쪽
             far.alignment = TextAlignmentOptions.Right;
             far.text = distance;
 
-            var button = go.AddComponent<Button>();
-            button.targetGraphic = go.GetComponent<Image>();
-            button.onClick.AddListener(() => onClick?.Invoke());
-            return go;
+            return button.gameObject;
         }
 
         private static GameObject MakeImage(Transform parent, string name, Color colour)
@@ -423,34 +513,71 @@ namespace UnderTheSea.Lobby
             rect.offsetMax = Vector2.zero;
         }
 
-        private static TMP_Text MakeText(Transform parent, string name, float size, Color colour)
+        /// <summary>
+        /// 글자를 만든다. <paramref name="template"/> 이 있으면 복제해 글꼴 · 색 · 외곽선을 그대로 쓴다.
+        /// </summary>
+        private static TMP_Text MakeText(Transform parent, string name, TMP_Text template, float size, Color colour)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, worldPositionStays: false);
+            TMP_Text text;
+            if (template != null)
+            {
+                text = Instantiate(template, parent, worldPositionStays: false);
+                text.gameObject.SetActive(true);
+                text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(.5f, .5f);
+                text.rectTransform.pivot = new Vector2(.5f, .5f);
+            }
+            else
+            {
+                var go = new GameObject(name, typeof(RectTransform));
+                go.transform.SetParent(parent, worldPositionStays: false);
+                text = go.AddComponent<TextMeshProUGUI>();
+                text.fontSize = size;
+                text.color = colour;
+            }
 
-            TMP_Text text = go.AddComponent<TextMeshProUGUI>();
-            text.fontSize = size;
+            text.name = name;
             text.alignment = TextAlignmentOptions.Center;
-            text.color = colour;
             text.raycastTarget = false;
             text.textWrappingMode = TextWrappingModes.NoWrap;
             return text;
         }
 
-        private static GameObject MakeButton(Transform parent, string label, Color colour,
+        /// <summary>
+        /// 버튼을 만든다. 매칭 판의 버튼을 복제하므로 그림 · 눌림 색 · 글자 모양이 같다.
+        ///   <paramref name="primary"/> 참   [게임 시작] 모양 (금색 글자) — 목록 줄
+        ///   <paramref name="primary"/> 거짓 [매칭 취소] 모양 (흰 글자)   — 닫기
+        /// </summary>
+        private Button MakeButton(Transform parent, string label, bool primary, Color fallback,
             Action onClick, Vector2 size)
         {
-            GameObject go = MakeImage(parent, $"Button {label}", colour);
-            ((RectTransform)go.transform).sizeDelta = size;
+            Button template = styledFrom == null ? null
+                : primary ? styledFrom.PrimaryButtonTemplate : styledFrom.SecondaryButtonTemplate;
 
-            TMP_Text text = MakeText(go.transform, "Label", 28f, Color.white);
-            Stretch((RectTransform)text.transform);
-            text.text = label;
+            Button button;
+            TMP_Text text;
+            if (template != null)
+            {
+                button = Instantiate(template, parent, worldPositionStays: false);
+                button.gameObject.SetActive(true);   // 서버 판에서는 [게임 시작] 이 꺼져 있다
+                button.interactable = true;
+                // 복제본이 원본의 클릭 연결을 물고 오지 않게 통째로 새로 만든다.
+                button.onClick = new Button.ButtonClickedEvent();
+                text = button.GetComponentInChildren<TMP_Text>(includeInactive: true);
+            }
+            else
+            {
+                GameObject go = MakeImage(parent, "Button", fallback);
+                button = go.AddComponent<Button>();
+                button.targetGraphic = go.GetComponent<Image>();
+                text = MakeText(go.transform, "Label", null, 28f, Color.white);
+                Stretch(text.rectTransform);
+            }
 
-            var button = go.AddComponent<Button>();
-            button.targetGraphic = go.GetComponent<Image>();
+            button.name = $"Button {label}";
+            ((RectTransform)button.transform).sizeDelta = size;
+            if (text != null) text.text = label;
             button.onClick.AddListener(() => onClick?.Invoke());
-            return go;
+            return button;
         }
     }
 }
