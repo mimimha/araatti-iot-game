@@ -8,6 +8,7 @@
 - `server/README.md` — 서버 실행 방법 (MySQL · .env · Jwt 키)
 - `docs/prd/auth-character-roadmap.md` — 계정 · 캐릭터 설계
 - `docs/prd/lobby_altar_inventory_system_design.md` — 제단 · 인벤토리 설계 (8.6 · 9.2 · 10장)
+- `unity/UnderTheSea/MINE.md` — 광산 결과 AI 한 줄 평 (7장)
 
 > 명세와 코드가 다르면 **코드가 맞습니다.** 엔드포인트를 고치면 이 문서도 같이 고쳐 주세요.
 > 로컬에서는 Swagger(`http://localhost:5080/swagger`)로 바로 호출해 볼 수 있습니다.
@@ -28,6 +29,7 @@
 ### 1.1 인증
 
 🔒 표시가 붙은 API 는 토큰이 필요합니다. 토큰이 없거나 만료되었거나 위조되었으면 **401** 입니다.
+🏠 표시는 토큰 대신 **같은 머신에서 온 요청만** 받는 서버 전용 API 입니다. (8장)
 
 ```json
 { "code": "TOKEN_INVALID", "message": "로그인이 필요합니다. 토큰이 없거나 만료되었습니다." }
@@ -65,6 +67,12 @@
 | `OFFERING_CLOSED` | 409 | 봉헌 |
 | `OFFERING_AMOUNT_CHANGED` | 409 | 봉헌 |
 | `NOT_ENOUGH_FRAGMENTS` | 409 | 봉헌 |
+| `MINE_REVIEW_FORBIDDEN` | 403 | 광산 한 줄 평 |
+| `MINE_REVIEW_BAD_IMAGE` | 400 | 광산 한 줄 평 |
+| `MINE_REVIEW_DISABLED` | 503 | 광산 한 줄 평 |
+| `MINE_REVIEW_LLM_FAILED` | 502 | 광산 한 줄 평 |
+| `MINE_REVIEW_EMPTY` | 502 | 광산 한 줄 평 |
+| `MINE_REVIEW_TIMEOUT` | 504 | 광산 한 줄 평 |
 
 ---
 
@@ -81,6 +89,7 @@
 | GET | `/api/inventory` | 🔒 | 내 인벤토리 |
 | GET | `/api/altar/state` | 🔒 | 제단 상태 + 내 조각 수 |
 | POST | `/api/altar/offer` | 🔒 | 조각 봉헌 |
+| POST | `/api/mine/review` | 🏠 | 광산 결과 한 줄 평 (같은 머신에서 온 요청만) |
 
 ---
 
@@ -397,7 +406,81 @@ MySQL 에 붙을 수 있는지 봅니다. 인증이 필요 없습니다.
 
 ---
 
-## 8. Unity 에서 부르는 곳
+## 8. 광산 한 줄 평
+
+### POST `/api/mine/review` 🏠
+
+광산 판이 끝나면 **우리가 판 그림**을 LLM(Gemini)에 보여 주고 한 문장을 받아 돌려줍니다.
+결과 화면 성적표 가운데 칸에 뜹니다. (`unity/UnderTheSea/MINE.md` 7장)
+
+- **부르는 쪽은 광산 데디케이티드 서버**입니다. 판당 한 번이고, 받은 문장을 Fusion 으로 모두에게 복제합니다.
+- **AI 는 판정에 끼지 않습니다.** 점수와 승패는 이미 정해진 것을 알려 주기만 합니다.
+- 실패해도 게임은 멀쩡합니다. Unity 는 실패 이유를 가리지 않고 점수 구간별 고정 문구를 씁니다.
+
+#### 🏠 인증 대신 루프백
+
+토큰이 없습니다. 부르는 쪽이 로그인한 사람이 아니라 서버이기 때문입니다.
+대신 **같은 머신(`127.0.0.1` · `::1`)에서 온 요청만** 받습니다. EC2 에서 광산 서버와 API 가
+같은 머신이고, 광산 서버는 `localhost:5080` 으로 붙습니다.
+
+⚠ 광산 서버와 API 를 다른 머신으로 떼면 403 에 막힙니다. 그때는 서버끼리 쓰는 비밀 키 방식으로 바꿔야 합니다.
+
+#### 요청
+
+```json
+{ "targetName": "하트", "score": 56, "success": false, "imagePngBase64": "iVBORw0KGgo..." }
+```
+
+| 필드 | 규칙 |
+| --- | --- |
+| `targetName` | 목표 도안 이름. 비면 "그림" 으로 부른다 |
+| `score` | 0~100 점수 |
+| `success` | 성공했는가. **말투가 갈린다** — 성공이면 인정하며 비틀기, 실패면 "○○라기보단 △△" |
+| `imagePngBase64` | 필수. 판 칸 검정 · 안 판 칸 흰색 PNG(20칸 × 16px = 320×320)를 base64 로. 1,000,000자 이하 |
+
+필드 이름은 Unity 의 `Mine.Net.MineReviewRequest` 와 같습니다.
+
+#### 200 — `MineReviewResponse`
+
+```json
+{ "comment": "하트라기보단 구부러진 낚싯바늘 같군요" }
+```
+
+| 필드 | 뜻 |
+| --- | --- |
+| `comment` | 한 문장. LLM 에 30자 이내를 요구하고, 서버가 첫 줄만 · 앞뒤 따옴표 제거 · 60자에서 자른다 |
+
+LLM 은 **5초**에서 끊습니다(`MineReview:TimeoutSeconds`). 성적표가 판이 끝나고 7초 뒤에 사라지기 때문입니다.
+보통 1~2초에 옵니다.
+
+#### 실패 (1.2절 공통 모양)
+
+| HTTP | code | 언제 |
+| --- | --- | --- |
+| 403 | `MINE_REVIEW_FORBIDDEN` | 다른 머신에서 온 요청 |
+| 400 | `MINE_REVIEW_BAD_IMAGE` | 그림이 없거나 너무 큼 |
+| 503 | `MINE_REVIEW_DISABLED` | 키(`MineReview:ApiKey`)가 설정되지 않음 |
+| 502 | `MINE_REVIEW_LLM_FAILED` | LLM 이 거절했거나 응답을 해석하지 못함. 이유는 서버 로그에 |
+| 502 | `MINE_REVIEW_EMPTY` | LLM 이 빈 답을 돌려줌 |
+| 504 | `MINE_REVIEW_TIMEOUT` | LLM 이 5초 안에 답하지 않음 |
+
+#### 설정 (`MineReview` 구역)
+
+| 키 | 기본값 | 어디에 |
+| --- | --- | --- |
+| `BaseUrl` | `https://generativelanguage.googleapis.com/v1beta/openai` | `appsettings.json` |
+| `Model` | `gemini-3.5-flash-lite` | `appsettings.json` |
+| `TimeoutSeconds` | `5` | `appsettings.json` |
+| `ApiKey` | (없음) | ⚠ 커밋 금지. 로컬은 `appsettings.Development.json`, EC2 는 `~/araatti/api.env` 의 `MineReview__ApiKey` |
+
+OpenAI 호환 형식(`POST {BaseUrl}/chat/completions`)으로 부르므로 `BaseUrl` · `Model` · `ApiKey` 만 바꾸면
+다른 곳으로 옮길 수 있습니다. ⚠ 단, **그림을 받는 모델**이어야 합니다 (Upstage `solar-pro4` 는 이미지 입력을 거절한다).
+
+키가 없어도 서버는 켜지고 이 API 만 503 입니다. 다른 API 에는 영향이 없습니다.
+
+---
+
+## 9. Unity 에서 부르는 곳
 
 | API | Unity | 비고 |
 | --- | --- | --- |
@@ -405,8 +488,10 @@ MySQL 에 붙을 수 있는지 봅니다. 인증이 필요 없습니다.
 | `/api/characters` | `HttpCharacterService` | |
 | `/api/inventory` | `HttpInventoryService` | 결과는 `PlayerInventory` 캐시로 |
 | `/api/altar/*` | `HttpAltarService` | 결과는 `AltarState` · `PlayerInventory` 캐시로 |
+| `/api/mine/review` | `HttpMineReviewService` | ⚠ 클라이언트가 아니라 **광산 데디케이티드 서버**가 부른다. 토큰 없음 |
 
 - 실제 API 와 가짜 구현(Fake*Service)은 `AccountServiceBootstrap.Active` 한 줄로 바꿉니다.
+  광산 한 줄 평만 따로 `MineReviewServices.Active` 로 바꿉니다.
 - 조각 수는 세 응답이 같이 갱신합니다: `GET /api/inventory` 의 `quantity`,
   `GET /api/altar/state` 의 `myFragments`, `POST /api/altar/offer` 의 `remainingFragments` (성공 · 409 둘 다).
 - 토큰이 없으면(로그인 전, `-devjoin` 개발 접속) Unity 쪽에서 요청을 보내지 않고 "로그인이 필요합니다" 로 끝냅니다.
