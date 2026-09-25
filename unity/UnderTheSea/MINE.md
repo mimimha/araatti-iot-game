@@ -700,6 +700,35 @@ LLM 이 실패하거나 늦어도 **점수 · 승패 · 진행이 그대로인�
 [MineMatch] 공용 결과로 넘깁니다 — 71점 · 성공 · 판 끝나고 7.0초
 ```
 
+#### 반복 시험
+
+여러 번 불러 응답시간 · 실패율과 게임 안정성을 숫자로 봅니다. 두 층으로 나눕니다.
+
+**계정 서버 — 자동.** 평소 `dotnet test` 에서는 건너뛰고, 환경 변수를 줘야 돕니다.
+결과는 `server/AraAtti.Api.Tests/TestResults/mine-review/` 에 CSV(원시)와 .md(통계)로 남습니다.
+
+```bash
+MINE_REVIEW_REPEAT=100 dotnet test AraAtti.Api.Tests --filter "FullyQualifiedName~Repeat_Fake"
+MINE_REVIEW_LIVE=15 dotnet test AraAtti.Api.Tests --filter "FullyQualifiedName~Repeat_LiveGemini"
+```
+
+- `Repeat_FakeSuccess` 가짜 LLM 1.5초 · 정상 문장
+- `Repeat_FakeMixed` 고정 순서 `Success ×3 · Timeout · Success · Empty · Success · HttpError · Success ×2` 를 반복
+- `Repeat_LiveGemini` 진짜 Gemini. ⚠ 무료 한도를 씁니다 — 1~20 회로 조이고 4초씩 띄웁니다
+
+**광산 서버 — 사람이 판을 돌립니다.** 장애 재현용 서버에 `-minereviewrecord` 를 붙이면 판마다 기록합니다.
+
+```text
+AraAtti-MineServer.exe ... -minereviewrecord -minereviewfault pattern   고정 순서 장애 (위 Mixed 와 같은 순서)
+AraAtti-MineServer.exe ... -minereviewrecord                            진짜 한 줄 평
+```
+
+실행 파일 옆 `MineReviewRecords/서버 켠 시각/` 에 `requests.csv` · `rounds.csv` · `summary.md` 가 생기고,
+판이 끝날 때마다 통계를 다시 씁니다. 지우려면 폴더째 지웁니다. 출시 빌드에는 이 기능이 없습니다.
+
+기록기는 `MineMatchState` 가 "적용했다" 는 말을 믿지 않고, 공용 결과로 넘기는 순간의 `ResultComment` 를
+**그 판에 적용된 문장**과 직접 비교합니다 (`WrongRound` · `FromOtherRound`). 점수 · 승패는 요청 때와 전환 때를 비교합니다.
+
 ### 온디바이스 분류기는 확장 후보입니다
 
 `com.unity.sentis` 로 스케치 분류기를 넣어 "AI 가 무엇으로 봤는가"를 판정에 쓰는 방안도
