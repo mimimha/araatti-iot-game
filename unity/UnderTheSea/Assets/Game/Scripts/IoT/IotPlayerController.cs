@@ -262,6 +262,18 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     /// </summary>
     public Vector2 Look => HasTwoDevices ? Right.Stick : Vector2.zero;
 
+    /// <summary>
+    /// 완드가 한 대라도 붙어 있는지. HUD 가 키캡을 완드 버튼으로 바꿀지 정할 때 본다.
+    ///
+    /// 포트가 열린 것만으로는 부족하다. 동글만 꽂고 완드를 안 켰으면 값이 전부 0 이라
+    /// 사람은 여전히 키보드로 하고 있다. 줄이 들어오고 있는 완드가 있어야 참이다.
+    /// 왼손 자리에는 살아 있는 완드가 먼저 앉으므로 (<see cref="ResolveHands"/>) 그것만 보면 된다.
+    /// </summary>
+    public bool AnyWandConnected
+    {
+        get { EnsureWands(); return _left.Connected; }
+    }
+
     /// <summary>지금 포트가 열려 있는지. 디버그 HUD 가 본다. 서버 빌드에서는 늘 false 다.</summary>
 #if !UNITY_SERVER
     public bool PortOpen => _port != null && _port.IsOpen;
