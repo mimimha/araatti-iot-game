@@ -281,8 +281,15 @@ public class NetworkPlayerMover : NetworkBehaviour
         running = running && moving;
 
         // 발밑 물이 깊으면 헤엄친다. 들어가는 깊이와 나오는 깊이를 달리 둬 경계에서 깜빡이지 않게 한다.
+        //
+        // ⚠ 들어갈 때는 발(피벗)도 그만큼 물에 잠겨 있어야 한다. 바닥 깊이만 보면 바다 위 바위에서
+        //    뛰어내리는 공중에서도 발밑이 깊은 바다라 헤엄 자세로 둥둥 떠내려온다.
+        //    나올 때는 보지 않는다. 수면에 떠 있으면 발이 swimSinkDepth 만큼만 잠겨 나가는 깊이보다 얕다.
         float depth = WaterDepth();
-        bool swimming = Swimming ? depth >= swimExitDepth : depth >= swimEnterDepth;
+        float submerged = seaLevel - transform.position.y;
+        bool swimming = Swimming
+            ? depth >= swimExitDepth
+            : depth >= swimEnterDepth && submerged >= swimEnterDepth;
 
         if (swimming)
         {
