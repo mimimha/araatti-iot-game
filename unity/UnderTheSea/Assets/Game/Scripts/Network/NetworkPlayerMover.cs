@@ -139,6 +139,21 @@ public class NetworkPlayerMover : NetworkBehaviour
     /// </summary>
     [Networked] public bool Running { get; set; }
 
+    /// <summary>
+    /// 로비 춤 번호. 0 이면 추지 않는다, 1 ~ <see cref="MaxDance"/> 는 춤 휠의 칸 번호다.
+    /// 서버가 정하고 <b>모든 피어가 읽는다</b> — 그래서 남도 보고, 나중에 들어온 사람도 본다.
+    ///
+    /// 클라이언트는 <see cref="RpcRequestDance"/> 로 청하기만 한다. 움직이거나 뛰거나 물에 들어가면
+    /// 서버가 0 으로 되돌린다(<see cref="FixedUpdateNetwork"/>).
+    /// </summary>
+    [Networked] public int Dance { get; set; }
+
+    /// <summary>춤 휠의 칸 수. <c>Tools/아라아띠/로비 춤 설치</c> 가 애니메이터에 이만큼 상태를 만든다.</summary>
+    public const int MaxDance = 5;
+
+    [Tooltip("Tools/아라아띠/로비 춤 설치 가 애니메이터에 더하는 파라미터와 같아야 한다.")]
+    [SerializeField] private string danceId = "Dance";
+
     private CharacterController controller;
     private Animator animator;
 
@@ -285,6 +300,35 @@ public class NetworkPlayerMover : NetworkBehaviour
 
         AnimAxis = axis;
         Running = running;
+
+        // 춤은 가만히 서 있을 때만. 움직이거나 뛰거나 물에 들어가면 멈춘다.
+        if (Dance != 0 && (moving || jumped || swimming))
+        {
+            Dance = 0;
+        }
+    }
+
+    /// <summary>
+    /// **춤을 추게 해 달라고 서버에 청한다.** 로비 춤 휠에서 고르면 불린다. 0 이면 멈춘다.
+    ///
+    /// 위치처럼 춤도 서버가 정한다. 서버가 <see cref="Dance"/> 를 바꾸면 모든 피어의
+    /// <see cref="Render"/> 가 같은 춤을 그린다.
+    /// </summary>
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RpcRequestDance(int dance)
+    {
+        if (dance < 0 || dance > MaxDance)
+        {
+            return;
+        }
+
+        // 물속에서는 추지 않는다. 헤엄 자세와 섞인다.
+        if (dance != 0 && Swimming)
+        {
+            return;
+        }
+
+        Dance = dance;
     }
 
     /// <summary>
@@ -490,6 +534,9 @@ public class NetworkPlayerMover : NetworkBehaviour
         bool stroking = axis.sqrMagnitude > 0.0001f || Ascending;
         animator.SetBool(swimmingId, Swimming);
         animator.SetFloat(swimSpeedId, !stroking ? swimIdleAnimSpeed : Running ? swimSprintAnimSpeed : 1f);
+
+        // 춤도 서버가 정한 값을 모두가 같이 본다.
+        animator.SetInteger(danceId, Dance);
     }
 
     private void Update()

@@ -1266,11 +1266,11 @@ MonoBehaviour:
   - {fileID: 7021244124537231888}
   centerLabel: {fileID: 655576790268833812}
   danceNames:
-  - "\uCDA4 1"
-  - "\uCDA4 2"
-  - "\uCDA4 3"
-  - "\uCDA4 4"
-  - "\uCDA4 5"
+  - Dance
+  - Dance Slow
+  - Victory
+  - Idle_Taunt1
+  - idle_taunt3
   normalColor: {r: 0.96, g: 0.93, b: 0.86, a: 0.78}
   hoverColor: {r: 1, g: 1, b: 1, a: 0.97}
   labelColor: {r: 0.32, g: 0.24, b: 0.16, a: 1}
