@@ -192,7 +192,7 @@ UNIQUE KEY uk_characters_user_slot    (user_id, slot_index)
 | --- | --- | --- | --- |
 | `id` | `BIGINT UNSIGNED` | PK, AUTO_INCREMENT | |
 | `character_id` | `BIGINT UNSIGNED` | NOT NULL, FK → `characters(id)` ON DELETE CASCADE | |
-| `slot` | `VARCHAR(24)` | NOT NULL | `"Face"`, `"Hair"`, `"Top"`, `"Bottom"`, `"Shoes"`, `"Accessory"` |
+| `slot` | `VARCHAR(24)` | NOT NULL | `"Face"`, `"Hair"`, `"Top"`, `"Bottom"`, `"Shoes"`, `"Accessory"`, `"Hat"`, `"Glasses"`, `"FaceAccessory"` |
 | `prefab_name` | `VARCHAR(64)` | NOT NULL | **프리팹 이름 문자열** (`"Costume_14_01"`) |
 
 ```sql
@@ -207,6 +207,11 @@ Face  Hair  Shoes  Top  Bottom  Accessory
 
 (`CharacterCustomizationPersistence.PersistedCategories` 와 같다.
 초안에는 `WearSlot` enum 이름이라고 적혀 있었으나, 실제 구현은 카테고리 이름을 쓴다.)
+
+⚠ **예외 — Accessory 안의 모자 · 안경 · 얼굴장식은 자리 이름으로 나눠 저장한다.** (`Hat` `Glasses` `FaceAccessory`)
+이 셋은 함께 입을 수 있는데, 모두 `Accessory` 로 저장하면 `(character_id, slot)` UNIQUE 에 걸려
+모자 + 안경 캐릭터가 400 으로 생성에 실패했다. 예전에 `Accessory` 로 저장된 값도 그대로 읽힌다.
+(`CharacterPartCatalog.SnapshotSlotOf` / `CategoryOfSnapshotSlot`)
 
 컬럼이 문자열이라 **카테고리가 늘어나도 DB 는 그대로다.** 서버에서는
 `CharacterEndpoints.AllowedSlots` 배열에 한 줄만 추가하면 된다.
@@ -326,7 +331,7 @@ Body      Body_01 ... Body_16
 | `password` | 8자 이상 | 서버 단독 결정. Unity 안내 문구도 같이 맞춘다 |
 | `nickname` | 2~10자, `^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+$`, 전역 중복 불가 | **`GetNicknameValidationMessage` 와 동일 정규식** |
 | `skinColor` | `^#[0-9A-Fa-f]{6}$` | |
-| `parts[].slot` | `Face` `Hair` `Shoes` `Top` `Bottom` `Accessory` 중 하나 (대소문자 무시) | 2-3 절 |
+| `parts[].slot` | `Face` `Hair` `Shoes` `Top` `Bottom` `Accessory` `Hat` `Glasses` `FaceAccessory` 중 하나 (대소문자 무시) | 2-3 절 |
 | `parts` | `slot` 중복 없음. 빈 배열 허용 | `uk_parts_character_slot` |
 | `parts[].prefabName` | 빈 값 불가, 64자 이하. **실제 프리팹인지는 검사하지 않는다** | 서버는 Unity 에셋 목록을 모른다 |
 

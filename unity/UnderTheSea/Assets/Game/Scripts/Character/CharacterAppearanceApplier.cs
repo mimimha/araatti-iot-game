@@ -202,7 +202,8 @@ namespace UnderTheSea.Character
                 {
                     foreach (CharacterPartSnapshot part in snapshot.parts)
                     {
-                        if (!string.Equals(part.slot, category, StringComparison.Ordinal))
+                        if (!string.Equals(
+                                CharacterPartCatalog.CategoryOfSnapshotSlot(part.slot), category, StringComparison.Ordinal))
                         {
                             continue;
                         }
