@@ -9,8 +9,8 @@ namespace MiniGames.Common.UI
     /// 세 미니게임이 함께 쓰는 결과 화면.
     ///
     /// 게임마다 결과 화면을 새로 만들지 않는다. <see cref="Show"/> 에 결과를 넘기면
-    /// 라벨과 값만 바뀐다. 보상 줄은 <see cref="SeaHeartFragments"/> 에 물어보고
-    /// 처음 받는 조각일 때만 "획득" 으로, 이미 가진 조각이면 "이미 보유" 로 적는다.
+    /// 라벨과 값만 바뀐다. 보상 줄은 성공한 판마다 바다의 심장 조각 1개를 보여 준다
+    /// (설계 문서 결정 #1 — 같은 게임을 다시 깨도 또 1개). 지급 여부의 최종 판단은 서버다.
     ///
     /// 버튼은 스스로 씬을 열지 않는다. 누구를 부를지는 이 화면을 띄운 쪽이 정한다.
     /// (GAME_STRUCTURE.md 3장 — 씬 전환은 SceneFlow 한 곳에서)
@@ -40,8 +40,6 @@ namespace MiniGames.Common.UI
         [Header("색")]
         [SerializeField] private Color clearAccent = new(1f, .82f, .35f, 1f);
         [SerializeField] private Color failAccent = new(1f, .48f, .42f, 1f);
-        [SerializeField] private Color freshReward = new(1f, .82f, .35f, 1f);
-        [SerializeField] private Color ownedReward = new(.55f, .87f, .98f, 1f);
 
         /// <summary>[다시 하기] 를 눌렀을 때.</summary>
         public event Action RetryRequested;
@@ -63,7 +61,13 @@ namespace MiniGames.Common.UI
             if (root != null) root.SetActive(false);
         }
 
-        /// <summary>결과를 띄운다. 보상은 처음 클리어했을 때만 새로 들어온다.</summary>
+        /// <summary>
+        /// 결과를 띄운다.
+        ///
+        /// <b>보상 칸은 클리어했을 때만, 그리고 클리어하면 무조건 뜬다.</b> (기획 결정)
+        /// 서버 지급 결과를 기다리거나 읽지 않는다 — 클리어했는데 "지급되지 않았다" 를 보여 주는
+        /// 경우는 없다. 게임 오버면 보상 칸이 통째로 없고, 버튼이 그 빈자리로 올라온다.
+        /// </summary>
         public void Show(in MiniGameResult result, MiniGameConfig config)
         {
             if (root != null) root.SetActive(true);
@@ -93,32 +97,50 @@ namespace MiniGames.Common.UI
                 if (extraValue != null) extraValue.text = result.ExtraStatValue ?? string.Empty;
             }
 
-            ShowReward(result, config);
+            // 보상 칸: 클리어 = 조각 그림 + 이름. 상태 문구는 쓰지 않는다.
+            bool reward = result.IsClear;
+            if (rewardRoot != null) rewardRoot.SetActive(reward);
+            if (rewardName != null)
+                rewardName.text = config != null ? config.RewardName : "바다의 심장 조각";
+            if (rewardState != null) rewardState.text = string.Empty;
+
+            PlaceLayout(reward);
         }
 
-        private void ShowReward(in MiniGameResult result, MiniGameConfig config)
+        /// <summary>
+        /// 게임 오버일 때 기록 칸을 내리는 거리. 보상 칸이 빠진 자리의 절반쯤이다 —
+        /// 기록 칸이 부제와 버튼 사이 한가운데에 오게 한다. (판 그림은 늘릴 수 없어 높이가 고정이다)
+        /// </summary>
+        private const float NoRewardStatDrop = 106f;
+
+        private Vector2 lobbyBase;
+        private Vector2 retryBase;
+        private Vector2 statBase;
+        private bool layoutBaseCaptured;
+
+        /// <summary>
+        /// 자리를 정한다.
+        ///   · [다시 하기] 가 숨겨져 [로비로] 혼자면 가운데로 (포탈로 들어온 판은 늘 이렇다)
+        ///   · 보상 칸이 없으면(게임 오버) 기록 칸을 내려 판 가운데가 텅 비지 않게 한다
+        /// </summary>
+        private void PlaceLayout(bool hasReward)
         {
-            // 실패한 판은 조각을 주지 않는다.
-            bool eligible = result.IsClear && config != null && !string.IsNullOrEmpty(config.FragmentId);
-            if (rewardRoot != null) rewardRoot.SetActive(eligible);
-            if (!eligible) return;
+            RectTransform statPanel = extraRow != null ? extraRow.transform.parent as RectTransform : null;
 
-            // 적립은 MatchFlowController 가 이미 끝냈다. 화면은 그 결과를 읽기만 한다 —
-            // 화면이 스스로 Grant 를 부르면 결과 창을 다시 열 때마다 한 번씩 더 들어간다.
-            if (rewardName != null) rewardName.text = config.RewardName;
-
-            if (rewardState == null) return;
-
-            if (result.FragmentObtained)
+            if (!layoutBaseCaptured)
             {
-                rewardState.text = "획득!";
-                rewardState.color = freshReward;
+                if (lobbyButton != null) lobbyBase = ((RectTransform)lobbyButton.transform).anchoredPosition;
+                if (retryButton != null) retryBase = ((RectTransform)retryButton.transform).anchoredPosition;
+                if (statPanel != null) statBase = statPanel.anchoredPosition;
+                layoutBaseCaptured = true;
             }
-            else
-            {
-                rewardState.text = RewardService.Has(result.RewardId) ? "이미 보유 중" : "획득 실패";
-                rewardState.color = ownedReward;
-            }
+
+            bool alone = retryButton == null || !retryButton.gameObject.activeSelf;
+            if (lobbyButton != null)
+                ((RectTransform)lobbyButton.transform).anchoredPosition = new Vector2(alone ? 0f : lobbyBase.x, lobbyBase.y);
+
+            if (statPanel != null)
+                statPanel.anchoredPosition = new Vector2(statBase.x, statBase.y - (hasReward ? 0f : NoRewardStatDrop));
         }
     }
 }
