@@ -22,6 +22,10 @@ namespace UnderTheSea.Audio
         [Tooltip("앞 곡과 겹치는 시간 (초).")]
         [SerializeField, Range(0.1f, 5f)] private float fadeSeconds = 1.5f;
 
+        [Tooltip("이 곡의 상대 크기 (1 이 기본). 허브가 곡마다 크기를 고르게 맞춘 뒤에 곱한다.\n" +
+                 "미니게임 음악과 크기를 맞출 때 쓴다. ShipCoop 음악은 0.448 (musicLevel 0.56 × masterLevel 0.8) 로 튼다.")]
+        [SerializeField, Range(0f, 1f)] private float level = 1f;
+
         [Tooltip("이 씬을 떠날 때 음악을 멈춘다. 끄면 다음 씬에 SceneMusic 이 없을 때 그대로 이어진다.")]
         [SerializeField] private bool stopWhenLeaving = false;
 
@@ -36,7 +40,7 @@ namespace UnderTheSea.Audio
 
             if (music != null)
             {
-                hub.PlayMusic(music, fadeSeconds);
+                hub.PlayMusic(music, fadeSeconds, level);
             }
             else
             {

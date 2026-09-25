@@ -114,7 +114,7 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
-            // 도감 · 봉헌 창이 열려 있거나 채팅을 치는 중이면 E 로 열지 않는다.
+            // 봉헌 창이 열려 있거나 채팅을 치는 중이면 E 로 열지 않는다.
             // ⚠ Esc 는 막지 않는다. 봉헌 창도 이 잠금을 걸기 때문에 막으면 Esc 로 못 닫는다.
             if (keys[interactKey].wasPressedThisFrame && !ChatFocus.Typing)
             {
