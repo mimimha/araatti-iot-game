@@ -411,8 +411,8 @@ namespace UnderTheSea.Lobby
             return ps;
         }
 
-        /// <summary>헤엄치는 중이고 머리가 수면 아래인가.</summary>
-        private bool IsSubmerged(NetworkPlayerMover mover)
+        /// <summary>헤엄치는 중이고 머리가 수면 아래인가. 잠수 소리(<see cref="LobbySwimAudio"/>)도 이 기준을 쓴다.</summary>
+        public bool IsSubmerged(NetworkPlayerMover mover)
         {
             if (mover == null || mover.Object == null || !mover.Object.IsValid || !mover.Swimming)
             {
