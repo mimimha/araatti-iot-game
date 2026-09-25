@@ -76,7 +76,7 @@ echo.
 echo   처음이면 [회원가입] 을 먼저 누르세요.
 echo.
 
-start "" "AraAtti-Flow.exe" -api http://%HOST%:5080 -appver %APPVER% -region %REGION% %DEVMODE% -screen-width 1600 -screen-height 900 -screen-fullscreen 0
+start "" "AraAtti-Flow.exe" -api http://%HOST%:5080 -appver %APPVER% -region %REGION% %DEVMODE% -screen-fullscreen 1
 "@
 
 $readme = @"
@@ -85,6 +85,9 @@ $readme = @"
 [실행]
   게임시작.bat 을 더블클릭하세요.
   AraAtti-Flow.exe 를 직접 실행하면 서버 주소가 안 들어가서 로그인이 안 됩니다.
+
+[화면]
+  전체화면으로 시작합니다. Alt+Enter 를 누르면 창 모드(1600x900)로, 한 번 더 누르면 전체화면으로 돌아옵니다.
 
 [처음 실행하면]
   1. 시작   2. 회원가입   3. 캐릭터 생성   4. 채널 선택   5. 로비
