@@ -28,7 +28,7 @@ public static class AltarEndpoints
     /// ⚠ 이 행은 AddInventoryAndAltar 마이그레이션이 넣어 둔 것이다.
     ///    조회하다가 없다고 해서 여기서 만들지 않는다. 두 요청이 동시에 만들려다 부딪힌다.
     /// </summary>
-    private const int AltarStateId = 1;
+    internal const int AltarStateId = 1;
 
     public static void MapAltarEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -434,7 +434,7 @@ public static class AltarEndpoints
     ///    다른 제약을 위반한 것도 전부 duplicate 성공으로 둔갑한다.
     ///    MySQL 의 1062(ER_DUP_ENTRY)일 때만 참이다.
     /// </summary>
-    private static bool IsDuplicateKeyViolation(DbUpdateException exception)
+    internal static bool IsDuplicateKeyViolation(DbUpdateException exception)
     {
         return exception.InnerException is MySqlException { ErrorCode: MySqlErrorCode.DuplicateKeyEntry };
     }
