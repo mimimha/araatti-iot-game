@@ -64,6 +64,10 @@ set HOST=$Server
 set APPVER=prod
 set REGION=kr
 
+rem  개발자 모드. 배 · 검 게임에서 P 로 개발자 패널을 연다.
+rem  서버도 -devmode 로 떠 있어야 명령이 먹는다. 끄려면 = 뒤를 비운다.
+set DEVMODE=-devmode
+
 echo.
 echo   아라아띠를 시작합니다.
 echo     서버      %HOST%
@@ -72,7 +76,7 @@ echo.
 echo   처음이면 [회원가입] 을 먼저 누르세요.
 echo.
 
-start "" "AraAtti-Flow.exe" -api http://%HOST%:5080 -appver %APPVER% -region %REGION% -screen-width 1600 -screen-height 900 -screen-fullscreen 0
+start "" "AraAtti-Flow.exe" -api http://%HOST%:5080 -appver %APPVER% -region %REGION% %DEVMODE% -screen-width 1600 -screen-height 900 -screen-fullscreen 0
 "@
 
 $readme = @"
