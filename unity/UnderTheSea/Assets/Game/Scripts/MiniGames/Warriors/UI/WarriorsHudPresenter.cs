@@ -1338,15 +1338,17 @@ namespace Warriors
                     ? laneCentres[laneIndex]
                     : TrackCentre(laneIndex, playerCount);
 
-                // **노트는 트랙 한가운데로 내려온다.**
+                // **노트는 공격 종류의 열로 내려온다.** 가로 ← · 세로 가운데 · 찌르기 → —
+                // 아래 안내 카드(J · K · L)와 같은 순서다.
                 //
-                // 공격 종류마다 열을 달리해 봤더니, 세 갈래로 흩어져 "어느 칸으로 몸을 옮길까" 처럼
-                // 읽혔다. 이 게임은 자리를 옮기는 게임이 아니라 **선 자리에서 검을 휘두르는** 게임이다.
-                // 종류는 노트의 색과 기호가 말하면 충분하다.
+                // 예전에는 셋 다 트랙 한가운데로 내려왔다. 트랙이 세 칸으로 나뉘어 있는데 노트가
+                // 한 줄에서만 나와 칸이 의미가 없었고, 난이도를 올리자는 의견이 있어 열을 나눴다.
                 //
-                // widen 은 거리감에만 쓴다. Travel 0 = 막 생김, 1 = 판정선.
+                // 열 중심은 트랙 폭의 2/3 지점이다. 트랙이 위로 갈수록 좁아지므로(widen) 열도 같이 좁혀
+                // 노트가 칸 안에서 곧게 내려오게 한다. 판정선에서 ColumnPitch(120)만큼 떨어진다.
+                // Travel 0 = 막 생김, 1 = 판정선.
                 float widen = Mathf.LerpUnclamped(TrackTopScale, 1f, note.Travel);
-                float x = centre;
+                float x = centre + NoteColumn(note.Type) * ColumnPitch * widen;
                 // Travel 1 is the moment the note is due, so it has to be exactly on the line
                 // then - the two used to disagree, and the player had to swing when the note
                 // was already well past it. Unclamped so a missed note keeps falling through
@@ -1364,9 +1366,11 @@ namespace Warriors
                 float alpha = mine ? 1f : .7f;
 
                 // 멀리 있을수록 작다. 다만 스폰 지점에서도 무엇인지는 읽혀야 하므로
-                // 트랙 비율(0.60)을 그대로 쓰지 않고 0.80~1.30 으로 눌러 쓴다.
-                // 프리팹 노트가 90px 이라 판정선에서 117px, 스폰에서 72px 이 된다.
-                float noteScale = Mathf.LerpUnclamped(.80f, 1.30f, Mathf.Clamp01(note.Travel));
+                // 트랙 비율(0.60)을 그대로 쓰지 않고 0.72~1.15 로 눌러 쓴다.
+                // 프리팹 노트가 90px 이라 판정선에서 104px, 스폰에서 65px 이 된다.
+                // 열이 판정선에서 120px · 스폰에서 98px 이라 그 안에 들어가는 크기다
+                // (예전 0.80~1.30 은 판정선에서 117px 로 열을 거의 꽉 채워 옆 칸 선에 닿았다).
+                float noteScale = Mathf.LerpUnclamped(.72f, 1.15f, Mathf.Clamp01(note.Travel));
 
                 // **색은 링과 기호만 갖는다. 가운데는 비어 있다.**
                 Color tone = note.IsMissed ? rhythmMissedColor : NoteColor(note.Type);
@@ -2030,8 +2034,8 @@ namespace Warriors
                 PaintSegment(lane.leftEdge, x - top, spawnY, x - bottom, hitLineY, 5f, edgeColor);
                 PaintSegment(lane.rightEdge, x + top, spawnY, x + bottom, hitLineY, 5f, edgeColor);
 
-                // 트랙을 세로로 나누는 **옅은 구분선 2줄.** 길이 흐르는 방향만 거들 뿐,
-                // 공격 종류와는 상관이 없다 — 종류는 노트의 색과 기호가 말한다.
+                // 트랙을 세로로 나누는 **옅은 구분선 2줄.** 세 칸이 곧 가로 · 세로 · 찌르기 열이다
+                // (노트 배치의 NoteColumn). 칸 색은 따로 칠하지 않는다 — 종류는 노트의 색과 기호가 말한다.
                 Color divider = Color.white;
                 divider.a = .14f * dim;
 
@@ -2744,6 +2748,14 @@ namespace Warriors
             WarriorsAttackDirection.VerticalSlash => rhythmVerticalColor,
             WarriorsAttackDirection.Thrust => rhythmThrustColor,
             _ => rhythmNoteColor,
+        };
+
+        /// <summary>공격 종류가 내려올 열. -1 왼쪽 · 0 가운데 · +1 오른쪽. 안내 카드 순서(가로 · 세로 · 찌르기)와 같다.</summary>
+        private static int NoteColumn(WarriorsAttackDirection type) => type switch
+        {
+            WarriorsAttackDirection.HorizontalSlash => -1,
+            WarriorsAttackDirection.Thrust => 1,
+            _ => 0,
         };
 
         private static void Set(TMP_Text target, string value)

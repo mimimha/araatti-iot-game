@@ -234,7 +234,7 @@ MonoBehaviour:
   windowRing: {fileID: 0}
   glyphColor: {r: 0.97, g: 0.99, b: 1, a: 1}
   ringColor: {r: 1, g: 0.72, b: 0.26, a: 0.95}
-  ringStartSize: 1.4
+  ringStartSize: 1.8
   markerScale: 1.7
   localOffset: {x: 0, y: 3.6, z: -0.82}
   fixedWorldEuler: {x: 0, y: 180, z: 0}
@@ -741,7 +741,7 @@ MonoBehaviour:
   windowRing: {fileID: 0}
   glyphColor: {r: 0.97, g: 0.99, b: 1, a: 1}
   ringColor: {r: 1, g: 0.72, b: 0.26, a: 0.95}
-  ringStartSize: 1.4
+  ringStartSize: 1.8
   markerScale: 1.7
   localOffset: {x: 0, y: 3.6, z: -0.82}
   fixedWorldEuler: {x: 0, y: 180, z: 0}
@@ -1165,7 +1165,7 @@ MonoBehaviour:
   windowRing: {fileID: 0}
   glyphColor: {r: 0.97, g: 0.99, b: 1, a: 1}
   ringColor: {r: 1, g: 0.72, b: 0.26, a: 0.95}
-  ringStartSize: 1.4
+  ringStartSize: 1.8
   markerScale: 1.7
   localOffset: {x: 0, y: 3.6, z: -0.82}
   fixedWorldEuler: {x: 0, y: 180, z: 0}
@@ -1350,7 +1350,7 @@ MonoBehaviour:
   windowRing: {fileID: 0}
   glyphColor: {r: 0.97, g: 0.99, b: 1, a: 1}
   ringColor: {r: 1, g: 0.72, b: 0.26, a: 0.95}
-  ringStartSize: 1.4
+  ringStartSize: 1.8
   markerScale: 1.7
   localOffset: {x: 0, y: 3.6, z: -0.82}
   fixedWorldEuler: {x: 0, y: 180, z: 0}
