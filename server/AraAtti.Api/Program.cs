@@ -190,6 +190,24 @@ app.MapInventoryEndpoints();
 app.MapAltarEndpoints();
 
 // ------------------------------------------------------------
+// 🛠 개발자 모드 — 로비 개발자 패널이 쓰는 경로
+//
+// 게임 서버의 -devmode 와 같은 뜻이다(Unity DevMode.cs). 로컬 개발(Development)에서는 늘 켜고,
+// 배포에서는 실행 인자 --devmode 가 있을 때만 켠다. 꺼져 있으면 경로를 만들지 않는다.
+// 배포 스크립트(tools/deploy/deploy-servers.sh)의 DEVMODE 가 게임 서버와 API 를 같이 켜고 끈다.
+// ------------------------------------------------------------
+
+bool devMode = app.Environment.IsDevelopment() || args.Contains("--devmode");
+if (devMode)
+{
+    app.MapAltarDevEndpoints();
+}
+
+app.Logger.LogInformation(devMode
+    ? "[개발자 모드] 켜짐 — 개발자 경로(/api/altar/dev)를 엽니다."
+    : "[개발자 모드] 꺼짐 — 개발자 경로를 열지 않습니다.");
+
+// ------------------------------------------------------------
 // 광산 결과 한 줄 평 (로그인 없음 · 같은 머신에서 온 요청만)
 // ------------------------------------------------------------
 

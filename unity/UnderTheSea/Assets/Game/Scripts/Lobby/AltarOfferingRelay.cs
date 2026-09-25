@@ -86,6 +86,8 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
+            local = this;
+
             IAltarService service = AccountServiceLocator.Altar;
 
             if (service == null)
@@ -102,6 +104,11 @@ namespace UnderTheSea.Lobby
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
+            if (ReferenceEquals(local, this))
+            {
+                local = null;
+            }
+
             if (!subscribed)
             {
                 return;
@@ -197,6 +204,57 @@ namespace UnderTheSea.Lobby
 
             vfx.PlayOnce();
             Debug.Log($"[AltarVfx] pulse played requestId={requestId}", this);
+        }
+
+        // ------------------------------------------------------------
+        // 🛠 상태만 바뀌었다 → 세션 전체 (펄스 없음)
+        // ------------------------------------------------------------
+
+        /// <summary>
+        /// 내 플레이어의 relay. <see cref="AnnounceStateChanged"/> 가 쓴다.
+        /// 남의 캐릭터에 붙은 것은 보내지 못하므로 담지 않는다.
+        /// </summary>
+        private static AltarOfferingRelay local;
+
+        /// <summary>
+        /// <b>봉헌이 아닌 길로</b> 제단 상태가 바뀌었다고 세션 전체에 알린다.
+        /// 지금은 로비 개발자 모드의 섬 회복도 +1 · -1 (<see cref="LobbyDevMode"/>) 이 부른다.
+        ///
+        /// 받은 화면은 <see cref="Rpc_OfferingSucceeded"/> 의 ① 과 같이 상태만 다시 묻는다.
+        /// <b>펄스는 없다</b> — 등록이라는 사건이 없었다.
+        ///
+        /// ⚠ 이 RPC 도 숫자를 싣지 않는다. 받은 쪽이 <c>GET /api/altar/state</c> 로 확인한다.
+        ///    가짜로 보내 봐야 모두가 한 번 더 조회할 뿐이다.
+        /// </summary>
+        /// <returns>보냈으면 true. 로비 세션에 붙어 있지 않으면 false.</returns>
+        public static bool AnnounceStateChanged()
+        {
+            if (local == null || local.Object == null || !local.Object.IsValid)
+            {
+                return false;
+            }
+
+            local.Rpc_NotifyStateChanged();
+            return true;
+        }
+
+        /// <summary>클라이언트 → 서버.</summary>
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        private void Rpc_NotifyStateChanged(RpcInfo info = default)
+        {
+            if (info.Source != Object.InputAuthority)
+            {
+                return;
+            }
+
+            Rpc_StateChanged();
+        }
+
+        /// <summary>서버 → 모두. 보낸 사람 본인도 포함된다(이미 최신이지만 다시 물어도 무해하다).</summary>
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void Rpc_StateChanged()
+        {
+            StartCoroutine(RefreshStateSoon());
         }
 
         /// <summary>
