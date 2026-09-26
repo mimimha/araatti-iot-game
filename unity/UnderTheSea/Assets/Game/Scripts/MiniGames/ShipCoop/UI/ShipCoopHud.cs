@@ -1096,6 +1096,24 @@ public class ShipCoopHud : MonoBehaviour
             return;
         }
 
+        // 🔨 자재를 받은 구멍 앞이면 붙기 전이라도 **K 를 띄운다.** K 한 번에 붙고 친다(TaskWorker).
+        //    다른 자리가 더 가까워도 이쪽이 먼저다 — K 는 어차피 이 구멍으로 간다.
+        RepairTask hammerable = RepairTask.FindHammerable(LocalWorker, LocalWorker.transform.position);
+        if (hammerable != null)
+        {
+            Show(WithHint(hammerable.DisplayName, HintOf(hammerable)), GaugeOf(hammerable), IconOf(hammerable),
+                 false, KeyOf(hammerable), LocalWorker.transform, isHold: false);
+            return;
+        }
+
+        // 자재가 아직 없는 구멍. 붙어 봐야 두드려도 안 먹으니 Space 대신 자재부터 가져오라고 말한다.
+        if (nearby is RepairTask waiting)
+        {
+            Show(WithHint(waiting.DisplayName, HintOf(waiting)), GaugeOf(waiting), IconOf(waiting),
+                 false, KeyOf(waiting), LocalWorker.transform, isHold: false);
+            return;
+        }
+
         // 붙기 전이다. 키는 키캡이 말해주므로 이름에 또 적지 않는다.
         if (nearby != null)
         {
@@ -1365,7 +1383,7 @@ public class ShipCoopHud : MonoBehaviour
     }
 
     /// <summary>들고 있는 것을 어디로 가져가야 하는지. 손에 든 것마다 목적지가 다르다.</summary>
-    private static string CarryHintOf(CarryTask carry)
+    private string CarryHintOf(CarryTask carry)
     {
         switch (carry.Carrying)
         {
@@ -1390,9 +1408,11 @@ public class ShipCoopHud : MonoBehaviour
                     ? "손 떼서 싣기"
                     : "꾹 누른 채로 · 대포로";
 
+            // 건넨 다음 할 일(K 연타)까지 미리 말한다. 건네고 나면 손이 비어 무엇을 누를지 몰랐다.
+            // 키 이름은 한글 글꼴로 나가는 줄이라 K · B 같은 영문 한 글자만 쓴다.
             case Cargo.Plank:
                 return carry.FindPointWantingPlank() != null
-                    ? "손 떼서 건네기"
+                    ? $"손 떼서 건네기 ·\n<nobr>이어서 {(UsingWand() ? WandFire : "K")} 연타로 수리</nobr>"
                     : "꾹 누른 채로 ·\n<nobr>자재가 필요한 수리 지점으로</nobr>";
 
             case Cargo.Water:
@@ -1428,6 +1448,7 @@ public class ShipCoopHud : MonoBehaviour
                     : "포탄이 없다 — 상자에서 날라라";
 
             // 자재가 없으면 두드려도 안 먹는다. 그 말을 안 하면 고장 난 줄 안다.
+            // 자재를 받았으면 붙기 전에도 이 줄이 뜬다 — Space 없이 연타만 하면 된다.
             case RepairTask repair:
                 return repair.CanHammer ? "연타해서 수리" : "자재가 필요하다 — 갈색 상자에서";
 

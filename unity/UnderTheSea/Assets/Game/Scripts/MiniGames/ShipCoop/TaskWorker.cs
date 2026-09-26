@@ -132,6 +132,20 @@ public class TaskWorker : MonoBehaviour
             return;
         }
 
+        // 🔨 **자재를 받은 구멍 앞에서 K 를 누르면 붙고 바로 친다.** Space 로 먼저 붙을 필요가 없다.
+        //
+        // 예전에는 "자재 건네기 → Space 로 붙기 → K 연타" 였고, 건넨 자재가 눈에 안 보여서 헷갈렸다.
+        // 누가 자재를 가져왔든 상관없다 — 나르는 사람과 치는 사람이 달라도 된다.
+        // 붙어 있는 사람이 쉬고 있으면(RepairTask.CanTakeOver) 그 사람을 떼어 내고 넘겨받는다.
+        // K 는 집기 버튼이 아니라서 아래 집기 양보와 다투지 않는다.
+        RepairTask hole = RepairTask.FindHammerable(this, transform.position);
+
+        if (hole != null && ShipCoopInput.ConsumeSwing(Input) && hole.MakeRoomFor(this) && Join(hole))
+        {
+            hole.Hammer();
+            return;
+        }
+
         // ⚠ **집을 것이 손에 닿으면 붙지 않는다.** 그 버튼은 운반이 가져간다. (SHIPCOOP.md 4장)
         //
         // 상자나 갑판에 놓인 물건이 자리와 겹칠 때 **둘이 같은 버튼을 두고 다툽니다.**

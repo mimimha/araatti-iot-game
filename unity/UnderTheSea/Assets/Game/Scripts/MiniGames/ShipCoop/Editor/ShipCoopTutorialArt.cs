@@ -312,6 +312,8 @@ public static class ShipCoopTutorialArt
         }
 
         var footerRect = (RectTransform)footer;
+        footer.gameObject.SetActive(true);
+        footer.SetAsLastSibling(); // 컨테이너 이미지보다 나중에 그려 카운트다운을 위에 표시한다.
         footerRect.anchorMin = FooterAnchorMin;
         footerRect.anchorMax = FooterAnchorMax;
         footerRect.offsetMin = Vector2.zero;
