@@ -52,7 +52,7 @@
 - 채팅을 치는 동안에는 완드 입력도 막힙니다.
 - 키보드와 완드 입력은 **더해집니다.** 완드를 들고 있어도 키보드로 조작할 수 있습니다.
 
-관련 코드: `PlayerInputProvider` (이동·점프·달리기), `LocalPlayerView` (카메라), `IotLobbyInteract` (상호작용)
+관련 코드: `PlayerInputProvider` (이동·점프·달리기), `LocalPlayerView` (카메라), `IotLobbyInteract` (상호작용). 씬에 따로 붙이지 않습니다 — `IotLobbyInstaller` 가 로비에 들어올 때 코드로 붙입니다.
 
 ## 낚시 (로비 안)
 

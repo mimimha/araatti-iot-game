@@ -1,19 +1,24 @@
-# 입력 규격 — 네 미니게임의 키 배치와 IoT 장치
+# 입력 규격 — 미니게임들의 키 배치와 IoT 장치
 
-로비 · 광산 · 무쌍 · 배가 각자 키를 정하다 보니 **같은 키가 게임마다 다른 일**을 하게 됐습니다.
+로비 · 낚시 · 광산 · 무쌍 · 배가 각자 키를 정하다 보니 **같은 키가 게임마다 다른 일**을 하게 됐습니다.
 플레이어는 게임이 바뀔 때마다 조작을 새로 외워야 했습니다. 그것을 하나로 맞춘 결과입니다.
 
 뒤쪽 4장부터는 IoT 담당자가 장치를 만들 때 보는 규격입니다.
 **게임 안에서 키보드를 읽는 곳은 단 한 군데뿐입니다.** 그 한 군데를 장치로 갈아끼우면 끝입니다.
 
-> ⚠ **정한 것이고 코드는 아직 반영 전입니다.** 각 미니게임 담당자가 자기 브랜치에서 고칩니다. (8장)
+> 📍 **완드 버튼이 어느 행동인지 찾고 있다면 [`Assets/Game/Scripts/IoT/KEY_MAPPING.md`](Assets/Game/Scripts/IoT/KEY_MAPPING.md) 를 보세요.**
+> 거기가 게임별 완드 ↔ 키보드 대응표의 **정본**입니다. 이 문서는 *왜 그렇게 정했는지*와
+> 장치가 지켜야 할 규격을 다룹니다. 표가 두 군데로 갈라지지 않도록 세부 배치는 그쪽에만 둡니다.
+
+> ⚠ **로비 · 낚시 · 광산 · 무쌍은 코드 반영이 끝났습니다.** 남은 것은 8장에 있습니다.
 
 - 경계 정의 · 폴더 규칙은 `GAME_STRUCTURE.md` 의 `IoT/` 절
 - 배의 게임 규칙 자체는 `SHIPCOOP.md`
+- 완드 하드웨어와 연결 방식은 `Assets/Game/Scripts/IoT/IotPlayerController.md`
 
 ---
 
-## 1. 네 게임이 함께 지키는 것
+## 1. 모든 게임이 함께 지키는 것
 
 ```text
 같은 키는 어느 게임에서나 같은 뜻이다
@@ -32,19 +37,29 @@
 
 ### 게임별 배치
 
-| | 로비 | 광산 | 무쌍 | 배 |
-|---|---|---|---|---|
-| **W A S D** | 이동 | 이동 | 이동 | 이동 |
-| **마우스 드래그** | 카메라 | 카메라 | 카메라 | 카메라 |
-| **Shift** | 달리기 | 달리기 | 회피 | 달리기 |
-| **Space** | 점프 | 땅 파기 | — | 상호작용 |
-| **C** | — | 땅 복구 | — | 도움 요청 |
-| **J** | — | 힌트 | 가로베기 | 조타 |
-| **K** | — | — | 세로베기 | 발사 · 망치질 |
-| **L** | — | — | 찌르기 | 돛 |
+| | 로비 | 낚시 | 광산 | 무쌍 | 배 |
+|---|---|---|---|---|---|
+| **W A S D** | 이동 | — | 이동 | 이동 | 이동 |
+| **마우스 드래그** | 카메라 | — | 카메라 | 카메라 | 카메라 |
+| **Shift** | 달리기 | — | 달리기 | 회피 | 달리기 |
+| **Space** | 점프 | — | 땅 파기 | — | 상호작용 |
+| **C** | 낚시 개시 | — | 땅 복구 | — | 도움 요청 |
+| **F** | 포탈 입장 | — | — | — | — |
+| **E** | 제단 | — | — | — | — |
+| **J** | — | 챔질 · 릴링 | 힌트 | 가로베기 | 조타 |
+| **K** | — | — | — | 세로베기 | 발사 · 망치질 |
+| **L** | — | — | — | 찌르기 | 돛 |
 
 점프는 로비에만 있습니다. 광산은 점프를 뺐고, 배는 갑판에서 뛰면 바다에 빠지기만 해서
 처음부터 없습니다. 그래서 Space 는 "그 게임에서 가장 많이 누르는 것" 으로 채웁니다.
+
+**낚시는 따로 들어가는 씬이 아니라 로비 안에서 벌어집니다.** 그래서 두 열을 함께 봅니다.
+낚시터에서 `C` 로 시작하고, 그 뒤로는 `J` 하나로 챔질과 릴링을 다 합니다.
+낚시하는 동안에는 이동이 잠기므로 W A S D 와 Space 가 비어 있습니다.
+
+**낚시의 주된 행동인 릴링이 Space 가 아니라 `J` 입니다.** 위의 "Space = 주된 행동" 과
+어긋나는 유일한 자리입니다. 낚시는 서서 하는 게임이라 이동 키가 통째로 비어 실질 충돌이
+없고, 이미 그렇게 구현되어 돌아가고 있어 그대로 두었습니다.
 
 ### 카메라는 드래그입니다
 
@@ -132,10 +147,10 @@ F1 은 디버그 HUD, F9 는 개발자 창입니다. 게임 조작이 아니라 
 
 ---
 
-## 3. 광산 — 키보드가 본체이고 장치는 나중입니다
+## 3. 광산 — 키보드로 먼저 만들고 장치를 붙였습니다
 
-배와 반대입니다. 광산은 키보드로 먼저 만들고 장치를 나중에 붙입니다.
-그래도 부품 배치는 **지금 정해 둡니다.** 나중에 맞추려면 게임 코드를 다시 뜯어야 합니다.
+배와 반대 순서로 갔습니다. 광산은 키보드로 먼저 만들고 장치를 나중에 붙였습니다.
+부품 배치를 미리 정해 둔 덕분에 게임 코드를 다시 뜯지 않고 이어붙일 수 있었습니다.
 
 장치는 배와 같은 것을 씁니다. 스틱 2개 + 면버튼 4개 + 양손 IMU 입니다.
 
@@ -190,22 +205,23 @@ bool swung = ConsumeDigSwing(_controller.Left) | ConsumeDigSwing(_controller.Rig
 | 오른손 면버튼 1 | 배는 상호작용(집기·붙기)이 여기 있지만 광산에는 그런 것이 없다. 파고 되메우는 것이 전부다 |
 | 기울기 · 비틀기 | 배의 조타·돛에 해당하는 것이 광산에 없다. 광산이 IMU 에서 쓰는 것은 세로 내리치기 하나뿐이다 |
 
-**남겨 두세요.** 장치는 네 게임이 함께 씁니다. 광산이 안 쓴다고 부품을 빼면
+**남겨 두세요.** 장치는 모든 게임이 함께 씁니다. 광산이 안 쓴다고 부품을 빼면
 배의 상호작용과 조타가 죽습니다.
 
 ### 현재 구현과의 차이
 
 | | 문서 | 코드 | 상태 |
 |---|---|---|---|
-| 걷기 | 왼손 스틱 | `MineMoveInput` 이 `Input.GetAxis` 로 직접 읽는다 | **장치를 안 거침** |
-| 달리기 | 오른손 면버튼 2 | `MineMoveInput.runKey` 가 `Input.GetKey` 로 직접 읽는다 | **장치를 안 거침** |
+| 걷기 | 왼손 스틱 | `MineMoveInput` → `_controller.Move` | 맞음 |
+| 달리기 | 오른손 면버튼 2 | `MineMoveInput` → `_controller.Right.Button2` | 맞음 |
 | 땅 파기 | 세로 내리치기 | `MineDigger` → `TryConsumeMotion` | 맞음 |
 | 땅 복구 | 왼손 면버튼 1 | `MineDigger` → `Left.ConsumeButton1Press()` | 맞음 |
 | 힌트 | 왼손 면버튼 2 | `MineDigger` → `Left.ConsumeButton2Press()` | 맞음 |
-| 카메라 | 오른손 스틱 | `MineCamera` 가 커서를 잠그고 마우스를 직접 읽는다 | **드래그로 바꿔야 함** |
+| 카메라 | 오른손 스틱 | `MineCamera` 가 우클릭 드래그로 읽는다 (커서 잠금 해제됨) | 맞음 |
 
-**걷기와 달리기가 장치를 안 거칩니다.** 지금 장치를 꽂으면 파고·되메우고·힌트는 되는데
-걸을 수가 없습니다. `IPlayerController.Move` 를 읽도록 고쳐야 합니다. (7장 표)
+**광산은 전부 맞춰졌습니다.** 예전에는 걷기와 달리기가 `Input.GetAxis` · `Input.GetKey` 로
+장치를 건너뛰어서, 장치를 꽂으면 파고·되메우고·힌트는 되는데 걸을 수가 없었습니다.
+지금은 둘 다 `IPlayerController` 를 거칩니다.
 
 ---
 
@@ -365,20 +381,32 @@ ShipCoopInputProvider.Awake   GetComponent<IPlayerController>()
 
 ## 8. 누가 무엇을 고치는가
 
-각자 자기 브랜치에서 합니다. 한 브랜치에서 네 게임을 다 고치면 MR 이 커지고 충돌이 납니다.
+각자 자기 브랜치에서 합니다. 한 브랜치에서 여러 게임을 다 고치면 MR 이 커지고 충돌이 납니다.
 
-| 어디 | 무엇 |
-|---|---|
-| 로비 | Shift 달리기 · Space 점프 추가 · 카메라를 커서 잠금 → 우클릭 드래그 |
-| 광산 | ~~땅 파기 `F` → `Space`~~ · ~~힌트 `V` → `J`~~ · 점프 삭제(네트워크 씬만 남음) · 카메라를 커서 잠금 → 우클릭 드래그 · 걷기를 `IPlayerController.Move` 로 |
-| 무쌍 | ~~카메라를 방향키 → 우클릭 드래그 · 회피를 `Space` → `Shift`~~ **완료.** 공격도 `1` `2` `3` → `J` `K` `L` 로 옮겼습니다 |
-| 배 | 쥐기 삭제 · 키 재배치 · 달리기를 토글로 |
+| 어디 | 무엇 | 상태 |
+|---|---|---|
+| 로비 | ~~Shift 달리기 · Space 점프 추가 · 카메라를 커서 잠금 → 우클릭 드래그~~ · 완드로 이동 · 카메라 · 점프 · 달리기 · 상호작용 | **완료** |
+| 낚시 | ~~완드로 낚시 개시와 챔질·릴링~~ | **완료** |
+| 광산 | ~~땅 파기 `F` → `Space`~~ · ~~힌트 `V` → `J`~~ · ~~점프 삭제~~ · ~~카메라를 우클릭 드래그로~~ · ~~걷기를 `IPlayerController.Move` 로~~ | **완료** |
+| 무쌍 | ~~카메라를 방향키 → 우클릭 드래그 · 회피를 `Space` → `Shift` · 공격을 `1` `2` `3` → `J` `K` `L`~~ | **완료** |
+| 배 | ~~쥐기 삭제 · 키 재배치 · 달리기를 토글로~~ | **완료** |
 
-**로비 달리기는 키만 추가하면 안 됩니다.** 지금 로비는 방향만 서버로 보내고 있어서
-(`PlayerInputProvider`) 네트워크 입력에 비트를 하나 늘리고 서버 쪽 이동 속도도 함께 고쳐야 합니다.
+다섯 곳 모두 `IPlayerController` 를 거칩니다. 키보드와 완드가 같은 길로 들어옵니다.
 
-**카메라를 드래그로 바꿀 때 감도를 다시 맞춰야 합니다.**
-광산은 커서가 잠긴 상태를 전제로 픽셀의 0.1 배를 쓰고 있습니다. (`MineCamera`)
+### 네트워크는 따로 낼 것이 없습니다
+
+완드는 **로컬에서 `IPlayerController` 만 채웁니다.** 서버로 실어 보내는 것은 예전부터
+있던 Provider 가 그대로 합니다. (5장)
+
+| | 네트워크 | 완드가 한 일 |
+|---|---|---|
+| 로비 이동 · 점프 · 달리기 | `PlayerInputProvider` → Fusion → `NetworkPlayerMover` | 그 함수 **안에서** 값을 더함 |
+| 낚시 게임플레이 | `LocalFishingAuthority` — 로컬 권한이라 안 탐 | 없음 |
+| 낚시 연출 | `NetworkPlayerFishingPresentation` 이 스냅샷 동기화 | 없음 |
+| 배 협동 | `ShipCoopInputProvider` 가 값을 실어보냄 | 없음 |
+
+> ⚠ **장치용 네트워크 경로를 따로 내지 마세요.** 기존 Provider 와 같은 tick 에 입력이
+> 두 번 들어갑니다. `MineMoveInput` 이 `MovePlayerInput` 을 강제로 끄는 것이 같은 이유입니다.
 
 ---
 
@@ -386,8 +414,10 @@ ShipCoopInputProvider.Awake   GetComponent<IPlayerController>()
 
 - **무쌍의 Space** — 회피가 Shift 로 가면 비게 됩니다. 주 공격을 넣을지 비워둘지.
 - **카메라 상하** — 로비 · 광산 · 무쌍은 위아래도 봅니다. 배는 카메라가 갑판에 고정이라 좌우만 봅니다.
-- **채팅을 끄는 방법** — 채팅창을 **클릭해야 입력이 켜집니다.** 그래야 글자를 치는 동안
-  캐릭터가 걸어가지 않습니다. 끄는 방법(ESC · 바깥 클릭 · 전송)은 채팅 담당이 정합니다.
+- **완드 1대일 때의 로비 점프** — 1대면 `Right` 가 `Left` 와 같은 기기라 점프와 상호작용이
+  겹칩니다. 지금은 점프를 뺐습니다. 살릴지, 뺀 채로 둘지.
+- **낚시 중의 진동** — `IFishingResistanceOutput` 이 저항 명령을 내주고 있는데 아직 완드
+  진동에 물리지 않았습니다. `HeadShakePulseActive` · `IsFinalRun` 을 어떻게 쓸지 낚시 담당과 정할 것.
 
 ---
 
@@ -395,9 +425,14 @@ ShipCoopInputProvider.Awake   GetComponent<IPlayerController>()
 
 | 무엇 | 어디 |
 |---|---|
+| **게임별 완드 ↔ 키보드 대응표 (정본)** | `Assets/Game/Scripts/IoT/KEY_MAPPING.md` |
+| 완드 하드웨어 · 연결 · 프로필 | `Assets/Game/Scripts/IoT/IotPlayerController.md` |
 | 경계 정의 | `Assets/Game/Scripts/IoT/IPlayerController.cs` |
-| 임시 키보드 구현 (참고용 견본) | `Assets/Game/Scripts/IoT/KeyboardPlayerController.cs` |
-| 입력의 게임적 의미 번역 | `Assets/Game/Scripts/MiniGames/ShipCoop/ShipCoopInput.cs` |
+| 완드 구현 (시리얼 → IPlayerController) | `Assets/Game/Scripts/IoT/IotPlayerController.cs` |
+| 키보드 구현 (장치 없이 확인용) | `Assets/Game/Scripts/IoT/KeyboardPlayerController.cs` |
+| 로비 상호작용 분배 (낚시 · 포탈 · 제단) | `Assets/Game/Scripts/IoT/IotLobbyInteract.cs` |
+| 낚시 연결 | `Assets/Game/Scripts/IoT/IotFishingBridge.cs` · `WandFishingInputSource.cs` |
+| 입력의 게임적 의미 번역 (배) | `Assets/Game/Scripts/MiniGames/ShipCoop/ShipCoopInput.cs` |
 | 네트워크로 실어 보내는 곳 | `Assets/Game/Scripts/MiniGames/ShipCoop/Net/ShipCoopInputProvider.cs` |
 | 서버 쪽에서 되살리는 곳 | `Assets/Game/Scripts/MiniGames/ShipCoop/Net/ShipCoopNetworkedController.cs` |
 | 로비 입력 | `Assets/Game/Scripts/Network/PlayerInputProvider.cs` |
