@@ -795,6 +795,7 @@ WarriorsIoTInput.OnSwing
 `WAND_ID` 와 `HAS_IMU` 는 `#ifndef` 로 감싸 뒀습니다. **IDE 에서는 값을 고치고, arduino-cli 에서는 파일을 안 고치고 덮어씁니다.** 보드마다 파일을 고쳤다 되돌리는 것이 제일 사고가 나는 지점이라 그렇게 했습니다.
 
 > **2026-09-26 부터 `WAND_ID` 는 없습니다.** 번호와 동글은 보드 MAC 으로 표에서 찾습니다(7-12). 넷 다 플래그 없이 같은 것을 굽고, `-DWAND_ID=1` 을 줘도 아무 효과가 없습니다.
+> 위 표는 그때 기록입니다. **지금 여섯 대에 굽혀 있는 것과 굽는 법은 7-12 에 있습니다.**
 
 > ⚠ **지금 두 완드 다 되돌림 거르기가 꺼진 채로 굽혀 있습니다.** 무쌍 리듬 구간용입니다(7-4). 광산·배 협동을 확인할 때는 `mcount` 가 약 2배로 들어오니, **그 게임들을 볼 때는 주석을 풀고 다시 구워야** 합니다.
 
@@ -1044,6 +1045,11 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
 | 무쌍 | `WarriorsTest` 실기 확인 | `WarriorsNet` | **코드로 닿음, 실기 확인 남음.** `IotWarriorsInstaller` 가 `WarriorsIoTInput` 옆에 `IotWarriorsBridge` 를 붙이고, 그것이 `OnSwing` 을 부른다 (7-2) |
 
 `IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. 로비는 씬에 두지 않고 `Persistent` 를 씁니다(아래 2번). `IotLobbyInteract` · `IotFishingBridge` 도 씬 · 프리팹에 없고 **실행 중에 코드로 붙습니다**(아래 3번). 인스펙터에서 안 보이는 것이 정상입니다 — 플레이 중 하이어라키에 `[IotLobbyInteract]` 가 생깁니다.
+
+**장치는 두 자리로 짝이 정해져 있습니다 (7-12).** 한 방에서 두 클라이언트를 돌릴 때 자리 A(동글
+`58:E6:C5:6A:92:D8`, ch 1)는 TinyS3 **#1 · #4**, 자리 B(동글 `10:51:DB:78:F4:58`, ch 6)는 **#2 · #3** 입니다.
+다른 자리의 완드를 집으면 그 자리 PC 로 들어갑니다. 완드는 **30분 동안 버튼 · 스틱이 없으면 잠들고**
+버튼으로 깹니다 — 완드가 안 들어오면 버튼부터, 그다음 전원을 봅니다.
 
 #### 남은 일 — 순서대로
 
@@ -1499,7 +1505,10 @@ ESP-NOW 는 자기 MAC 앞으로 온 것만 수신 콜백에 올립니다. 섞�
 - 동글 B MAC 은 esptool `read-mac` 으로 읽었습니다. B 에 들어 있던 펌웨어는 `?` 에
   `#ERR 모르는 명령 ?` 로 답합니다 — **옛 동글 스케치입니다.** 완드가 꺼져 있으면 유니티
   포트 자동 탐색이 `?` 로 묻기 때문에 지금 동글 스케치로 **다시 구웠습니다**
-  (`--fqbn esp32:esp32:esp32s3`, COM3). `?` 에 `#MAC 10:51:DB:78:F4:58 ch=1` 로 답하는 것을 확인했습니다.
+  (`--fqbn esp32:esp32:esp32s3`, COM3). `?` 에 `#MAC 10:51:DB:78:F4:58 ch=1` 로 답하는 것을 확인했습니다
+  (채널을 나눈 뒤로는 `ch=6`).
+  - `?` 는 `8df9bb4f`(09-25, 포트 자동 탐색과 같이)에서 들어갔습니다. **동글 A 도 그 이전 빌드였습니다**(아래).
+    완드가 전부 꺼진 상태의 자동 탐색은 두 동글을 다시 구운 뒤부터 됩니다.
 - 동글 두 대를 **한 PC 에** 꽂으면 자동 탐색이 먼저 답한 쪽을 잡습니다. 그때는 `portName` 을 적습니다.
 
 #### 휴면
@@ -1586,6 +1595,34 @@ ESP-NOW 는 자기 MAC 앞으로 온 것만 수신 콜백에 올립니다. 섞�
 > 포트가 목록에 뜨자마자 esptool 을 부르면 `Could not open COMx ... FileNotFoundError` 로 실패합니다.
 > **포트가 뜨고 0.7초쯤 기다린 뒤** 올리면 됩니다. 한번 다운로드 모드로 들어가면 더는 잠들지 않습니다.
 > 급하지 않으면 BOOT 를 누른 채 RESET 을 눌러 다운로드 모드로 굽는 것이 제일 확실합니다.
+
+#### 굽는 법 · 지금 굽혀 있는 것 (2026-09-26 기준)
+
+| 보드 | 자리 · 손 | 채널 | 굽혀 있는 것 |
+|---|---|---|---|
+| 동글 A `58:E6:C5:6A:92:D8` | A | 1 | `d57d4fda` 의 동글 스케치 |
+| 동글 B `10:51:DB:78:F4:58` | B | 6 | 같음 |
+| TinyS3 #1 `DC:54:75:EB:82:C0` | A 왼손 (0) | 1 | `e00330b3` — 채널 분리 전. A 는 ch 1 이라 동작은 같다 |
+| TinyS3 #4 `DC:54:75:EB:80:B4` | A 오른손 (1) | 1 | `d57d4fda` 의 완드 스케치 |
+| TinyS3 #2 `DC:54:75:EB:84:C8` | B 왼손 (0) | 6 | 같음 |
+| TinyS3 #3 `DC:54:75:EB:83:F4` | B 오른손 (1) | 6 | 같음 |
+
+네 대 다 IMU 가 달려 있어 `HAS_IMU` 는 기본값(1) 그대로입니다. 굽기 전에 옛 펌웨어의 `#CAL 완료 ... grav` 가 1G 근처인 것으로 확인했습니다.
+
+```
+# 완드 — 네 대 다 같은 명령. 플래그 없음
+arduino-cli compile --upload -p COMx --fqbn esp32:esp32:um_tinys3 firmware/wand_tinys3
+# 동글 — 두 대 다 같은 명령
+arduino-cli compile --upload -p COMx --fqbn esp32:esp32:esp32s3  firmware/dongle_esp32s3
+```
+
+- **COM 번호는 꽂을 때마다 다릅니다**(이날 #1 COM7 · #2 COM10 · #3 COM4 · #4 COM13, 동글은 번갈아 COM3). 어느 보드인지는
+  `esptool --port COMx read-mac` 으로 봅니다. esptool 은 `%LOCALAPPDATA%\Arduino15\packages\esp32\tools\esptool_py\5.3.1\` 에 있습니다.
+- 굽고 나면 완드는 부팅 로그 `#NOW wand=… ch=… dongle=…`, 동글은 `?` 에 대한 `#MAC … ch=…` 가 **위 표와 맞는지** 봅니다.
+- **IDE 로 구울 때는 저장소의 `firmware/…/*.ino` 를 직접 엽니다.** 이날 찾아봤을 때 `Documents/Arduino` 에는 `libraries/` 뿐이고
+  스케치 사본이 없었습니다. 다른 곳의 옛 사본으로 구우면 배정 · 채널 · 휴면이 통째로 되돌아갑니다.
+- 휴면을 시험할 때는 저장소 파일을 고치지 말고 **복사본에서 `IDLE_SLEEP_MS` 만** 줄여 굽고, 끝나면 저장소 빌드로 되돌립니다.
+
 ### 진동에 대해
 
 `ShipCoopNetworkedController`에 `Rpc_Vibrate`가 있어 서버 → 클라이언트 → `devices.Left/Right.Vibrate()`로 내려옵니다. 즉 **게임 쪽은 이미 부를 준비가 되어 있습니다.**
