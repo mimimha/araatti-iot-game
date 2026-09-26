@@ -39,6 +39,15 @@ namespace UnderTheSea.Lobby.Dance
         [SerializeField] private TMP_Text[] slotLabels = Array.Empty<TMP_Text>();
         [SerializeField] private TMP_Text centerLabel;
 
+        [Tooltip("칸마다 크기를 키울 뿌리. 비어 있으면 칸 그래픽을 키운다. 테두리 · 이름 · 번호가 같이 커진다.")]
+        [SerializeField] private RectTransform[] slotRoots = Array.Empty<RectTransform>();
+
+        [Tooltip("칸 테두리. 비어 있어도 된다. 가리키면 색이 바뀐다.")]
+        [SerializeField] private RingSegmentGraphic[] slotBorders = Array.Empty<RingSegmentGraphic>();
+
+        [Tooltip("열 때 서서히 나타나게 하는 투명도 조절. 비어 있어도 된다.")]
+        [SerializeField] private CanvasGroup group;
+
         [Header("춤")]
         [Tooltip("칸 순서대로의 이름. 위에서부터 시계 방향.")]
         [SerializeField] private string[] danceNames = { "춤 1", "춤 2", "춤 3", "춤 4", "춤 5" };
@@ -47,6 +56,17 @@ namespace UnderTheSea.Lobby.Dance
         [SerializeField] private Color normalColor = new Color(0.96f, 0.93f, 0.86f, 0.78f);
         [SerializeField] private Color hoverColor = new Color(1f, 1f, 1f, 0.97f);
         [SerializeField] private Color labelColor = new Color(0.32f, 0.24f, 0.16f, 1f);
+        [SerializeField] private Color borderColor = new Color(1f, 1f, 1f, 0.35f);
+        [SerializeField] private Color hoverBorderColor = new Color(1f, 1f, 1f, 1f);
+
+        [Tooltip("아무 칸도 가리키지 않을 때 가운데에 띄울 말.")]
+        [SerializeField] private string idleCenterText = "춤 고르기";
+
+        [Tooltip("열 때 커지며 나타나는 시간(초). 0 이면 바로 뜬다.")]
+        [SerializeField, Range(0f, 0.5f)] private float openSeconds = 0.12f;
+
+        [Tooltip("열리기 시작할 때의 크기. 1 까지 커진다.")]
+        [SerializeField, Range(0.5f, 1f)] private float openFromScale = 0.85f;
 
         [Tooltip("가리킨 칸을 이만큼 키운다. 휠 중심 기준이라 바깥으로 튀어나온다.")]
         [SerializeField, Range(1f, 1.3f)] private float hoverScale = 1.07f;
@@ -65,6 +85,9 @@ namespace UnderTheSea.Lobby.Dance
         public static bool IsOpen { get; private set; }
 
         private int hovered = -1;
+
+        /// <summary>열리는 연출이 얼마나 지났나(초). 음수면 연출이 끝났다.</summary>
+        private float openElapsed = -1f;
 
         private static readonly Key[] NumberKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5 };
 
@@ -90,6 +113,8 @@ namespace UnderTheSea.Lobby.Dance
 
         private void Update()
         {
+            AnimateOpen();
+
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || ChatFocus.Typing)
             {
@@ -177,17 +202,59 @@ namespace UnderTheSea.Lobby.Dance
 
                 bool on = i == hovered;
                 slots[i].color = on ? hoverColor : normalColor;
-                slots[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
 
-                if (i < slotLabels.Length && slotLabels[i] != null)
+                if (i < slotBorders.Length && slotBorders[i] != null)
                 {
-                    slotLabels[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    slotBorders[i].color = on ? hoverBorderColor : borderColor;
+                }
+
+                // 뿌리가 있으면 뿌리를 키운다 — 테두리 · 이름 · 번호가 한 덩어리로 커진다.
+                RectTransform root = i < slotRoots.Length && slotRoots[i] != null ? slotRoots[i] : null;
+                if (root != null)
+                {
+                    root.localScale = Vector3.one * (on ? hoverScale : 1f);
+                }
+                else
+                {
+                    slots[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    if (i < slotLabels.Length && slotLabels[i] != null)
+                    {
+                        slotLabels[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    }
                 }
             }
 
             if (centerLabel != null)
             {
-                centerLabel.text = hovered >= 0 ? NameOf(hovered) : string.Empty;
+                centerLabel.text = hovered >= 0 ? NameOf(hovered) : idleCenterText;
+            }
+        }
+
+        /// <summary>
+        /// 열릴 때 살짝 작은 크기에서 커지며 나타난다. 시간은 멈춤 · 슬로모션과 무관하게 흐른다.
+        /// </summary>
+        private void AnimateOpen()
+        {
+            if (openElapsed < 0f || wheel == null)
+            {
+                return;
+            }
+
+            openElapsed += Time.unscaledDeltaTime;
+            float t = openSeconds <= 0f ? 1f : Mathf.Clamp01(openElapsed / openSeconds);
+
+            // 끝으로 갈수록 느려지게(ease-out). 튀어나오는 느낌을 준다.
+            float eased = 1f - (1f - t) * (1f - t) * (1f - t);
+            wheel.localScale = Vector3.one * Mathf.Lerp(openFromScale, 1f, eased);
+
+            if (group != null)
+            {
+                group.alpha = eased;
+            }
+
+            if (t >= 1f)
+            {
+                openElapsed = -1f;
             }
         }
 
@@ -205,6 +272,17 @@ namespace UnderTheSea.Lobby.Dance
             if (canvas != null)
             {
                 canvas.enabled = open;
+            }
+
+            // 열 때는 작게 · 투명하게 시작해서 AnimateOpen 이 키운다. 닫을 때는 바로 사라진다.
+            openElapsed = open ? 0f : -1f;
+            if (wheel != null)
+            {
+                wheel.localScale = Vector3.one * (open && openSeconds > 0f ? openFromScale : 1f);
+            }
+            if (group != null)
+            {
+                group.alpha = open && openSeconds > 0f ? 0f : 1f;
             }
 
             // 열 때마다 가리킴을 비운다. 마지막에 가리키던 칸이 밝은 채로 열리지 않게.
