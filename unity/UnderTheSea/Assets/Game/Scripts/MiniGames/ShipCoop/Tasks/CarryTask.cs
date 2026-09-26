@@ -237,7 +237,53 @@ public class CarryTask : MonoBehaviour
             return;
         }
 
+        if (Carrying == Cargo.Plank)
+        {
+            LogMissedHole();
+        }
+
         DropInternal(notify: true);
+    }
+
+    /// <summary>
+    /// 자재를 구멍에 못 넘기고 떨어뜨렸을 때 **가장 가까운 구멍이 어디 있었나**를 남긴다.
+    /// "구멍 옆에서 놓았는데 떨어졌다" 를 서버 로그로 확인하려고 둔다.
+    /// </summary>
+    private void LogMissedHole()
+    {
+        RepairTask nearest = null;
+        float nearestDistance = float.MaxValue;
+        Vector3 here = transform.position;
+
+        for (int i = 0; i < TaskBase.All.Count; i++)
+        {
+            if (TaskBase.All[i] is not RepairTask repair)
+            {
+                continue;
+            }
+
+            float d = Vector3.Distance(repair.transform.position, here);
+            if (d < nearestDistance)
+            {
+                nearestDistance = d;
+                nearest = repair;
+            }
+        }
+
+        if (nearest == null)
+        {
+            Debug.Log($"[{name}] 자재를 넘길 구멍이 없다 — 열린 구멍 0개, 나 {here}", this);
+            return;
+        }
+
+        Vector3 flat = nearest.transform.position - here;
+        flat.y = 0f;
+
+        Debug.Log(
+            $"[{name}] 자재를 못 넘겼다 — 가장 가까운 구멍 {nearest.name} {nearest.transform.position}, 나 {here}, " +
+            $"거리 {nearestDistance:F2}m (수평 {flat.magnitude:F2}m · 높이 {nearest.transform.position.y - here.y:F2}m) / " +
+            $"넘기는 거리 {loadRange:F2}m, 자재 기다림 {nearest.WantsPlank}, 켜짐 {nearest.isActiveAndEnabled}",
+            this);
     }
 
     /// <summary>대포에 포탄을 넘긴다. 성공하면 true.</summary>
@@ -459,18 +505,10 @@ public class CarryTask : MonoBehaviour
 
                 Finish(input, $"자재를 넘겼다 → {point.name}");
 
-                // 넘겼으면 **그 자리에 바로 붙는다.**
-                //
-                // 자재를 들고 여기까지 온 사람은 고치러 온 것이다. 그런데 넘기기와 붙기가
-                // 같은 버튼이라, 손으로 하면 Space 를 두 번 눌러야 했다. 두 번째가 뭘 하는
-                // 버튼인지 화면이 알려주지도 않는다.
-                //
-                // ⚠ Finish 가 HandsBusy 를 내린 **뒤에** 붙어야 한다. 손이 묶여 있는 동안에는
-                //    TaskWorker 가 자리를 잡지 않고 비켜준다.
-                //
-                // 자리가 이미 찼거나(정원 1명) 사거리를 벗어났으면 그냥 안 붙는다.
-                // 자재는 이미 전달됐으므로 헛수고가 되지는 않는다.
-                _worker.Join(point);
+                // ⚠ **넘기고 붙지 않는다.** 예전에는 그 자리에 바로 붙였다(Space 두 번을 줄이려고).
+                //    그런데 수리 자리는 정원이 1명이라, 건넨 사람이 가만히 서 있으면 자리를 물고 있어서
+                //    **옆 사람이 와서 쳐 줄 수가 없었다.** "나는 나르고 너는 친다" 가 안 됐다.
+                //    이제 자재를 받은 구멍은 K 한 번에 붙고 친다(TaskWorker) — 건넨 사람도 K 만 누르면 된다.
                 return true;
 
             case Cargo.Water:

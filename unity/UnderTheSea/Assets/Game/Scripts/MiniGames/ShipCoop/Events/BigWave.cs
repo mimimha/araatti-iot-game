@@ -264,11 +264,18 @@ public class BigWave : VoyageEvent
     private static Material FallbackPaint()
     {
         Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        Shader shader = lit != null ? lit : Shader.Find("Sprites/Default");
+
+        // 셰이더가 없는 Dedicated Server 에서는 재질 없이 둔다. (FilmPaint 와 같은 이유)
+        if (shader == null)
+        {
+            return null;
+        }
 
         Debug.LogWarning("[BigWave] waveMaterial 이 비어 있습니다. 임시 재질로 그립니다. " +
                          "바다와 색을 맞추려면 SeaWater.mat 을 꽂으세요.");
 
-        return new Material(lit != null ? lit : Shader.Find("Sprites/Default"));
+        return new Material(shader);
     }
 
     /// <summary>
@@ -288,8 +295,18 @@ public class BigWave : VoyageEvent
 
         if (unlit == null)
         {
+            // ⚠ Dedicated Server 빌드에는 셰이더가 하나도 없다(Dedicated Server Optimizations).
+            //    대신 쓸 Sprites/Default 도 null 이라 new Material(null) 이 예외를 던졌고, 그 바람에
+            //    OnWarn 이 중간에 끊겨 파도를 바다에 놓는 것까지 건너뛰었다. 그릴 것이 없으면 재질 없이 둔다.
+            Shader fallback = Shader.Find("Sprites/Default");
+
+            if (fallback == null)
+            {
+                return null;
+            }
+
             Debug.LogWarning($"[{name}] URP Unlit 셰이더를 찾지 못했습니다. 경고 막이 안 보입니다.", this);
-            return new Material(Shader.Find("Sprites/Default"));
+            return new Material(fallback);
         }
 
         Material film = new Material(unlit)

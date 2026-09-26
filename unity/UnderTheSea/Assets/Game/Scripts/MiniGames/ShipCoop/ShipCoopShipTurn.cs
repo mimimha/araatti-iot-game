@@ -205,6 +205,14 @@ public class ShipCoopShipTurn : MonoBehaviour
     private readonly List<Transform> _riders = new List<Transform>();
 
     /// <summary>
+    /// **배가 지금까지 튼 것 전체.** 안 튼 배의 자리 → 지금 자리. 거꾸로 하면 지금 자리 → 안 튼 배의 자리다.
+    ///
+    /// 네트워크로 온 것을 <b>이 화면의 배</b>에 맞춰 놓을 때 쓴다(<c>ShipCoopHoleSync</c>).
+    /// 배는 피어마다 조타 값으로 따로 돌리므로, 서버가 돌린 월드 자리를 그대로 받으면 지연만큼 어긋난다.
+    /// </summary>
+    public Matrix4x4 Applied => _applied;
+
+    /// <summary>
     /// **배에 태운다.** 이 뒤로 배가 트는 만큼 같이 돈다.
     ///
     /// 네트워크에서는 <b>서버에서만</b> 부른다. 클라이언트의 사람은 자리를

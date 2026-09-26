@@ -448,7 +448,7 @@ MonoBehaviour:
   stands:
   - {fileID: 459745491}
   - {fileID: 1952705951}
-  noteTravelSeconds: 2.2
+  noteTravelSeconds: 1.8
   goodWindow: 0.2
   inputLatencyOffset: 0
   missDamage: 8
@@ -482,7 +482,7 @@ MonoBehaviour:
   - {fileID: 459745491}
   - {fileID: 1952705951}
   hitsPerTentacle: 1
-  answerSeconds: 3.4
+  answerSeconds: 1.5
   twinExtraSeconds: 0.9
   gapSeconds: 0.2
   defeatShowSeconds: 0.15

@@ -101,8 +101,8 @@ MonoBehaviour:
   horizontalAngularThreshold: 3.2
   verticalAngularThreshold: 3.2
   thrustAccelerationThreshold: 5.5
-  minimumStrength: 0.35
-  swingCooldownSeconds: 0.45
+  minimumStrength: 0
+  swingCooldownSeconds: 0.05
 --- !u!114 &4891104960845813073
 MonoBehaviour:
   m_ObjectHideFlags: 0

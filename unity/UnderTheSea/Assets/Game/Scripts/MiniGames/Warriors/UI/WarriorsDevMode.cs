@@ -13,7 +13,11 @@ using Warriors.Net;
 ///   ]          다음 페이즈로
 ///   -          지금 페이즈의 목표를 채운다 (2·3 페이즈에서는 보스를 때리는 것)
 ///   0          무적 켜기 / 끄기
+///   G          지금 판을 성공으로 끝내고 결과 화면을 띄운다
 /// </code>
+///
+/// <b>G 는 배 게임과 같은 자리다</b>(배: 바로 도착해 성공 화면). 광산은 - 가 "무조건 성공" 이지만
+/// 검 게임의 - 는 이미 "목표 채우기" 라 배 게임 쪽에 맞췄다. 0 = 무적도 배 게임과 같다.
 ///
 /// <b>화면에서 값을 직접 바꾸지 않는다.</b> 판의 상태는 전부 서버가 정하므로 부탁만 보내고
 /// 결과를 받는다. 직접 바꾸면 그 사람 화면만 바뀌고 서버와 어긋난다.
@@ -113,6 +117,10 @@ public sealed class WarriorsDevMode : MonoBehaviour
         {
             Ask(match, WarriorsMatchState.DevCommand.ToggleInvincible, 0);
         }
+        else if (keyboard[Key.G].wasPressedThisFrame)
+        {
+            Ask(match, WarriorsMatchState.DevCommand.ForceClear, 0);
+        }
     }
 
     /// <summary>서버에 부탁한다. 클라이언트에서도 RPC 로 전달된다.</summary>
@@ -152,6 +160,7 @@ public sealed class WarriorsDevMode : MonoBehaviour
         text.AppendLine($"  [ ]   페이즈 앞뒤로");
         text.AppendLine($"  -     목표 +{advanceStep} (보스 때리기)");
         text.AppendLine($"  0     무적 켜기/끄기 (서버 로그에 남음)");
+        text.AppendLine($"  G     바로 성공 (결과 화면)");
 
         // ⚠ **높이를 0 으로 넘기면 안 된다.** 상자가 그 높이에 맞춰 잘려 글자 한 줄만 보인다.
         //    처음에 0 을 넘겼더니 오른쪽 위 모서리에 한 조각만 나왔다.

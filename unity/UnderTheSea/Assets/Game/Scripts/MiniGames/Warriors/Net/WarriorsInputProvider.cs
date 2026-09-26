@@ -47,16 +47,14 @@ namespace Warriors.Net
             //    확인할 때 서로 간섭하지 않는다.
             //    포커스가 없어도 **빈 입력을 보낸다.** 아예 안 보내면 서버가 직전 입력을
             //    그대로 재사용해 캐릭터가 혼자 계속 걸어간다.
+            Vector2 move = Vector2.zero;
+
             if (keyboard != null && Application.isFocused)
             {
-                Vector2 move = Vector2.zero;
-
                 if (keyboard.wKey.isPressed) move.y += 1f;
                 if (keyboard.sKey.isPressed) move.y -= 1f;
                 if (keyboard.dKey.isPressed) move.x += 1f;
                 if (keyboard.aKey.isPressed) move.x -= 1f;
-
-                data.Move = move;
 
                 // 공격은 J K L 하나씩이다. (IOT_INPUT.md 1장 게임별 배치)
                 // 예전 1 2 3 과 숫자 키패드는 뺐다 — 오른손 홈 위치에서 손을 떼지 않게 하고,
@@ -66,6 +64,21 @@ namespace Warriors.Net
                 data.Buttons.Set((int)WarriorsButton.Thrust, keyboard.lKey.isPressed);
                 data.Buttons.Set((int)WarriorsButton.Dodge, keyboard.leftShiftKey.isPressed);
             }
+
+            // 완드 스틱으로도 걷는다. **키보드를 대체하지 않고 더한다.** 로비의
+            // PlayerInputProvider.OnInput 과 같은 모양이다. (IoT 담당 인계, IotPlayerController.md §7-10)
+            //
+            // ⚠ **완드가 실제로 붙어 있을 때만 더한다.** 완드가 없으면 IotPlayerController 가
+            //    키보드(W A S D)로 대신 채우는데, 그것을 더하면 위 키보드 블록과 같은 키가 두 번 실린다.
+            //    지금은 서버가 길이를 1 로 잘라(WarriorsNetPlayerMover) 티가 안 나지만, 키 배치가
+            //    갈라지면 방향이 틀어진다. 판정은 IoT 쪽 IotPlayerController.IsWandLive 와 같다.
+            IotPlayerController wand = FindWand();
+            if (wand != null && wand.AnyWandConnected && Application.isFocused && !ChatFocus.Typing)
+            {
+                move += wand.Move;
+            }
+
+            data.Move = move;
 
             // 카메라 각도는 포커스와 상관없이 채운다. 서버가 이 각도로 이동을 돌린다.
             // ⚠ 카메라 transform 의 각도가 아니라 궤도 각도를 보낸다. transform 각도는 옆으로 걸을 때
@@ -150,6 +163,23 @@ namespace Warriors.Net
 
             // QA 에서 이 줄이 안 보이면 장치 입력이 게임에 닿지 않는다는 뜻이다.
             Debug.Log($"[Warriors 입력] IoT 검 입력원에 연결했습니다. ({device.name})", device);
+        }
+
+        private IotPlayerController wandController;
+
+        /// <summary>
+        /// 이 컴퓨터의 완드 컨트롤러. <see cref="HookDevice"/> 와 같은 이유로 <b>찾을 때까지 매 틱 다시 찾는다.</b>
+        /// 파괴됐으면(씬이 바뀌면) 유니티의 <c>==</c> 가 null 로 알려 주므로 다시 찾는다.
+        /// 없으면 null — 그때는 키보드만으로 걷는다.
+        /// </summary>
+        private IotPlayerController FindWand()
+        {
+            if (wandController == null)
+            {
+                wandController = FindFirstObjectByType<IotPlayerController>(FindObjectsInactive.Exclude);
+            }
+
+            return wandController;
         }
 
         /// <summary>실제 검이 보낸 스윙. 세기가 그대로 실린다.</summary>
