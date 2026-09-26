@@ -1039,8 +1039,8 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
 | 로비 카메라 | — | `Lobby` | 같음. `LocalPlayerView` (카메라는 로컬 전용이라 네트워크 불필요) |
 | 로비 상호작용 (낚시 · 포탈 · 제단) | — | `Lobby` | **씬 작업 없이 닿는다 (실기 확인 전).** `IotLobbyInstaller` 가 로비에 들어올 때 `IotLobbyInteract` 를 만든다. 키와 똑같은 함수(`Enter` · `InteractPressed`)를 부른다 |
 | 낚시 | — | `Lobby` | 같음. `IotLobbyInstaller` 가 `PlayerFishingAdapter` 옆에 `IotFishingBridge` 를 붙인다. 낚시는 로컬 권한(`LocalFishingAuthority`)이고 연출만 동기화하므로 입력을 네트워크에 실을 필요가 없다 |
-| 배 협동 | `ShipCoopTest` 실기 확인 | `ShipCoopBoot` | **안 닿음.** 러너에 `KeyboardPlayerController` 가 붙어 있다. `IotPlayerController` 로 바꾸면 값 전송 · 진동 RPC 는 이미 있다 |
-| 광산 | `MineTest` 실기 확인 | `MineNet` | **안 닿음.** `MineInputProvider` 가 키보드를 직접 읽는다 |
+| 배 협동 | `ShipCoopTest` 실기 확인 | `ShipCoopBoot` | **코드로 닿음, 실기 확인 남음.** `ShipCoopInputProvider.Awake` 가 `GetComponent` → `Persistent` → 키보드 순으로 내려간다 (아래 4번). 값 전송 · 진동 RPC 는 원래 있었다 |
+| 광산 | `MineTest` 실기 확인 | `MineNet` | **코드로 닿음, 실기 확인 남음.** `MineInputProvider.OnInput` 이 `IotMineInput.Fill` 로 완드 값을 더한다 (아래 6번) |
 | 무쌍 | `WarriorsTest` 실기 확인 | `WarriorsNet` | **코드로 닿음, 실기 확인 남음.** `IotWarriorsInstaller` 가 `WarriorsIoTInput` 옆에 `IotWarriorsBridge` 를 붙이고, 그것이 `OnSwing` 을 부른다 (7-2) |
 
 `IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. 로비는 씬에 두지 않고 `Persistent` 를 씁니다(아래 2번). `IotLobbyInteract` · `IotFishingBridge` 도 씬 · 프리팹에 없고 **실행 중에 코드로 붙습니다**(아래 3번). 인스펙터에서 안 보이는 것이 정상입니다 — 플레이 중 하이어라키에 `[IotLobbyInteract]` 가 생깁니다.
@@ -1118,7 +1118,10 @@ bool run = _controller.HasTwoDevices && _controller.Right.Button2;
    - ⚠ **게이트 전에는 `Persistent` 를 안 건드립니다.** 부르는 순간 COM 포트를 엽니다. `WarriorsTest` 는 씬에 컨트롤러를 직접 두므로 포트를 놓고 다투게 됩니다 (위 2번).
    - **확인할 것:** `WarriorsNet` 에서 완드를 휘둘러 공격이 나가는지. 콘솔에 `[Warriors 입력] IoT 검 입력원에 연결했습니다.` 가 뜨는지.
    - **남은 것은 무쌍 담당이 정할 값 두 개** — `swingCooldownSeconds`(쿨다운 이중) · `minimumStrength`(**찌르기**가 버려진다. 베기는 해소됐다 — 7-8).
-6. **광산** — **나머지는 다 됐다. 광산 파일에 한 줄만 들어오면 된다.** `IotMineInput`
+6. ~~**광산**~~ — **코드로 됐음, 실기 확인 남음.** `IotMineInput` + `MineInputProvider` 한 줄
+
+   > **광산 담당자 승인을 받고 넣었습니다.** 남의 게임 파일이라 물어본 뒤 진행했습니다.
+   > 넣은 곳은 `MineInputProvider.OnInput` 의 `input.Set(data)` 바로 앞 한 줄입니다.
 
    ```csharp
    // MineInputProvider.OnInput 의 input.Set(data) 바로 앞
