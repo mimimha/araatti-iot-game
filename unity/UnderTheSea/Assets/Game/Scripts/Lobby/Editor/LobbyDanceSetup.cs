@@ -51,11 +51,11 @@ namespace Lobby.Editor
         /// </summary>
         private static readonly (string name, string file)[] Dances =
         {
-            ("Dance", "Dance.anim"),
-            ("Dance Slow", "Dance Slow.anim"),
-            ("Victory", "Victory.anim"),
-            ("Idle_Taunt1", "Idle_Taunt1.anim"),
-            ("idle_taunt3", "idle_taunt3.anim"),
+            ("신나는 춤", "Dance.anim"),
+            ("빙글빙글", "HK_attack_spin.anim"),
+            ("승리 포즈", "Victory.anim"),
+            ("약올리기", "Idle_Taunt1.anim"),
+            ("손 흔들기", "idle_taunt3.anim"),
         };
 
         [MenuItem("Tools/아라아띠/로비 춤 설치")]
@@ -213,17 +213,41 @@ namespace Lobby.Editor
         [MenuItem("Tools/아라아띠/로비 춤 자세 미리보기")]
         public static void Preview()
         {
-            PreviewTo(Path.Combine(Path.GetTempPath(), "DancePreview"));
+            PreviewTo(Path.Combine(Path.GetTempPath(), "DancePreview"), Dances);
+        }
+
+        /// <summary>
+        /// 휠에 넣지 않은 후보까지 <see cref="ClipFolder"/> 의 <b>모든</b> 클립을 찍는다(<c>%TEMP%/DancePreviewAll</c>).
+        /// 어떤 춤으로 바꿀지 고를 때 쓴다.
+        /// </summary>
+        [MenuItem("Tools/아라아띠/로비 춤 후보 전체 미리보기")]
+        public static void PreviewAll()
+        {
+            PreviewTo(Path.Combine(Path.GetTempPath(), "DancePreviewAll"), AllClips());
         }
 
         public static void PreviewFromCommandLine()
         {
             string[] args = System.Environment.GetCommandLineArgs();
             int at = System.Array.IndexOf(args, "-previewOut");
-            PreviewTo(at >= 0 && at + 1 < args.Length ? args[at + 1] : Path.Combine(Path.GetTempPath(), "DancePreview"));
+            bool all = System.Array.IndexOf(args, "-previewAll") >= 0;
+            string outDir = at >= 0 && at + 1 < args.Length
+                ? args[at + 1]
+                : Path.Combine(Path.GetTempPath(), all ? "DancePreviewAll" : "DancePreview");
+            PreviewTo(outDir, all ? AllClips() : Dances);
         }
 
-        private static void PreviewTo(string outDir)
+        /// <summary>폴더의 모든 .anim. 이름은 파일 이름 그대로.</summary>
+        private static (string name, string file)[] AllClips()
+        {
+            return Directory.GetFiles(ClipFolder, "*.anim")
+                .Select(Path.GetFileName)
+                .OrderBy(f => f)
+                .Select(f => (Path.GetFileNameWithoutExtension(f), f))
+                .ToArray();
+        }
+
+        private static void PreviewTo(string outDir, (string name, string file)[] dances)
         {
             Directory.CreateDirectory(outDir);
 
@@ -278,12 +302,12 @@ namespace Lobby.Editor
 
                 const int Phases = 8;
 
-                for (int d = 0; d < Dances.Length; d++)
+                for (int d = 0; d < dances.Length; d++)
                 {
-                    var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{ClipFolder}/{Dances[d].file}");
+                    var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{ClipFolder}/{dances[d].file}");
                     if (clip == null)
                     {
-                        Debug.LogError($"[춤 미리보기] 클립이 없습니다: {Dances[d].file}");
+                        Debug.LogError($"[춤 미리보기] 클립이 없습니다: {dances[d].file}");
                         continue;
                     }
 
@@ -332,14 +356,14 @@ namespace Lobby.Editor
 
                     graph.Destroy();
 
-                    string safe = $"{d + 1}_{Dances[d].name.Replace(' ', '_')}";
+                    string safe = $"{d + 1}_{dances[d].name.Replace(' ', '_')}";
                     for (int v = 0; v < views.Length; v++)
                     {
                         File.WriteAllBytes(Path.Combine(outDir, $"dance{safe}_{views[v].name}.png"), sheets[v].EncodeToPNG());
                         Object.DestroyImmediate(sheets[v]);
                     }
 
-                    Debug.Log($"[춤 미리보기] {d + 1}. {Dances[d].name}  길이 {clip.length:F1}초 · 몸 y {minY:F2}~{maxY:F2} " +
+                    Debug.Log($"[춤 미리보기] {d + 1}. {dances[d].name}  길이 {clip.length:F1}초 · 몸 y {minY:F2}~{maxY:F2} " +
                               $"· 엉덩이가 제자리에서 벗어난 최대 거리 {maxDrift:F2}m");
                 }
 
