@@ -34,6 +34,19 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         {
             devices = GetComponent<IPlayerController>();
 
+            // 같은 오브젝트에 없으면 **게임 내내 하나인 완드**를 쓴다.
+            //
+            // 완드는 로비에서 이미 만들어져 동글 포트를 쥐고 있다(IotPlayerController.Persistent).
+            // 여기서 이것을 안 보면 로비에서 완드를 들고 들어와도 러너는 아래에서 키보드를
+            // 붙여 버린다. 그렇다고 이 씬의 러너에 IotPlayerController 를 하나 더 올리면
+            // **같은 COM 포트를 두 번 열게 되어** 둘 중 하나가 완드를 못 받는다.
+            //
+            // 서버 빌드와 완드가 없는 PC 에서는 null 이라 그대로 키보드로 내려간다.
+            if (devices == null)
+            {
+                devices = IotPlayerController.Persistent;
+            }
+
             if (devices == null)
             {
                 devices = gameObject.AddComponent<KeyboardPlayerController>();
