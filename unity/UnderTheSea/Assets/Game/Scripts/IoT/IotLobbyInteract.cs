@@ -32,7 +32,8 @@ using UnityEngine;
 ///   <c>IotPlayerController</c> 는 왼손 버튼 1 을 C 로 대신 채우는데, 그것을 읽으면
 ///   C 한 번에 낚시와 포탈이 함께 걸립니다. (<c>IotPlayerController.IsWandLive</c>)
 ///
-/// 로비 씬 아무 곳에나 하나 올립니다.
+/// 씬에 올리지 않습니다. <see cref="IotLobbyInstaller"/> 가 로비에 들어올 때 하나 만듭니다.
+/// 씬에 직접 올려 두면 그쪽이 쓰이고 또 만들지 않습니다.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class IotLobbyInteract : MonoBehaviour
@@ -95,7 +96,7 @@ public sealed class IotLobbyInteract : MonoBehaviour
     /// </summary>
     private bool TryEnterPortal()
     {
-        MiniGamePortal[] portals = FindObjectsByType<MiniGamePortal>(FindObjectsSortMode.None);
+        MiniGamePortal[] portals = FindObjectsByType<MiniGamePortal>();
 
         for (int i = 0; i < portals.Length; i++)
         {

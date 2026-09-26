@@ -33,7 +33,8 @@ using UnityEngine;
 /// ⚠ **채팅 잠금을 벗기지 않습니다.** 팀원이 씌워 둔 <c>ChatFocusFishingInputSource</c> 로
 ///   똑같이 감싸서 넣습니다. 안 감싸면 채팅을 치는 동안 완드로 낚시가 됩니다.
 ///
-/// <c>PlayerFishingAdapter</c> 와 같은 오브젝트에 붙입니다.
+/// <c>PlayerFishingAdapter</c> 와 같은 오브젝트에 붙습니다. 프리팹에 올리지 않습니다 —
+/// <see cref="IotLobbyInstaller"/> 가 씬이 로드될 때 코드로 붙입니다. (낚시 프리팹은 낚시 담당 것)
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(PlayerFishingAdapter))]
