@@ -127,6 +127,29 @@ namespace UnderTheSea.Lobby
         }
 
         /// <summary>
+        /// 키가 아니라 <b>밖에서</b> 열라고 할 때. 완드가 이 길로 들어온다.
+        ///
+        /// 위 <c>Update</c> 의 E 와 **같은 조건을 그대로 본다.** 가까이 있어야 하고
+        /// 채팅을 치는 중이면 안 된다.
+        ///
+        /// <c>InteractPressed</c> 는 이벤트라 밖에서 <c>Invoke</c> 할 수 없다. 그래서
+        /// 대신 불러 주는 자리를 하나 연다. 완드는 <c>IPlayerController</c> 로만 들어오고
+        /// Input System 을 통하지 않아서 키를 흉내낼 수 없다.
+        /// (IOT_INPUT.md 7장 "키 이벤트를 만들어 보내기" 금지)
+        /// </summary>
+        /// <returns>실제로 열었으면 true.</returns>
+        public bool TryInteractFromDevice()
+        {
+            if (!PlayerIsNear || ChatFocus.Typing)
+            {
+                return false;
+            }
+
+            InteractPressed?.Invoke();
+            return true;
+        }
+
+        /// <summary>
         /// 내 캐릭터가 범위 안에 있는가.
         ///
         /// ⚠ <b>오직 <see cref="LocalPlayer.Transform"/> 만 본다.</b> 다른 플레이어를 찾지 않는다.

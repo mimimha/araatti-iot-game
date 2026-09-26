@@ -10,12 +10,15 @@
 
 | | |
 |---|---|
-| 브랜치 | `feature/jy-iot-wand-serial` |
+| 브랜치 | `feature/jy-iot-wand-tuning` |
 | 담당 | IoT (`jy`) |
-| 대상 파일 | `IotPlayerController.cs` (1125줄) |
-| | `firmware/dongle_esp32s3/dongle_esp32s3.ino` (278줄) |
-| | `firmware/wand_tinys3/wand_tinys3.ino` (547줄) |
-| 기준 커밋 | `62a5789` |
+| 대상 파일 | `IotPlayerController.cs` (1603줄) |
+| | `firmware/dongle_esp32s3/dongle_esp32s3.ino` (334줄) |
+| | 로비 · 낚시: `IotLobbyInteract.cs` · `IotFishingBridge.cs` · `WandFishingInputSource.cs` (키 배치는 `KEY_MAPPING.md`) |
+| | `firmware/wand_tinys3/wand_tinys3.ino` (756줄) |
+| | `firmware/tools/tilt_sign.ps1` (510줄) · `steer_verify.ps1` (285줄) |
+| 보드에 굽혀 있는 것 | 7-3 |
+| 기준 커밋 | `20a70de9` |
 
 ---
 
@@ -55,7 +58,7 @@
 
 | 그룹 | 항목 | 기본값 | 설명 |
 |---|---|---|---|
-| 시리얼 포트 | `portName` | `COM3` | 장치 관리자에서 확인 |
+| 시리얼 포트 | `portName` | 비어 있음 | **비워두면 COM 포트를 훑어 동글을 스스로 찾는다** (CSV 또는 `#MAC` 이 들리면 동글, 조용하면 `?` 를 보내 묻는다). 적어두면 그 포트만 연다. 이미 씬에 `COM3` 이 적혀 있으면 그대로 쓰이니 지워야 자동이 된다 |
 | | `baudRate` | `115200` | 펌웨어와 같아야 함 |
 | | `pollIntervalMs` | `5` | 받은 것이 있는지 확인하는 간격 |
 | | `dtrEnable` | `true` | 아래 4-2 참고 |
@@ -64,20 +67,27 @@
 | 손 배정 | `leftHandId` | `0` | 왼손으로 쓸 완드 번호 |
 | | `rightHandId` | `1` | 오른손으로 쓸 완드 번호 |
 | | `handTimeoutSeconds` | `0.5` | 이만큼 무응답이면 끊긴 것으로 봄 |
+| 조타 | `mirroredGrip` | `false` | 양손을 마주 보게 쥐는지. 아래 4-11 |
 | 달리기 | `sprintToggle` | `true` | 왼손 버튼2를 토글로 |
 | 진단 | `logRawLines` | `false` | 받은 줄 그대로 |
 | | `logParseFailures` | `false` | 해석 실패한 줄 |
 | | `logDongleMessages` | `false` | 동글이 보내는 `#` 줄 |
 | | `logConnectionChanges` | `false` | 완드 연결/끊김 |
+| | `logMotions` | `false` | 동작이 들어올 때만 종류·세기 |
 | | `logDeviceOutput` | `false` | 진동 호출 |
 
 ### 2-3. 처음 연결할 때 순서
 
+0. **동글 포트를 쓰는 것을 전부 닫는다** — Arduino 시리얼 모니터 등
 1. `logRawLines` 켜고 Play → `수신 — 0,-127,64,...`가 흐르는지
 2. 안 나오면 `dtrEnable`부터 뒤집어 본다 (4-2 참고)
 3. `logParseFailures` 켜고 자릿수 어긋난 줄이 없는지
 4. `logConnectionChanges` 켜고 완드를 껐다 켜며 `완드 0 연결됨/끊김`이 뜨는지
 5. 전부 확인되면 로그를 다시 끈다
+
+> ⚠ **시리얼 포트는 배타적입니다.** 0번을 안 하면 포트를 못 열어 경고 한 줄만 남기고 조용히 비활성이 됩니다. 반대로 Play 중에는 시리얼 모니터가 안 열립니다. 둘 중 하나만 씁니다.
+
+> ⚠ 첫 줄에 `ESP-ROM:esp32s3-...` 같은 것이 몇 줄 섞일 수 있습니다. 포트를 열 때 DTR 이 동글을 리셋하면 나오는 부트로더 메시지입니다. `#` 로 시작하지 않아 **해석 실패로 잡히지만** 버려도 되는 줄입니다.
 
 ### 2-4. 게임별 키 배치
 
@@ -90,7 +100,7 @@
 | 왼손 버튼 2 | 힌트 | **미정** (아래) | **달리기 (토글)** |
 | 오른손 스틱 | — (자체 마우스) | 카메라 x·y | 카메라 x |
 | 오른손 버튼 1 | — | — | 상호작용 |
-| 오른손 버튼 2 | — | — | 발사 · 망치질 |
+| 오른손 버튼 2 | **달리기** | — | 발사 · 망치질 |
 | IMU 동작 | `VerticalSwing` = 파기 | 3종 = 가로·세로·찌르기 | `VerticalSwing` = 망치질 |
 | 기울기 · 비틀기 | — | — | 조타 · 돛 |
 
@@ -100,7 +110,9 @@
 
 무쌍은 잠그지 않습니다. 달리기라는 조작 자체가 없고, **그 자리에 무엇이 올지는 아직 안 정했습니다.** `IOT_INPUT.md` 7장이 회피를 키보드 Shift 로 옮기라고 적고 2장이 Shift 를 왼손 버튼 2 에 두지만, **무쌍의 장치 배치를 직접 정한 표는 문서에 없습니다.** 8장도 무쌍의 남는 키를 열어 둔 상태입니다. 정해지기 전에는 누른 그대로 내보내는 쪽이 안전합니다 — 토글로 잠가 두면 그 자리에 단발 조작이 오는 순간 한 번 걸러 먹힙니다.
 
-그 한 칸 때문에 `IotControlProfile { Shared, Warriors }` 를 뒀습니다. `KeyboardPlayerController` 의 `KeyboardControlProfile` 과 값이 1:1 입니다. 키보드로 확인한 것이 완드에서 그대로 되어야 합니다.
+광산도 잠그지 않습니다. 거기는 왼손 버튼 2 가 **힌트**(단발)고, 달리기는 **오른손 버튼 2** 를 씁니다. 광산은 판을 내려다보며 파는 게임이라 카메라를 계속 돌릴 일이 없어서, 엄지가 스틱을 떠나도 괜찮습니다. 그래서 토글이 아니라 **누르고 있기**입니다.
+
+그 한 칸 때문에 `IotControlProfile { Shared, Warriors, Mine }` 을 뒀습니다. `KeyboardPlayerController` 의 `KeyboardControlProfile` 과 값이 **1:1 이어야 합니다.** 저쪽에 프로필이 늘면 여기도 늘립니다.
 
 ```csharp
 bool enabled = sprintToggle
@@ -108,9 +120,9 @@ bool enabled = sprintToggle
                && controlProfile == IotControlProfile.Shared;
 ```
 
-광산도 같은 자리를 힌트로 쓰지만 `Shared` 로 둡니다. 힌트는 `ConsumeButton2Press()` 로만 읽고, 그쪽은 토글과 무관하게 **실제로 누른 순간**을 돌려줍니다. (4-8)
+`Shared` 는 이제 **배 전용**입니다. 광산은 `Mine`, 무쌍은 `Warriors` 를 씁니다.
 
-**정하는 순서는 인스펙터 → 씬입니다.** 기본값은 `Shared` 이고, 무쌍 씬이 `SetControlProfile` 로 덮어씁니다. 키보드 쪽이 이미 그렇게 하고 있어서 같은 길로 갔습니다.
+**정하는 순서는 인스펙터 → 씬입니다.** 기본값은 `Shared` 이고, 무쌍 씬이 `SetControlProfile` 로 덮어씁니다. 광산은 부르는 코드가 없어 **인스펙터로만** 정합니다 — 키보드 쪽도 같습니다(`MineTest.unity` 의 `controlProfile: 2`).
 
 | 부르는 곳 | 언제 |
 |---|---|
@@ -132,9 +144,15 @@ bool enabled = sprintToggle
 | 배 | `TaskWorker` · `DebugPlayerMover` 가 `GetComponent` | **불가 — 키보드 쪽을 지워야 함** |
 | 광산 | `MineDigger` 가 `GetComponent` | 가능 (`playerControllerSource` 칸) |
 
-> ⚠ **체크박스를 꺼도 `GetComponent` 는 찾아옵니다.**
-> 한 오브젝트에 `IPlayerController` 구현체가 둘이면 어느 쪽이 잡힐지 정해져 있지 않습니다.
-> 우회 칸이 있는 쪽은 그 칸을 쓰고, 없는 쪽은 **지워야** 합니다.
+> ⚠ **체크박스를 꺼도 `GetComponent` 는 찾아옵니다.** 컴포넌트를 끄는 것은 `Update` 를
+> 멈추는 것이지 없애는 것이 아닙니다.
+>
+> 한 오브젝트에 구현체가 둘이면 `GetComponent` 는 **붙인 순서대로 첫 번째 것**을 돌려줍니다.
+> 무작위가 아니라 정해져 있습니다. 다만 **기대면 안 됩니다** — 나중에 누가 컴포넌트를
+> 지웠다 다시 붙이면 순서가 바뀌고, 그 순간 완드가 조용히 무시됩니다. 게임은 키보드로
+> 멀쩡히 돌아가서 **고장난 줄도 모릅니다.**
+>
+> 우회 칸이 있는 쪽은 그 칸을 채우고, 없는 쪽은 **지웁니다.**
 
 #### 배 협동 — `ShipCoopTest.unity`
 
@@ -144,7 +162,7 @@ bool enabled = sprintToggle
 
 1. `Player_01` 의 **`KeyboardPlayerController` 를 지운다** (체크박스 아님, 컴포넌트 제거)
 2. `IotPlayerController` 를 추가한다
-3. `portName` 을 동글 COM 번호로, `controlProfile` 은 **`Shared`** 로 둔다
+3. `portName` 은 비워 두고(자동 탐색, 2-2), `controlProfile` 은 **`Shared`** 로 둔다
 
 확인 — `IOT_INPUT.md` 2장 표 그대로입니다.
 
@@ -165,24 +183,54 @@ bool enabled = sprintToggle
 
 #### 광산 — `MineTest.unity`
 
-**여기는 절반만 물려 있습니다.** 준비 전에 이걸 알고 들어가야 합니다.
+**✅ 키보드 · 완드 둘 다 실기 확인 완료.** 매핑이 전부 `IPlayerController` 를 거칩니다.
 
 | 항목 | 지금 | 읽는 곳 |
 |---|---|---|
 | 땅 파기 | ✅ 완드 | `MineDigger` ← `TryConsumeMotion` (VerticalSwing) |
 | 땅 복구 | ✅ 완드 | `MineDigger` ← `Left.ConsumeButton1Press` |
 | 힌트 | ✅ 완드 | `MineDigger` ← `Left.ConsumeButton2Press` |
-| **이동** | ❌ **키보드 전용** | `MineMoveInput` ← 레거시 `Input.GetAxis("Horizontal"/"Vertical")` |
-| **카메라** | ❌ **마우스 전용** | `MineCamera` ← `Input.GetAxis("Mouse X"/"Mouse Y")` |
-| 점프 | 키보드 | `MineMoveInput` ← `Input.GetButton("Jump")` |
+| **이동** | ✅ 완드 | `MineMoveInput` ← `Move` |
+| **달리기** | ✅ 완드 | `MineMoveInput` ← `Right.Button2` (**2대일 때만**) |
+| 카메라 | ❌ 마우스 전용 | `MineCamera` ← 우클릭 드래그. MINE.md 8장 표에 카메라가 없어 스코프 밖 |
+| 점프 | 없음 | 씬에서 `jumpButton` 을 비워 뒀다 |
 
-`IOT_INPUT.md` 1장은 광산 이동을 `W A S D`(= 왼손 스틱)로 정해 뒀지만 **아직 그렇게 안 되어 있습니다.** `MineMoveInput` 이 `IPlayerController` 를 아예 안 봅니다. 광산 담당 몫입니다. (7장)
+달리기가 **오른손** 버튼인 이유는 왼손이 이미 찼기 때문입니다 — 버튼1 은 복구, 버튼2 는 힌트입니다. 완드 **1대면 `Right` 가 `Left` 와 같은 객체**라 그 버튼이 곧 힌트 버튼이 되므로, 1대에서는 달리기를 뺍니다. 배도 같은 이유로 1대에서 달리기를 뺍니다.
 
-준비 — `KeyboardPlayerController` 를 **남겨 둡니다.** 이동·카메라가 그쪽에 걸려 있지는 않지만, 지워도 얻을 것이 없고 `MineDigger` 는 우회 칸이 있습니다.
+키보드는 `Mine` 프로필이 같은 자리를 그대로 덮습니다. **완드 없이도 광산 전체가 됩니다.**
+
+| 광산 행동 | 완드 | 키보드 (`Mine` 프로필) |
+|---|---|---|
+| 이동 | 왼손 스틱 | `W A S D` |
+| 땅 파기 | 세로 내리치기 | `Space` |
+| 땅 복구 | 왼손 버튼 1 | `C` |
+| 힌트 | 왼손 버튼 2 | `J` |
+| 달리기 | 오른손 버튼 2 | `Shift` |
+
+준비
 
 1. Player 에 `IotPlayerController` 를 추가한다
-2. `MineDigger` 의 **`Player Controller Source` 칸에 `IotPlayerController` 를 끌어다 놓는다**
-3. `controlProfile` 은 **`Shared`**
+2. `controlProfile` 은 **`Mine`** (배의 `Shared` 가 아니다 — 그걸 쓰면 왼손 버튼 2 가
+   달리기 토글로 잠기는데 광산에서 그 자리는 **힌트**다)
+3. `MineDigger` 와 `MineMoveInput` 의 **`Player Controller Source` 칸에 쓸 쪽을 지정한다**
+
+#### ⚠ 지금 `MineTest.unity` 는 3번이 비어 있습니다
+
+실기 확인은 통과했지만 **순서에 기대고 있는 상태**입니다.
+
+```
+Player 의 IPlayerController 구현체
+  1. IotPlayerController        ← insertIndex 3. GetComponent 가 이걸 돌려준다
+  2. KeyboardPlayerController   ← insertIndex -1 (뒤에 붙음). 지금은 아무도 안 본다
+```
+
+우연히 완드가 앞에 와서 동작합니다. 두 가지를 알아 두십시오.
+
+- **지금은 완드 전용입니다.** 완드를 뽑으면 모든 값이 0 이라 **키보드로도 안 움직입니다.**
+  키보드로 돌아가려면 두 칸에 `KeyboardPlayerController` 를 지정하십시오.
+- 컴포넌트를 지웠다 다시 붙이면 순서가 뒤집혀 **완드가 조용히 무시됩니다.**
+
+칸을 채워 두면 둘 다 안 생깁니다. 바꿔 끼우는 것도 칸 하나로 끝납니다.
 
 확인
 
@@ -191,7 +239,8 @@ bool enabled = sprintToggle
 | 세로 내리치기 | 발밑이 파인다. **내 턴일 때만** (`DiggingAllowed`) |
 | 왼손 버튼 1 | 되메우기 요청 |
 | 왼손 버튼 2 | 힌트 요청 |
-| 왼손 스틱 | **안 움직인다.** 위 표대로 정상 |
+| 왼손 스틱 | 걷는다 (화면 기준) |
+| 오른손 버튼 2 | 달린다. **2대일 때만** |
 
 ⚠ 파기는 `VerticalSwing` 만 받습니다. 가로로 휘두르면 아무 일도 안 일어나는 것이 맞습니다.
 
@@ -208,9 +257,14 @@ bool enabled = sprintToggle
 
 #### 회귀 — 완드 없이
 
-`KeyboardPlayerController` 만 있는 상태로 두 씬을 그대로 Play 합니다. 이 브랜치는 그 파일을 건드리지 않았으므로 **예전과 똑같아야** 합니다. 달라지면 이쪽 잘못입니다.
+`KeyboardPlayerController` 가 잡히는 상태로 두 씬을 Play 합니다.
 
-단, 광산 힌트는 원래부터 키보드로 안 눌립니다. (7장 7번)
+배는 그 파일을 건드리지 않았으므로 **예전과 똑같아야** 합니다. 달라지면 이쪽 잘못입니다.
+
+광산은 **한 군데만 달라집니다 — 방향키가 안 됩니다.** 예전 `MineMoveInput` 은 레거시
+`Input.GetAxis("Horizontal")` 이라 WASD 와 방향키를 둘 다 받았는데, `Move` 는 왼손 스틱
+하나이고 키보드는 거기에 WASD 만 답니다. `IOT_INPUT.md` 1장이 네 게임 공통 이동을
+WASD 로 정했으니 방향은 맞지만, **광산 담당자의 테스트 습관이 바뀝니다.** (아래 7-6)
 
 ---
 
@@ -377,6 +431,66 @@ read = port.Read(bytes, 0, Mathf.Min(available, bytes.Length));
 
 ---
 
+### 4-10. `WiFi.macAddress()` 가 `00:00:00:00:00:00` 을 돌려준다 ← 실기 확인
+
+동글 부팅 로그의 `#MAC` 이 전부 0 으로 찍혔습니다. esptool 은 같은 칩에서 `58:E6:C5:6A:92:D8` 을 제대로 읽습니다.
+
+arduino-esp32 3.x 에서 `WiFi.macAddress()` 는 STA netif 를 거치는데, `esp_now_init()` 직후 시점에는 아직 netif 가 안 올라와 있습니다. ESP-NOW 자체는 멀쩡히 동작하므로 **로그만 거짓말을 합니다.**
+
+**해결:** eFuse 에서 직접 읽습니다. Wi-Fi 상태와 무관합니다.
+
+```c
+#include <esp_mac.h>
+uint8_t mac[6];
+esp_read_mac(mac, ESP_MAC_WIFI_STA);
+```
+
+> ⚠ 이걸 못 잡았으면 *"동글 부팅 로그의 `#MAC` 을 완드의 `DONGLE[6]` 에 적는다"* 는 절차가 통째로 안 돌아갑니다. 저희는 esptool 출력으로 우회해서 모르고 지나갈 뻔했습니다. 완드의 `#NOW` 에도 같은 자리가 있어 양쪽 다 고쳤습니다.
+
+### 4-11. 양손으로 휠을 돌리면 조타가 0 에 붙는다
+
+조타는 `ShipCoopInput.Steer` 가 **양손 평균**(`(Left.Tilt + Right.Tilt) * 0.5f`)으로 읽습니다. 이 평균은 두 완드의 `tilt` 가 **같은 방향으로** 움직인다는 전제 위에 있습니다.
+
+그런데 조타륜이나 배수 밸브를 잡을 때 손은 보통 **손바닥을 마주 보게** 쥡니다. 그러면 두 완드가 서로 180도 돌아간 상태가 되고, 휠을 한 방향으로 돌려도 각 완드가 중력으로 재는 roll 은 **부호가 반대로** 나옵니다. 평균내는 순간 서로 상쇄됩니다.
+
+합성 데이터로 재현했습니다. 두 손의 `tilt` 가 정확히 반대인 기록을 넣으면:
+
+```
+그냥 평균   폭 0.00              ← 조타가 완전히 죽는다
+부호 보정   -0.78 ~ +0.78
+```
+
+**해결: 브리지가 왼손 완드의 `Tilt` 부호만 뒤집습니다.** (`mirroredGrip`)
+
+펌웨어가 아니라 브리지에 넣은 이유는 **완드가 자기가 어느 손인지 모르기 때문**입니다. 손 배정(`leftHandId`/`rightHandId`)은 이 스크립트의 인스펙터에만 있습니다. 달리기 토글을 브리지에서 거는 것(4-8)과 같은 이유이고, `ShipCoopInput.cs` 는 한 줄도 건드리지 않았습니다.
+
+- 원값(`_tilt`)은 그대로 두고 **내놓을 때만** 뒤집습니다. 손 배정이 바뀌어도 받아둔 값을 다시 계산하지 않습니다
+- **1대만 들었을 때는 걸지 않습니다.** 상쇄될 짝이 없고, `Steer` 도 1대면 `Left.Tilt` 를 그대로 씁니다. 여기서 뒤집으면 혼자 들었을 때만 조타가 거꾸로 돕니다
+- 잡는 방식이라 상태가 아닙니다. `Clear()` 가 건드리지 않습니다
+
+> ⚠ **`TILT_SIGN`(펌웨어)과 `mirroredGrip`(유니티)은 다른 문제입니다.** `TILT_SIGN` 은 *"오른쪽으로 돌리면 양수인가"* 를 정하고, `mirroredGrip` 은 *"두 손이 서로 반대로 나오는가"* 를 정합니다. 둘 다 눈으로는 알 수 없어서 실기로만 정합니다. → `firmware/tools/tilt_sign.ps1` 이 한 번에 둘 다 판정합니다.
+
+**실측 결과 지금 배치에서는 `mirroredGrip` 이 필요 없었습니다** (두 손이 같은 방향, 7-5). 스위치는 잡는 방식을 바꿀 때를 위해 남겨 둡니다.
+
+#### 재는 도구가 네 번 틀렸습니다
+
+`tilt_sign.ps1` 을 만들면서 **판정이 네 번 연속 틀렸습니다.** 같은 함정에 다시 빠지지 않도록 적어 둡니다.
+
+| 틀린 것 | 어떻게 드러났나 | 고친 방법 |
+|---|---|---|
+| 잘린 `tilt` 정수를 씀 | 오른손이 세 구간 중 둘에서 `-127` 에 박혀 변화량 0 | `#TILT` 가 같이 찍는 `grav` 원값으로 각도를 다시 계산 |
+| 기준 구간을 빼서 봄 | 기준(`-80도`)이 스윙 범위(`-62~+87`) 바깥이라 "왼쪽으로 돌렸는데 기준보다 오른쪽" | **좌우 극값끼리만** 비교. 기준은 안 씀 |
+| 결과를 ±180 으로 되감음 | 209도를 돌렸는데 `-151도` 로 둔갑 → **부호가 뒤집힘** | 초읽기 동안에도 계속 읽어 각도를 이어 붙임. 되감기는 표본 사이에서만 |
+| 흔들림을 고정 한계로 막음 | 폭 190도에 흔들림 ±25도인 멀쩡한 기록을 버림 | 폭 대비(1/3)로 판정 |
+
+> ⚠ **세 번째가 제일 위험했습니다.** 손이 안 흔들렸으면 아무 경고 없이 **정반대 답**을 내놨을 것입니다. 흔들림 가드가 우연히 먼저 걸려서 드러났습니다. 각도를 다루는 코드는 되감기를 **어디서** 하는지가 전부입니다.
+
+> ⚠ 안내 문구도 고쳤습니다. *"오른쪽으로 끝까지 돌리세요"* 는 측정 중에도 계속 돌리라는 말로 들립니다. 재는 것은 **다 돌린 끝 자세**이므로 *"돌린 다음 멈추세요"* 로 바꿨습니다.
+
+도구는 `-SelfTest` 로 보드 없이 판정부만 돌려볼 수 있습니다. 실측 기록 세 벌이 회귀 케이스로 들어가 있고 10건입니다.
+
+---
+
 ## 5. 문서가 바뀌면서 갈아엎은 것
 
 작업 도중 `develop`에서 **인터페이스가 바뀌었습니다.** 만들어 둔 파일이 컴파일되지 않아 절반쯤 다시 썼습니다.
@@ -504,6 +618,26 @@ ReadExisting()
 - 읽기 스레드의 예외는 `_threadError`로 넘겨 메인 스레드가 한 번만 로그로 옮김
 - 끊기면 값·래치·토글을 전부 비움
 
+### 검증 도구 (`firmware/tools/`)
+
+눈으로 알 수 없는 값을 실기로 정하는 스크립트입니다. 둘 다 유니티와 **같은 계산**을 해서, 유니티를 켜지 않고도 답을 냅니다.
+
+| 도구 | 쓰는 때 | 필요한 것 |
+|---|---|---|
+| `tilt_sign.ps1` | `TILT_SIGN` · `mirroredGrip` 을 정할 때 | 완드 2대를 USB 직결 (`#TILT` 를 읽는다) |
+| `steer_verify.ps1` | 조타를 50Hz 로 길게 볼 때 | 동글 (CSV 를 읽는다) |
+
+```
+powershell -ExecutionPolicy Bypass -File firmware\tools\tilt_sign.ps1
+powershell -ExecutionPolicy Bypass -File firmware\tools\tilt_sign.ps1 -SelfTest
+```
+
+- **`-SelfTest`** 는 보드 없이 판정부만 돌립니다. 실측 기록 세 벌이 회귀 케이스로 들어가 있고 **10건**입니다. 판정 규칙을 고치면 이것부터 돌립니다
+- 음성으로 구간을 안내합니다. 양손에 완드를 들면 화면을 못 봅니다. `[Console]::Beep` 은 메인보드 비프로 나가 노트북에서 안 들려서 SAPI 로 바꿨습니다
+- **PowerShell 5.1 은 BOM 없는 UTF-8 을 ANSI 로 읽습니다.** 한글이 깨지면서 구문 오류가 납니다. 이 파일들을 고칠 때는 **BOM 을 유지**하세요
+
+> ⚠ 이 도구들이 왜 이렇게 생겼는지는 **4-11** 에 있습니다. 판정이 네 번 틀렸고, 그중 하나는 아무 경고 없이 정반대 답을 낼 뻔했습니다.
+
 ---
 
 ## 7. 남은 일
@@ -515,18 +649,50 @@ ReadExisting()
 | 2b | **네트워크 무쌍에 동작이 안 닿는다** | 아래 7-2. 설계 판단이 필요함 |
 | 3 | ~~진동 역방향 프로토콜~~ | **됐음.** `V,id,세기,ms` 로 정하고 `SendVibrate` 를 채웠다 (아래 "진동에 대해") |
 | 3b | **진동 모터가 안 달려 있다** | 부품 문제. 경로는 `#VIB` 로그로만 확인된다 |
-| 4 | ~~실기 연결 확인~~ | **됐음.** 동글·완드 1대로 양방향 왕복까지 확인. 7초 341줄, 유실 0 (아래 7-3) |
-| 5 | 낚시(`IFishingInputSource`) | 이번 스코프 밖. 별도 asmdef라 참조 관계부터 손봐야 함 |
+| 4 | ~~실기 연결 확인~~ | **됐음.** 완드 **2대** 동시 15초 1485줄, 양쪽 유실 0. 양방향 왕복까지 확인 (아래 7-3) |
+| 5 | ~~낚시(`IFishingInputSource`)~~ | **코드 됐음.** 낚시 쪽이 연 외부 입력 입구(`SetInputSource`)에 `IotFishingBridge` 로 꽂았다. 낚시 폴더는 안 고쳤다. **씬에 안 붙였고 실기 확인 전** (아래 7-7) |
 | 6 | 무쌍 게임 로직 | 이번 스코프 밖. 프로필 연결(2-4)만 했다 |
-| 7 | **광산 힌트가 키보드로 안 눌린다** | 광산 담당. 아래 참고 |
+| 7 | ~~광산 힌트가 키보드로 안 눌린다~~ | **해결됨.** 키보드에 `Mine` 프로필이 생겼다 (아래) |
+| 8 | ~~`TILT_SIGN` 좌우 방향 미정~~ | **정해짐.** `+1` · `mirroredGrip` 끔. 실측 3회 (아래 7-5) |
+| 9 | ~~조타 중립이 매번 다르다~~ | **고침.** `HelmTask` 가 붙는 순간을 0 으로 잡는다. 실기 확인 남음 (아래 7-5) |
+| 10 | ~~광산 이동이 완드로 안 된다~~ | **됐음.** `MineMoveInput` 을 `IPlayerController` 로 옮겼다 (아래 7-6) |
+| 11 | **광산 씬이 컴포넌트 순서에 기대고 있다** | `Player Controller Source` 두 칸이 비어 있다 (2-5) |
+| 12 | **배 협동 실기 확인** | 로컬 · 네트워크 둘 다 코드는 끝났다. 로컬은 씬에 붙이고, 네트워크는 그대로 들어가면 된다 (2-5 · 7-7 4번) |
+| 13 | ~~로비 · 낚시가 씬에 안 붙어 있다~~ | **코드로 붙였음.** `IotLobbyInstaller` 가 로드 때 붙인다. 씬 · 프리팹은 안 건드렸다. 실기 확인 남음 (7-7) |
+| 14 | ~~완드가 씬을 넘어가지 못한다~~ | **고침.** `IotPlayerController.Persistent` — 처음 부를 때 코드로 만들고 `DontDestroyOnLoad`. 로비 코드 4곳이 이것을 쓴다 (7-7) |
+| 15 | ~~네트워크 광산 · 무쌍에 완드가 안 닿는다~~ | **무쌍 공격은 뚫림** (`IotWarriorsBridge`). 남은 것은 20 · 21 로 나눴다 (7-9) |
+| 16 | ~~develop 을 받으면 컴파일이 깨진다~~ | **고침.** `AnyWandConnected` 를 공개 프로퍼티 하나로 합쳤다. batchmode 컴파일 에러 0 (7-7) |
+| 17 | **포탈 인원 선택 화면이 마우스 전용이다** | develop 에서 포탈이 `CrewPickerScreen` 을 먼저 띄운다. 완드로 포탈은 열리지만 인원은 마우스로 골라야 한다 (7-7) |
+| 18 | ~~`Persistent` 첫 호출이 플레이 도중 화면을 멈춘다~~ | **고침.** `WarmUpPersistent` 가 `AfterSceneLoad` 에 미리 만든다 (7-8) |
+| 19 | ~~씬에 둔 컨트롤러와 `Persistent` 가 동글 포트를 다툰다~~ | **고침.** `Persistent` 가 씬에 이미 있으면 그것을 쓴다 (7-8) |
+| 20 | ~~네트워크 무쌍의 이동이 완드로 안 된다~~ | **고침.** 무쌍 담당이 `1207bfb5` 로 임계값 둘과 스틱 이동을 넣었다 (7-11) |
+| 21 | ~~네트워크 광산에 한 줄이 안 들어갔다~~ | **고침.** `MineInputProvider.OnInput` 에 `IotMineInput.Fill(ref data);` 가 들어갔다 (7-11) |
+| 22 | ~~`IotWarriorsBridge` 가 매 프레임 씬을 뒤진다~~ | **고침.** 러너 재탐색을 1초 간격으로 (7-9) |
+| 23 | ~~네트워크 배 협동에 완드가 안 닿는다~~ | **고침.** `ShipCoopInputProvider.Awake` 가 못 찾으면 `Persistent` 를 쓴다 (7-11) |
+| 24 | `WarriorsInputProvider.FindWand()` 를 `Persistent` 로 | 낮음. 지금은 증상이 없다 — `WarmUpPersistent` 덕이라 암묵적 의존일 뿐이다 (7-11) |
+| 25 | **실기 확인 — 네트워크 세 게임** | 코드는 다 됐다. 완드를 들고 두 클라이언트로 확인하는 일만 남았다 |
+| 26 | ~~실기 확인 — 동글 두 자리 · 휴면~~ | **됐음.** B 를 ch 6 으로 나눴다. 동글 둘 · 완드 넷을 다 구웠고 자리마다 두 대 동시 수신 98~99% · 끊김 0. 휴면은 #1 로 잠들기 · 깨기 확인. 잠든 전류만 안 쟀다 (7-12) |
 
-### 광산 힌트 (7번)
+### 광산 힌트 (7번) — 해결됨
 
-`MineDigger` 는 힌트를 `Left.ConsumeButton2Press()` 로 읽는데, `KeyboardPlayerController` 의 `Shared` 프로필은 왼손 버튼 2 가 `Key.None` 입니다. Shift 토글은 `_button2Held` 만 채우고 `_button2Pressed` 는 건드리지 않아서 **`ConsumeButton2Press()` 가 영영 false** 입니다.
+**한동안 이 문서가 틀린 말을 하고 있었습니다.** 기록으로 남깁니다.
 
-`IOT_INPUT.md` 1장은 힌트를 `J` 로 정했지만 `Shared` 에서 `J` 는 기울기 축이 쓰고 있습니다. 어느 키로 옮길지는 광산 담당이 정할 일이라 **고치지 않았습니다.** (7장 표에서 광산 키 재배치가 그쪽 몫입니다)
+`Shared` 프로필만 있던 시절에는 왼손 버튼 2 가 `Key.None` 이라 힌트가 키보드로 안 눌렸고, 동작(IMU) 키도 전부 `Key.None` 이라 파기도 안 됐습니다. 그래서 "광산은 키보드로 테스트가 안 된다"고 적어 뒀습니다.
 
-완드에서는 이 문제가 없습니다. 펌웨어가 버튼 레벨을 그대로 보내므로 눌린 순간이 정상으로 잡힙니다.
+그 사이 `KeyboardPlayerController` 에 **`Mine` 프로필이 추가**됐습니다. (`9cb29308 [fix] 광산 프로필의 오른손 면버튼 2 를 Shift 로`)
+
+| 광산 행동 | 완드 | 키보드 (`Mine` 프로필) |
+|---|---|---|
+| 이동 | 왼손 스틱 | `W A S D` |
+| 땅 파기 | 세로 내리치기 | `Space` (VerticalSwing 흉내) |
+| 땅 복구 | 왼손 버튼 1 | `C` |
+| 힌트 | 왼손 버튼 2 | `J` |
+| 달리기 | 오른손 버튼 2 | `Shift` |
+
+`MineTest.unity` 의 `KeyboardPlayerController` 가 이미 `controlProfile: 2`(= `Mine`) 로 맞춰져 있습니다. **완드 없이도 광산 전체를 키보드로 확인할 수 있습니다.**
+
+> 교훈 — 다른 담당자 파일의 상태를 근거로 쓸 때는 **읽은 시점**을 같이 적어야 합니다.
+> 이 문서는 한 세션 안에서도 낡을 수 있습니다.
 
 ### 7-1. 동작 3종은 실제로 들어온다
 
@@ -553,20 +719,909 @@ ReadExisting()
 | 로컬 · 싱글 (`WarriorsSceneBootstrap`) | `WarriorsKeyboardInput` → `IPlayerController.TryConsumeMotion` | **닿는다** |
 | 네트워크 (`WarriorsSceneSetup`) | `WarriorsInputProvider` → `WarriorsIoTInput.AttackRequested` | **안 닿는다** |
 
-`WarriorsSceneSetup.StripLocalOnlyParts` 가 네트워크 플레이어 프리팹에서 `WarriorsKeyboardInput` 을 **떼어냅니다.** 각자 자기 화면에서만 베는 것을 막으려는 것이라 맞는 결정입니다. 대신 `WarriorsInputProvider` 가 숫자키를 직접 읽고, 장치는 `WarriorsIoTInput.OnSwing` 으로 들어오게 되어 있습니다. 그쪽 주석도 *"장치가 붙는 쪽에서 `WarriorsIoTInput.OnSwing` 을 부르면 그 순간부터 이 경로로 흘러든다"* 고 적고 있습니다.
+`WarriorsSceneSetup.StripLocalOnlyParts` 가 네트워크 플레이어 프리팹에서 `WarriorsKeyboardInput` 을 **떼어냅니다.** 각자 자기 화면에서만 베는 것을 막으려는 것이라 맞는 결정입니다. 대신 `WarriorsInputProvider` 가 키보드를 직접 읽고, 장치는 `WarriorsIoTInput.OnSwing` 으로 들어오게 되어 있습니다. 그쪽 주석도 *"장치가 붙는 쪽에서 `WarriorsIoTInput.OnSwing` 을 부르면 그 순간부터 이 경로로 흘러든다"* 고 적고 있습니다.
 
 **그 호출자가 없습니다.** 시리얼 브리지는 `IPlayerController` 만 채웁니다.
+
+**공격만이 아니라 이동도 안 닿습니다.** `WarriorsInputProvider` 는 `IPlayerController` 를 아예 안 읽습니다.
+
+```csharp
+// WarriorsInputProvider.cs
+if (keyboard.wKey.isPressed) move.y += 1f;
+...
+data.Move = move;
+```
+
+> ⚠ **"서버 쪽은 잘 된다" 와 충돌하지 않습니다. 서로 다른 구간을 말하는 것입니다.**
+>
+> | | 확인한 구간 | 결과 |
+> |---|---|---|
+> | 서버 담당 | `WarriorsIoTInput` → 네트워크 → 서버 | **된다** |
+> | 이 문서 | **완드** → `WarriorsIoTInput` | **연결이 없다** |
+>
+> `SubmitImuSample` 을 실제로 부르는 곳은 `WarriorsFakeImuInput`(가짜 IMU 생성기) **하나뿐**입니다. 그걸로 확인하면 IoT 경로가 끝까지 도는 것이 맞습니다. 다만 그 입구에 진짜 완드가 안 물려 있습니다.
+>
+> **가르는 방법:** 완드를 들고 **네트워크 씬에서** 휘둘러 봅니다. 로컬 씬(`WarriorsTest`)이나 가짜 IMU 로는 이 차이가 안 드러납니다.
 
 메울 방법이 둘인데 성격이 다릅니다.
 
 | | 하는 일 | 문제 |
 |---|---|---|
-| `OnSwing` 을 부른다 | 브리지가 판정된 동작을 그대로 넘긴다 | 완드·`WarriorsIoTInput` 둘 다 쿨다운이 걸려 이중이 된다 (500ms + 0.45s) |
+| `OnSwing` 을 부른다 | 브리지가 판정된 동작을 그대로 넘긴다 | 완드·`WarriorsIoTInput` 둘 다 쿨다운이 걸려 이중이 된다 (250ms + 0.45s) |
 | `SubmitImuSample` 을 부른다 | 원시 IMU 를 넘겨 판정을 그쪽에 맡긴다 | 지금 CSV 는 **판정 결과만** 보낸다. 원시 각속도·가속도를 안 실어서 포맷을 늘려야 한다 |
 
-또 `WarriorsIoTInput.minimumStrength` 가 **0.35** 인데, 펌웨어 최소 스윙(200dps)의 세기는 `(200-150) × 255/450 ÷ 255 ≈ 0.11` 입니다. 그 경로로 가면 약한 베기가 전부 버려집니다. 임계값을 함께 맞춰야 합니다.
+#### 결정 — `OnSwing` 을 **IoT 가 부른다**
 
-무쌍 담당자와 정할 일이라 **손대지 않았습니다.**
+`SubmitImuSample` 은 못 씁니다. 원시 각속도·가속도를 요구하는데 지금 CSV 는 판정 결과만 싣습니다.
+
+**그리고 무쌍 파일은 한 줄도 안 고쳐도 됩니다.** 그쪽 배선이 이미 끝까지 완성돼 있습니다.
+
+```
+WarriorsIoTInput.OnSwing
+  → AttackRequested (이벤트)
+  → WarriorsInputProvider.HandleDeviceSwing
+  → PushSwing — pendingType · pendingStrength · pendingTick 을 다음 OnInput 틱에 싣는다
+```
+
+`PushSwing` 이 **"사건 → 틱" 변환까지 이미 합니다.** 7-7 의 5번이 걱정한 부분이 무쌍에는 해당하지 않습니다. `HookDevice` 에 QA 용 로그(`[Warriors 입력] IoT 검 입력원에 연결했습니다.`)까지 있어서, 연결되면 콘솔로 바로 보입니다.
+
+**IoT 가 부르는 것이 맞는 이유 셋**
+
+1. **선례가 있습니다.** `IotFishingBridge` 가 정확히 같은 모양입니다 — IoT 폴더에 두고, 미니게임이 열어 둔 공개 입구만 부르고, *"낚시 폴더의 파일을 하나도 고치지 않습니다"* 라고 스스로 적고 있습니다. `IotLobbyInteract` 도 같습니다
+2. **`OnSwing` 은 부르라고 뚫어 둔 구멍입니다.** `WarriorsInputProvider` 주석이 *"장치가 붙는 쪽에서 `WarriorsIoTInput.OnSwing` 을 부르면 그 순간부터 이 경로로 흘러든다"* 고 적고 있습니다
+3. **무쌍 담당 부담이 없습니다.** 코드가 아니라 값 두 개만 정하면 됩니다
+
+**무쌍 담당에게 남는 것 — 값 두 개**
+
+| 값 | 현재 | 문제 |
+|---|---|---|
+| `swingCooldownSeconds` | `0.45` | 완드에도 250ms 쿨다운이 있어 **이중**이 된다. 합치면 초당 1.5회까지만 들어간다. 리듬 구간이 그보다 빠르면 박자가 씹힌다 |
+| `minimumStrength` | `0.35` | 펌웨어 최소 스윙(350dps)의 세기가 `(350-150) × 255/450 ÷ 255 ≈ 0.44`. **간신히 넘는다** — 조금만 약하게 베면 통째로 버려진다 |
+
+> 문턱을 200 → 350 으로 올린 것(7-4)이 여기서는 **도움이 됐습니다.** 예전 최소 세기는 `0.11` 이라 `minimumStrength 0.35` 에 전부 걸렸습니다.
+
+이 두 값은 무쌍 파일이라 **손대지 않았습니다.**
+
+### 7-3. 실기에서 확인한 것
+
+**지금 보드에 굽혀 있는 것** — 셋 다 같은 소스입니다.
+
+| 보드 | 포트 | STA MAC | 굽는 법 |
+|---|---|---|---|
+| 동글 ESP32-S3 DevKit | COM3 | `58:E6:C5:6A:92:D8` | `--fqbn esp32:esp32:esp32s3` |
+| 완드 0 (TinyS3 #1) | COM7 | `DC:54:75:EB:82:C0` | `--fqbn esp32:esp32:um_tinys3` (기본값) |
+| 완드 1 (TinyS3 #4) | COM13 | `DC:54:75:EB:80:B4` | 같은 것 + `--build-property "compiler.cpp.extra_flags=-DWAND_ID=1"` |
+
+`WAND_ID` 와 `HAS_IMU` 는 `#ifndef` 로 감싸 뒀습니다. **IDE 에서는 값을 고치고, arduino-cli 에서는 파일을 안 고치고 덮어씁니다.** 보드마다 파일을 고쳤다 되돌리는 것이 제일 사고가 나는 지점이라 그렇게 했습니다.
+
+> **2026-09-26 부터 `WAND_ID` 는 없습니다.** 번호와 동글은 보드 MAC 으로 표에서 찾습니다(7-12). 넷 다 플래그 없이 같은 것을 굽고, `-DWAND_ID=1` 을 줘도 아무 효과가 없습니다.
+> 위 표는 그때 기록입니다. **지금 여섯 대에 굽혀 있는 것과 굽는 법은 7-12 에 있습니다.**
+
+> ⚠ **지금 두 완드 다 되돌림 거르기가 꺼진 채로 굽혀 있습니다.** 무쌍 리듬 구간용입니다(7-4). 광산·배 협동을 확인할 때는 `mcount` 가 약 2배로 들어오니, **그 게임들을 볼 때는 주석을 풀고 다시 구워야** 합니다.
+
+완드는 배터리로도 돕니다. 보조 배터리 전원으로 완드 0 을 8초 재 봤을 때 390줄 · 유실 0 으로 USB 와 차이가 없었습니다. 다만 보조 배터리는 소비 전류가 적으면 스스로 꺼지는 것이 있어, 안 들어오면 **전원부터** 봅니다.
+
+> ⚠ **동글 포트는 배타적입니다.** 유니티가 Play 중이면 시리얼 모니터가 안 열리고, 반대도 같습니다. 값이 안 나오면 이것부터 봅니다. (2-3)
+
+> ⚠ **`arduino-cli upload` 는 컴파일을 다시 하지 않습니다.** 소스를 고친 뒤 `upload` 만 부르면 옛 빌드가 올라갑니다. 언제나 `compile --upload` 를 씁니다.
+
+> ⚠ **두 세션이 같은 스케치를 동시에 빌드하면 깨집니다.** `arduino-cli` 가 스케치 경로 해시로 캐시 디렉터리를 잡아서 서로 밟습니다. `Wire.cpp.d: No such file or directory` 나 `cannot specify '-o' with '-c' ... multiple files` 가 나오면 이것이고, `--clean` 으로 복구합니다.
+
+**측정 결과**
+
+| 항목 | 결과 |
+|---|---|
+| 완드 2대 동시, 15초 | CSV 1485줄. **양쪽 유실 0%** |
+| `ms` 간격 | 20/21ms 두 종류뿐. 30ms 넘는 구멍 0개 |
+| 16비트 순환 | `-65515` 1회 관측 = 65536 경계. 4-5 의 wrap 처리가 쓰이는 자리 |
+| 완드 자동 등록 | `#WAND 0 등록 DC:54:75:EB:82:C0` |
+| 진동 왕복 | `V,0,200,120` → `#ECHO 완드 0 seq 1` → 완드에서 `#VIB 시작 세기 200 120 ms` |
+| 16비트 지속시간 | `500ms` 가 그대로 도착. `arg3`(상위 바이트)가 실제로 쓰인다 |
+| 잘못된 입력 | 완드번호 9 거절, 미등록 완드 거절, `HELLO` 거절 |
+
+`handTimeoutSeconds` 가 0.5초인데 최대 간격이 21ms 라 **24배 여유**입니다. 4-7 이 걱정한 `HasTwoDevices` 깜빡임은 이 조건에서 안 일어납니다.
+
+대역폭은 완드 2대에 2,700 B/s 로 115200baud 의 23% 입니다. **4대까지 가도 47%** 라 동글은 손댈 것이 없습니다.
+
+**2026-09-23 — 조타가 유니티에서 돌았습니다.**
+
+| 항목 | 결과 |
+|---|---|
+| 배선 | 동글 COM3(유선) · 완드 0 **무선** · 완드 1 유선 |
+| 동글 수신 4초 | CSV 388줄 = 완드 0 이 194줄, 완드 1 이 194줄. **50Hz 두 대 정확히 반씩** |
+| 유니티 | `ShipCoopTest` 에서 조타가 실제로 움직임 |
+
+> ⚠ **유니티에 잡는 포트는 동글(COM3)입니다.** 완드를 USB 로 직접 꽂아도 CSV 는 안 나옵니다 — 완드의 시리얼은 `#` 로 시작하는 디버그뿐이고, 측정값은 ESP-NOW 로만 나갑니다. 완드 포트(COM7 · COM13)를 잡으면 한 줄도 안 들어옵니다.
+>
+> 완드를 USB 에 꽂는 것은 전원·굽기·`#TILT` 확인용입니다. 무선으로 써도 동글에는 똑같이 올라옵니다 (위 표에서 완드 0 이 무선인데 194줄로 동일).
+
+### 7-4. 동작 판정을 실측으로 맞춘 것
+
+무쌍에서 **"세게 찌를수록 안 먹힌다"** 는 증상이 있었습니다. 완드 로그를 종류별로 30회씩, 다섯 번 모아서 원인 세 가지를 찾았습니다. 값을 되돌리기 전에 여기를 보세요.
+
+**1. 문턱이 낮아서 찌르기가 베기로 샜다** — `MOTION_MIN_PEAK` 200 → **350**
+
+힘줘 찌르면 손목이 딸려 돌아가 Z 회전이 200~301 까지 나옵니다. 문턱이 200 이라 **진짜 찌르기 10회 중 7회가 스윙 분기로 넘어갔고**, 게임이 "찌르기" 로 받은 것은 손을 빼는 약한 동작이었습니다. 세게 찌를수록 틀리는 구조였습니다.
+
+```
+찌르기가 딸고 오는 회전   최대 301
+진짜 좌우베기            최소 440      ← 그 사이가 비어 있다
+진짜 세로내리치기         최소 431
+```
+
+350 으로 올린 뒤 오분류 **7건 → 0건**.
+
+**2. `fabs()` 가 되돌림의 방향을 지웠다** — 부호 있는 최대값을 따로 들고 비교
+
+내려치는 것과 팔을 올리는 것은 **같은 축을 반대로** 도는 것이라, 크기만 보면 똑같습니다. 그래서 10회 휘두른 것이 31회로 잡혔습니다.
+
+**쿨다운으로는 못 막습니다.** 250 → 450 으로 올려 봤지만 이벤트 간격이 `MOTION_MAX + MOTION_COOLDOWN` 에 딱 붙어 포화될 뿐이었습니다. 1회로 만들려면 쿨다운이 제스처 전체 길이를 넘어야 하는데 그건 사람마다 다릅니다.
+
+`sPeakGy` · `sPeakGz` 로 부호를 살려서, **같은 축을 반대로 돌았고 게다가 더 약하면** 되돌림으로 봅니다(`isReturn`). "더 약하면" 을 붙인 덕에 **진짜 연타는 안 걸립니다** — 두 번째도 세게 치기 때문입니다.
+
+비교는 **직전에 인정한 동작의 축**으로 합니다. 현재 동작이 무엇으로 분류됐는지는 상관없습니다. 되돌림은 문턱을 못 넘어 찌르기로 분류되기도 하는데, 그때 현재 축으로 비교하면 기준과 축이 안 맞아 그냥 통과합니다.
+
+**3. 찌르기에 방향 조건이 없었다** — `fabs(peakLax)` 가 Y·Z 보다 커야 찌르기
+
+찌르기는 완드를 **길이 방향(X)으로 미는 것**입니다. 이 조건이 없으니 베기의 되돌림이 전부 찌르기로 샜습니다. 세로베기 뒤에 나온 가짜 찌르기 13개 중 **12개가 Z 지배**였습니다.
+
+넣은 뒤 세로베기 뒤 가짜 찌르기 **15개 → 0개**, 가로베기 뒤 **12개 → 2개**.
+
+**남은 것** — 10회가 14회로 잡힙니다. 다만 **전부 같은 종류**라 "한 번 베면 한두 번 더 벤다" 수준입니다. 되돌림이 직전 공격보다 셀 때가 있어서(사람이 매번 같은 힘으로 안 침) "더 약하면" 조건을 빠져나갑니다.
+
+그 조건을 빼면 10 에 가까워지지만 **좌우 연속 콤보가 막힙니다.** 무쌍은 다수를 베는 게임이라 여분의 같은 공격이 자연스러울 수도 있어, 화면에서 거슬리는지 보고 정하기로 했습니다.
+
+> 게임 쪽은 여러 번 들어오는 것을 막지 않습니다. `WarriorsPlayerCombat.StartAttack` 이 공격 중이면 **버립니다** 가 아니라 **버퍼에 넣었다가 이어서 재생**합니다.
+
+#### ⚠ 지금 되돌림 거르기(2번)는 **꺼져 있습니다**
+
+무쌍 **리듬 구간**에서 박자를 놓쳐서 뺐습니다. 리듬은 박자마다 입력이 들어와야 하는데, 되돌림을 거르면 빠르게 이어 치는 동작이 같이 먹혔습니다. 여분의 입력보다 놓치는 쪽이 치명적이라는 판단입니다. 빼니 잘 된다고 확인했습니다.
+
+`isReturn` 블록만 주석으로 감쌌고, **분류(문턱 350 · 찌르기 X축 조건)는 그대로**입니다. 종류는 여전히 맞게 나갑니다.
+
+**부작용 두 가지가 다른 미니게임에 갑니다.** 완드는 네 게임이 같이 씁니다.
+
+| | |
+|---|---|
+| `mcount` 가 약 2배 | 한 번 휘두르면 되돌림까지 2회쯤 잡힌다. **광산은 한 번에 두 번 파이고**, 배 협동 수리·망치질도 두 번 먹힌다 |
+| 가짜 찌르기가 늘어남 | 위 2번 설명대로 되돌림은 문턱을 못 넘어 찌르기로 분류되기도 한다. 배·광산은 `Thrust` 를 안 써서 조용히 무시되지만, **무쌍에서 세로베기가 찌르기로 한 번 더** 들어간다 |
+
+> ⚠ **주석으로 껐다 켰다 하지 말고 빌드 플래그로 빼는 쪽을 권합니다.** 커밋할 때마다 어느 쪽 상태인지 헷갈립니다. `WAND_ID` · `HAS_IMU` 와 같은 방식입니다.
+>
+> ```cpp
+> #ifndef FILTER_RETURN
+> #define FILTER_RETURN 1     // 0 이면 되돌림을 안 거른다 (무쌍 리듬용)
+> #endif
+> ```
+>
+> 그러면 리듬용 보드만 `-DFILTER_RETURN=0` 으로 굽고, 나머지는 소스를 고치지 않고 굽습니다.
+
+### 7-5. 배협동 세션으로 넘기는 것
+
+**`TILT_SIGN` = `+1`, `mirroredGrip` = 끔 으로 확정했습니다.** (2026-09-23 실측, 완드 0 · 1)
+
+IMU 가 뒤집혀 붙어 있어 기준 자세에서 `az ≈ -0.97` 입니다. 예전 `atan2(ay, az)` 는 `roll ≈ -169도` 를 내서 **`tilt` 가 -127 에 고정**돼 있었습니다. 지금은 `atan2(-ay, -az)` 로 바꿔 두 완드 다 기준 자세에서 `#TILT` 가 5~15 로 나옵니다.
+
+양손으로 휠을 잡고 좌우 끝까지 돌린 **끝 자세**를 세 번 따로 쟀습니다. 왼쪽 끝에서 오른쪽 끝까지의 각도입니다.
+
+| 측정 | 왼손 | 오른손 |
+|---|---|---|
+| 1 | +132.5도 | +149.2도 |
+| 2 | +209.3도 | +204.2도 |
+| 3 | +190.2도 | +160.4도 |
+
+여섯 번 다 **같은 부호**입니다. 두 완드의 roll 이 같은 방향으로 움직이므로 `mirroredGrip` 은 필요 없고, 오른쪽이 양수이므로 `TILT_SIGN` 도 `+1` 그대로입니다. 잡는 자세가 매번 달랐는데도 부호는 일관됐습니다.
+
+판정은 `firmware/tools/tilt_sign.ps1` 이 합니다. 다시 정해야 하면 그것만 돌리면 됩니다.
+
+> ⚠ **잡는 방식을 바꾸면 다시 재야 합니다.** 지금 결론은 *"두 완드를 같은 방향으로 쥔다"* 는 전제 위에 있습니다. 손바닥을 마주 보게 쥐는 배치로 바꾸면 부호가 반대가 되고, 그때 `mirroredGrip` 을 켭니다. (4-11)
+
+> ⚠ **두 완드의 IMU 는 같은 방향으로 달아야 합니다.** 한 번 반대로 달았다가 완드 1 의 `tilt` 만 -127 로 포화된 적이 있습니다. 동작 판정(가로·세로·찌르기)은 영향이 없지만 — `fabs` 로 크기만 보고, 되돌림 필터는 같은 완드 안에서만 부호를 비교하므로 — **조타만 깨집니다.**
+
+> ⚠ **IMU 배선을 고쳤으면 보드를 리셋해야 합니다.** `CTRL1_XL` · `CTRL2_G` 설정은 `setup()` 에서 한 번만 씁니다. 부팅 때 배선이 잘못돼 있었으면 그 뒤에 고쳐도 IMU 는 파워다운인 채로 0 만 내보냅니다. `r` 은 자이로 재보정만 하고 레지스터를 다시 쓰지 않습니다. **조이스틱 중립도 부팅 때만 잽니다.**
+
+조타는 `ShipCoopInput.Steer` 가 **양손 평균**(`(Left.Tilt + Right.Tilt) * 0.5f`)을 씁니다. 한쪽 완드의 `tilt` 가 죽어 있으면 조타가 절반만 먹습니다. 1대일 때(`Left.Tilt`)보다 오히려 나빠지므로, 배협동은 **두 완드가 다 멀쩡한 뒤에** 봐야 합니다.
+
+`mirroredGrip`(2-2)도 같은 문제를 다룹니다. 조타륜을 잡듯 손바닥을 마주 보게 쥐면 두 완드의 roll 부호가 반대로 나와 평균이 상쇄됩니다. 지금 배치에서는 **끔** 입니다.
+
+#### 조타 중립이 매번 다릅니다 — `HelmTask` 에서 잡았습니다
+
+부호는 정해졌지만 **0 이 어디인지는 못 정했습니다.** 같은 사람이 "조타 자세로 가만히" 를 세 번 잡았는데 왼손 기준 각도가 이렇게 나왔습니다.
+
+```
+-38.1도   ·   -0.8도   ·   +71.6도
+```
+
+`Tilt` 는 **중력 기준 절대 각도**입니다. 잡는 각도가 세션마다 70도씩 달라지면, 손을 가만히 두고도 조타가 한쪽으로 먹습니다. 왼손 기준이 `+71도` 인 날에는 `tilt ≈ +100` 이 되어 **가만히 있어도 배가 오른쪽으로 계속 돕니다.**
+
+좌우 폭 자체는 160~209도로 충분히 넓습니다. 문제는 폭이 아니라 **원점**입니다.
+
+**해결 — 붙는 순간의 값을 빼서 그 자리를 중립으로 삼습니다.** (`HelmTask`, 배 협동 담당 동의를 받고 넣음)
+
+```csharp
+protected override void OnWorkerJoined(TaskWorker worker)
+{
+    _neutralSteer[worker] = ShipCoopInput.Steer(worker.Input);
+}
+
+private float SteerOf(TaskWorker worker)
+{
+    float raw = ShipCoopInput.Steer(worker.Input);
+    if (_neutralSteer.TryGetValue(worker, out float neutral)) { raw -= neutral; }
+    return Mathf.Clamp(raw, -1f, 1f);
+}
+```
+
+`Work()` 가 `ShipCoopInput.Steer(...)` 대신 `SteerOf(...)` 를 부릅니다. 그게 전부입니다.
+
+**왜 `HelmTask` 인가.** `ShipCoopInput.Steer` 는 상태가 없는 정적 함수입니다. 중립은 **사람마다 · 붙을 때마다** 달라서 상태가 필요하고, `TaskBase` 에 `OnWorkerJoined` / `OnWorkerLeft` 훅이 이미 있었습니다.
+
+같이 챙긴 것:
+
+| | |
+|---|---|
+| `Clamp(-1, 1)` | 중립을 뺀 뒤 한쪽으로 1 을 넘을 수 있다. 그대로 두면 `Capacity` 계산이 틀어진다 |
+| `OnWorkerLeft` 에서 제거 | 안 지우면 `Dictionary` 가 샌다 |
+| `ResetHelm` 에서 **재포착** | 지우기만 하면 다음 판이 중립 없이 시작한다 |
+
+**키보드는 영향이 없습니다.** `KeyboardPlayerController` 는 안 누르면 `Tilt` 가 0 이라 빼는 값도 0 입니다. A/D 조작은 그대로입니다.
+
+> ⚠ **`IHandDevice.Tilt` 의 뜻은 바꾸지 않았습니다.** 여기를 상대 각도로 바꾸면 광산 · 무쌍도 같이 영향을 받습니다. 공용 경계라 미니게임 담당자들과 함께 정할 일입니다. (`GAME_STRUCTURE.md` 9장) 배 협동만의 해석이라 그쪽 파일에서 풀었습니다.
+
+> ⚠ **남은 한계 — 잡는 순간의 자세가 중립이 됩니다.** 팔을 내린 채로 상호작용하면 그 각도가 0 이 되어, 손을 들어올리는 것만으로 배가 돕니다. 지금은 **붙는 순간 한 번만** 잡습니다. 거슬리면 "붙고 한 박자 뒤에 잡기" 나 "버튼으로 다시 잡기" 를 얹어야 하는데, 어느 쪽이 나은지는 쥐어보고 정할 일이라 가장 단순한 것만 넣었습니다.
+
+> ⚠ **`tilt` 는 ±90도에서 잘립니다.** (`roll * 127/90` 을 ±127 로 자름) 실측 반폭이 80~105도라 **끝자락이 잘립니다.** 원점만 제대로 잡으면 "90도만 돌려도 최대 조타" 가 되어 오히려 편할 수 있습니다. 넓혀야 한다고 판단되면 그때 펌웨어를 고칩니다 — 지금 값으로 못 쓸 정도는 아닙니다.
+
+### 7-6. 광산으로 넘기는 것
+
+광산은 **키보드 · 완드 둘 다 실기 확인까지 끝났습니다.** 다만 남의 게임 파일을 고쳤으므로 담당자에게 알려야 할 것이 있습니다.
+
+#### 왜 옮겨야 했나
+
+`IOT_INPUT.md` 3장("광산 — 키보드가 본체이고 장치는 나중입니다")의 **현재 구현과의 차이** 표가 이 작업을 그대로 지시하고 있었습니다.
+
+> | 걷기 | 왼손 스틱 | `MineMoveInput` 이 `Input.GetAxis` 로 직접 읽는다 | **장치를 안 거침** |
+> | 달리기 | 오른손 면버튼 2 | `MineMoveInput.runKey` 가 `Input.GetKey` 로 직접 읽는다 | **장치를 안 거침** |
+>
+> **걷기와 달리기가 장치를 안 거칩니다.** … `IPlayerController.Move` 를 읽도록 고쳐야 합니다.
+
+레거시 `Input` 을 그대로 두면 **완드가 걷기를 채울 길이 원천적으로 없습니다.** 같은 문서 7장이 *"키 이벤트를 만들어 보내기 — 네트워크 경로를 안 탑니다. 인터페이스를 구현하세요"* 로 그 우회를 막아 뒀기 때문입니다. 장치가 값을 올릴 수 있는 자리는 `IPlayerController` 하나뿐입니다.
+
+그래서 광산은 입력 출처가 **둘로 갈려 있었습니다.** `MineDigger` 는 경계를 읽고, `MineMoveInput` 은 키보드를 직접 읽었습니다. 완드를 꽂으면 파기·복구·힌트만 살아나고 걷기는 죽는 반쪽 상태가 됩니다.
+
+`MINE.md` 8장 표도 이동을 `IPlayerController.Move` 로 정해 두고 있어, 문서 두 개가 같은 곳을 가리키는데 코드만 따라오지 않은 상태였습니다.
+
+#### 고친 것 — 파일 하나
+
+`MineMoveInput.cs` (`e9a2e54c [feat] 광산 이동을 IPlayerController 로`)
+
+```csharp
+// 이전
+Vector2 axis = new Vector2(Input.GetAxis(horizontalAxis), Input.GetAxis(verticalAxis));
+bool run = Input.GetKey(runKey);
+
+// 지금
+Vector2 axis = _controller.Move;
+bool run = _controller.HasTwoDevices && _controller.Right.Button2;
+```
+
+고아가 된 `horizontalAxis` · `verticalAxis` · `runKey` 는 지웠습니다. 점프는 그대로 뒀습니다 — 씬에서 `jumpButton` 을 비워 둬서 실행되지 않고, `MineJump` 가 실행 순서 −50 에서 덮어쓰는 구조도 건드리지 않았습니다.
+
+#### ⚠ 회귀 하나 — 방향키
+
+예전에는 레거시 `Input.GetAxis("Horizontal")` 이라 **WASD 와 방향키를 둘 다** 받았습니다. 지금은 `Move` 하나이고 키보드는 거기에 WASD 만 답니다. **방향키로는 안 움직입니다.**
+
+`IOT_INPUT.md` 1장이 네 게임 공통 이동을 `W A S D` 로 정했으니 방향은 맞습니다. 다만 방향키로 테스트하던 습관이 있으면 고장으로 보입니다.
+
+#### 달리기를 오른손 버튼 2 에 둔 이유
+
+왼손 버튼이 이미 다 찼습니다 — 버튼1 은 복구, 버튼2 는 힌트입니다. (MINE.md 8장)
+
+`KeyboardPlayerController` 의 `Mine` 프로필이 오른손 버튼 2 를 **Shift** 에 달아 두고 있어, 그 자리를 그대로 읽습니다. 키보드 조작감은 이전과 같습니다.
+
+> ⚠ 버튼 1 이 아니라 2 입니다. 오른손 버튼 1 은 키보드에서 **Space** 인데 그건 광산에서 땅 파기라, 거기에 달리기를 걸면 팔 때마다 달립니다.
+
+**완드 1대에서는 달리기가 빠집니다.** `Right` 가 `Left` 와 같은 객체라 그 버튼이 곧 힌트 버튼이 되기 때문입니다. MINE.md 가 1대 기준으로 꼽은 필수 입력 넷(이동 · 스윙 · 복구 · 힌트)에 달리기가 없으므로 규격에는 맞습니다.
+
+#### 안 건드린 것
+
+- **카메라** — `MineCamera` 는 이미 우클릭 드래그이고 커서도 안 잠급니다. `IOT_INPUT.md` 7장의 광산 카메라 항목은 **이미 끝나 있었습니다.** MINE.md 8장 IoT 표에도 카메라가 없어 스코프 밖입니다.
+- **네트워크 광산** — `MineInputProvider` 가 새 Input System 으로 키를 직접 읽습니다. `IPlayerController` 를 안 봐서 **네트워크에서는 완드가 안 닿습니다.** 무쌍 7-2 와 같은 구조이고, 로컬을 먼저 하기로 해서 미뤘습니다.
+
+### 7-7. 로컬은 끝, 네트워크는 남음 (2026-09-25 기준)
+
+> 이 절은 `origin/develop` `812788cb` 까지 이 브랜치에 병합(`1248a6d2`)하고 적었습니다. 그 뒤로는 다시 확인해야 합니다.
+
+#### 어디까지 됐나
+
+| 게임 | 로컬 씬 (테스트용) | 실제 네트워크 씬 | 완드가 닿는가 |
+|---|---|---|---|
+| 로비 이동 · 점프 · 달리기 | — | `Lobby` | **씬 작업 없이 닿는다 (실기 확인 전).** `PlayerInputProvider.OnInput` 이 `Persistent` 를 만들어 쓰고, 그 안에서 더하므로 Fusion 입력으로 그대로 서버에 간다 |
+| 로비 카메라 | — | `Lobby` | 같음. `LocalPlayerView` (카메라는 로컬 전용이라 네트워크 불필요) |
+| 로비 상호작용 (낚시 · 포탈 · 제단) | — | `Lobby` | **씬 작업 없이 닿는다 (실기 확인 전).** `IotLobbyInstaller` 가 로비에 들어올 때 `IotLobbyInteract` 를 만든다. 키와 똑같은 함수(`Enter` · `InteractPressed`)를 부른다 |
+| 낚시 | — | `Lobby` | 같음. `IotLobbyInstaller` 가 `PlayerFishingAdapter` 옆에 `IotFishingBridge` 를 붙인다. 낚시는 로컬 권한(`LocalFishingAuthority`)이고 연출만 동기화하므로 입력을 네트워크에 실을 필요가 없다 |
+| 배 협동 | `ShipCoopTest` 실기 확인 | `ShipCoopBoot` | **코드로 닿음, 실기 확인 남음.** `ShipCoopInputProvider.Awake` 가 `GetComponent` → `Persistent` → 키보드 순으로 내려간다 (아래 4번). 값 전송 · 진동 RPC 는 원래 있었다 |
+| 광산 | `MineTest` 실기 확인 | `MineNet` | **코드로 닿음, 실기 확인 남음.** `MineInputProvider.OnInput` 이 `IotMineInput.Fill` 로 완드 값을 더한다 (아래 6번) |
+| 무쌍 | `WarriorsTest` 실기 확인 | `WarriorsNet` | **코드로 닿음, 실기 확인 남음.** `IotWarriorsInstaller` 가 `WarriorsIoTInput` 옆에 `IotWarriorsBridge` 를 붙이고, 그것이 `OnSwing` 을 부른다 (7-2) |
+
+`IotPlayerController` 가 들어 있는 씬은 지금 `MineTest` · `WarriorsTest` **둘뿐**입니다. 로비는 씬에 두지 않고 `Persistent` 를 씁니다(아래 2번). `IotLobbyInteract` · `IotFishingBridge` 도 씬 · 프리팹에 없고 **실행 중에 코드로 붙습니다**(아래 3번). 인스펙터에서 안 보이는 것이 정상입니다 — 플레이 중 하이어라키에 `[IotLobbyInteract]` 가 생깁니다.
+
+**장치는 두 자리로 짝이 정해져 있습니다 (7-12).** 한 방에서 두 클라이언트를 돌릴 때 자리 A(동글
+`58:E6:C5:6A:92:D8`, ch 1)는 TinyS3 **#1 · #4**, 자리 B(동글 `10:51:DB:78:F4:58`, ch 6)는 **#2 · #3** 입니다.
+다른 자리의 완드를 집으면 그 자리 PC 로 들어갑니다. 완드는 **30분 동안 버튼 · 스틱이 없으면 잠들고**
+버튼으로 깹니다 — 완드가 안 들어오면 버튼부터, 그다음 전원을 봅니다.
+
+#### 남은 일 — 순서대로
+
+1. ~~develop 을 받고 `AnyWandConnected` 이름 겹침을 푼다.~~ **됐음.** git 은 충돌 없이 합쳐 주지만 합친 파일에 `public bool AnyWandConnected { get; }`(배 협동 HUD 용, `4e9d3f09`)와 `private bool AnyWandConnected()`(키보드 자동 전환용)가 함께 생겨 CS0102 로 깨지는 자리였습니다.
+   - **이름과 공개 여부는 HUD 쪽을 따랐습니다.** `ShipCoopHud` 가 `wand.AnyWandConnected` 로 읽습니다.
+   - **판정은 완드 전체를 훑는 쪽으로 했습니다.** HUD 원본은 `_left.Connected` 만 봤는데, 손 배정이 다시 돌기 전에는 방금 붙은 완드가 왼손 자리에 없을 수 있습니다. 키보드 자동 전환도 같은 프로퍼티를 보므로 **키캡과 실제 입력이 같은 답을 냅니다.**
+   - `EnsureWands` → `EnsureKeyboardFallback` → `RefreshKeyboardFallback` → `AnyWandConnected` → `EnsureWands` 로 돌아오지만, 그때는 `_wands` 가 이미 있어 곧바로 빠집니다. 되부름이 아닙니다.
+   - Unity 6000.5.9f1 batchmode 로 전체 컴파일 — 에러 0.
+2. ~~완드를 게임 내내 하나로 둔다.~~ **됐음.** `IotPlayerController.Persistent`
+   - **씬에 두지 않고 코드로 만듭니다.** 처음 부를 때 `[IotPlayerController]` 오브젝트를 만들고 `DontDestroyOnLoad`. 씬이 `SceneManager.LoadScene` 으로 통째로 바뀌어도 남아서, 로비 → 미니게임 → 로비 동안 COM 포트를 한 번만 찾습니다. 로비의 러너 · 캐릭터는 실행 중에 생겨 인스펙터로 이어 줄 수 없고, `Lobby.unity` 는 여러 사람이 만지는 씬이라 건드리지 않는 편이 낫습니다.
+   - 서버 빌드에서는 `null` 입니다. 끄는 도중에는 새로 만들지 않습니다.
+   - `PlayerInputProvider` · `LocalPlayerView` · `IotLobbyInteract` · `IotFishingBridge` 가 `FindAnyObjectByType` 대신 이것을 씁니다. 1초마다 씬을 뒤지던 코드는 지웠습니다.
+   - ⚠ **씬에 직접 둔 테스트 씬(MineTest 등)에서는 부르지 않습니다.** 동글 포트는 한 곳만 열려서 둘 중 하나가 완드를 못 받습니다. 지금 그 씬들의 코드는 `GetComponent` 로만 찾으므로 부를 일이 없습니다.
+   - **같이 고친 것 — 키보드가 두 번 들어가던 것.** 컨트롤러는 완드가 없으면 키보드로 대신 채웁니다(키보드 폴백). 로비는 자기 키보드 경로가 따로 있어서 그 값을 더하면 **C 한 번에 낚시와 포탈이 같이 걸리고, 우클릭 드래그에 화면이 두 배로 돌고, Shift 가 토글이 되어 떼도 계속 달립니다.** 지금까지는 로비에 컨트롤러가 없어서 안 보였을 뿐입니다. `IotPlayerController.IsWandLive` 로 **완드가 실제로 붙어 있을 때만** 더하게 했습니다.
+   - **같이 고친 것 — 낚시 J 가 죽던 것.** 낚시 입력원은 하나만 꽂혀서, 완드 입력원을 꽂으면 팀원의 키보드 입력원이 빠졌습니다. `WandFishingInputSource` 가 `KeyboardFishingInputSource` 를 안에 품고 그 프레임에 완드 챔질을 더합니다. J 와 오른손 버튼 2 가 둘 다 됩니다.
+   - **프로필(`SetControlProfile`)은 아직 안 바꿉니다.** 지금 `Persistent` 를 쓰는 곳은 로비뿐이고 기본값 `Shared` 가 로비 배치입니다. 미니게임이 `Persistent` 를 쓰기 시작하면(4 · 5번) 각자 자기 씬에 들어갈 때 부르고, **로비로 돌아올 때 `Shared` 로 되돌리는 곳**도 함께 정해야 합니다.
+3. ~~로비에 붙인다.~~ **코드로 됐음, 실기 확인 남음.** `IotLobbyInstaller`
+   - **씬 · 프리팹을 건드리지 않고 코드로 붙입니다.** 붙일 자리가 둘 다 남의 파일입니다 — `IotFishingBridge` 자리는 낚시 담당의 `FishingLobbyIntegration.prefab`(`PlayerFishingAdapter` · `FishingModeController` · `FishingGameController` 가 한 오브젝트에 있음), `IotLobbyInteract` 자리는 공용 `Lobby.unity` 입니다.
+   - `SceneManager.sceneLoaded` 에서 **씬 이름이 아니라 내용물로 로비를 알아봅니다.** 낚시터 · 포탈 · 제단 중 하나라도 있으면 로비입니다. 포탈 3개와 제단은 `Lobby.unity` 에 처음부터 놓여 있어서 로드 순간에 보입니다.
+   - `PlayerFishingAdapter` 마다 `IotFishingBridge` 를 붙이고, 그다음 `[IotLobbyInteract]` 를 **그 씬 안에** 만듭니다. 씬과 함께 사라지므로 미니게임에서 왼손 버튼 1 을 먹지 않습니다. 이미 붙어 있으면 또 붙이지 않습니다.
+   - **순서가 맞는 이유.** `sceneLoaded` 는 씬 오브젝트의 Awake · OnEnable 뒤, Start 앞에 옵니다. 낚시 쪽은 Awake · OnEnable 에서 키보드 입력원을 **한 번만** 꽂고(`_chatFocusInputInstalled`), 브리지는 Start 에서 바꿔 꽂습니다. 입력원을 꽂는 곳은 이 둘뿐입니다.
+   - Unity 의 Roslyn 으로 **클라이언트 · 서버(`UNITY_SERVER`) 둘 다** 컴파일 — 에러 0.
+   - **확인할 것:** 두 클라이언트를 띄워 **상대 화면에서도** 내 캐릭터가 완드로 움직이는지. 낚시터 · 포탈 · 제단 앞에서 왼손 버튼 1.
+4. ~~**배 협동**~~ — **코드로 됐음, 실기 확인 남음.** `ShipCoopInputProvider.Awake` 가 `GetComponent` 로 못 찾으면 `KeyboardPlayerController` 를 붙이기 **전에** `IotPlayerController.Persistent` 를 본다. 배 협동 담당 동의를 받고 넣었다 (`HelmTask` 와 같은 담당자).
+
+   씬은 건드리지 않았다. 로비 → 배 협동으로 들어가면 완드가 그대로 따라온다.
+
+   <details><summary>다음 세션이 바로 쓸 수 있게 — 조사해 둔 것 (2026-09-26)</summary>
+
+   **값이 오가는 길은 이미 다 뚫려 있습니다. 새로 만들 것이 없습니다.**
+
+   ```
+   IotPlayerController (IPlayerController)
+      ↓ ShipCoopInputProvider.Fill()        GetComponent<IPlayerController>()
+   ShipCoopInputData                         틱마다 서버로
+      ↓ ShipCoopNetworkedController          서버에서 IPlayerController 로 되살림
+   ShipCoopInput.Steer → HelmTask
+      ↑ Rpc_Vibrate → ShipCoopInputProvider.LocalDevices    진동은 역방향으로 돌아옴
+   ```
+
+   `ShipCoopInputData` 가 이미 나르는 것 — `Move` · `Look` · `LookYaw` · `LeftTilt` · `RightTilt` · `LeftRotation` · `RightRotation` · 버튼 비트(`LeftButton1·2` · `RightButton1·2` · `RightSwing` · `TwoDevices`).
+
+   > ⚠ **씬(`ShipCoopBoot`)의 러너에 `IotPlayerController` 를 직접 붙이지 마세요.** 처음에 그렇게 하려다 틀린 자리입니다. 로비를 거쳐 들어오면 `Persistent` 가 **이미 만들어져 COM 포트를 쥐고 있습니다.** 씬에 하나 더 두면 같은 포트를 두 번 열게 되어 둘 중 하나가 완드를 못 받습니다. (위 2번의 ⚠ 와 같은 이유)
+   >
+   > `Persistent` 가 "씬에 이미 있으면 그것을 쓴다" 로 되어 있지만, 그것은 `_persistent` 가 **아직 비어 있을 때**뿐입니다. 로비에서 이미 잡혔으면 씬에 놓은 쪽은 주인 없이 포트만 다툽니다.
+
+   그래서 고칠 곳은 씬이 아니라 `ShipCoopInputProvider.Awake` 한 곳입니다 — `GetComponent` 로 못 찾았을 때 `KeyboardPlayerController` 를 붙이기 **전에** `IotPlayerController.Persistent` 를 봅니다. `MineInputProvider` 와 달리 배 협동은 `IPlayerController` 를 그대로 읽으므로 이 한 줄이면 끝납니다. **(넣었습니다)**
+
+   완드가 없는 PC 는 그대로 키보드로 내려갑니다. `Persistent` 는 서버 빌드에서 `null` 이고, 완드가 없으면 컨트롤러 안의 키보드 폴백(`EnsureKeyboardFallback`)이 값을 채웁니다. 포트 탐색 비용도 새로 생기지 않습니다 — `WarmUpPersistent` 가 이미 모든 판에서 한 번 만듭니다 (18번).
+
+   **배 협동 담당 파일에서 더 고칠 것은 없습니다.** 게임플레이 입력이 전부 `IPlayerController` 를 거칩니다 — 조타(`ShipCoopInput.Steer`) · 이동(`devices.Move`) · 카메라(`ShipCoopCamera:496` `worker.Input.Look.x`) · 대포 조준(`CannonTask:200`) · 버튼. 광산 · 무쌍처럼 입구를 새로 뚫을 필요가 없습니다.
+
+   > 알려만 둘 것 두 가지. **(1)** 완드 펌웨어의 되돌림 거르기를 껐으므로(7-4) 수리 · 망치질이 한 번에 두 번 먹힐 수 있습니다. 거슬리면 펌웨어를 빌드 플래그로 갈라 배 협동용 보드만 켭니다 — 배 협동 코드는 안 고쳐도 됩니다. **(2)** `ShipCoopTutorialView` 는 Enter · Esc 만 봅니다. 시간이 지나면 저절로 닫히므로 막히지는 않지만, 완드만으로 끝까지 가려면 나중에 손볼 자리입니다.
+
+   **붙인 뒤 확인할 것**
+
+   | | |
+   |---|---|
+   | 조타 | 조타륜에 붙어 **손을 가만히** 둔다. 배가 안 돌면 중립 잡기(7-5)가 네트워크에서도 먹은 것 |
+   | 포커스 | `ShipCoopInputProvider.OnInput` 은 `Application.isFocused` 일 때만 채운다. 완드를 들고 딴 창을 보면 조타가 멈춘다 — 고장이 아니다 |
+   | 동글 | **클라이언트 PC 에만** 있으면 된다. 서버는 포트를 안 연다 (`#if !UNITY_SERVER`) |
+
+   > ⚠ **조타 중립에 타이밍 구멍이 하나 있습니다.** `ShipCoopWorkerSync.ApplySeat` 이 서버에서도 `worker.Join()` 을 불러 `OnWorkerJoined` 가 서버에서 돕니다. 그런데 **자리를 적용하는 시점이 그 사람의 첫 입력 틱보다 빠르면** 서버가 보는 `Tilt` 가 아직 0 이라 중립도 0 으로 잡힙니다. 그러면 고치기 전처럼 쏠립니다.
+   >
+   > 로컬 씬에서는 안 드러납니다. **네트워크에서만 조타가 쏠리면 여기를 의심하세요.** 붙고 한 박자 뒤에 중립을 잡도록 바꾸면 7-5 의 "팔을 내린 채로 붙는 경우" 와 함께 풀립니다.
+
+   </details>
+5. ~~**무쌍**~~ — **코드로 됐음, 실기 확인 남음.** `IotWarriorsBridge` + `IotWarriorsInstaller`
+   - **무쌍 파일을 하나도 안 고쳤습니다.** `WarriorsIoTInput.OnSwing` 만 부릅니다. "사건 → 틱" 변환은 무쌍의 `PushSwing` 이 이미 합니다 (7-2).
+   - **씬 · 프리팹도 안 건드립니다.** 붙일 자리가 `WarriorsGameRoot.prefab` 이고 무쌍 담당 것이라, `IotLobbyInstaller` 와 같은 방식으로 씬 로드 때 코드로 붙입니다.
+   - ⚠ **네트워크 판에서만 값을 넘깁니다.** `WarriorsInputProvider`(러너에 붙는 네트워크 전용 부품)가 있을 때만입니다. `WarriorsGameRoot` 는 검증 씬에도 들어가는데, 거기서는 `WarriorsKeyboardInput` 이 **같은 `TryConsumeMotion` 을 이미 읽고 있어서** 둘 다 읽으면 한쪽이 못 받습니다(읽으면 사라짐).
+   - ⚠ **게이트 전에는 `Persistent` 를 안 건드립니다.** 부르는 순간 COM 포트를 엽니다. `WarriorsTest` 는 씬에 컨트롤러를 직접 두므로 포트를 놓고 다투게 됩니다 (위 2번).
+   - **확인할 것:** `WarriorsNet` 에서 완드를 휘둘러 공격이 나가는지. 콘솔에 `[Warriors 입력] IoT 검 입력원에 연결했습니다.` 가 뜨는지.
+   - **남은 것은 무쌍 담당이 정할 값 두 개** — `swingCooldownSeconds`(쿨다운 이중) · `minimumStrength`(**찌르기**가 버려진다. 베기는 해소됐다 — 7-8).
+6. ~~**광산**~~ — **코드로 됐음, 실기 확인 남음.** `IotMineInput` + `MineInputProvider` 한 줄
+
+   > **광산 담당자 승인을 받고 넣었습니다.** 남의 게임 파일이라 물어본 뒤 진행했습니다.
+   > 넣은 곳은 `MineInputProvider.OnInput` 의 `input.Set(data)` 바로 앞 한 줄입니다.
+
+   ```csharp
+   // MineInputProvider.OnInput 의 input.Set(data) 바로 앞
+   IotMineInput.Fill(ref data);
+   ```
+
+   - **왜 무쌍처럼 못 했나.** 무쌍에는 `WarriorsIoTInput.OnSwing` 이라는 **공개 입구가 이미 있어서** IoT 가 부르기만 하면 됐습니다. 광산은 `MineInputProvider` 가 `Keyboard.current` 를 직접 읽어 그 자리에서 `data` 를 채우고 `input.Set` 으로 넘겨 버려서 **바깥에서 끼어들 자리가 없습니다.** 그래서 채울 함수만 만들어 두고 부르는 한 줄을 부탁합니다.
+   - **그 줄이 들어오기 전에는 아무 일도 안 합니다.** 아무도 `Fill` 을 안 부르면 조용히 있고 키보드만으로 정상 동작합니다. `WarriorsIoTSetup` 이 *"가짜 장치를 만들지 않는다. 자리만 만든다"* 고 적은 것과 같은 생각입니다.
+   - ⚠ **채굴은 한 틱 물고 있습니다.** 키보드는 `Space` 를 누르는 동안 계속 `Swing` 을 싣지만(레벨) 완드의 세로 내리치기는 한 순간입니다. 그대로 넘기면 `OnInput` 이 그 프레임에 안 불릴 때 통째로 사라집니다.
+   - ⚠ **키보드를 덮어쓰지 않고 더합니다.** 둘 중 하나라도 참이면 참입니다. 스틱은 더해서 길이만 자릅니다.
+   - ⚠ **완드가 실제로 붙어 있을 때만 더합니다**(`IsWandLive`). 안 그러면 키보드 폴백이 광산의 키보드 읽기와 겹쳐 한 번 누른 것이 두 번 들어갑니다 (위 2번에서 로비에 실제로 났던 문제).
+   - 배치는 `IOT_INPUT.md` 3장 광산 표대로입니다 — 왼손 버튼1 땅 복구, 왼손 버튼2 힌트, 오른손 버튼2 달리기(누르고 있기).
+
+> ⚠ **포탈 뒤의 인원 선택 화면은 마우스 버튼뿐입니다.** develop 에서 `MiniGamePortal.Enter` 가 바로 떠나지 않고 `MatchScreenFlow.Begin` → `CrewPickerScreen` 을 띄웁니다. `TryEnterFromDevice` 는 키와 같은 `Enter` 를 부르므로 **화면은 완드로 열리지만 인원은 마우스로 고릅니다.** 완드로 끝까지 가려면 그 화면이 `IPlayerController` 를 읽거나 UI 내비게이션을 받아야 합니다 — 매칭 화면 담당과 정할 일입니다.
+
+> ⚠ **장치용 네트워크 경로를 따로 내지 않습니다.** 각 게임의 `OnInput` 안에서 키보드와 같은 자리에 더합니다. 따로 보내면 같은 틱에 입력이 두 번 들어갑니다. (`IOT_INPUT.md` 5장)
+
+### 7-8. 이번 세션 (2026-09-26)
+
+`Persistent` 를 다시 읽으며 찾은 둘을 고치고, 예전에 적어 둔 수치를 다시 쟀습니다.
+
+#### 고친 것
+
+**1. `Persistent` 첫 호출이 플레이 도중 화면을 멈추던 것**
+
+처음 부르는 순간 `AddComponent` → `Awake` → `OnEnable` → `OpenPort()` 로 **포트 자동 탐색**이 돕니다. 후보 COM 포트 수 × 300ms 동안 메인 스레드가 멈춥니다.
+
+부르는 곳이 `Start`(`IotLobbyInteract` · `IotFishingBridge`)면 씬 시작이라 괜찮은데, `PlayerInputProvider.OnInput` 과 `LocalPlayerView.Update` 도 부릅니다. **그쪽이 먼저 닿으면 플레이 도중에 한 번 툭 멈춥니다.** 설치 순서상 대개 `Start` 가 선점하지만 보장이 없습니다.
+
+`WarmUpPersistent` 가 로딩 안에서 미리 끝냅니다.
+
+> ⚠ `BeforeSceneLoad` 가 아니라 **`AfterSceneLoad`** 입니다. 아래 2번이 씬 오브젝트를 찾아야 해서 씬이 올라온 뒤여야 합니다. Start 보다는 앞이라 여전히 로딩 안입니다.
+
+**2. 씬에 둔 컨트롤러와 `Persistent` 가 포트를 다투던 것**
+
+7-7 2번의 ⚠ (*"테스트 씬에서는 부르지 않습니다"*)가 **주석에만 있었습니다.** 지금은 그 씬들(`MineTest` · `WarriorsTest`)에 `Persistent` 를 부르는 컴포넌트가 하나도 없어 안 터집니다(확인함). 다만 나중에 로비 부품이 그 씬에 들어오면 동글 포트를 둘이 다툽니다 — 뒤에 연 쪽이 조용히 실패하고 키보드로 떨어져서 원인 찾기가 고약합니다.
+
+이제 `Persistent` 가 만들기 전에 씬을 한 번 훑어 **이미 있으면 그것을 씁니다.** `_persistent` 가 비어 있을 때만 도는 자리라 비용이 없습니다.
+
+> ⚠ **꺼 둔 것은 데려오지 않습니다.** 체크박스를 끈 것은 "지금은 키보드로 한다" 는 뜻이고, 그것을 쥐면 포트를 연 적 없는 컨트롤러를 붙들게 됩니다.
+>
+> ⚠ 씬에 둔 쪽은 `DontDestroyOnLoad` 로 끌고 가지 않습니다. 씬과 함께 사라지면 Unity 의 `==` 에 걸려 다음 호출에서 새로 만듭니다.
+
+#### 다시 재 본 것 — **7-2 의 세기 수치가 낡았습니다**
+
+`MOTION_MIN_PEAK` 이 그 뒤 **200 → 350 dps** 로 올라갔습니다(7-4). 다시 계산하면 결론이 반만 남습니다.
+
+| | 펌웨어가 내보내는 최소 세기 | `minimumStrength` 0.35 통과선 | 판정 |
+|---|---|---|---|
+| 베기 | 350dps → `(350−150)×255/450` = 113 → **0.44** | 309dps | **전부 통과** ✅ |
+| 찌르기 | 0.6G → `(0.6−0.6)×300` = 0 → **0.00** | **0.90G** | 0.6~0.9G 는 **전부 버려짐** ❌ |
+
+**"약한 베기가 버려진다" 는 해소됐고 찌르기만 남았습니다.** 찌르기는 최소치가 세기 0.00 이라 어떤 문턱을 두든 걸립니다 — `minimumStrength` 를 낮추거나 `THRUST_SCALE` 의 기준점을 올려야 합니다. 무쌍 담당과 정할 값입니다.
+
+쿨다운 이중은 그대로입니다 — 펌웨어 `MOTION_COOLDOWN` 250ms + `swingCooldownSeconds` 0.45s = 실효 **450ms**.
+
+#### 다시 확인한 것 (그대로였음)
+
+| 항목 | 상태 |
+|---|---|
+| `WriteTimeout` | 상수 20ms + 포트 생성에 적용. `TimeoutException` 은 `SendVibrate` 의 기존 `catch` 가 받는다 |
+| 동글 `?` 질의 | `handleLine` 에 있음. `printMac()` 이 부팅과 질의 양쪽에서 돈다 |
+| 포트 자동 탐색 | 판정은 **CSV 10필드 또는 `#MAC`**. 완드도 `#CAL` · `#FSR` 을 찍으므로 `#` 만으로는 완드 포트를 동글로 착각한다 |
+| IMU 중력 가드 | `calibrateGyro` 끝에서 중력 크기가 0.5~1.5G 밖이면 `#ERR`. **읽기는 성공하고 값만 0** 이던 고장을 잡는 자리다 |
+| 네트워크 무쌍 — 게임 쪽 | **무쌍 담당이 뚫었음**(`da03988a`). provider 재탐색 · `playerId` 동기화 · 진동 허브. `WarriorsFakeImuInput` 으로 장치 없이 확인할 수 있다 |
+| 네트워크 무쌍 — IoT 쪽 | **이 표를 적은 직후에 뚫렸다.** `IotWarriorsBridge` 가 `OnSwing` 을 부른다 (7-9) |
+
+#### 알고만 있을 것
+
+`IsWandLive(IPlayerController)` 와 `ResolveWand` 의 `_wand == null` 은 **정적 타입이 인터페이스**라 `UnityEngine.Object` 의 `==` 오버로드가 안 걸립니다. 파괴된 컴포넌트를 살아 있다고 봅니다. `_persistent` 쪽은 타입이 `IotPlayerController` 라 제대로 걸립니다. `DontDestroyOnLoad` 라 실제로 파괴될 일이 없어 고치지 않았습니다.
+
+### 7-9. 무쌍 · 광산 네트워크 다리 (2026-09-26)
+
+7-8 을 적은 직후에 `IotWarriorsBridge` · `IotWarriorsInstaller` · `IotMineInput` 이 생겼습니다.
+**두 게임 다 상대 폴더의 파일을 하나도 고치지 않았습니다.**
+
+#### 무쌍 — 공격은 뚫렸다
+
+```text
+IMU → 펌웨어 판정 → CSV → IotPlayerController → TryConsumeMotion
+    → IotWarriorsBridge → WarriorsIoTInput.OnSwing → AttackRequested
+    → WarriorsInputProvider.HandleDeviceSwing → PushSwing → 서버
+```
+
+붙이는 것은 `IotWarriorsInstaller` 가 `sceneLoaded` 에서 합니다. `WarriorsIoTInput` 이 있는
+오브젝트마다 다리를 하나 얹습니다. `WarriorsGameRoot.prefab` 은 무쌍 담당 것이라 건드리지
+않습니다. (`IotLobbyInstaller` 와 같은 방식)
+
+**이중 소비를 가른 방법.** `WarriorsKeyboardInput` 도 같은 `TryConsumeMotion` 을 읽고, 동작은
+읽으면 사라집니다. 다리는 **`WarriorsInputProvider` 를 찾은 뒤에만** 읽습니다 — 그것은 네트워크
+경로에만 있는 부품(러너에 붙음)이라, 검증 씬에서는 다리가 조용히 있습니다.
+
+| 예전에 짚었던 함정 | 지금 |
+|---|---|
+| `localPlayerId` 에 접근자가 없다 | 무쌍 담당이 `LocalPlayerId` 를 열었고 다리가 그것을 쓴다 |
+| `timestamp` 가 ms 면 쿨다운이 무력화된다 | `Time.unscaledTimeAsDouble` — 초 단위로 맞다 |
+| 검증 씬에서 키보드 입력원과 이중 소비 | provider 게이트로 갈랐다 |
+| `WarriorsAttackDirection.None` 이 없으면 0 이 가로베기로 샌다 | 실제로 `-1` 로 있다. 방어가 맞다 |
+
+#### 무쌍 — 남은 것은 이동과 회피
+
+`WarriorsInputProvider` 를 다시 읽었습니다. **`IPlayerController` 참조가 0 건**입니다.
+
+| | 지금 |
+|---|---|
+| 베기 · 찌르기 | 완드로 된다 |
+| 이동 | `Keyboard.current` 직접 읽기(`wKey` …). **완드 스틱으로 못 걷는다** |
+| 회피 | provider 가 `AttackRequested` 만 구독한다. `DodgeRequested` 는 아무도 안 듣는다 |
+
+둘 다 `WarriorsInputProvider` 를 고쳐야 해서 **무쌍 담당 영역**입니다. 다리 쪽에서 할 수 있는
+일이 아닙니다.
+
+#### 광산 — 자리만 만들어 뒀다
+
+`IotMineInput.Fill(ref data)` 를 만들어 두고, `MineInputProvider.OnInput` 의 `input.Set(data)`
+**바로 앞 한 줄**을 광산 담당에게 부탁하는 방식입니다. 아무도 안 부르면 조용히 있습니다.
+
+무쌍처럼 못 한 이유는 **공개 입구가 없기 때문**입니다. 무쌍은 `WarriorsIoTInput.OnSwing` 이
+열려 있어 바깥에서 부르면 됐지만, 광산은 provider 가 키보드를 직접 읽고 그 자리에서 `data` 를
+채워 넘겨 버려서 끼어들 자리가 없습니다.
+
+> ⚠ **채굴은 한 틱 물고 있습니다.** 키보드는 `Space` 를 누르는 동안 계속 참으로 싣지만(레벨)
+> 완드의 내리치기는 한 순간입니다. 그대로 넘기면 `OnInput` 이 그 프레임에 안 불릴 때 통째로
+> 사라지므로, 걸어 두었다가 다음 `Fill` 한 번만 참으로 싣고 내립니다.
+
+#### 고친 것 — 매 프레임 씬 스캔
+
+`IotWarriorsBridge.Update` 가 러너를 못 찾는 동안 **매 프레임**
+`FindFirstObjectByType<WarriorsInputProvider>(FindObjectsInactive.Include)` 를 돌고 있었습니다.
+검증 씬(`WarriorsTest`)에는 러너가 **영영 없으므로** 60fps × 전체 씬 스캔이 끝없이 돕니다.
+7-7 에서 *"1초마다 씬을 뒤지던 코드는 지웠다"* 고 적은 그 패턴인데 60배 잦았습니다.
+
+`ProviderSearchIntervalSeconds`(1초) 를 두어 로비 쪽과 같은 간격으로 맞췄습니다.
+같이 `FindFirstObjectByType` → `FindAnyObjectByType` 으로 바꿨습니다 — 6000.5 에서 전자가
+인스턴스 ID 정렬에 기대서 deprecated 됐고, 하나뿐인 것을 찾는 자리라 정렬이 필요 없습니다.
+
+#### 실기로 확인할 것
+
+코드로는 여기까지가 끝이고, 아래는 장치를 들어야 압니다.
+
+1. 완드를 휘두를 때 완드 로그 `#MOTION` 의 `str` 이 **90 이상**인가. `minimumStrength` 0.35 가
+   바이트 90 이다. 베기는 최소치가 113 이라 통과하지만 **찌르기는 0 에서 시작한다** (7-8).
+2. 네트워크 판에서 **상대 화면의 내 캐릭터**가 베는가. 내 화면만 베면 `PushSwing` 까지만 가고
+   서버로 안 간 것이다.
+3. 2인 판에서 2P 의 베기가 1P 로 가지 않는가. `LocalPlayerId` 동기화(`da03988a`)가 걸린 자리다.
+4. 쿨다운 체감 — 펌웨어 250ms + `swingCooldownSeconds` 450ms 가 겹쳐 실효 450ms 다.
+   연타가 답답하면 그 값을 무쌍 담당과 맞춘다.
+
+### 7-10. 무쌍 담당에게 부탁하는 것 (2026-09-26)
+
+IoT 쪽에서 할 수 있는 일은 끝났습니다. 여기부터는 `Warriors` 폴더 안이라 담당자 몫입니다.
+**네 가지이고, 앞의 둘은 인스펙터 값 하나씩입니다.**
+
+> 전제: `IotWarriorsBridge` 가 `IPlayerController.TryConsumeMotion` 을
+> `WarriorsIoTInput.OnSwing` 으로 넘깁니다 (7-9). 무쌍 파일은 하나도 안 고쳤습니다.
+
+---
+
+#### 왜 이 얘기가 나오는가 — 로컬과 네트워크가 다른 규칙으로 돕니다
+
+같은 완드인데 지나는 길이 다릅니다.
+
+```text
+로컬     IotPlayerController → WarriorsKeyboardInput → AttackRequested
+                                └ 세기 문턱 없음 · 쿨다운 없음
+
+네트워크  IotPlayerController → IotWarriorsBridge → WarriorsIoTInput.OnSwing → AttackRequested
+                                                    └ minimumStrength 0.35
+                                                      swingCooldownSeconds 0.45
+```
+
+`minimumStrength` 는 저장소 전체에서 `WarriorsIoTInput.cs:51` **한 곳**에만 쓰입니다.
+`WarriorsKeyboardInput` 에는 그 개념 자체가 없습니다(문자열 0건).
+
+그래서 **로컬에서 잘 되던 동작이 네트워크에서만 사라집니다.** 특히 찌르기가 그렇습니다.
+
+---
+
+#### 1. `minimumStrength` 0.35 → 0
+
+`WarriorsGameRoot.prefab:104` (선언은 `WarriorsIoTInput.cs:39`)
+
+펌웨어가 보내는 세기는 **게임이 기대한 스케일과 다릅니다.**
+
+| | 펌웨어 매핑 | 인정된 최솟값 → 세기 | 0.35 통과? |
+|---|---|---|---|
+| 베기 | `(peak − 150) × 255/450` | 350dps → **0.44** | 통과 |
+| 찌르기 | `(acc − 0.6) × 300` | 0.6G → **0.00** | **막힘** |
+
+베기는 **동작 시작선(150dps)** 을 0 기준으로 잡고 판정은 더 높은 350dps 에서 하므로 여유가
+생깁니다. 찌르기는 **판정선(0.6G) 자체** 를 0 기준으로 잡아서, 펌웨어가 인정한 가장 약한
+찌르기가 세기 0.00 으로 나갑니다. **0 이 아닌 어떤 문턱을 둬도 걸립니다.**
+지금 값이면 `0.9G` 이상만 통과합니다.
+
+> 0.35 는 `d99983f3`(2026-09-12)에 정해졌고, 펌웨어는 `fa15a5da`(2026-09-21)에
+> 처음 들어왔습니다. **그 값이 정해질 때는 실물 완드가 없었습니다.**
+> 당시 기준이던 `SubmitImuSample` 경로(게임이 원시 IMU 를 직접 판정)에서는 맞는 값입니다 —
+> 거기서는 0.35 가 "임계의 35%" 를 뜻합니다. 지금 다리가 쓰는 `OnSwing` 은
+> **이미 판정이 끝난 값**이라 2차 문턱이 중복입니다.
+
+펌웨어가 이미 350dps · 0.6G 로 1차 필터를 합니다.
+
+#### 2. `swingCooldownSeconds` 0.45 → 0.05 (또는 그 이하)
+
+`WarriorsGameRoot.prefab:105` (선언은 `WarriorsIoTInput.cs:40`)
+
+펌웨어에도 쿨다운이 있습니다(`MOTION_COOLDOWN` 250ms). 겹쳐서 **실효 450ms** 가 되고,
+로컬은 250ms 라 **네트워크만 연타가 답답합니다.**
+
+지우기보다 아주 작게 남겨 두는 편이 안전합니다 — 전송 계층이 같은 동작을 두 번 실어 보낼 때의
+방어막은 남습니다.
+
+#### 3. 이동 — 완드 스틱으로 못 걷습니다
+
+`WarriorsInputProvider.cs:44 · 54 · 59`
+
+```csharp
+Keyboard keyboard = Keyboard.current;
+if (keyboard.wKey.isPressed) move.y += 1f;
+data.Move = move;
+```
+
+이 파일에 `IPlayerController` 참조가 **0건**입니다. 지금 네트워크 무쌍은
+**완드로 베고 키보드로 걷는** 상태입니다.
+
+로비가 같은 문제를 이렇게 풀었습니다 — 키보드를 **대체하지 않고 더합니다.**
+
+```csharp
+// PlayerInputProvider.OnInput 과 같은 모양
+if (IotPlayerController.IsWandLive(wand) && Application.isFocused && !ChatFocus.Typing)
+{
+    move += wand.Move;
+}
+```
+
+> ⚠ **`IsWandLive` 로 감싸 주세요.** 완드가 없으면 `IotPlayerController` 가 키보드로 대신
+> 채우므로, 그냥 더하면 같은 `W` 가 두 번 실립니다.
+>
+> **이동만 놓고 보면 지금은 티가 안 납니다.** 폴백의 스틱 키가 provider 와 똑같이
+> `W A S D` 이고, 서버가 `Vector2.ClampMagnitude(input.Move, 1f)` 로 길이를 자르기
+> 때문입니다(`WarriorsNetPlayerMover.cs:95`). 같은 방향을 두 번 더하고 다시 자르면
+> 제자리라, 대각선도 결과가 같습니다.
+>
+> 그래도 감싸는 편이 맞습니다. 셋 중 하나만 어긋나면 드러납니다.
+>
+> 1. **키가 갈라지면 방향이 틀어집니다.** `ClampMagnitude` 는 길이만 자르지 방향은 못 고칩니다.
+> 2. **같은 블록에 버튼이 들어오면 바로 두 번 먹습니다.** 로비에서 `Shift` 가 그렇게 터졌습니다 —
+>    `IotPlayerController` 안에서 토글이라 손을 떼도 계속 달렸습니다.
+> 3. **로비의 `PlayerInputProvider` 와 같은 모양**이라 나중에 읽는 사람이 덜 헷갈립니다.
+
+#### 참고 — 회피는 부탁 목록에서 뺐습니다
+
+한 번 올렸다가 확인 후 내렸습니다. **완드만의 문제가 아니라 회피 자체가 미구현입니다.**
+
+| 확인한 것 | |
+|---|---|
+| `OnDodge` 를 부르는 곳 | **0건.** 정의만 있다 |
+| `WarriorsKeyboardInput` 이 `DodgeRequested` 를 쏘나 | **아니오.** 이벤트 선언(`:14`)만 있고 `Invoke` 가 없다 |
+| 서버가 `WarriorsButton.Dodge` 를 읽나 | **아니오.** `data.Buttons.Set` 으로 채우기만 하고 읽는 곳이 없다 |
+| 펌웨어에 회피 동작이 있나 | **아니오.** `HandMotionType` 은 가로 · 세로 · 찌르기 셋뿐이다 |
+
+받는 쪽도 "공격을 피하는 회피" 가 아닙니다. `WarriorsRhythmBattle.HandleDodge` 는
+반격 창에 응답 표시를 할 뿐이고(`counterWindowOpen → counterAnswered`), 바로 아래
+`HandlePlayerAttack` 이 **베기로도 같은 창에 응답**시킵니다.
+
+```csharp
+// Meeting the blow with the blade counts, so the counter is answerable on a
+// keyboard as well as with the sword's dodge gesture.
+if (counterWindowOpen) { counterAnswered = true; return; }
+```
+
+즉 지금 구독을 붙여도 **올 이벤트가 없고**, 반격은 이미 베기로 됩니다. 회피를 살리려면
+펌웨어의 동작 종류부터 늘려야 하므로 그때 다시 이야기합니다.
+
+---
+
+#### 정리
+
+| # | 무엇 | 어디 | 크기 |
+|---|---|---|---|
+| 1 | `minimumStrength` → 0 | 프리팹 값 | 한 줄 |
+| 2 | `swingCooldownSeconds` → 0.05 | 프리팹 값 | 한 줄 |
+| 3 | `data.Move` 에 `wand.Move` 더하기 | `WarriorsInputProvider.OnInput` | 몇 줄 |
+
+**1 · 2 만 해도 찌르기가 살아나고 연타가 로컬과 같아집니다.** 3 은 완드만으로 걸어다니려면
+필요합니다.
+
+
+### 7-11. 네트워크 세 게임이 다 이어졌다 (2026-09-26)
+
+7-10 을 보내고 하루 안에 세 곳이 다 닫혔습니다. **각자 자기 파일만 고쳤습니다.**
+
+| 게임 | 누가 | 무엇 |
+|---|---|---|
+| 무쌍 | 무쌍 담당 (`1207bfb5`) | `minimumStrength` 0, `swingCooldownSeconds` 0.05, 완드 스틱 이동 |
+| 광산 | 광산 담당 | `MineInputProvider.OnInput` 에 `IotMineInput.Fill(ref data);` 한 줄 |
+| 배 협동 | IoT | `ShipCoopInputProvider.Awake` 가 못 찾으면 `Persistent` 를 쓴다 |
+
+#### 무쌍 — 확인한 것
+
+배선 함정을 전부 피했습니다.
+
+| 짚었던 것 | 결과 |
+|---|---|
+| `minimumStrength` 0.35 → 0 | 프리팹 `:104` ✅ |
+| `swingCooldownSeconds` 0.45 → 0.05 | 프리팹 `:105` ✅ |
+| 완드 스틱 이동 | `WarriorsInputProvider.OnInput` ✅ |
+| 회피 | 부탁 목록에서 뺀 그대로 안 건드렸다 ✅ |
+| 컴파일 | Unity 6000.5.9f1 batchmode, error CS **0** ✅ |
+
+**`IsWandLive` 대신 `AnyWandConnected` 를 직접 본 것이 맞습니다.** `IsWandLive` 는 아직
+develop 에 없었고, 게다가 인자가 `IPlayerController`(인터페이스)라 `!= null` 이 유니티의
+`==` 오버로드를 타지 않습니다. 담당자 쪽은 `IotPlayerController` 로 받아 제대로 탑니다.
+
+`data.Move = move;` 를 포커스 블록 밖으로 뺀 것도 안전합니다. `move` 가 `Vector2.zero` 로
+시작하고 두 블록 다 포커스 가드가 있어, 포커스가 없을 때 빈 입력을 보내는 기존 동작이
+그대로입니다.
+
+#### 남은 잔가지 — 급하지 않다
+
+`WarriorsInputProvider.FindWand()` 가 못 찾는 동안 매 틱
+`FindFirstObjectByType<IotPlayerController>` 를 돕니다. `HookDevice()` 와 같은 모양이라
+그 파일의 기존 규칙을 따른 것입니다.
+
+**지금 증상이 안 납니다.** `WarmUpPersistent` 가 로딩 때 컨트롤러를 만들어 두므로 첫 틱에
+찾아서 캐시합니다. 다만 그것이 **두 사람 파일 사이의 암묵적 의존**이라, 나중에 warm-up 을
+건드리는 사람이 모르고 되살릴 수 있습니다.
+
+정리하려면 `FindWand()` 와 `wandController` 를 지우고 한 줄로 바꾸면 됩니다.
+
+```csharp
+IotPlayerController wand = IotPlayerController.Persistent;   // 정적 참조 — 스캔 0
+```
+
+17줄이 빠지고 늘어나는 것은 없습니다. **`Persistent` 가 develop 에 올라간 뒤**에 무쌍
+담당이 그 파일을 다른 일로 열 때 같이 하면 됩니다. 이것 하나로 따로 부를 일은 아닙니다.
+
+> 판정(`wand != null && wand.AnyWandConnected`)은 **그대로 둡니다.** 위에 적은 이유로
+> `IsWandLive` 로 바꾸면 오히려 약해집니다.
+
+#### 서버 부담은 없다
+
+`OnInput` 은 **입력을 내놓는 쪽에서만** 불립니다. 무쌍은 `GameMode.Server` 를 쓰므로
+(`WarriorsLauncher.cs:120`) 서버에는 로컬 플레이어가 없어 호출되지 않습니다. 그리고 서버
+빌드에서는 `Persistent` 가 `#if UNITY_SERVER` 로 곧바로 `null` 이라 스캔 코드가 컴파일에서
+빠집니다. 위 잔가지는 **각자 PC 에서만** 도는 이야기입니다.
+
+### 7-12. 동글 두 자리 · 휴면 (2026-09-26)
+
+두 자리(동글 2대)를 가까이 두고 돌리게 되어, 완드 배정을 표로 박고 자리마다 채널을 나누고
+30분 휴면을 넣었습니다. 완드는 LiPo 전원입니다.
+
+#### 배정 — 보드 MAC 이 번호와 동글을 정한다
+
+| 자리 | 동글 STA MAC | 채널 | 왼손 (0) | 오른손 (1) |
+|---|---|---|---|---|
+| A | `58:E6:C5:6A:92:D8` | 1 | TinyS3 #1 `DC:54:75:EB:82:C0` | TinyS3 #4 `DC:54:75:EB:80:B4` |
+| B | `10:51:DB:78:F4:58` | **6** | TinyS3 #2 `DC:54:75:EB:84:C8` | TinyS3 #3 `DC:54:75:EB:83:F4` |
+
+부팅할 때 `esp_read_mac` 으로 내 MAC 을 읽어 `SLOTS` 표에서 찾습니다. 표에 없는 보드는
+`#ERR 배정 표(SLOTS)에 없는 보드 <MAC>` 을 1초마다 찍으며 **아무것도 안 보냅니다.** 엉뚱한
+번호로 남의 자리에 끼어드는 것보다 낫습니다.
+
+**동글 두 대가 서로의 완드를 안 받는 이유** — 완드는 제 동글 MAC 으로만 보내고(유니캐스트),
+ESP-NOW 는 자기 MAC 앞으로 온 것만 수신 콜백에 올립니다. 섞이지 않는 것은 이것으로 충분합니다.
+
+**채널을 나눈 이유는 유실입니다.** 같은 채널이면 옆 자리 완드의 전송과 재전송까지 한 공기를
+나눠 씁니다. 아래 측정에서 ch 1 을 같이 쓸 때 91% · 최대 공백 123ms 였고, B 를 ch 6 으로 옮기자
+99% · 최대 공백 21ms 가 됐습니다.
+
+- 완드는 `DONGLE_A` · `DONGLE_B` 에 채널을 같이 적어 두고 제 동글의 채널로 붙습니다.
+- 동글은 부팅할 때 제 MAC 을 보고 B 면 `CH_B`(6), **아니면 전부 `CH_A`(1)** 입니다. 그래서 **동글 A 는 다시 안 구워도** 옛 펌웨어 그대로 ch 1 입니다.
+- ⚠ 채널을 바꿀 때는 **두 파일을 같이** 고칩니다 (완드 `DONGLE_B` 의 6, 동글 `CH_B`).
+
+- 동글 B MAC 은 esptool `read-mac` 으로 읽었습니다. B 에 들어 있던 펌웨어는 `?` 에
+  `#ERR 모르는 명령 ?` 로 답합니다 — **옛 동글 스케치입니다.** 완드가 꺼져 있으면 유니티
+  포트 자동 탐색이 `?` 로 묻기 때문에 지금 동글 스케치로 **다시 구웠습니다**
+  (`--fqbn esp32:esp32:esp32s3`, COM3). `?` 에 `#MAC 10:51:DB:78:F4:58 ch=1` 로 답하는 것을 확인했습니다
+  (채널을 나눈 뒤로는 `ch=6`).
+  - `?` 는 `8df9bb4f`(09-25, 포트 자동 탐색과 같이)에서 들어갔습니다. **동글 A 도 그 이전 빌드였습니다**(아래).
+    완드가 전부 꺼진 상태의 자동 탐색은 두 동글을 다시 구운 뒤부터 됩니다.
+- 동글 두 대를 **한 PC 에** 꽂으면 자동 탐색이 먼저 답한 쪽을 잡습니다. 그때는 `portName` 을 적습니다.
+
+#### 휴면
+
+| 항목 | 값 |
+|---|---|
+| 잠드는 조건 | 버튼 1 · 2 · 스틱 누르기 · 스틱 기울이기(데드존 밖)가 **30분** 없음 (`IDLE_SLEEP_MS`) |
+| 깨우는 것 | 버튼 1 · 2 · 스틱 누르기 (GPIO 4 · 5 · 6, ext1 `ANY_LOW`) |
+| 못 깨우는 것 | 스틱 밀기. 아날로그라 깨우는 핀으로 못 건다 |
+| 잠들기 전 | IMU 파워다운 (`CTRL1_XL` · `CTRL2_G` = 0) |
+
+- **IMU 는 활동으로 안 칩니다.** 책상에 놓아도 값이 흔들려서 영영 안 잠듭니다. 조이콘도 버튼 · 스틱으로 깨웁니다.
+- 깨면 **재부팅**입니다. 1.5초 대기 + 스틱 중립 + 자이로 보정 1초라 약 3.5초 뒤부터 올라갑니다. 그동안 스틱을 건드리면 중립이 틀어지니 스틱 누르기로 다시 잡습니다.
+- 깬 뒤 버튼 핀의 hold 는 IDF 가 부팅 때 풉니다(`esp_deep_sleep_wakeup_io_reset`). `setup` 의 `pinMode` 가 그대로 먹습니다.
+- 잠든 동안 유니티에는 끊긴 완드로 보입니다. **한 손만 잠들면 남은 한 대가 양손을 겸합니다** (`HasTwoDevices` false).
+- ⚠ **휘두르기만 하는 손**은 게임 중에도 잠들 수 있습니다. 버튼 · 스틱을 30분 안 건드리면 그렇습니다. 한 판이 30분을 넘기지 않으면 문제없습니다.
+- 조이스틱 가변저항은 3V3 에 바로 붙어 있어 잠든 동안에도 전류가 흐릅니다. 배선을 바꾸기 전에는 못 끕니다.
+
+**실기 확인 — TinyS3 #1, 2026-09-26.** 저장소 파일은 그대로 두고, 복사본에서 `IDLE_SLEEP_MS` 만
+10초로 바꿔 구웠습니다.
+
+| 확인 | 결과 |
+|---|---|
+| 배정 | `#NOW wand=0 mac=DC:54:75:EB:82:C0 ch=1 dongle=58:E6:C5:6A:92:D8` — 표대로 자리 A 왼손 |
+| 잠들기 | 부팅 후 약 10초 무입력 → `#SLEEP` → 0.2초 뒤 USB 포트가 사라짐. 두 번 반복 |
+| 깨우기 | 버튼을 누르면 사라졌던 COM 포트가 다시 생기고 부팅 로그가 올라옴 |
+| IMU 는 안 셈 | 완드를 들고 움직여 `#MOTION` 이 찍혀도 타이머가 안 돌아감 |
+| 30분 빌드로 되돌림 | 부팅 후 20초가 지나도 안 잠듦 |
+
+- 부팅 로그의 `rst:0x15 (USB_UART_CHIP_RESET)` 는 **감시 스크립트가 포트를 열면서 낸 리셋**입니다. 깨운 원인이 로그에 따로 남지는 않습니다. 잠든 동안엔 포트가 없으므로 포트가 다시 생긴 것을 깬 증거로 봤습니다.
+- 동글 A 가 이 PC 에 없어서 `txfail` 이 초당 40개쯤 올랐습니다. 받는 쪽이 없을 때의 정상 증상입니다.
+- 잠든 전류는 아직 안 쟀습니다.
+
+**동글 B 연결 — TinyS3 #2.** 옛 펌웨어는 `wand=2` 로 동글 A 에 보내고 있었고 IMU 는 정상이라
+기본 빌드(30분)를 구웠습니다. `#NOW wand=0 mac=DC:54:75:EB:84:C8 ch=1 dongle=10:51:DB:78:F4:58`,
+동글 B 는 `#WAND 0 등록 DC:54:75:EB:84:C8`.
+
+| 동글 B 수신 10초 | 결과 |
+|---|---|
+| CSV | **456줄 / 500** (91%) |
+| 간격 | 20ms 가 435개, 가장 긴 구멍 **123ms** — `handTimeoutSeconds` 0.5초 안 |
+
+7-3 의 동글 A 측정(유실 0%)보다 나빴습니다. 같은 ch 1 에서 #1(깨어 있음) · #3 · #4 가 **이 PC 에
+없는 동글 A** 로 보내며 ACK 를 못 받아 재전송을 되풀이하는 중이었습니다. 원인을 따로 가리지 않고
+**B 를 ch 6 으로 옮겼습니다.**
+
+**채널 분리 뒤 — TinyS3 #3 (ch 6).** `#NOW wand=1 mac=DC:54:75:EB:83:F4 ch=6 dongle=10:51:DB:78:F4:58`,
+동글 B 는 `#MAC 10:51:DB:78:F4:58 ch=6`.
+
+| 동글 B 수신 10초 | 결과 |
+|---|---|
+| id 1 (#3, ch 6) | **493줄 / 500**, 가장 긴 구멍 **21ms** — 끊긴 곳이 없다 |
+| id 0 (#2, 아직 ch 1 펌웨어) | 2줄. 바로 옆이라 옆 채널이 새어 들어온 것. **#2 를 다시 구워야 한다** |
+
+#2 도 ch 6 으로 다시 구운 뒤 **자리 B 두 대 동시** — #2 는 USB, #3 은 배터리.
+
+| 동글 B 수신 10초 | 결과 |
+|---|---|
+| id 0 (#2) | **492줄 / 500**, 가장 긴 구멍 **21ms** |
+| id 1 (#3) | **492줄 / 500**, 가장 긴 구멍 **21ms** |
+
+> 한 번은 #3 이 한 줄도 안 들어왔습니다. USB 를 뺀 뒤 전원이 안 들어가 있었고, 전원을 확인하자 바로 들어왔습니다.
+> 안 들어오는 완드는 **전원부터** 봅니다(7-3 과 같음).
+
+**자리 A — 동글 A · #4.** 동글 A 도 `?` 에 `#ERR 모르는 명령 ?` 로 답하는 옛 스케치여서 B 와 같은
+이유로 다시 구웠습니다. MAC 이 B 가 아니라 ch 1 그대로입니다(`#MAC 58:E6:C5:6A:92:D8 ch=1`).
+#4 는 옛 펌웨어도 `wand=1` · 동글 A 여서 설정은 그대로고 휴면만 더해졌습니다.
+#1 은 굽고 30분이 지나 잠들어 있었고, 버튼으로 깨워 붙였습니다.
+
+| 동글 A 수신 10초 | 결과 |
+|---|---|
+| id 0 (#1) | **497줄 / 500**, 가장 긴 구멍 **22ms** |
+| id 1 (#4) | **492줄 / 500**, 가장 긴 구멍 **21ms** |
+
+> 깨운 직후에 재면 줄 수가 적게 나옵니다(첫 측정 394줄, 구멍은 22ms 로 같음). 붙고 나서 몇 초 뒤에 잽니다.
+
+**이것으로 네 대 · 동글 두 대가 전부 이 저장소의 펌웨어입니다.** #1 만 채널 분리 전 빌드인데,
+자리 A 는 ch 1 그대로라 동작은 같습니다.
+
+> 동글 포트를 열면 동글이 리셋됩니다(`#MAC` · `#READY` 가 다시 찍힘). 잴 때는 연 뒤 3초를 버립니다.
+> 처음에 이걸 안 버려서 초당 30줄로 잘못 봤습니다.
+
+> ⚠ **잠든 완드에 다시 구울 때** — USB 가 없으니 버튼으로 깨운 뒤 휴면 전에 올려야 합니다.
+> 포트가 목록에 뜨자마자 esptool 을 부르면 `Could not open COMx ... FileNotFoundError` 로 실패합니다.
+> **포트가 뜨고 0.7초쯤 기다린 뒤** 올리면 됩니다. 한번 다운로드 모드로 들어가면 더는 잠들지 않습니다.
+> 급하지 않으면 BOOT 를 누른 채 RESET 을 눌러 다운로드 모드로 굽는 것이 제일 확실합니다.
+
+#### 굽는 법 · 지금 굽혀 있는 것 (2026-09-26 기준)
+
+| 보드 | 자리 · 손 | 채널 | 굽혀 있는 것 |
+|---|---|---|---|
+| 동글 A `58:E6:C5:6A:92:D8` | A | 1 | `d57d4fda` 의 동글 스케치 |
+| 동글 B `10:51:DB:78:F4:58` | B | 6 | 같음 |
+| TinyS3 #1 `DC:54:75:EB:82:C0` | A 왼손 (0) | 1 | `e00330b3` — 채널 분리 전. A 는 ch 1 이라 동작은 같다 |
+| TinyS3 #4 `DC:54:75:EB:80:B4` | A 오른손 (1) | 1 | `d57d4fda` 의 완드 스케치 |
+| TinyS3 #2 `DC:54:75:EB:84:C8` | B 왼손 (0) | 6 | 같음 |
+| TinyS3 #3 `DC:54:75:EB:83:F4` | B 오른손 (1) | 6 | 같음 |
+
+네 대 다 IMU 가 달려 있어 `HAS_IMU` 는 기본값(1) 그대로입니다. 굽기 전에 옛 펌웨어의 `#CAL 완료 ... grav` 가 1G 근처인 것으로 확인했습니다.
+
+```
+# 완드 — 네 대 다 같은 명령. 플래그 없음
+arduino-cli compile --upload -p COMx --fqbn esp32:esp32:um_tinys3 firmware/wand_tinys3
+# 동글 — 두 대 다 같은 명령
+arduino-cli compile --upload -p COMx --fqbn esp32:esp32:esp32s3  firmware/dongle_esp32s3
+```
+
+- **COM 번호는 꽂을 때마다 다릅니다**(이날 #1 COM7 · #2 COM10 · #3 COM4 · #4 COM13, 동글은 번갈아 COM3). 어느 보드인지는
+  `esptool --port COMx read-mac` 으로 봅니다. esptool 은 `%LOCALAPPDATA%\Arduino15\packages\esp32\tools\esptool_py\5.3.1\` 에 있습니다.
+- 굽고 나면 완드는 부팅 로그 `#NOW wand=… ch=… dongle=…`, 동글은 `?` 에 대한 `#MAC … ch=…` 가 **위 표와 맞는지** 봅니다.
+- **IDE 로 구울 때는 저장소의 `firmware/…/*.ino` 를 직접 엽니다.** 이날 찾아봤을 때 `Documents/Arduino` 에는 `libraries/` 뿐이고
+  스케치 사본이 없었습니다. 다른 곳의 옛 사본으로 구우면 배정 · 채널 · 휴면이 통째로 되돌아갑니다.
+- 휴면을 시험할 때는 저장소 파일을 고치지 말고 **복사본에서 `IDLE_SLEEP_MS` 만** 줄여 굽고, 끝나면 저장소 빌드로 되돌립니다.
 
 ### 진동에 대해
 
