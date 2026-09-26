@@ -96,7 +96,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 6495098884925192938, guid: 8b30cadfb2754f88b656c7384f125ac7, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 568461376173804759, guid: d9df3f8babec46c2b830bf15f4f24cb2, type: 3}
@@ -166,7 +166,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 9166003177873496978, guid: 68538c7d0da945c7a14c3e15f0941f26, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 3447841416063393472, guid: 9d25b6a5ba8f412c92af0a799632b67f, type: 3}
@@ -181,7 +181,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 4636542828962428718, guid: 30986553700144e595a1ed9fa0190b87, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 7831079880089515786, guid: 7b1cca6c0268440b8b51cbebbf41f05b, type: 3}
@@ -251,7 +251,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 341485244174152736, guid: e33ebd9c1130421d8842286bf96f90e6, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 2388771217022702990, guid: cf0d2737bab64f57ba23d32da59a8ec7, type: 3}
@@ -271,7 +271,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 707437382878678208, guid: e7a099cbacb84fcf8dae42b7c5493255, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 5118532907963300198, guid: 9e85cfc2b7e24aacadc68b7826108b01, type: 3}
@@ -291,7 +291,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 504455926265114160, guid: 5113ad1847a74d589840c7da708b9e1f, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 4055396813353231664, guid: 8544bd16a71a459295aa389a55c33eb9, type: 3}
@@ -301,7 +301,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 5015742462979114110, guid: 2dba285b16bc42f4b557908481d95806, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 202416801180249274, guid: ceada53eda47414d915b5a0472d71833, type: 3}
@@ -316,7 +316,7 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 5189788207758440001, guid: c7cff0dad2f64c57adf3224763635e32, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Accessory
     prefab: {fileID: 1206052785536302372, guid: 4bdfe477a5e5434bb98b84fa0a2d1ca0, type: 3}
@@ -1366,47 +1366,47 @@ MonoBehaviour:
   - category: Top
     prefab: {fileID: 841429991221020872, guid: b9bf1b42dbbc4dcab50d47ffba4a826f, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 4317455670027070764, guid: 87f6470cf3f94ea78f2cb1693c9bf50b, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 6972108188583380631, guid: b366b24a63ad440ab04441d0741dbd80, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 6741195659638316186, guid: cb97034e46394410b0d9d0dcebe293ad, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 5667038596229853328, guid: c23a21040c96404b95ca208c1610bcd2, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 7904172669543687847, guid: 716db5d58e32497eb2fcd74ba59c24d1, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 1823988543173792838, guid: 3afecde1ccb3428bb5141fdebdac6d26, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 3968358000478441187, guid: 8b80af4508ee426fa4ece0b0f026dd56, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 2728708737241927934, guid: 47f98424d56c44f3a66eec5d6cc0839f, type: 3}
     slot: 4096
-    covers: 540
+    covers: 524
     skin: 0
   - category: Top
     prefab: {fileID: 4826853127979937939, guid: 3237fc937eb14d9d997ee9945456c0c4, type: 3}

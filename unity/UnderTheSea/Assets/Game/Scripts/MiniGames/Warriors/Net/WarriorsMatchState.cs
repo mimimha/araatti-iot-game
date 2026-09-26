@@ -999,6 +999,9 @@ namespace Warriors.Net
 
             /// <summary>무적을 켜고 끈다.</summary>
             ToggleInvincible = 3,
+
+            /// <summary>판을 지금 끝내고 성공 결과 화면을 띄운다. 배 게임의 G(바로 도착)와 같은 자리다.</summary>
+            ForceClear = 4,
         }
 
         /// <summary>
@@ -1047,7 +1050,35 @@ namespace Warriors.Net
                     Invincible = !Invincible;
                     Debug.Log($"[Warriors 개발자] 무적 {(Invincible ? "켜짐" : "꺼짐")}");
                     break;
+
+                case DevCommand.ForceClear:
+                    ForceClear();
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 지금 판을 성공으로 끝낸다. **어느 라운드에서든 곧바로 결과 화면이 뜬다.**
+        ///
+        /// 결과 화면을 직접 띄우지 않고 판을 <c>Cleared</c> 로 닫는다. 그러면 결과 확정 · 결과 화면 ·
+        /// 보상 청구가 실제로 이긴 판과 같은 길로 돈다(<see cref="WriteResultWhenFinished"/>).
+        /// 점수는 그때까지 번 그대로 둔다.
+        ///
+        /// ⚠ 크라켄이 가라앉는 승리 연출(<see cref="ClearMatch"/>)은 거치지 않는다. 1 · 2라운드에서는
+        ///    최종 크라켄 무대가 없고, "바로 성공" 이 목적이라 5초 연출을 기다리지 않는다.
+        ///    연출까지 보려면 3라운드에서 <c>-</c> 로 목표를 채운다.
+        /// </summary>
+        private void ForceClear()
+        {
+            Debug.Log($"[Warriors 개발자] {RoundOf(Phase)}페이즈에서 바로 성공으로 끝냅니다.");
+
+            AwaitingLastNotes = false;
+            TimeLeft = 0f;
+
+            // 결과 화면의 "도달 라운드" 가 성공인데 1 · 2 로 찍히지 않게 끝까지 간 것으로 적는다.
+            ReachedRound = 3;
+
+            OpenPhase(WarriorsMatchPhase.Cleared);
         }
 
         /// <summary>페이즈를 한 칸 옮긴다. 1~3 밖으로는 나가지 않는다.</summary>
