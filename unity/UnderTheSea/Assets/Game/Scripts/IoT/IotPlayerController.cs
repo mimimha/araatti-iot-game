@@ -401,6 +401,23 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     {
         _quitting = true;
     }
+
+    /// <summary>
+    /// 로딩 중에 미리 만들어 둔다.
+    ///
+    /// 처음 <see cref="Persistent"/> 를 부르는 순간 포트 자동 탐색이 돌고, 그동안 메인 스레드가
+    /// 멈춘다. 그 첫 호출이 <c>Update</c> · <c>OnInput</c> 에서 나면 플레이 도중에 한 번 툭
+    /// 멈춘다. 여기서 끝내 두면 그 멈춤이 로딩 안으로 들어간다.
+    ///
+    /// ⚠ <c>BeforeSceneLoad</c> 가 아니라 <c>AfterSceneLoad</c> 다. 씬 오브젝트가 이미 있어야
+    ///   씬에 놓인 <see cref="IotPlayerController"/> 를 찾아 쓸 수 있다. 그래도 Start 보다는
+    ///   앞이라 여전히 로딩 안이다.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void WarmUpPersistent()
+    {
+        _ = Persistent;
+    }
 #endif
 
     /// <summary>
@@ -435,6 +452,22 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             if (_quitting || !Application.isPlaying)
             {
                 return null;
+            }
+
+            // 씬에 이미 놓여 있으면 그것을 쓴다. (MineTest · WarriorsTest 처럼 직접 올린 씬)
+            // 동글 포트는 한 곳만 열 수 있어서, 모르고 하나 더 만들면 둘 중 하나가 완드를 못 받는다.
+            //
+            // ⚠ 꺼 둔 것은 데려오지 않는다. 체크박스를 끈 것은 "지금은 키보드로 한다" 는 뜻이고,
+            //   그것을 쥐면 포트를 연 적이 없는 컨트롤러를 붙들게 된다.
+            //
+            // 씬과 함께 사라지면 위의 Unity == 에 걸려 다음 호출에서 새로 만든다. 씬에 둔 쪽은
+            // 그 씬에서만 쓰는 것이므로 DontDestroyOnLoad 로 끌고 가지 않는다.
+            IotPlayerController placed = FindAnyObjectByType<IotPlayerController>();
+
+            if (placed != null && placed.isActiveAndEnabled)
+            {
+                _persistent = placed;
+                return _persistent;
             }
 
             GameObject host = new GameObject("[IotPlayerController]");
