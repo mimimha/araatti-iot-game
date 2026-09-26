@@ -55758,7 +55758,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a187e135c7582e419dfea011d7e2969, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IotPlayerController
-  portName: COM3
+  portName: 
   baudRate: 115200
   pollIntervalMs: 5
   dtrEnable: 1
@@ -55768,6 +55768,7 @@ MonoBehaviour:
   handTimeoutSeconds: 0.5
   controlProfile: 1
   mirroredGrip: 0
+  keyboardFallback: 1
   sprintToggle: 1
   logRawLines: 0
   logParseFailures: 0
