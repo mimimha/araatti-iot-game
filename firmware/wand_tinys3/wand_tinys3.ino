@@ -20,6 +20,8 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <esp_mac.h>   // esp_read_mac. WiFi.macAddress() 는 부팅 직후 0 을 준다 (동글에서 실기 확인)
+#include <esp_sleep.h>
+#include <driver/rtc_io.h>
 
 // 진동 드라이버. 모터를 달면 주석을 푼다. (startVibration · stopVibration · setup 도 같이)
 // #include <Adafruit_DRV2605.h>
@@ -220,6 +222,12 @@ uint8_t mstrength = 0;
 
 unsigned long lastSend = 0;
 unsigned long lastLog  = 0;
+
+// ── 휴면 ───────────────────────────────────────────────────
+// 버튼 · 스틱이 이만큼 안 움직이면 딥슬립에 들어간다. 버튼을 누르면 깬다.
+// IMU 는 안 본다. 책상에 놓아도 잔떨림에 값이 바뀌어서 영영 안 잠든다.
+const unsigned long IDLE_SLEEP_MS = 30UL * 60 * 1000;   // 30분
+unsigned long lastActive = 0;
 
 // ── 조이스틱 · 버튼 · FSR ──────────────────────────────────
 
@@ -645,6 +653,33 @@ void handleCommand() {
   Serial.printf("#ERR 모르는 명령 %u\n", c.cmd);
 }
 
+// 딥슬립. 깨어나면 재부팅이라 setup 부터 다시 돈다(보정 포함).
+//
+// 버튼 1 · 2 · 스틱 누르기로 깬다. 스틱을 **밀어서는 못 깨운다** — 아날로그라
+// 깨우는 핀으로 걸 수 없다.
+void goToSleep() {
+  Serial.printf("#SLEEP 버튼 · 스틱이 %lu분 동안 없었다. 버튼을 누르면 깬다\n", IDLE_SLEEP_MS / 60000);
+
+#if HAS_IMU
+  // IMU 는 제 전원으로 계속 돈다. 파워다운으로 내린다. 깨면 setup 이 다시 켠다.
+  writeReg(CTRL1_XL, 0x00);
+  writeReg(CTRL2_G,  0x00);
+#endif
+
+  // 버튼은 눌리면 LOW 다. 잠든 동안에도 풀업이 살아 있어야 뜬 핀이 LOW 로 튀어 저절로 안 깬다.
+  const gpio_num_t pins[] = { (gpio_num_t)PIN_BTN1, (gpio_num_t)PIN_BTN2, (gpio_num_t)PIN_JOY_SW };
+  uint64_t mask = 0;
+  for (gpio_num_t p : pins) {
+    rtc_gpio_pullup_en(p);
+    rtc_gpio_pulldown_dis(p);
+    mask |= 1ULL << p;
+  }
+  esp_sleep_enable_ext1_wakeup_io(mask, ESP_EXT1_WAKEUP_ANY_LOW);
+
+  delay(50);   // 마지막 로그가 USB 로 나갈 틈
+  esp_deep_sleep_start();
+}
+
 // ── 메인 ───────────────────────────────────────────────────
 
 void setup() {
@@ -776,6 +811,10 @@ void loop() {
     uint8_t buttons = 0;
     if (digitalRead(PIN_BTN1) == LOW) { buttons |= 0x01; }
     if (digitalRead(PIN_BTN2) == LOW) { buttons |= 0x02; }
+
+    // 휴면 타이머. 버튼 · 스틱 누르기 · 스틱 기울이기만 활동으로 친다.
+    if (buttons != 0 || sw == LOW || x != 0 || y != 0) { lastActive = now; }
+    if (now - lastActive >= IDLE_SLEEP_MS) { goToSleep(); }
 
     WandInput in;
     in.magic     = MAGIC_INPUT;
