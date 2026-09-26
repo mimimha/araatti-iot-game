@@ -102,6 +102,13 @@ namespace Mine.Net
                 data.LookPitch = view.Pitch;
             }
 
+            // 완드 값을 **더한다.** 위의 키보드 값을 덮어쓰지 않고 OR 이고, 스틱은 더한 뒤
+            // 길이만 자른다. 완드가 안 붙어 있으면 아무것도 안 한다.
+            //
+            // 세로 내리치기는 "한 순간" 이라 저쪽이 한 틱 물고 있다가 넣는다. Space 처럼
+            // 누르는 동안 계속 참인 레벨 신호가 아니다. (IotPlayerController.md 7-7 6번)
+            IotMineInput.Fill(ref data);
+
             input.Set(data);
         }
 
