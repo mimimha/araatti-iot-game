@@ -183,6 +183,15 @@ public class MineHud : MonoBehaviour
     private static readonly Color CenterNoticeBackdrop = new Color(0f, 0f, 0f, 0.45f);
     private static readonly Color CenterNoticeLabelColor = Color.white;
 
+    // "내 차례!" 알림. 위와 같은 이유로 코드에만 둔다.
+    private const string TurnAlertLine = "내 차례!";
+    private const float TurnAlertFontSize = 96f;
+    private const float TurnAlertFadeInSeconds = 0.15f;
+    private const float TurnAlertHoldSeconds = 1.2f;
+    private const float TurnAlertFadeOutSeconds = 0.4f;
+    private static readonly Color TurnAlertBand = new Color(0f, 0f, 0f, 0.45f);
+    private static readonly Color TurnAlertLabelColor = new Color(1f, 0.85f, 0.5f);
+
     /// <summary>
     /// 참가자 이름. 아직 로스터가 없어서 P1~P4 로 둔다.
     /// 10단계에서 네트워크가 붙으면 <see cref="SetPlayerNames"/> 로 갈아끼운다.
@@ -371,6 +380,15 @@ public class MineHud : MonoBehaviour
     /// <summary>실행 중에 만든 덮개. 한 번만 만들고 켜고 끄기만 한다.</summary>
     private GameObject _noticeRoot;
     private TMP_Text _noticeLabel;
+
+    /// <summary>"내 차례!" 띠. 덮개처럼 실행 중에 한 번만 만든다.</summary>
+    private CanvasGroup _turnAlert;
+
+    /// <summary>지난 프레임에 본 파는 사람 자리. 바뀐 순간에만 알림을 띄운다.</summary>
+    private int _turnAlertSlotSeen = -1;
+
+    /// <summary>알림이 뜬 뒤 흐른 시간. 0 보다 작으면 안 떠 있다.</summary>
+    private float _turnAlertAge = -1f;
 
     /// <summary>
     /// 참가자 명단. <see cref="RefreshPlayers"/> 와 **같은 규칙**으로 그린다.
@@ -612,6 +630,7 @@ public class MineHud : MonoBehaviour
         DrawCountdown(NetworkCountdown);
 
         DrawCenterNotice();
+        DrawTurnAlert();
 
         // 목표를 보여 주는 7초 동안만 뜨는 안내. 그 시간은 위 타이머가 센다.
         SetActive(memorizeTitlePanel, NetworkMemorizeShow);
@@ -720,6 +739,99 @@ public class MineHud : MonoBehaviour
 
         _noticeRoot = back;
         _noticeLabel = label;
+    }
+
+    /// <summary>
+    /// 차례가 <b>나에게</b> 넘어온 순간 화면 가운데에 "내 차례!" 를 잠깐 띄운다.
+    ///
+    /// 여럿이 하면 턴이 넘어가도 내 차례인지 알아채기 어렵다. 왼쪽 명단의 "채굴 중" 은
+    /// 작고, 턴 시작 소리(<c>MineAudio</c>)는 누구 턴이든 똑같이 난다.
+    ///
+    /// <see cref="NetworkCurrentSlot"/> 은 턴 중에만 0 이상이다(대기 · 공개 · 종료는 -1).
+    /// 그래서 첫 턴도 -1 → 내 자리로 바뀌는 순간 잡힌다.
+    ///
+    /// ⚠ 덮개와 마찬가지로 <b>실행 중에 만든다.</b> 프리팹을 고치면 씬마다 오버라이드가 붙는다.
+    /// </summary>
+    private void DrawTurnAlert()
+    {
+        int slot = NetworkCurrentSlot;
+
+        if (slot != _turnAlertSlotSeen)
+        {
+            _turnAlertSlotSeen = slot;
+            if (slot >= 0 && slot == NetworkSelfSlot) _turnAlertAge = 0f;
+        }
+
+        if (_turnAlertAge < 0f) return;
+
+        EnsureTurnAlert();
+        if (_turnAlert == null) return;
+
+        _turnAlertAge += Time.unscaledDeltaTime;
+
+        float fadeOutAt = TurnAlertFadeInSeconds + TurnAlertHoldSeconds;
+        float alpha =
+            _turnAlertAge < TurnAlertFadeInSeconds ? _turnAlertAge / TurnAlertFadeInSeconds
+            : _turnAlertAge < fadeOutAt ? 1f
+            : 1f - (_turnAlertAge - fadeOutAt) / TurnAlertFadeOutSeconds;
+
+        if (alpha <= 0f)
+        {
+            _turnAlertAge = -1f;
+            SetActive(_turnAlert.gameObject, false);
+            return;
+        }
+
+        SetActive(_turnAlert.gameObject, true);
+        _turnAlert.transform.SetAsLastSibling();
+        _turnAlert.alpha = alpha;
+    }
+
+    /// <summary>"내 차례!" 띠를 한 번만 만든다. 화면 가운데 가로 띠 + 글자.</summary>
+    private void EnsureTurnAlert()
+    {
+        if (_turnAlert != null) return;
+
+        var band = new GameObject("TurnAlert", typeof(RectTransform));
+        band.transform.SetParent(transform, false);
+
+        var bandRect = (RectTransform)band.transform;
+        bandRect.anchorMin = new Vector2(0f, 0.5f);
+        bandRect.anchorMax = new Vector2(1f, 0.5f);
+        bandRect.sizeDelta = new Vector2(0f, TurnAlertFontSize * 1.8f);
+        bandRect.anchoredPosition = Vector2.zero;
+
+        var image = band.AddComponent<Image>();
+        image.color = TurnAlertBand;
+        image.raycastTarget = false;
+
+        var group = band.AddComponent<CanvasGroup>();
+        group.interactable = false;
+        group.blocksRaycasts = false;
+
+        var labelGo = new GameObject("Label", typeof(RectTransform));
+        labelGo.transform.SetParent(band.transform, false);
+
+        var labelRect = (RectTransform)labelGo.transform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var label = labelGo.AddComponent<TextMeshProUGUI>();
+        label.text = TurnAlertLine;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = TurnAlertLabelColor;
+        label.fontSize = TurnAlertFontSize;
+        label.fontStyle = FontStyles.Bold;
+        label.raycastTarget = false;
+
+        // 한글이 나와야 하므로 덮개와 같은 글꼴을 빌린다.
+        TMP_Text donor = countdownText != null ? countdownText : timeText;
+        if (donor != null && donor.font != null) label.font = donor.font;
+
+        band.SetActive(false);
+        _turnAlert = group;
     }
 
     private void Update()
