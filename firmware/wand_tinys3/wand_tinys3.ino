@@ -12,8 +12,8 @@
 // 유니티로 가는 값은 시리얼이 아니라 ESP-NOW 로 나간다.
 //
 // ── 굽기 전에 ─────────────────────────────────────────────
-//   DONGLE[6]  동글을 켜면 찍히는 #MAC 을 여기에 적는다
-//   WAND_ID    완드마다 0~3 으로 다르게 굽는다
+//   완드 4대 모두 **같은 파일을 그대로** 굽는다. 번호와 동글은 아래 SLOTS 표가
+//   보드 MAC 으로 정한다. 새 보드나 새 동글이 생기면 그 표만 고친다.
 
 #include <Wire.h>
 #include <WiFi.h>
@@ -35,12 +35,6 @@
 
 #define CH          1     // 동글과 같아야 한다
 
-// 이 완드의 번호. 완드마다 다르게 굽는다.
-// IDE 에서는 이 값을 고치고, arduino-cli 에서는 -DWAND_ID=1 로 덮어쓴다.
-#ifndef WAND_ID
-#define WAND_ID     0
-#endif
-
 // 이 완드에 IMU 가 달려 있는가.
 //
 // 0 으로 두면 IMU 초기화 · 자이로 보정 · 동작 판정을 통째로 뺀다. 스틱과 버튼만 올라가고
@@ -53,15 +47,35 @@
 #define HAS_IMU     1
 #endif
 
-// 동글(ESP32-S3 DevKit)의 STA MAC.
-// ⚠ SoftAP 쪽(5A:...)이 아니다. ESP-NOW 를 WIFI_IF_STA 로 보내기 때문이다.
-uint8_t DONGLE[6] = { 0x58, 0xE6, 0xC5, 0x6A, 0x92, 0xD8 };
+// ── 완드 배정 ──────────────────────────────────────────────
+// 부팅할 때 내 STA MAC 을 읽어 이 표에서 번호와 동글을 찾는다.
+// 보드마다 번호를 고쳐 굽고 되돌리는 것을 잊는 사고를 없애려고 표로 뺐다.
+//
+// 동글 두 대를 가까이 둬도 서로의 완드를 안 받는다. 완드는 제 동글 MAC 으로만
+// 보내고(유니캐스트), ESP-NOW 는 자기 MAC 앞으로 온 것만 수신 콜백에 올린다.
+//
+// ⚠ 동글 MAC 은 STA 쪽이다. SoftAP 쪽(5A:...)이 아니다. ESP-NOW 를 WIFI_IF_STA 로 보낸다.
+// 번호는 유니티 기본값(leftHandId 0 · rightHandId 1)에 맞춰 0 = 왼손, 1 = 오른손이다.
 
-// 완드 보드 STA MAC. 동글이 #WAND n 등록 <MAC> 을 찍으니 어느 보드가 몇 번인지 여기서 맞춘다.
-//   TinyS3 #1  DC:54:75:EB:82:C0
-//   TinyS3 #2  DC:54:75:EB:84:C8
-//   TinyS3 #3  DC:54:75:EB:83:F4
-//   TinyS3 #4  DC:54:75:EB:80:B4
+const uint8_t DONGLE_A[6] = { 0x58, 0xE6, 0xC5, 0x6A, 0x92, 0xD8 };   // 자리 A
+const uint8_t DONGLE_B[6] = { 0x10, 0x51, 0xDB, 0x78, 0xF4, 0x58 };   // 자리 B
+
+struct WandSlot {
+  uint8_t        mac[6];   // 이 보드의 STA MAC
+  const uint8_t* dongle;
+  uint8_t        id;
+};
+
+const WandSlot SLOTS[] = {
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x82, 0xC0 }, DONGLE_A, 0 },   // TinyS3 #1  자리 A 왼손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x80, 0xB4 }, DONGLE_A, 1 },   // TinyS3 #4  자리 A 오른손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x84, 0xC8 }, DONGLE_B, 0 },   // TinyS3 #2  자리 B 왼손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x83, 0xF4 }, DONGLE_B, 1 },   // TinyS3 #3  자리 B 오른손
+};
+
+// 표에서 찾아 채운다 (findSlot)
+uint8_t DONGLE[6];
+uint8_t wandId = 0;
 
 #define MAGIC_INPUT 0xA1  // 완드 -> 동글  입력
 #define MAGIC_CMD   0xC1  // 동글 -> 완드  명령
@@ -285,7 +299,7 @@ void calibrateJoystick() {
   centerX = sumX / 32;
   centerY = sumY / 32;
 
-  Serial.printf("#BOOT wand=%d centerX=%d centerY=%d\n", WAND_ID, centerX, centerY);
+  Serial.printf("#BOOT wand=%d centerX=%d centerY=%d\n", wandId, centerX, centerY);
 }
 
 // ── IMU ────────────────────────────────────────────────────
@@ -550,10 +564,31 @@ void onRecv(const uint8_t*, const uint8_t* d, int n)
   Cmd c;
   memcpy(&c, d, sizeof(c));
 
-  if (c.player_id != WAND_ID) { return; }
+  if (c.player_id != wandId) { return; }
 
   rxCmd   = c;
   pendCmd = true;          // 무거운 처리는 loop 에서
+}
+
+// 내 MAC 으로 SLOTS 에서 번호와 동글을 찾는다.
+// 표에 없는 보드면 제 MAC 을 찍으며 멈춘다. 엉뚱한 번호로 남의 자리에 끼어들 바엔 안 보내는 게 낫다.
+void findSlot() {
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+
+  for (const WandSlot& s : SLOTS) {
+    if (memcmp(s.mac, mac, 6) == 0) {
+      memcpy(DONGLE, s.dongle, 6);
+      wandId = s.id;
+      return;
+    }
+  }
+
+  while (true) {
+    Serial.printf("#ERR 배정 표(SLOTS)에 없는 보드 %02X:%02X:%02X:%02X:%02X:%02X — 표에 넣고 다시 구우세요\n",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    delay(1000);
+  }
 }
 
 void initEspNow() {
@@ -586,7 +621,7 @@ void initEspNow() {
 
   Serial.printf("#NOW wand=%d mac=%02X:%02X:%02X:%02X:%02X:%02X ch=%d "
                 "dongle=%02X:%02X:%02X:%02X:%02X:%02X\n",
-                WAND_ID, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH,
+                wandId, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH,
                 DONGLE[0], DONGLE[1], DONGLE[2], DONGLE[3], DONGLE[4], DONGLE[5]);
 }
 
@@ -597,7 +632,7 @@ void handleCommand() {
 
   Echo e;
   e.magic     = MAGIC_ECHO;
-  e.player_id = WAND_ID;
+  e.player_id = wandId;
   e.seq       = c.seq;
   esp_now_send(DONGLE, (uint8_t*)&e, sizeof(e));
 
@@ -623,6 +658,7 @@ void setup() {
 
   delay(1500);
 
+  findSlot();
   initEspNow();
 
 #if HAS_IMU
@@ -743,7 +779,7 @@ void loop() {
 
     WandInput in;
     in.magic     = MAGIC_INPUT;
-    in.player_id = WAND_ID;
+    in.player_id = wandId;
     in.x         = (int8_t)x;
     in.y         = (int8_t)y;
     in.buttons   = buttons;
