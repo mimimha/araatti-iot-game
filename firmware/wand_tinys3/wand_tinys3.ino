@@ -214,6 +214,10 @@ unsigned long lastLog  = 0;
 #define PIN_FSR     3
 #define PIN_BTN1    4    // INPUT_PULLUP. 눌리면 LOW
 #define PIN_BTN2    5
+#define PIN_JOY_SW  6    // 조이스틱 푸시. INPUT_PULLUP. 눌리면 재보정
+
+// 조이스틱 푸시의 직전 상태. 떼는 순간(LOW→HIGH)에만 재보정한다.
+int swPrev = HIGH;
 
 // 조이스틱 중립값. 부팅할 때 실제로 재서 채운다.
 int centerX = 2048;
@@ -635,13 +639,14 @@ void setup() {
 
   pinMode(PIN_BTN1, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
+  pinMode(PIN_JOY_SW, INPUT_PULLUP);
   calibrateJoystick();
 
 #if HAS_IMU
   calibrateGyro();
-  Serial.println("#READY  r 을 보내면 자이로 재보정");
+  Serial.println("#READY  스틱을 누르거나 r 을 보내면 재보정");
 #else
-  Serial.println("#READY  IMU 없음 — 스틱·버튼만 올린다. r 을 보내면 스틱 재보정");
+  Serial.println("#READY  IMU 없음 — 스틱·버튼만 올린다. 스틱을 누르거나 r 을 보내면 재보정");
 #endif
 }
 
@@ -655,6 +660,18 @@ void loop() {
 #endif
     }
   }
+
+  // 조이스틱 푸시로 재보정. 누를 때가 아니라 **뗄 때** 잡는다. 누른 채로 재면
+  // 엄지에 밀린 스틱 위치가 중립으로 박혀서 캐릭터가 혼자 걷는다.
+  // 보정이 2 초 넘게 잡고 있어서 디바운스는 따로 안 둔다.
+  int sw = digitalRead(PIN_JOY_SW);
+  if (swPrev == LOW && sw == HIGH) {
+    calibrateJoystick();
+#if HAS_IMU
+    calibrateGyro();
+#endif
+  }
+  swPrev = sw;
 
   if (pendCmd) { handleCommand(); }
 
