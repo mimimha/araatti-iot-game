@@ -1,7 +1,7 @@
 // 동글 (ESP32-S3) — 유니티 <-> 완드(TinyS3) 양방향 중계
 //
 //     [완드 TinyS3 0~3]   IMU · 버튼 · 진동모터
-//            |  ESP-NOW  (ch 1)
+//            |  ESP-NOW  (자리 A ch 1 · 자리 B ch 6)
 //     [동글 ESP32-S3]     <- 이 코드
 //            |  USB Serial 115200
 //     [유니티 IotPlayerController]
@@ -29,7 +29,13 @@
 #include <esp_wifi.h>
 #include <esp_mac.h>   // esp_read_mac. WiFi.macAddress() 는 부팅 직후 0 을 준다 (printMac 참고)
 
-#define CH          1     // 완드와 같아야 한다
+// 자리마다 채널을 나눈다. 부팅할 때 내 MAC 으로 고르고, 자리 B 가 아니면 전부 자리 A 채널이다.
+// ⚠ 완드의 DONGLE_A · DONGLE_B 채널과 같아야 한다.
+#define CH_A        1
+#define CH_B        6
+static const uint8_t DONGLE_B[6] = { 0x10, 0x51, 0xDB, 0x78, 0xF4, 0x58 };
+static uint8_t nowCh = CH_A;
+
 #define WAND_COUNT  4
 
 #define MAGIC_INPUT 0xA1  // 완드 -> 동글  입력
@@ -161,7 +167,7 @@ static void learnWand(uint8_t id, const uint8_t* mac) {
 
   esp_now_peer_info_t p = {};
   memcpy(p.peer_addr, mac, 6);
-  p.channel = CH;
+  p.channel = nowCh;
   p.encrypt = false;
   p.ifidx   = WIFI_IF_STA;
 
@@ -218,7 +224,7 @@ static void printMac() {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
   Serial.printf("#MAC %02X:%02X:%02X:%02X:%02X:%02X ch=%d\n",
-                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH);
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], nowCh);
 }
 
 // ── 유니티 -> 동글 ─────────────────────────────────────────
@@ -301,10 +307,14 @@ void setup() {
 
   delay(400);
 
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  if (memcmp(mac, DONGLE_B, 6) == 0) { nowCh = CH_B; }
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   WiFi.setSleep(false);   // 안 끄면 완드가 보낸 것을 씹는다
-  esp_wifi_set_channel(CH, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_channel(nowCh, WIFI_SECOND_CHAN_NONE);
 
   if (esp_now_init() != ESP_OK) {
     Serial.println("#ERR esp_now_init 실패");

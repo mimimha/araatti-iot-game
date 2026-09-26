@@ -1,7 +1,7 @@
 // 완드 (TinyS3) — IMU · 조이스틱 · 버튼 · 진동
 //
 //     [완드 TinyS3]  <- 이 코드
-//            |  ESP-NOW  (ch 1)
+//            |  ESP-NOW  (자리 A ch 1 · 자리 B ch 6)
 //     [동글 ESP32-S3]
 //            |  USB Serial 115200
 //     [유니티 IotPlayerController]
@@ -35,8 +35,6 @@
 
 // ── ESP-NOW ────────────────────────────────────────────────
 
-#define CH          1     // 동글과 같아야 한다
-
 // 이 완드에 IMU 가 달려 있는가.
 //
 // 0 으로 두면 IMU 초기화 · 자이로 보정 · 동작 판정을 통째로 뺀다. 스틱과 버튼만 올라가고
@@ -58,25 +56,34 @@
 //
 // ⚠ 동글 MAC 은 STA 쪽이다. SoftAP 쪽(5A:...)이 아니다. ESP-NOW 를 WIFI_IF_STA 로 보낸다.
 // 번호는 유니티 기본값(leftHandId 0 · rightHandId 1)에 맞춰 0 = 왼손, 1 = 오른손이다.
+//
+// 자리마다 채널도 나눈다. 같은 채널이면 옆 자리 완드의 재전송까지 한 공기를 나눠 써서
+// 유실이 는다(7-12). ⚠ 동글 쪽 채널(dongle_esp32s3.ino 의 CH_A · CH_B)과 같아야 한다.
 
-const uint8_t DONGLE_A[6] = { 0x58, 0xE6, 0xC5, 0x6A, 0x92, 0xD8 };   // 자리 A
-const uint8_t DONGLE_B[6] = { 0x10, 0x51, 0xDB, 0x78, 0xF4, 0x58 };   // 자리 B
+struct Dongle {
+  uint8_t mac[6];   // 동글의 STA MAC
+  uint8_t ch;
+};
+
+const Dongle DONGLE_A = { { 0x58, 0xE6, 0xC5, 0x6A, 0x92, 0xD8 }, 1 };   // 자리 A
+const Dongle DONGLE_B = { { 0x10, 0x51, 0xDB, 0x78, 0xF4, 0x58 }, 6 };   // 자리 B
 
 struct WandSlot {
-  uint8_t        mac[6];   // 이 보드의 STA MAC
-  const uint8_t* dongle;
-  uint8_t        id;
+  uint8_t       mac[6];   // 이 보드의 STA MAC
+  const Dongle* dongle;
+  uint8_t       id;
 };
 
 const WandSlot SLOTS[] = {
-  { { 0xDC, 0x54, 0x75, 0xEB, 0x82, 0xC0 }, DONGLE_A, 0 },   // TinyS3 #1  자리 A 왼손
-  { { 0xDC, 0x54, 0x75, 0xEB, 0x80, 0xB4 }, DONGLE_A, 1 },   // TinyS3 #4  자리 A 오른손
-  { { 0xDC, 0x54, 0x75, 0xEB, 0x84, 0xC8 }, DONGLE_B, 0 },   // TinyS3 #2  자리 B 왼손
-  { { 0xDC, 0x54, 0x75, 0xEB, 0x83, 0xF4 }, DONGLE_B, 1 },   // TinyS3 #3  자리 B 오른손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x82, 0xC0 }, &DONGLE_A, 0 },   // TinyS3 #1  자리 A 왼손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x80, 0xB4 }, &DONGLE_A, 1 },   // TinyS3 #4  자리 A 오른손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x84, 0xC8 }, &DONGLE_B, 0 },   // TinyS3 #2  자리 B 왼손
+  { { 0xDC, 0x54, 0x75, 0xEB, 0x83, 0xF4 }, &DONGLE_B, 1 },   // TinyS3 #3  자리 B 오른손
 };
 
 // 표에서 찾아 채운다 (findSlot)
 uint8_t DONGLE[6];
+uint8_t nowCh  = 1;
 uint8_t wandId = 0;
 
 #define MAGIC_INPUT 0xA1  // 완드 -> 동글  입력
@@ -586,7 +593,8 @@ void findSlot() {
 
   for (const WandSlot& s : SLOTS) {
     if (memcmp(s.mac, mac, 6) == 0) {
-      memcpy(DONGLE, s.dongle, 6);
+      memcpy(DONGLE, s.dongle->mac, 6);
+      nowCh  = s.dongle->ch;
       wandId = s.id;
       return;
     }
@@ -603,7 +611,7 @@ void initEspNow() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   WiFi.setSleep(false);    // 안 끄면 동글이 보낸 진동 명령을 씹는다
-  esp_wifi_set_channel(CH, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_channel(nowCh, WIFI_SECOND_CHAN_NONE);
 
   if (esp_now_init() != ESP_OK) {
     Serial.println("#ERR esp_now_init 실패");
@@ -614,7 +622,7 @@ void initEspNow() {
 
   esp_now_peer_info_t p = {};
   memcpy(p.peer_addr, DONGLE, 6);
-  p.channel = CH;
+  p.channel = nowCh;
   p.encrypt = false;
   p.ifidx   = WIFI_IF_STA;
 
@@ -629,7 +637,7 @@ void initEspNow() {
 
   Serial.printf("#NOW wand=%d mac=%02X:%02X:%02X:%02X:%02X:%02X ch=%d "
                 "dongle=%02X:%02X:%02X:%02X:%02X:%02X\n",
-                wandId, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CH,
+                wandId, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], nowCh,
                 DONGLE[0], DONGLE[1], DONGLE[2], DONGLE[3], DONGLE[4], DONGLE[5]);
 }
 
