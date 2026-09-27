@@ -167,7 +167,7 @@
 | `Arena/WarriorsBeachArena` | 해변 무대와 스폰 지점 |
 | `UI/WarriorsHUD` | HUD 전체 |
 | `Boss/WarriorsKrakenBoss` | 크라켄과 촉수 |
-| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Monsters/*Visual` |
+| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Art/MiniGames/Warriors/Models/` 의 모델을 직접 쓴다 |
 | `Player/WarriorsStandalonePlayer` | 플레이어 |
 
 씬에는 앞의 네 개만 두면 됩니다.
@@ -181,7 +181,6 @@
 | --- | --- |
 | 몬스터 · 보스 모델 5종 | `Art/MiniGames/Warriors/Models/` (Meshy 생성) |
 | 하단 카드 아이콘 3종 | `Art/MiniGames/Warriors/UI/Icons/` (위 모델을 렌더링한 것) |
-| 바 채움 | `Art/MiniGames/Warriors/UI/BarFill.png` |
 | 하늘 | `Art/MiniGames/Warriors/Sky/WarriorsSky.mat` (Skybox/Procedural. `Warriors/하늘 밝게 맞추기` 메뉴로 다시 맞춘다) |
 | 카드 프레임 | `Art/UI/CharacterCustomization/Frames/RoundedCard.png` 재사용 |
 | 플레이어 검 | `Assets/ToonyTinyPeople/` 중 실사용 파일만 (`w_TH_sword`) |
