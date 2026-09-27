@@ -11,19 +11,23 @@ using UnityEngine.Video;
 namespace UnderTheSea.Lobby
 {
     /// <summary>
-    /// **섬 회복도가 100% 가 된 순간의 완성 영상.** 로비에 있는 모두에게 한 번씩 튼다.
+    /// **섬 회복도가 100% 가 된 순간의 완성 영상.** 그 순간 접속해 있던 사람에게 한 번씩 튼다.
     ///
     /// <code>
     ///   그 순간 로비에 있음        곧바로 튼다 (낚시 중이면 낚시를 그만두게 하고)
     ///   그 순간 미니게임에 있음     게임은 그대로. 로비로 돌아와 로딩이 끝나고 화면이 자리 잡으면 튼다
-    ///   그 뒤에 접속함             로비에 처음 들어와 자리 잡으면 튼다
+    ///   그 뒤에 접속함             틀지 않는다 — 접속해서 처음 받은 제단 상태가 이미 완성이면 본 것으로 적는다
     ///   마지막 조각을 바친 사람     공중 카메라 연출 대신 이 영상 (AltarOfferingRelay)
     /// </code>
     ///
     /// <b>"언제 틀지" 는 이벤트가 아니라 상태로 정한다.</b> 서버가 목표에 처음 닿은 시각(<see cref="AltarState.ActivatedAt"/>)을
     /// "이번 완성" 의 번호로 준다. 이 PC 가 그 번호를 본 적이 없고, 로비가 자리 잡혀 있으면 튼다 — 그래서 미니게임에서
-    /// 돌아온 사람도, 늦게 접속한 사람도 같은 한 길로 본다. 본 번호는 계정(닉네임)마다 PlayerPrefs 에 적어 둔다.
+    /// 돌아온 사람도 같은 한 길로 본다. 본 번호는 계정(닉네임)마다 PlayerPrefs 에 적어 둔다.
     /// 목표 아래로 내려갔다가 다시 차면 서버가 새 시각을 주므로 다시 튼다.
+    ///
+    /// <b>늦게 접속한 사람을 거르는 법.</b> 로그인한 뒤 제단 상태를 <b>처음</b> 받는 순간의 완성 번호를 "이미 본 것" 으로
+    /// 적어 둔다(<see cref="TakeLoginBaseline"/>). 그 뒤로 번호가 바뀐 것 — 접속해 있는 동안 완성된 것 — 만 튼다.
+    /// 로그아웃하면 <see cref="AltarState.Clear"/> 가 값을 비우므로 다음 로그인에서 다시 잰다.
     ///
     /// 로비에 있는 사람이 30초 주기 조회를 기다리지 않는 것은 봉헌 성공 알림 덕이다 — 알림을 받은 모두가 곧바로
     /// 제단 상태를 다시 묻는다(<see cref="AltarOfferingRelay"/>). 개발자 모드의 회복도 조정도 같은 알림을 쓴다.
@@ -64,6 +68,9 @@ namespace UnderTheSea.Lobby
         private RenderTexture target;
         private float readySince = -1f;
         private bool inLobby;
+
+        /// <summary>이번 로그인에서 받은 첫 제단 상태를 기준으로 삼았는가. 로그아웃하면 다시 거짓이 된다.</summary>
+        private bool baselined;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -131,6 +138,9 @@ namespace UnderTheSea.Lobby
 
         private void Update()
         {
+            // 영상을 틀 수 없는 때(미니게임 · 재생 중)에도 먼저 잰다. 첫 상태가 언제 올지 모른다.
+            TakeLoginBaseline();
+
             if (Playing || player == null)
             {
                 return;
@@ -153,9 +163,42 @@ namespace UnderTheSea.Lobby
             if (string.IsNullOrEmpty(completion) || completion == Seen) return;
 
             // ③ 다른 연출과 겹치지 않게.
-            if (ScreenFade.Busy || AltarOfferCinematic.Playing) return;
+            if (ScreenFade.Busy || AltarOfferCinematic.Playing || OpeningVideo.Blocking) return;
 
             StartCoroutine(PlayRoutine(completion));
+        }
+
+        /// <summary>
+        /// **접속하기 전에 이미 완성돼 있었으면 본 것으로 적는다.** 그 사람에게는 틀지 않는다.
+        ///
+        /// 로그인한 뒤 제단 상태가 처음 들어온 순간 한 번만 본다. 그때 완성돼 있다는 것은 접속하기 전에
+        /// 완성됐다는 뜻이다. 그 뒤에 번호가 바뀌면(접속해 있는 동안 완성) 평소대로 <see cref="Update"/> 가 튼다.
+        /// 미니게임에 있던 사람도 로비를 거쳐 들어갔으므로 기준은 이미 잡혀 있다.
+        /// </summary>
+        private void TakeLoginBaseline()
+        {
+            if (!AltarState.HasValue)
+            {
+                // 로그아웃하면 AltarState.Clear 가 여기로 돌려보낸다. 다음 로그인에서 다시 잰다.
+                baselined = false;
+                return;
+            }
+
+            if (baselined)
+            {
+                return;
+            }
+
+            baselined = true;
+
+            string completion = AltarState.ActivatedAt;
+            if (!AltarState.AltarActivated || string.IsNullOrEmpty(completion) || completion == Seen)
+            {
+                return;
+            }
+
+            Seen = completion;
+            Debug.Log($"[완성 영상] 접속 전에 완성된 것이라 틀지 않습니다 — 완성 {completion}");
         }
 
         /// <summary>
@@ -285,8 +328,9 @@ namespace UnderTheSea.Lobby
 
         /// <summary>
         /// 로비인가. ⚠ <see cref="SeaHeartCounterInstaller"/> 의 것과 같은 내용이다(그쪽이 private).
+        /// 오프닝 영상(<see cref="OpeningVideo"/>)도 이것을 쓴다.
         /// </summary>
-        private static bool InLobby()
+        internal static bool InLobby()
         {
             Scene lobby = SceneManager.GetSceneByName(SceneFlow.Lobby);
             if (lobby.IsValid() && lobby.isLoaded) return true;

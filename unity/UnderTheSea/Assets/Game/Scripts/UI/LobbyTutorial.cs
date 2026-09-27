@@ -777,10 +777,14 @@ public class LobbyTutorial : MonoBehaviour
     /// 페이드인이 끝나 버린다. 실제로 확인했다 — 첫 안내를 아무도 못 본다.
     ///
     /// 그래서 화면이 열린 뒤에 시작한다. 조작을 할 수 있게 된 순간과 안내가 나오는 순간을 맞춘다.
+    ///
+    /// 막 만든 캐릭터는 로비에 들어오자마자 오프닝 영상을 본다(<see cref="UnderTheSea.Lobby.OpeningVideo"/>).
+    /// 그것이 끝날 때까지도 기다린다 — 영상 뒤에서 안내가 먼저 지나가 버리지 않게.
     /// </summary>
     private IEnumerator WaitForScreenToClear()
     {
-        while (TransitionStatus.Current == TransitionStatus.Phase.Loading)
+        while (TransitionStatus.Current == TransitionStatus.Phase.Loading
+               || (TransitionStatus.IsReady && UnderTheSea.Lobby.OpeningVideo.Blocking))
         {
             if (LeftLobby())
             {
