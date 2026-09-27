@@ -48,8 +48,18 @@ public class LocalPlayerView : NetworkBehaviour
     [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
     [SerializeField] private MonoBehaviour playerControllerSource;
 
-    [Tooltip("완드 오른손 스틱을 끝까지 밀었을 때 초당 도는 양. 마우스 감도와 따로 맞춰야 한다.")]
-    [SerializeField, Min(1f)] private float wandLookSpeed = 120f;
+    /// <remarks>
+    /// ⚠ **도(°)가 아니다.** 카메라(<c>PlayerCamera.SetInput</c>)가 여기에 감도 × 360 을 한 번 더 곱한다.
+    /// 로비 카메라 감도가 0.01 이라 실제 초당 각도는 <c>값 × 3.6</c> 이다.
+    ///
+    ///     120 → 초당 432도   너무 빨랐다
+    ///      25 → 초당  90도   배 협동 카메라(ShipCoopCamera.rotateSpeed 90)와 같은 체감
+    ///
+    /// 로비 씬에서 카메라 감도(m_SensitivityX · Y)를 바꾸면 이 값의 체감도 같이 바뀐다.
+    /// </remarks>
+    [Tooltip("완드 오른손 스틱을 끝까지 밀었을 때의 회전 입력. 카메라 감도 × 360 이 곱해져 실제 초당 각도가 된다 — " +
+             "로비(감도 0.01)에서 25 가 초당 90도로 배 협동과 같다. 마우스 감도와 따로 맞춘다.")]
+    [SerializeField, Min(1f)] private float wandLookSpeed = 25f;
 
     /// <summary>내가 조작하는 카메라. 남의 캐릭터·서버에서는 null 로 남는다.</summary>
     private PlayerCamera boundCamera;
