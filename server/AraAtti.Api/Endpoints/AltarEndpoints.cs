@@ -98,7 +98,8 @@ public static class AltarEndpoints
             snapshot.AltarActivated,
             snapshot.RecoveryPercent,
             (ulong)myOfferedTotal,
-            snapshot.UpdatedAt));
+            snapshot.UpdatedAt,
+            snapshot.ActivatedAt));
     }
 
     // ------------------------------------------------------------
@@ -153,6 +154,9 @@ public static class AltarEndpoints
                        updated_at = {now}
                  WHERE id = {AltarStateId}", cancellationToken);
         }
+
+        // 올려서 닿았으면 새 완성, 내려서 목표 아래면 완성을 비운다 — 다시 채우면 영상이 다시 나온다.
+        await SyncActivatedAtAsync(database, cancellationToken);
 
         return await GetAltarStateAsync(principal, database, cancellationToken);
     }
@@ -291,7 +295,10 @@ public static class AltarEndpoints
             return await DuplicateAsync(database, userId, winner.Amount, cancellationToken);
         }
 
-        // ── ④ 커밋 ────────────────────────────────────────────────────────
+        // ── ④ 완성 시각 — 이 봉헌으로 목표에 닿았으면 지금이 "이번 완성" 이다 ─────
+        await SyncActivatedAtAsync(database, cancellationToken);
+
+        // ── ⑤ 커밋 ────────────────────────────────────────────────────────
         await transaction.CommitAsync(cancellationToken);
 
         AltarSnapshot snapshot = await ReadSnapshotAsync(database, userId, cancellationToken);
@@ -306,7 +313,8 @@ public static class AltarEndpoints
             MaxOfferAmount: snapshot.MaxOfferAmount,
             AltarActivated: snapshot.AltarActivated,
             RecoveryPercent: snapshot.RecoveryPercent,
-            Duplicate: false));
+            Duplicate: false,
+            ActivatedAt: snapshot.ActivatedAt));
     }
 
     // ------------------------------------------------------------
@@ -394,7 +402,8 @@ public static class AltarEndpoints
             MaxOfferAmount: snapshot.MaxOfferAmount,
             AltarActivated: snapshot.AltarActivated,
             RecoveryPercent: snapshot.RecoveryPercent,
-            Duplicate: true));
+            Duplicate: true,
+            ActivatedAt: snapshot.ActivatedAt));
     }
 
     private static IResult Failure(string code, string message, AltarSnapshot snapshot)
@@ -432,7 +441,8 @@ public static class AltarEndpoints
         ulong MaxOfferAmount,
         bool AltarActivated,
         float RecoveryPercent,
-        DateTime UpdatedAt);
+        DateTime UpdatedAt,
+        DateTime? ActivatedAt);
 
     private static async Task<AltarSnapshot> ReadSnapshotAsync(
         AraAttiDbContext database,
@@ -484,7 +494,31 @@ public static class AltarEndpoints
             // DB 에는 UTC 로 넣지만 Pomelo 는 Kind 를 Unspecified 로 돌려준다.
             // 그대로 직렬화하면 끝의 Z 가 빠져 클라이언트가 현지 시각으로 읽는다.
             // 시각 자체는 건드리지 않고 잃어버린 Kind 만 다시 붙인다.
-            DateTime.SpecifyKind(state.UpdatedAt, DateTimeKind.Utc));
+            DateTime.SpecifyKind(state.UpdatedAt, DateTimeKind.Utc),
+            state.ActivatedAt.HasValue ? DateTime.SpecifyKind(state.ActivatedAt.Value, DateTimeKind.Utc) : null);
+    }
+
+    /// <summary>
+    /// <b>완성 시각(activated_at)을 지금 봉헌량에 맞춘다.</b> 봉헌량을 바꾼 뒤에 부른다.
+    ///
+    /// <code>
+    ///   목표에 닿았고 아직 비어 있으면   지금 시각을 적는다   (처음 닿은 순간 = 이번 완성)
+    ///   목표에 닿았고 이미 있으면        그대로 둔다          (같은 완성)
+    ///   목표 아래면                      비운다              (다시 차면 새 완성이 된다)
+    /// </code>
+    ///
+    /// 클라이언트는 이 시각을 "이번 완성" 의 번호로 써서 완성 영상을 한 번씩만 튼다.
+    /// 한 문장의 UPDATE 라 봉헌이 동시에 와도 처음 닿은 시각 하나만 남는다(COALESCE).
+    /// </summary>
+    private static Task SyncActivatedAtAsync(AraAttiDbContext database, CancellationToken cancellationToken)
+    {
+        DateTime now = DateTime.UtcNow;
+        return database.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE altar_state
+               SET activated_at = CASE WHEN total_offered >= target_offering
+                                       THEN COALESCE(activated_at, {now})
+                                       ELSE NULL END
+             WHERE id = {AltarStateId}", cancellationToken);
     }
 
     private static Task<AltarContribution?> FindContributionAsync(

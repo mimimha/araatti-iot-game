@@ -387,6 +387,51 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &4419819472316546115
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1366818027250766230}
+  - component: {fileID: 390458383877153054}
+  m_Layer: 0
+  m_Name: OfferCameraPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1366818027250766230
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4419819472316546115}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.09237912, y: -0.38624084, z: 0.038913943, w: 0.9169351}
+  m_LocalPosition: {x: 11.916554, y: 10.06156, z: -11.508499}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8512346336014266897}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &390458383877153054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4419819472316546115}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 185c8c0a04f7e4840b123a9937c73b1b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferCameraPoint
+  fieldOfView: 60
 --- !u!1 &4523371118794906663
 GameObject:
   m_ObjectHideFlags: 0
@@ -651,6 +696,7 @@ GameObject:
   - component: {fileID: 8512346336014266897}
   - component: {fileID: 7521580497735979354}
   - component: {fileID: 5769149960764956220}
+  - component: {fileID: 8592551583335304365}
   m_Layer: 0
   m_Name: AltarInteraction
   m_TagString: Untagged
@@ -670,7 +716,8 @@ Transform:
   m_LocalPosition: {x: -10.980167, y: -8.104431, z: 4.938965}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1366818027250766230}
   m_Father: {fileID: 4089913265052138870}
   m_LocalEulerAnglesHint: {x: 0, y: -17.557, z: 0}
 --- !u!114 &7521580497735979354
@@ -710,6 +757,29 @@ MonoBehaviour:
   glowSweepUpSeconds: 0.8
   glowHoldSeconds: 0.25
   glowFadeOutSeconds: 0.55
+--- !u!114 &8592551583335304365
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6745827681083539603}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ab95092facf2d34087ecef0b12b3f65, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UnderTheSea.Lobby.AltarOfferBeam
+  material: {fileID: 2100000, guid: 41005247e19f6ec4bae02415ac9abe08, type: 2}
+  origin: {fileID: 5025976657089926600}
+  color: {r: 1, g: 0.74, b: 0.12, a: 1}
+  height: 60
+  coreWidth: 0.16
+  glowWidth: 0.8
+  glowAlpha: 0.55
+  topWidthScale: 0.35
+  riseSeconds: 0.7
+  holdSeconds: 1.2
+  fadeSeconds: 0.9
 --- !u!1 &7079989870488371857
 GameObject:
   m_ObjectHideFlags: 0

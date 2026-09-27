@@ -14,6 +14,7 @@ namespace UnderTheSea.Lobby.Dance
     ///   좌클릭      가리키는 칸의 춤을 고르고 닫는다
     ///   1 ~ 5      그 번호의 춤을 바로 고르고 닫는다
     ///   Esc        그냥 닫는다
+    ///   완드       왼손 버튼 2 로 열고 · 오른손 스틱으로 가리키고 · 왼손 버튼 2 로 확정 (IotLobbyInteract)
     /// </code>
     ///
     /// 칸은 위에서 시작해 시계 방향으로 1, 2, 3, 4, 5 다. 칸 모양은 <see cref="RingSegmentGraphic"/> 이 그린다.
@@ -39,6 +40,15 @@ namespace UnderTheSea.Lobby.Dance
         [SerializeField] private TMP_Text[] slotLabels = Array.Empty<TMP_Text>();
         [SerializeField] private TMP_Text centerLabel;
 
+        [Tooltip("칸마다 크기를 키울 뿌리. 비어 있으면 칸 그래픽을 키운다. 테두리 · 이름 · 번호가 같이 커진다.")]
+        [SerializeField] private RectTransform[] slotRoots = Array.Empty<RectTransform>();
+
+        [Tooltip("칸 테두리. 비어 있어도 된다. 가리키면 색이 바뀐다.")]
+        [SerializeField] private RingSegmentGraphic[] slotBorders = Array.Empty<RingSegmentGraphic>();
+
+        [Tooltip("열 때 서서히 나타나게 하는 투명도 조절. 비어 있어도 된다.")]
+        [SerializeField] private CanvasGroup group;
+
         [Header("춤")]
         [Tooltip("칸 순서대로의 이름. 위에서부터 시계 방향.")]
         [SerializeField] private string[] danceNames = { "춤 1", "춤 2", "춤 3", "춤 4", "춤 5" };
@@ -47,6 +57,17 @@ namespace UnderTheSea.Lobby.Dance
         [SerializeField] private Color normalColor = new Color(0.96f, 0.93f, 0.86f, 0.78f);
         [SerializeField] private Color hoverColor = new Color(1f, 1f, 1f, 0.97f);
         [SerializeField] private Color labelColor = new Color(0.32f, 0.24f, 0.16f, 1f);
+        [SerializeField] private Color borderColor = new Color(1f, 1f, 1f, 0.35f);
+        [SerializeField] private Color hoverBorderColor = new Color(1f, 1f, 1f, 1f);
+
+        [Tooltip("아무 칸도 가리키지 않을 때 가운데에 띄울 말.")]
+        [SerializeField] private string idleCenterText = "춤 고르기";
+
+        [Tooltip("열 때 커지며 나타나는 시간(초). 0 이면 바로 뜬다.")]
+        [SerializeField, Range(0f, 0.5f)] private float openSeconds = 0.12f;
+
+        [Tooltip("열리기 시작할 때의 크기. 1 까지 커진다.")]
+        [SerializeField, Range(0.5f, 1f)] private float openFromScale = 0.85f;
 
         [Tooltip("가리킨 칸을 이만큼 키운다. 휠 중심 기준이라 바깥으로 튀어나온다.")]
         [SerializeField, Range(1f, 1.3f)] private float hoverScale = 1.07f;
@@ -65,6 +86,15 @@ namespace UnderTheSea.Lobby.Dance
         public static bool IsOpen { get; private set; }
 
         private int hovered = -1;
+
+        /// <summary>
+        /// 완드 스틱이 칸을 가리켰는가. 켜져 있는 동안은 마우스 위치로 가리킴을 덮어쓰지 않는다 —
+        /// 안 그러면 가만히 있는 커서가 매 프레임 스틱이 고른 칸을 도로 빼앗는다. 마우스를 움직이면 꺼진다.
+        /// </summary>
+        private bool devicePointing;
+
+        /// <summary>열리는 연출이 얼마나 지났나(초). 음수면 연출이 끝났다.</summary>
+        private float openElapsed = -1f;
 
         private static readonly Key[] NumberKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5 };
 
@@ -90,6 +120,8 @@ namespace UnderTheSea.Lobby.Dance
 
         private void Update()
         {
+            AnimateOpen();
+
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || ChatFocus.Typing)
             {
@@ -123,13 +155,84 @@ namespace UnderTheSea.Lobby.Dance
             }
 
             Mouse mouse = Mouse.current;
-            SetHovered(mouse != null ? SlotUnder(mouse.position.ReadValue()) : -1);
+            if (mouse != null && mouse.delta.ReadValue().sqrMagnitude > 0f)
+            {
+                devicePointing = false;
+            }
+
+            if (!devicePointing)
+            {
+                SetHovered(mouse != null ? SlotUnder(mouse.position.ReadValue()) : -1);
+            }
 
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && hovered >= 0)
             {
                 Select(hovered);
             }
         }
+
+        // ------------------------------------------------------------
+        // 완드 — 키가 아니라 밖에서 부른다 (IotLobbyInteract)
+        //
+        // 완드는 IPlayerController 로만 들어오고 Input System 을 거치지 않아 키를 흉내낼 수 없다.
+        // 그래서 Q · 마우스 · 좌클릭이 하는 일을 대신 불러 주는 자리를 연다. (IOT_INPUT.md 7장)
+        // ------------------------------------------------------------
+
+        /// <summary>Q 와 같다 — 닫혀 있으면 연다. 채팅 중이면 무시한다.</summary>
+        public void OpenFromDevice()
+        {
+            if (!IsOpen && !ChatFocus.Typing)
+            {
+                SetOpen(true);
+            }
+        }
+
+        /// <summary>
+        /// 스틱 방향으로 칸을 가리킨다. 마우스를 휠 가운데서 그쪽으로 옮긴 것과 같다.
+        ///
+        /// 스틱을 놓아도(가운데로 돌아와도) <b>마지막에 가리킨 칸을 그대로 둔다.</b>
+        /// 스틱을 기울인 채로 다른 손가락으로 확정 버튼을 누르기가 어렵다.
+        /// </summary>
+        /// <param name="direction">-1 ~ 1. 위가 +y 다.</param>
+        public void PointFromDevice(Vector2 direction)
+        {
+            if (!IsOpen || slots.Length == 0 || direction.magnitude < DeviceDeadZone)
+            {
+                return;
+            }
+
+            devicePointing = true;
+
+            // SlotUnder 와 같은 계산이다. 위(90°)에서 시계 방향, 반 칸만큼 돌려 잰다.
+            float mathAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            float slotSweep = 360f / slots.Length;
+            float clockwiseFromTop = Mathf.Repeat(90f - mathAngle + slotSweep * 0.5f, 360f);
+
+            SetHovered(Mathf.Clamp(Mathf.FloorToInt(clockwiseFromTop / slotSweep), 0, slots.Length - 1));
+        }
+
+        /// <summary>
+        /// 확정. 가리킨 칸이 있으면 그 춤을 고르고, 없으면 그냥 닫는다. 좌클릭 · Esc 를 합친 것이다.
+        /// </summary>
+        public void ConfirmFromDevice()
+        {
+            if (!IsOpen)
+            {
+                return;
+            }
+
+            if (hovered >= 0)
+            {
+                Select(hovered);
+            }
+            else
+            {
+                SetOpen(false);
+            }
+        }
+
+        /// <summary>이보다 덜 기울인 스틱은 가리킴으로 치지 않는다. 손을 떼도 스틱이 조금 남는다.</summary>
+        private const float DeviceDeadZone = 0.5f;
 
         /// <summary>
         /// 화면 좌표가 가리키는 칸. <b>방향만 본다</b> — 칸 바깥이어도 그 방향의 칸이다(PEAK 와 같다).
@@ -177,17 +280,59 @@ namespace UnderTheSea.Lobby.Dance
 
                 bool on = i == hovered;
                 slots[i].color = on ? hoverColor : normalColor;
-                slots[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
 
-                if (i < slotLabels.Length && slotLabels[i] != null)
+                if (i < slotBorders.Length && slotBorders[i] != null)
                 {
-                    slotLabels[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    slotBorders[i].color = on ? hoverBorderColor : borderColor;
+                }
+
+                // 뿌리가 있으면 뿌리를 키운다 — 테두리 · 이름 · 번호가 한 덩어리로 커진다.
+                RectTransform root = i < slotRoots.Length && slotRoots[i] != null ? slotRoots[i] : null;
+                if (root != null)
+                {
+                    root.localScale = Vector3.one * (on ? hoverScale : 1f);
+                }
+                else
+                {
+                    slots[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    if (i < slotLabels.Length && slotLabels[i] != null)
+                    {
+                        slotLabels[i].rectTransform.localScale = Vector3.one * (on ? hoverScale : 1f);
+                    }
                 }
             }
 
             if (centerLabel != null)
             {
-                centerLabel.text = hovered >= 0 ? NameOf(hovered) : string.Empty;
+                centerLabel.text = hovered >= 0 ? NameOf(hovered) : idleCenterText;
+            }
+        }
+
+        /// <summary>
+        /// 열릴 때 살짝 작은 크기에서 커지며 나타난다. 시간은 멈춤 · 슬로모션과 무관하게 흐른다.
+        /// </summary>
+        private void AnimateOpen()
+        {
+            if (openElapsed < 0f || wheel == null)
+            {
+                return;
+            }
+
+            openElapsed += Time.unscaledDeltaTime;
+            float t = openSeconds <= 0f ? 1f : Mathf.Clamp01(openElapsed / openSeconds);
+
+            // 끝으로 갈수록 느려지게(ease-out). 튀어나오는 느낌을 준다.
+            float eased = 1f - (1f - t) * (1f - t) * (1f - t);
+            wheel.localScale = Vector3.one * Mathf.Lerp(openFromScale, 1f, eased);
+
+            if (group != null)
+            {
+                group.alpha = eased;
+            }
+
+            if (t >= 1f)
+            {
+                openElapsed = -1f;
             }
         }
 
@@ -207,7 +352,19 @@ namespace UnderTheSea.Lobby.Dance
                 canvas.enabled = open;
             }
 
+            // 열 때는 작게 · 투명하게 시작해서 AnimateOpen 이 키운다. 닫을 때는 바로 사라진다.
+            openElapsed = open ? 0f : -1f;
+            if (wheel != null)
+            {
+                wheel.localScale = Vector3.one * (open && openSeconds > 0f ? openFromScale : 1f);
+            }
+            if (group != null)
+            {
+                group.alpha = open && openSeconds > 0f ? 0f : 1f;
+            }
+
             // 열 때마다 가리킴을 비운다. 마지막에 가리키던 칸이 밝은 채로 열리지 않게.
+            devicePointing = false;
             hovered = int.MinValue;
             SetHovered(-1);
         }

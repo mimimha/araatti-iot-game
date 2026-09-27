@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // 시리얼은 **플레이어 PC 에만** 있습니다. Dedicated Server 빌드에는 완드도 동글도 없고,
 // 서버는 클라이언트가 네트워크로 보내온 숫자를 ShipCoopNetworkedController 로 되살려 씁니다.
@@ -22,16 +23,18 @@ using System.Threading;
 /// 게임별 행동 이름(힌트 · 발사 · 조타)은 여기에 없습니다. 그건 각 미니게임이 정하는
 /// 것이고, 이 프로필은 **장치가 값을 내놓는 방식**만 정합니다. (IOT_INPUT.md 3장)
 ///
-///   Shared    광산 · 배 협동. 왼손 버튼 2 를 달리기 토글로 잠근다
-///   Warriors  무쌍. 잠그지 않고 누르는 그대로 내놓는다
+///   Shared    배 협동. 왼손 버튼 2 를 달리기 토글로 잠근다
+///   Warriors  무쌍. 잠그지 않는다
+///   Mine      광산. 잠그지 않는다 — 그 자리가 힌트고, 달리기는 오른손 버튼 2 다
 ///
-/// <see cref="KeyboardControlProfile"/> 과 값이 1:1 입니다. 키보드로 확인한 것이
-/// 완드에서 그대로 되게 하려는 것입니다.
+/// <see cref="KeyboardControlProfile"/> 과 값이 **1:1 이어야 합니다.** 키보드로 확인한
+/// 것이 완드에서 그대로 되게 하려는 것입니다. 저쪽에 프로필이 늘면 여기도 늘립니다.
 /// </summary>
 public enum IotControlProfile
 {
     Shared,
     Warriors,
+    Mine,
 }
 
 /// <summary>
@@ -70,13 +73,15 @@ public enum IotControlProfile
 ///
 /// 붙이는 곳
 ///   로컬 테스트 씬(MineTest · ShipCoopTest)  → Player 오브젝트
+///   로비                                      → 붙이지 않는다. <see cref="Persistent"/> 가 코드로 만든다
 ///   네트워크 배 협동                          → NetworkRunner 오브젝트
 ///   ShipCoopInputProvider 가 같은 오브젝트에서 GetComponent 로 찾고,
 ///   못 찾으면 KeyboardPlayerController 를 스스로 붙입니다. 그래서 **먼저 붙어 있어야** 합니다.
 ///
 /// 키 배치 프로필
 ///   게임마다 같은 버튼이 다르게 나가야 하는 것이 **하나** 있습니다 — 달리기 토글입니다.
-///   배는 왼손 버튼 2 를 토글로 잠그고, 무쌍은 그 자리가 회피라서 누른 그대로 내놓아야 합니다.
+///   배만 왼손 버튼 2 를 토글로 잠급니다. 광산은 그 자리가 힌트라 단발이어야 하고,
+///   무쌍도 아직 안 정한 자리라 누른 그대로 내보냅니다.
 ///   <see cref="IotControlProfile"/> 로 가릅니다. 그 밖의 값은 네 게임이 똑같이 씁니다.
 ///
 ///   스틱 · IMU · Look 은 프로필이 없습니다. 카메라가 세로를 쓸지는 **받는 쪽**이 이미
@@ -129,9 +134,32 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     /// </summary>
     private const int ReadTimeoutMs = 100;
 
+    /// <summary>
+    /// 쓰기가 걸려 있을 수 있는 최대 시간(ms).
+    ///
+    /// 진동 명령은 14바이트뿐이라 115200baud 에서 1.2ms 면 나간다. 그래도 무한 대기로
+    /// 두지 않는다. 쓰는 쪽은 <b>메인 스레드</b>라, 동글이 멈춰 출력 버퍼가 차면
+    /// 게임이 통째로 언다. 진동은 한 번 놓쳐도 되는 신호다.
+    /// </summary>
+    private const int WriteTimeoutMs = 20;
+
+    /// <summary>
+    /// 자동 탐색에서 포트 하나를 지켜보는 시간(ms).
+    ///
+    /// 후보 포트 수만큼 곱해져 씬 시작이 밀리므로 짧게 잡는다. 동글은 완드가 켜져
+    /// 있으면 50Hz 로 쏟아내고, 꺼져 있어도 <c>?</c> 에 곧바로 답한다.
+    /// </summary>
+    private const int DiscoveryWindowMs = 300;
+
+    /// <summary>자동 탐색에서 포트를 들여다보는 간격(ms).</summary>
+    private const int DiscoveryPollMs = 10;
+
     [Header("시리얼 포트")]
-    [Tooltip("동글이 잡힌 포트 이름. 장치 관리자에서 확인한다. 예: COM3")]
-    [SerializeField] private string portName = "COM3";
+    [Tooltip("동글이 잡힌 포트 이름. 예: COM3\n\n" +
+             "⚠ 비워두면 모든 COM 포트를 훑어 동글을 스스로 찾는다. 윈도우가 COM 번호를 " +
+             "꽂는 자리마다 다르게 주므로 대개 비워두는 쪽이 편하다.\n\n" +
+             "이미 씬에 적혀 있는 값은 그대로 쓰인다. 자동 탐색을 쓰려면 지워야 한다.")]
+    [SerializeField] private string portName = string.Empty;
 
     [Tooltip("펌웨어와 같은 값이어야 한다.")]
     [SerializeField] private int baudRate = 115200;
@@ -171,6 +199,27 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "SetControlProfile 로 덮어쓸 수 있다.")]
     [SerializeField] private IotControlProfile controlProfile = IotControlProfile.Shared;
 
+    [Header("조타 (양손 휠)")]
+    [Tooltip("양손이 완드를 서로 마주 보게 잡는지.\n\n" +
+             "조타륜을 잡듯 손바닥을 마주 보게 쥐면 두 완드가 180도 돌아간 상태가 된다. " +
+             "휠을 한 방향으로 돌려도 각 완드가 재는 roll 은 **부호가 반대로** 나오고, " +
+             "ShipCoopInput.Steer 가 둘을 평균 내는 순간 서로 상쇄돼 조타가 죽는다.\n\n" +
+             "켜면 왼손 완드의 Tilt 부호를 뒤집어 둘을 같은 방향으로 맞춘다. " +
+             "두 완드를 같은 방향으로 쥐는 배치라면 끈다.\n\n" +
+             "⚠ 어느 쪽인지는 눈으로 알 수 없다. firmware/tools/tilt_sign.ps1 로 " +
+             "실제로 돌려서 정한다.\n\n" +
+             "2026-09-23 실측(완드 0·1)에서는 두 손의 roll 이 같은 방향이라 " +
+             "**끔** 이 맞았다. 잡는 방식을 바꾸면 다시 재야 한다.")]
+    [SerializeField] private bool mirroredGrip = false;
+
+    [Header("키보드 폴백")]
+    [Tooltip("완드가 하나도 안 붙어 있으면 키보드로 대신 논다.\n\n" +
+             "장치를 꽂으면 완드로, 빼면 키보드로 자동으로 넘어간다. 게임 코드는 " +
+             "이 컴포넌트 하나만 보므로 무엇이 값을 채우는지 모른다.\n\n" +
+             "끄면 완드가 없을 때 모든 값이 0 이다. 장치 없이 게임이 어떻게 보이는지 " +
+             "확인할 때만 끈다.")]
+    [SerializeField] private bool keyboardFallback = true;
+
     [Header("달리기")]
     [Tooltip("왼손 버튼 2 를 토글로 바꾼다. 한 번 눌러 켜고 다시 눌러 끈다.\n\n" +
              "기기에서 엄지는 스틱과 면버튼 중 하나만 잡는다. 누르고 있는 방식으로는 " +
@@ -202,8 +251,24 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
              "원본 줄 로그와 달리 동작이 있을 때만 찍어서 조용하다.")]
     [SerializeField] private bool logMotions = false;
 
-    [Tooltip("진동 호출을 찍는다. 역방향 프로토콜이 아직 없어서 실제로 울리지는 않는다.")]
+    [Tooltip("진동 호출을 찍는다. 완드로 'V,번호,세기,지속ms' 한 줄이 나간다.\n\n" +
+             "⚠ 아직 모터가 안 달려 있어 실제로 울리지는 않는다. 명령이 닿았는지는 " +
+             "동글 로그의 #ECHO 로 본다.")]
     [SerializeField] private bool logDeviceOutput = false;
+
+    /// <summary>
+    /// 완드가 없을 때 대신 값을 채우는 키보드. <c>keyboardFallback</c> 이 켜져 있을 때만 만든다.
+    ///
+    /// ⚠ **자식 오브젝트에 만듭니다.** 같은 오브젝트에 두면 게임 코드의
+    ///   <c>GetComponent&lt;IPlayerController&gt;()</c> 가 완드 대신 이쪽을 집을 수 있습니다.
+    ///   어느 쪽이 잡힐지는 컴포넌트를 붙인 순서가 정하는데, 씬을 만지다 보면 쉽게 뒤집힙니다.
+    ///   자식은 <c>GetComponent</c> 도 <c>GetComponentInParent</c> 도 보지 못하므로
+    ///   **플레이어에 남는 구현체가 이것 하나뿐**이 됩니다.
+    /// </summary>
+    private KeyboardPlayerController _keyboard;
+
+    /// <summary>지금 값을 채우는 것이 키보드인가.</summary>
+    private bool _keyboardActive;
 
     /// <summary>완드 4대분의 상태. 고유번호가 곧 첨자다.</summary>
     private Wand[] _wands;
@@ -236,18 +301,18 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
     public IHandDevice Left
     {
-        get { EnsureWands(); return _left; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.Left : _left; }
     }
 
     /// <summary>오른손 완드. 끊겨 있으면 왼손과 같은 것을 돌려준다. 게임 코드는 개수를 몰라도 된다.</summary>
     public IHandDevice Right
     {
-        get { EnsureWands(); return _right; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.Right : _right; }
     }
 
     public bool HasTwoDevices
     {
-        get { EnsureWands(); return _hasTwoDevices; }
+        get { EnsureWands(); return _keyboardActive ? _keyboard.HasTwoDevices : _hasTwoDevices; }
     }
 
     public Vector2 Move => Left.Stick;
@@ -267,11 +332,29 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     ///
     /// 포트가 열린 것만으로는 부족하다. 동글만 꽂고 완드를 안 켰으면 값이 전부 0 이라
     /// 사람은 여전히 키보드로 하고 있다. 줄이 들어오고 있는 완드가 있어야 참이다.
-    /// 왼손 자리에는 살아 있는 완드가 먼저 앉으므로 (<see cref="ResolveHands"/>) 그것만 보면 된다.
+    ///
+    /// 키보드 자동 전환(<see cref="RefreshKeyboardFallback"/>)도 이 값으로 정한다.
+    /// HUD 와 전환이 같은 답을 봐야 키캡과 실제 입력이 어긋나지 않는다.
+    ///
+    /// ⚠ <c>_left</c> 만 보지 않고 전부 훑는다. 손 배정(<see cref="ResolveHands"/>)이
+    ///   다시 돌기 전에는 방금 붙은 완드가 왼손 자리에 없을 수 있다.
     /// </summary>
     public bool AnyWandConnected
     {
-        get { EnsureWands(); return _left.Connected; }
+        get
+        {
+            EnsureWands();
+
+            for (int i = 0; i < _wands.Length; i++)
+            {
+                if (_wands[i].Connected)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>지금 포트가 열려 있는지. 디버그 HUD 가 본다. 서버 빌드에서는 늘 false 다.</summary>
@@ -280,6 +363,122 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 #else
     public bool PortOpen => false;
 #endif
+
+    /// <summary>
+    /// 이 입력이 지금 <b>진짜 완드</b> 값을 내놓고 있는가.
+    ///
+    /// 로비처럼 <b>자기 키보드 경로를 따로 가진 곳</b>이 완드 값을 더하기 전에 본다.
+    /// <see cref="IotPlayerController"/> 는 완드가 없으면 키보드로 대신 채우므로(키보드 폴백),
+    /// 그 값을 그대로 더하면 같은 키가 두 번 들어간다. C 한 번에 낚시와 포탈이 함께 걸리고,
+    /// 우클릭 드래그에 화면이 두 배로 돈다.
+    ///
+    /// 인스펙터로 다른 구현(<see cref="KeyboardPlayerController"/> 등)을 직접 꽂았으면
+    /// 일부러 그런 것이므로 참이다.
+    /// </summary>
+    public static bool IsWandLive(IPlayerController controller)
+    {
+        return controller is IotPlayerController wand ? wand.AnyWandConnected : controller != null;
+    }
+
+    // ------------------------------------------------------------
+    // 게임 내내 하나
+    // ------------------------------------------------------------
+
+#if !UNITY_SERVER
+    private static IotPlayerController _persistent;
+    private static bool _quitting;
+
+    /// <summary>에디터에서 도메인 리로드를 꺼도 지난 플레이의 값이 남지 않게 한다.</summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPersistent()
+    {
+        _persistent = null;
+        _quitting = false;
+        Application.quitting -= MarkQuitting;
+        Application.quitting += MarkQuitting;
+    }
+
+    private static void MarkQuitting()
+    {
+        _quitting = true;
+    }
+
+    /// <summary>
+    /// 로딩 중에 미리 만들어 둔다.
+    ///
+    /// 처음 <see cref="Persistent"/> 를 부르는 순간 포트 자동 탐색이 돌고, 그동안 메인 스레드가
+    /// 멈춘다. 그 첫 호출이 <c>Update</c> · <c>OnInput</c> 에서 나면 플레이 도중에 한 번 툭
+    /// 멈춘다. 여기서 끝내 두면 그 멈춤이 로딩 안으로 들어간다.
+    ///
+    /// ⚠ <c>BeforeSceneLoad</c> 가 아니라 <c>AfterSceneLoad</c> 다. 씬 오브젝트가 이미 있어야
+    ///   씬에 놓인 <see cref="IotPlayerController"/> 를 찾아 쓸 수 있다. 그래도 Start 보다는
+    ///   앞이라 여전히 로딩 안이다.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void WarmUpPersistent()
+    {
+        _ = Persistent;
+    }
+#endif
+
+    /// <summary>
+    /// <b>씬이 바뀌어도 살아 있는 완드 하나.</b> 처음 부를 때 만든다.
+    ///
+    /// 씬은 <c>SceneManager.LoadScene</c> 으로 통째로 바뀝니다. 씬에 두면 로비 → 미니게임에서
+    /// 사라지고, 돌아올 때마다 COM 포트를 새로 훑느라 화면이 멎습니다. 로비의 러너와
+    /// 캐릭터는 실행 중에 생겨서 인스펙터로 이어 줄 수도 없습니다. 그래서 코드로 한 번 만들고
+    /// <c>DontDestroyOnLoad</c> 로 끝까지 둡니다. 씬 파일은 건드리지 않습니다.
+    ///
+    /// 설정은 이 컴포넌트의 기본값 그대로입니다 — 포트는 자동 탐색, 프로필은 <c>Shared</c>(로비 배치).
+    ///
+    /// ⚠ <b>씬에 이미 <c>IotPlayerController</c> 를 둔 테스트 씬(MineTest 등)에서는 부르지 않습니다.</b>
+    ///   동글 포트는 한 곳만 열 수 있어서 둘 중 하나는 완드를 못 받습니다.
+    ///
+    /// ⚠ 서버 빌드에서는 <c>null</c> 입니다. 서버에는 완드가 없습니다.
+    /// </summary>
+    public static IotPlayerController Persistent
+    {
+        get
+        {
+#if UNITY_SERVER
+            return null;
+#else
+            // Unity 의 == 라서 누가 지웠으면 여기서 걸러지고 새로 만든다.
+            if (_persistent != null)
+            {
+                return _persistent;
+            }
+
+            // 끄는 도중에 누가 부르면 새로 만들지 않는다. 만들면 "정리되지 않은 오브젝트" 가 남는다.
+            if (_quitting || !Application.isPlaying)
+            {
+                return null;
+            }
+
+            // 씬에 이미 놓여 있으면 그것을 쓴다. (MineTest · WarriorsTest 처럼 직접 올린 씬)
+            // 동글 포트는 한 곳만 열 수 있어서, 모르고 하나 더 만들면 둘 중 하나가 완드를 못 받는다.
+            //
+            // ⚠ 꺼 둔 것은 데려오지 않는다. 체크박스를 끈 것은 "지금은 키보드로 한다" 는 뜻이고,
+            //   그것을 쥐면 포트를 연 적이 없는 컨트롤러를 붙들게 된다.
+            //
+            // 씬과 함께 사라지면 위의 Unity == 에 걸려 다음 호출에서 새로 만든다. 씬에 둔 쪽은
+            // 그 씬에서만 쓰는 것이므로 DontDestroyOnLoad 로 끌고 가지 않는다.
+            IotPlayerController placed = FindAnyObjectByType<IotPlayerController>();
+
+            if (placed != null && placed.isActiveAndEnabled)
+            {
+                _persistent = placed;
+                return _persistent;
+            }
+
+            GameObject host = new GameObject("[IotPlayerController]");
+            DontDestroyOnLoad(host);
+            _persistent = host.AddComponent<IotPlayerController>();
+
+            return _persistent;
+#endif
+        }
+    }
 
     // ------------------------------------------------------------
     // 수명
@@ -310,14 +509,52 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         ApplySprintToggle();
     }
 
+    /// <summary>지금 키 배치 프로필. 같은 값을 매 틱 다시 넣지 않으려고 본다.</summary>
+    public IotControlProfile ControlProfile => controlProfile;
+
+    /// <summary>
+    /// **씬이 바뀌면 묵은 입력을 버린다.**
+    ///
+    /// <see cref="Persistent"/> 는 로비 → 미니게임 → 로비 내내 살아 있어서, 앞 씬에서 아무도
+    /// 안 가져간 "눌린 순간" 과 달리기 토글이 다음 씬으로 그대로 넘어갑니다. 실제로
+    /// 로비에서 켜 둔 달리기 토글(왼손 버튼 2)이 광산에서 **힌트를 누르고 있는 것**으로 읽혀
+    /// 들어가자마자 힌트가 터졌습니다. 배 협동에서는 시작하자마자 달리거나 대포가 나갑니다.
+    ///
+    /// 누르고 있는 상태(<c>Button1</c> · <c>Button2</c> 의 원래 레벨)는 그대로 둡니다.
+    /// 지우면 씬을 넘는 동안 쥐고 있던 버튼이 다음 줄에서 "새로 눌린 것" 이 됩니다.
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (_wands == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _wands.Length; i++)
+        {
+            _wands[i].ClearLatched();
+        }
+
+        if (_keyboard != null)
+        {
+            DrainPending(_keyboard.Left);
+            DrainPending(_keyboard.Right);
+        }
+    }
+
 #if !UNITY_SERVER
     private void OnEnable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+
         OpenPort();
     }
 
     private void OnDisable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+
         ClosePort();
     }
 
@@ -343,6 +580,7 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         // 값은 전부 0 · false 가 되고, 이는 완드를 안 꽂았을 때와 같은 상태다.
         RefreshConnections(now);
         ResolveHands();
+        RefreshKeyboardFallback();
     }
 
     // ------------------------------------------------------------
@@ -362,27 +600,12 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             return;
         }
 
-        SerialPort port;
+        SerialPort port = string.IsNullOrWhiteSpace(portName)
+            ? DiscoverDongle()
+            : OpenNamed(portName, quiet: false);
 
-        try
+        if (port == null)
         {
-            port = new SerialPort(portName, baudRate)
-            {
-                DtrEnable = dtrEnable,
-                RtsEnable = rtsEnable,
-
-                // ⚠ 무한 대기로 두면 포트를 닫을 때 읽기 스레드가 안 빠져나온다.
-                ReadTimeout = ReadTimeoutMs,
-            };
-
-            port.Open();
-        }
-        catch (Exception error)
-        {
-            // 경고 한 줄만 남기고 조용히 비활성이 된다. 모든 값은 0 · false 로 나간다.
-            Debug.LogWarning(
-                $"[IotPlayerController] {portName} 을(를) 열지 못했습니다. " +
-                $"장치 없이 계속합니다. — {error.Message}", this);
             return;
         }
 
@@ -399,6 +622,175 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         };
 
         _readThread.Start();
+    }
+
+    /// <summary>포트 하나를 연다. 실패하면 <c>null</c>. 예외는 밖으로 나가지 않는다.</summary>
+    /// <param name="quiet">
+    /// 자동 탐색은 남의 포트도 두드려 보므로 실패가 정상이다. 그때는 찍지 않는다.
+    /// </param>
+    private SerialPort OpenNamed(string name, bool quiet)
+    {
+        try
+        {
+            SerialPort port = new SerialPort(name, baudRate)
+            {
+                DtrEnable = dtrEnable,
+                RtsEnable = rtsEnable,
+
+                // ⚠ 무한 대기로 두면 포트를 닫을 때 읽기 스레드가 안 빠져나온다.
+                ReadTimeout = ReadTimeoutMs,
+
+                // ⚠ 메인 스레드에서 쓴다. 무한 대기로 두면 동글이 멈췄을 때 게임이 통째로 언다.
+                WriteTimeout = WriteTimeoutMs,
+            };
+
+            port.Open();
+            return port;
+        }
+        catch (Exception error)
+        {
+            if (!quiet)
+            {
+                // 경고 한 줄만 남기고 조용히 비활성이 된다. 모든 값은 0 · false 로 나간다.
+                Debug.LogWarning(
+                    $"[IotPlayerController] {name} 을(를) 열지 못했습니다. " +
+                    $"장치 없이 계속합니다. — {error.Message}", this);
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// COM 포트를 훑어 동글을 스스로 찾는다. <c>portName</c> 이 비어 있을 때만 돈다.
+    ///
+    /// 윈도우는 COM 번호를 꽂는 자리와 순서마다 다르게 주고 재부팅하면 또 바뀐다.
+    /// 사람마다 번호를 적어 두는 대신 **말투로 알아본다.**
+    ///
+    /// 다른 프로그램(아두이노 IDE 등)이 이미 쥐고 있는 포트는 열리지 않으므로 건너뛴다.
+    /// 못 찾아도 경고 한 줄로 끝나고 키보드 폴백이 받는다.
+    /// </summary>
+    private SerialPort DiscoverDongle()
+    {
+        string[] names;
+
+        try
+        {
+            names = SerialPort.GetPortNames();
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning(
+                $"[IotPlayerController] COM 포트 목록을 읽지 못했습니다. — {error.Message}", this);
+            return null;
+        }
+
+        foreach (string name in names)
+        {
+            SerialPort port = OpenNamed(name, quiet: true);
+
+            if (port == null)
+            {
+                continue;
+            }
+
+            if (SoundsLikeDongle(port))
+            {
+                Debug.Log($"[IotPlayerController] {name} 에서 동글을 찾았습니다.", this);
+                return port;
+            }
+
+            port.Close();
+            port.Dispose();
+        }
+
+        Debug.LogWarning(
+            $"[IotPlayerController] COM 포트 {names.Length}개를 훑었지만 동글을 찾지 못했습니다. " +
+            "장치 없이 계속합니다.", this);
+
+        return null;
+    }
+
+    /// <summary>
+    /// 이 포트에서 동글의 말투가 들리는지 <see cref="DiscoveryWindowMs"/> 동안 듣는다.
+    ///
+    /// 동글이 내는 줄은 두 가지뿐이고 둘 중 하나만 와도 확정이다.
+    /// <code>
+    ///   완드 입력   0,0,0,0,0,0,0,0,0,64957     필드 10개짜리 CSV
+    ///   신원        #MAC AA:BB:CC:DD:EE:FF      동글만 내는 줄
+    /// </code>
+    ///
+    /// ⚠ <b>완드가 꺼져 있으면 동글은 먼저 말하지 않는다.</b> CSV 는 완드 패킷이 올 때만
+    ///    나오고 알림은 부팅 때 한 번뿐이다. 그래서 절반이 지나도 조용하면 그때
+    ///    <c>?</c> 한 글자를 보내 물어본다. 동글은 <c>#MAC</c> 으로 답한다.
+    ///    (dongle_esp32s3.ino 의 handleLine)
+    ///
+    /// 남의 포트일 수도 있으므로 **조용할 때만, 딱 한 번** 쓴다.
+    /// </summary>
+    private static bool SoundsLikeDongle(SerialPort port)
+    {
+        StringBuilder heard = new StringBuilder();
+        bool asked = false;
+
+        for (int waited = 0; waited < DiscoveryWindowMs; waited += DiscoveryPollMs)
+        {
+            try
+            {
+                if (port.BytesToRead > 0)
+                {
+                    heard.Append(port.ReadExisting());
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            // 끝 조각은 잘려 있을 수 있다. 개행까지 온 줄만 본다.
+            string text = heard.ToString();
+            int lastBreak = text.LastIndexOf('\n');
+
+            if (lastBreak >= 0)
+            {
+                foreach (string raw in text.Substring(0, lastBreak).Split('\n'))
+                {
+                    string line = raw.Trim();
+
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    // ⚠ '#' 로 시작한다고 다 동글이 아니다. 완드도 #CAL · #FSR 을 찍으므로
+                    //    같은 PC 에 완드가 꽂혀 있으면 그 포트를 동글로 착각한다.
+                    //    #MAC 은 동글만 낸다. (완드는 자기 것을 #NOW 로 찍는다)
+                    if (line.StartsWith("#MAC", StringComparison.Ordinal) || TryParse(line, out _))
+                    {
+                        return true;
+                    }
+                }
+
+                heard.Remove(0, lastBreak + 1);
+            }
+
+            if (!asked && waited >= DiscoveryWindowMs / 2)
+            {
+                asked = true;
+
+                try
+                {
+                    port.Write("?\n");
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            Thread.Sleep(DiscoveryPollMs);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -682,6 +1074,88 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         }
 
         ResolveHands();
+        EnsureKeyboardFallback();
+    }
+
+    /// <summary>
+    /// 키보드 폴백을 만들어 둔다. 실행 중에만, 한 번만 만든다.
+    ///
+    /// 프로필은 이 컴포넌트의 것을 그대로 넘깁니다. 두 enum 은 값이 1:1 이라
+    /// 첨자를 그대로 바꿔 끼웁니다. 어긋나면 키보드가 다른 게임 배치로 돌아갑니다.
+    /// </summary>
+    private void EnsureKeyboardFallback()
+    {
+        if (!keyboardFallback || _keyboard != null || !Application.isPlaying)
+        {
+            return;
+        }
+
+        // 위 _keyboard 주석 참고. 반드시 자식이어야 한다.
+        GameObject host = new GameObject("[KeyboardFallback]");
+        host.transform.SetParent(transform, false);
+        host.hideFlags = HideFlags.DontSave;
+
+        _keyboard = host.AddComponent<KeyboardPlayerController>();
+        _keyboard.SetControlProfile((KeyboardControlProfile)(int)controlProfile);
+
+        // 쓰지 않는 동안에는 꺼 둔다. 켜 두면 아무도 안 가져가는 "눌린 순간" 이
+        // 그 안에 쌓이고, 완드가 끊기는 순간 그것이 한꺼번에 터진다.
+        _keyboard.enabled = false;
+        _keyboardActive = false;
+
+        RefreshKeyboardFallback();
+    }
+
+    /// <summary>
+    /// 완드가 하나라도 붙어 있으면 완드, 아니면 키보드로 넘긴다.
+    ///
+    /// **완드를 들고 있는 동안에는 키보드를 아예 끕니다.** 둘을 같이 켜 두면 한쪽이
+    /// 0 을 내놓는 프레임에 값이 튀고, 무엇이 값을 채웠는지 알 수 없게 됩니다.
+    /// </summary>
+    private void RefreshKeyboardFallback()
+    {
+        if (_keyboard == null)
+        {
+            return;
+        }
+
+        bool wanted = !AnyWandConnected;
+
+        if (wanted == _keyboardActive)
+        {
+            return;
+        }
+
+        _keyboardActive = wanted;
+        _keyboard.enabled = wanted;
+
+        // 넘어가는 순간 양쪽의 묵은 눌림을 버린다. 그러지 않으면 전환 직후에
+        // 쌓여 있던 것이 한꺼번에 나가 대포가 저절로 발사되거나 땅이 한 번 더 파인다.
+        DrainPending(_keyboard.Left);
+        DrainPending(_keyboard.Right);
+        DrainPending(_left);
+        DrainPending(_right);
+
+        if (logConnectionChanges)
+        {
+            Debug.Log($"[IotPlayerController] 입력 전환 — {(wanted ? "키보드" : "완드")}", this);
+        }
+    }
+
+    /// <summary>한 손에 쌓여 있는 "눌린 순간" 과 동작을 읽어서 버린다.</summary>
+    private static void DrainPending(IHandDevice hand)
+    {
+        if (hand == null)
+        {
+            return;
+        }
+
+        hand.ConsumeButton1Press();
+        hand.ConsumeButton2Press();
+
+        while (hand.TryConsumeMotion(out _))
+        {
+        }
     }
 
     /// <summary>끊김을 시간으로 판정하고, 상태가 바뀐 완드만 로그로 알린다.</summary>
@@ -740,6 +1214,28 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         }
 
         ApplySprintToggle();
+        ApplyGripMirror();
+    }
+
+    /// <summary>
+    /// 마주 잡기 보정을 **왼손 완드에만** 건다.
+    ///
+    /// 펌웨어는 자기가 어느 손인지 모릅니다. 완드는 중력으로 잰 roll 을 그대로 올릴 뿐이고,
+    /// 두 완드가 서로 마주 보게 쥐였는지는 손 배정을 아는 이 스크립트만 압니다.
+    /// 달리기 토글을 브리지에서 거는 것과 같은 이유입니다.
+    ///
+    /// 1대만 들었을 때는 걸지 않습니다. 상쇄될 짝이 없고,
+    /// <c>ShipCoopInput.Steer</c> 도 1대면 왼손 값을 그대로 씁니다.
+    /// 여기서 뒤집으면 혼자 들었을 때만 조타가 거꾸로 돕니다.
+    /// </summary>
+    private void ApplyGripMirror()
+    {
+        bool enabled = mirroredGrip && _hasTwoDevices;
+
+        for (int i = 0; i < _wands.Length; i++)
+        {
+            _wands[i].SetTiltMirrored(enabled && ReferenceEquals(_wands[i], _left));
+        }
     }
 
     /// <summary>
@@ -764,8 +1260,13 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
     ///   정해지기 전에는 **누른 그대로** 내보내는 쪽이 안전합니다. 토글로 잠가 두면
     ///   그 자리에 단발 조작이 오는 순간 한 번 걸러 먹힙니다.
     ///
-    /// 광산도 같은 자리를 힌트로 쓰지만 힌트는 <c>ConsumeButton2Press</c> 로만 읽어서
-    /// 잠겨도 눌리므로 Shared 로 둡니다.
+    /// **광산(<see cref="IotControlProfile.Mine"/>)에도 걸지 않습니다.** 거기는 왼손
+    /// 버튼 2 가 **힌트**고, 달리기는 **오른손 버튼 2** 입니다. (MINE.md 8장,
+    /// <c>KeyboardPlayerController</c> 의 Mine 프로필과 같은 배치)
+    ///
+    /// 힌트 자체는 <c>ConsumeButton2Press</c> 로만 읽어서 잠겨도 눌리지만, 잠가 두면
+    /// 힌트를 한 번 누른 뒤 <c>Button2</c> 가 계속 참으로 남습니다. 지금은 그 레벨을
+    /// 읽는 곳이 없어 표가 안 나지만, 생기는 순간 조용히 깨집니다.
     /// </summary>
     private void ApplySprintToggle()
     {
@@ -919,6 +1420,9 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         /// <summary>토글이 켜져 있는지. 장치가 들고 있어야 하는 상태다. (IOT_INPUT.md 3장)</summary>
         private bool _sprintOn;
 
+        /// <summary>Tilt 부호를 뒤집어 내놓을지. 마주 잡기일 때 왼손에만 켜진다.</summary>
+        private bool _mirrorTilt;
+
         /// <summary>직전 줄의 동작 카운터. 늘어난 만큼이 동작 횟수다.</summary>
         private int _lastCounter;
 
@@ -949,7 +1453,13 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
 
         public Vector2 Stick => _stick;
 
-        public float Tilt => _tilt;
+        /// <summary>
+        /// IMU roll. 마주 잡기로 배정된 손이면 부호를 뒤집어 내놓는다.
+        ///
+        /// 원값(<c>_tilt</c>)은 그대로 두고 **내놓을 때만** 뒤집는다.
+        /// 손 배정이 바뀌어도 받아둔 값을 다시 계산할 필요가 없다.
+        /// </summary>
+        public float Tilt => _mirrorTilt ? -_tilt : _tilt;
 
         public float Rotation => _rotation;
 
@@ -1149,6 +1659,17 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         }
 
         /// <summary>
+        /// 이 완드의 Tilt 를 뒤집어 내놓을지 정한다. 마주 잡기의 왼손일 때만 켜진다.
+        ///
+        /// 상태가 아니라 해석 방식이라 <see cref="Clear"/> 가 건드리지 않는다.
+        /// 끊겼다 다시 붙어도 잡는 방식은 그대로다.
+        /// </summary>
+        internal void SetTiltMirrored(bool enabled)
+        {
+            _mirrorTilt = enabled;
+        }
+
+        /// <summary>
         /// 값을 전부 0 · false 로 되돌린다.
         ///
         /// 끊겼을 때와 포트를 닫을 때 부른다. 쌓아둔 동작과 달리기 토글도 함께 내린다.
@@ -1175,6 +1696,22 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             _hasCounter = false;
             _lastCounter = 0;
             _previousMilliseconds = 0;
+        }
+
+        /// <summary>
+        /// 쌓아 둔 것만 버린다 — 눌린 순간 · 달리기 토글 · 동작. 씬이 바뀔 때 부른다.
+        ///
+        /// <see cref="Clear"/> 와 달리 스틱 · 누르고 있는 상태 · 카운터 기준은 그대로 둔다.
+        /// 완드는 여전히 붙어 있고, 기준을 지우면 다음 줄에서 한 번 헛돈다.
+        /// </summary>
+        internal void ClearLatched()
+        {
+            _button1Pressed = false;
+            _button2Pressed = false;
+            _sprintOn = false;
+
+            _motionHead = 0;
+            _motionCount = 0;
         }
 
         public bool ConsumeButton1Press()

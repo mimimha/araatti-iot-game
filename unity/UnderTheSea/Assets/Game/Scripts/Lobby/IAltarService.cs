@@ -26,6 +26,12 @@ namespace UnderTheSea.Lobby
         public float recoveryPercent;
         public long myOfferedTotal;
         public string updatedAt;
+
+        /// <summary>
+        /// 봉헌량이 목표에 처음 닿은 시각(UTC 문자열). 목표 아래면 null/빈 문자열.
+        /// "이번 완성" 의 번호다 — 완성 영상(<see cref="AltarCompletionVideo"/>)이 한 번씩만 틀려고 본다.
+        /// </summary>
+        public string activatedAt;
     }
 #pragma warning restore 0649
 

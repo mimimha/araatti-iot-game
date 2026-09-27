@@ -78,6 +78,14 @@ namespace UnderTheSea.Lobby
         /// </summary>
         public static string UpdatedAt { get; private set; }
 
+        /// <summary>
+        /// 봉헌량이 목표에 처음 닿은 시각(서버 값, UTC 문자열). 목표 아래면 빈 문자열.
+        ///
+        /// <b>"이번 완성" 의 번호다.</b> 목표 아래로 내려갔다가 다시 차면 새 시각이 된다.
+        /// 완성 영상(<see cref="AltarCompletionVideo"/>)이 이 값을 기억해 두고, 다른 값이면 다시 튼다.
+        /// </summary>
+        public static string ActivatedAt { get; private set; } = string.Empty;
+
         /// <summary>서버 값을 한 번이라도 받았는지.</summary>
         public static bool HasValue { get; private set; }
 
@@ -283,6 +291,7 @@ namespace UnderTheSea.Lobby
             RecoveryPercent = snapshot.recoveryPercent;
             MyOfferedTotal = snapshot.myOfferedTotal;
             UpdatedAt = snapshot.updatedAt;
+            ActivatedAt = snapshot.activatedAt ?? string.Empty;
             HasValue = true;
 
             PlayerInventory.SetFragments(snapshot.myFragments);
@@ -304,7 +313,8 @@ namespace UnderTheSea.Lobby
             long remainingFragments,
             long maxOfferAmount,
             bool altarActivated,
-            float recoveryPercent)
+            float recoveryPercent,
+            string activatedAt = null)
         {
             if (!TryAcceptSequence(sequence))
             {
@@ -319,6 +329,12 @@ namespace UnderTheSea.Lobby
             AltarActivated = altarActivated;
             RecoveryPercent = recoveryPercent;
             HasValue = true;
+
+            // 봉헌 응답에 완성 시각이 실려 오면 반영한다. 없으면(가짜 서비스 · 옛 서버) 이전 값을 둔다.
+            if (activatedAt != null)
+            {
+                ActivatedAt = activatedAt;
+            }
 
             PlayerInventory.SetFragments(remainingFragments);
 
@@ -339,6 +355,7 @@ namespace UnderTheSea.Lobby
             RecoveryPercent = 0f;
             MyOfferedTotal = 0;
             UpdatedAt = null;
+            ActivatedAt = string.Empty;
             HasValue = false;
 
             inFlight = false;

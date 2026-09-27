@@ -44,8 +44,18 @@ public class LocalPlayerView : NetworkBehaviour
     [SerializeField] private string mouseY = "Mouse Y";
     [SerializeField] private string mouseScroll = "Mouse ScrollWheel";
 
+    [Header("IoT")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
+    [SerializeField] private MonoBehaviour playerControllerSource;
+
+    [Tooltip("완드 오른손 스틱을 끝까지 밀었을 때 초당 도는 양. 마우스 감도와 따로 맞춰야 한다.")]
+    [SerializeField, Min(1f)] private float wandLookSpeed = 120f;
+
     /// <summary>내가 조작하는 카메라. 남의 캐릭터·서버에서는 null 로 남는다.</summary>
     private PlayerCamera boundCamera;
+
+    /// <summary>완드. 서버 빌드에서는 null 이고, 그때는 예전처럼 마우스만 읽는다.</summary>
+    private IPlayerController wand;
 
     /// <summary>
     /// 이 인스턴스가 <b>내 캐릭터</b>로 확정됐는가.
@@ -172,6 +182,14 @@ public class LocalPlayerView : NetworkBehaviour
     /// <c>enabled</c> 를 끄면 <c>LateUpdate</c> 가 멈춰 카메라가 제자리에 선다.
     /// <c>SetInput</c> 과 <see cref="SnapCameraToMe"/> 는 꺼져 있어도 부를 수 있다.
     /// </summary>
+    /// <summary>
+    /// 내 카메라가 달린 곳. 없으면 null.
+    ///
+    /// <see cref="FreezeCamera"/> 로 얼린 동안에만 옮긴다 — 안 얼리면 다음 프레임에 캐릭터 뒤로 끌려간다.
+    /// 제단 봉헌 연출이 공중 시점을 잡을 때 쓴다. 끝나면 <see cref="SnapCameraToMe"/> 로 되돌린다.
+    /// </summary>
+    public Transform CameraTransform => boundCamera != null ? boundCamera.transform : null;
+
     public void FreezeCamera(bool frozen)
     {
         if (boundCamera != null)
@@ -437,6 +455,26 @@ public class LocalPlayerView : NetworkBehaviour
             ? new Vector2(Input.GetAxis(mouseX), -Input.GetAxis(mouseY))
             : Vector2.zero;
 
+        // 완드의 오른손 스틱도 같은 자리로 더한다. 완드가 안 붙어 있으면 건너뛰어 예전과 같다.
+        //
+        // ⚠ **완드가 실제로 붙어 있을 때만 더한다.** (IsWandLive) 완드가 없으면
+        //   IotPlayerController 가 오른손 스틱을 우클릭 드래그로 대신 채워서, 위 마우스 경로와
+        //   같은 드래그가 두 번 들어가 화면이 두 배로 돈다.
+        //
+        // ⚠ **마우스와 단위가 다르다.** 마우스는 이번 프레임에 움직인 양이 그대로 오지만
+        //   스틱은 기울인 채로 −1 ~ 1 에 머물러 있는 값이다. 그대로 넘기면 프레임이 빠른
+        //   기계에서만 빨리 돈다. 그래서 초당 각도로 바꿔서 넘긴다.
+        //
+        // ⚠ 상하 부호는 마우스와 같은 이유로 뒤집는다. (바로 위 주석)
+        //
+        // ⚠ 춤 휠이 열린 동안에는 오른손 스틱이 칸을 고른다(IotLobbyInteract). 화면까지 돌면 안 된다.
+        IPlayerController device = ResolveWand();
+        if (IotPlayerController.IsWandLive(device) && !ChatFocus.Typing && !UnderTheSea.Lobby.Dance.DanceWheelView.IsOpen)
+        {
+            Vector2 look = device.Look;
+            delta += new Vector2(look.x, -look.y) * (wandLookSpeed * Time.deltaTime);
+        }
+
         // 확대·축소는 버튼과 무관하다. 휠은 누르지 않고도 늘 먹는다.
         //
         // ⚠ 다만 **화면이 휠을 쓰고 있으면 비켜 준다.** 채팅 기록 위에서 지난 대화를
@@ -458,5 +496,23 @@ public class LocalPlayerView : NetworkBehaviour
                 $"추적대상 {(tracked == null ? "null" : tracked.name + tracked.position.ToString("F2"))} / " +
                 $"거리 {Vector3.Distance(cam.position, transform.position):F2}");
         }
+    }
+
+    /// <summary>
+    /// 완드를 쥐어 둔다. 서버 빌드에서는 null 이고 카메라는 예전처럼 마우스로만 돈다.
+    ///
+    /// ⚠ <b>KeyboardPlayerController 를 여기 꽂지 않는다.</b> 그것은 오른손 스틱을
+    ///   <b>마우스 우클릭 드래그로</b> 채운다. 같은 드래그가 위의 마우스 경로와
+    ///   여기로 두 번 들어가 화면이 두 배로 돈다. 완드 경로를 장치 없이 확인해야 할 때만
+    ///   인스펙터에 직접 지정한다.
+    /// </summary>
+    private IPlayerController ResolveWand()
+    {
+        if (wand == null)
+        {
+            wand = playerControllerSource as IPlayerController ?? IotPlayerController.Persistent;
+        }
+
+        return wand;
     }
 }

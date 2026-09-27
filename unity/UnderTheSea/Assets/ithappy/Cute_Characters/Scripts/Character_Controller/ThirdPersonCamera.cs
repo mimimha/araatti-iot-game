@@ -33,13 +33,22 @@ namespace ithappy.Cute_Characters.Controller
         /// <summary>
         /// ⚠ 아라아띠 추가 — 카메라가 올라갈 수 있는 가장 높은 곳(월드 y). null 이면 제한이 없다.
         ///
-        /// 잠수 중에 수면 바로 아래로 둔다. 넘으면 <b>각도는 두고 주시점 쪽으로 당겨</b> 이 높이에 맞춘다.
+        /// 잠수 중에 수면 바로 아래로 둔다. 넘으면 <b>거리는 두고 각도를 눕혀</b> 이 높이에 맞춘다.
         /// 기본 거리(5.5m)로 내려다보면 얕은 바다에서도 카메라가 물 밖에 있어 물속이 안 보인다.
+        ///
+        /// ⚠ 예전에는 각도를 두고 주시점 쪽으로 당겼다. 그러면 주시점이 천장에 가까울수록 거리가 0 에
+        ///    가까워져, 헤엄치며 Space 로 떠오르면 카메라가 캐릭터 얼굴까지 확대돼 들어왔다.
         /// </summary>
         public float? CameraCeiling { get; set; }
 
-        /// <summary>천장에 맞춰 당길 때 주시점에서 이보다 가까이 오지 않는다. 캐릭터 머리 속으로 들어가지 않게.</summary>
+        /// <summary>천장 아래에서 뒤쪽 바닥 · 바위에 막혀 당길 때 주시점에서 이보다 가까이 오지 않는다. 캐릭터 머리 속으로 들어가지 않게.</summary>
         private const float CEILING_MIN_DISTANCE = 0.8f;
+
+        /// <summary>천장 아래에서 뒤쪽이 막혔을 때 막힌 면에서 이만큼 떨어뜨린다. 딱 붙이면 바닥이 화면을 가른다.</summary>
+        private const float CEILING_WALL_MARGIN = 0.2f;
+
+        /// <summary><see cref="ClearDistance"/> 가 쓰는 버퍼. 매 프레임 배열을 만들지 않으려고 둔다.</summary>
+        private readonly RaycastHit[] m_CeilingHits = new RaycastHit[8];
 
         private void LateUpdate()
         {
@@ -126,15 +135,45 @@ namespace ithappy.Cute_Characters.Controller
                 m_LookPoint.y += lift;
             }
 
-            // ⚠ 아라아띠 추가 — 천장(CameraCeiling)을 넘으면 주시점 쪽으로 당긴다. 위 설명 참고.
+            // ⚠ 아라아띠 추가 — 천장(CameraCeiling)을 넘으면 거리는 그대로 두고 각도만 눕힌다. 위 설명 참고.
+            //
+            // 끝이 천장 높이에 오도록 팔을 뒤쪽으로 눕힌다. 높이 차(rise)는 팔 높이(arm.y)보다 작으므로
+            // (카메라는 천장 위, 주시점은 아래) 제곱근 안이 음수가 되지 않는다.
+            // 뒤쪽은 좌우 각도만으로 정한다. 위아래 각도를 90도까지 올려도 방향이 사라지지 않는다.
             if (CameraCeiling is float ceiling && m_TargetPos.y > ceiling && m_LookPoint.y < ceiling)
             {
-                Vector3 arm = m_TargetPos - m_LookPoint;
-                float t = (ceiling - m_LookPoint.y) / arm.y;
-                float length = Mathf.Max(arm.magnitude * t, CEILING_MIN_DISTANCE);
+                float length = (m_TargetPos - m_LookPoint).magnitude;
+                float rise = ceiling - m_LookPoint.y;
+                float run = Mathf.Sqrt(length * length - rise * rise);
 
-                m_TargetPos = m_LookPoint + arm.normalized * length;
+                Vector3 back = Quaternion.Euler(0f, m_Angles.y, 0f) * Vector3.back;
+                Vector3 slope = (back * run + Vector3.up * rise) / length;
+
+                // 눕힌 팔은 바닥을 스치듯 지난다. 뒤쪽 해저가 얕으면 카메라가 땅속으로 들어가므로 거기서 멈춘다.
+                m_TargetPos = m_LookPoint + slope * ClearDistance(m_LookPoint, slope, length);
             }
+        }
+
+        /// <summary>
+        /// ⚠ 아라아띠 추가 — 주시점에서 <paramref name="dir"/> 쪽으로 막힘 없이 갈 수 있는 거리.
+        /// 캐릭터(자기 · 남의 캡슐)에는 막히지 않는다. 옆을 헤엄쳐 지나갈 때마다 확대되면 안 된다.
+        /// </summary>
+        private float ClearDistance(Vector3 from, Vector3 dir, float length)
+        {
+            int count = Physics.RaycastNonAlloc(from, dir, m_CeilingHits, length, ~0, QueryTriggerInteraction.Ignore);
+            float clear = length;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (m_CeilingHits[i].collider is CharacterController)
+                {
+                    continue;
+                }
+
+                clear = Mathf.Min(clear, m_CeilingHits[i].distance - CEILING_WALL_MARGIN);
+            }
+
+            return Mathf.Max(clear, CEILING_MIN_DISTANCE);
         }
 
         private void Move(float deltaTime)

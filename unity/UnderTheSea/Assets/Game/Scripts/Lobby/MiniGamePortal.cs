@@ -140,6 +140,26 @@ public sealed class MiniGamePortal : MonoBehaviour
     }
 
     /// <summary>
+    /// 키가 아니라 <b>밖에서</b> 들어가라고 할 때. 완드가 이 길로 들어온다.
+    ///
+    /// 위 <c>Update</c> 의 F 와 **같은 조건을 그대로 본다.** 가까이 있어야 하고, 이미
+    /// 들어가는 중이면 안 되고, 채팅을 치는 중이면 안 된다. 조건을 여기서 느슨하게 하면
+    /// 키로는 못 들어가는 자리에 완드로는 들어가진다.
+    ///
+    /// 완드가 <c>IPlayerController</c> 로만 들어오고 Input System 을 통하지 않으므로
+    /// 키를 흉내내는 대신 이렇게 연다. (IOT_INPUT.md 7장 "키 이벤트를 만들어 보내기" 금지)
+    /// </summary>
+    /// <returns>실제로 들어갔으면 true.</returns>
+    public bool TryEnterFromDevice()
+    {
+        if (!PlayerIsNear || entering) return false;
+        if (ChatFocus.Typing) return false;
+
+        Enter();
+        return true;
+    }
+
+    /// <summary>
     /// 내 캐릭터까지의 거리.
     ///
     /// Lobby 의 내 캐릭터는 네트워크가 스폰하므로 씬에 미리 꽂아 둘 수 없다.
