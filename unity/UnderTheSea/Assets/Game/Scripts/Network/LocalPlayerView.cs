@@ -42,7 +42,6 @@ public class LocalPlayerView : NetworkBehaviour
     [Header("마우스")]
     [SerializeField] private string mouseX = "Mouse X";
     [SerializeField] private string mouseY = "Mouse Y";
-    [SerializeField] private string mouseScroll = "Mouse ScrollWheel";
 
     [Header("IoT")]
     [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
@@ -475,14 +474,9 @@ public class LocalPlayerView : NetworkBehaviour
             delta += new Vector2(look.x, -look.y) * (wandLookSpeed * Time.deltaTime);
         }
 
-        // 확대·축소는 버튼과 무관하다. 휠은 누르지 않고도 늘 먹는다.
-        //
-        // ⚠ 다만 **화면이 휠을 쓰고 있으면 비켜 준다.** 채팅 기록 위에서 지난 대화를
-        //    올려 읽는 동안 화면까지 줌되면 둘 다 제대로 안 된다.
-        //    채팅이 있는지는 여기서 몰라도 된다. ChatFocus 한 곳만 본다.
-        float zoom = ChatFocus.WheelHeld ? 0f : Input.GetAxis(mouseScroll);
-
-        boundCamera.SetInput(in delta, zoom);
+        // 🔍 **휠 줌은 없앴다.** 카메라는 늘 가장 먼 거리(10m)에 있다 — Lobby 씬 카메라의 m_Zoom 을 0 으로 둔다.
+        //    휠은 채팅 기록 스크롤만 쓴다.
+        boundCamera.SetInput(in delta, 0f);
 
         if (LogCamera && Time.time >= nextCameraLogTime)
         {
