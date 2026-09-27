@@ -175,7 +175,9 @@ namespace UnderTheSea.Lobby
                     parsed.remainingFragments,
                     parsed.maxOfferAmount,
                     parsed.altarActivated,
-                    parsed.recoveryPercent);
+                    parsed.recoveryPercent,
+                    // 실패 응답(409)에는 완성 시각이 없다. 빈 값으로 덮지 않고 이전 값을 둔다 — 조회가 곧 바로잡는다.
+                    string.IsNullOrEmpty(parsed.activatedAt) ? null : parsed.activatedAt);
 
                 applied = true;
             }
@@ -389,6 +391,7 @@ namespace UnderTheSea.Lobby
             public long maxOfferAmount;
             public bool altarActivated;
             public float recoveryPercent;
+            public string activatedAt;
             public string code;
             public string message;
         }
