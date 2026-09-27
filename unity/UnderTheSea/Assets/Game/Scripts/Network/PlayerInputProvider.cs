@@ -76,22 +76,30 @@ public class PlayerInputProvider : MonoBehaviour, INetworkRunnerCallbacks
         //
         // ⚠ 채팅 잠금은 완드에도 그대로 건다. 글자를 치는 동안 스틱으로 걸어가면
         //   키보드만 막은 의미가 없다.
+        //
+        // ⚠ 선택지 창(인원 선택 등)이 떠 있으면 왼손 스틱은 버튼 강조를 옮긴다(IotUiNavigator).
+        //   인원 선택 창은 이동을 잠그지 않아서, 여기서 안 막으면 고르는 동안 캐릭터가 걸어간다.
         IPlayerController wand = ResolveWand();
-        if (IotPlayerController.IsWandLive(wand) && Application.isFocused && !ChatFocus.Typing)
+        if (IotPlayerController.IsWandLive(wand) && Application.isFocused && !ChatFocus.Typing
+            && !IotUiNavigator.IsScreenOpen())
         {
             rawDirection += wand.Move;
 
-            // 점프는 오른손 면버튼 1 (키보드 Space 자리), 달리기는 왼손 면버튼 2 (Shift 자리).
+            // 점프는 오른손 면버튼 1 (키보드 Space 자리), 달리기는 오른손 면버튼 2 (Shift 자리).
             // IOT_INPUT.md 1장 표의 "Space = 그 게임의 주된 행동" 을 로비에 적용한 것이다.
             //
-            // ⚠ 기기가 1대면 Right 가 Left 와 **같은 객체**라 점프와 상호작용이 겹친다.
-            //   그래서 점프는 2대일 때만 받는다. 광산이 달리기를 1대에서 빼는 것과 같은 이유다.
+            // 달리기는 **누르고 있는 동안**이다. 왼손 엄지는 걷는 스틱에 있어야 하지만 오른손
+            // 엄지는 카메라 스틱을 잠깐 놓아도 된다. 광산과 같은 자리 · 같은 방식이다.
+            // 왼손 버튼 2 는 춤 휠(키보드 Q) 자리로 비웠다.
+            //
+            // ⚠ 기기가 1대면 Right 가 Left 와 **같은 객체**라 점프와 상호작용이, 달리기와 춤이 겹친다.
+            //   그래서 둘 다 2대일 때만 받는다. 광산이 달리기를 1대에서 빼는 것과 같은 이유다.
             if (wand.HasTwoDevices && !IsMovementLocked && wand.Right.Button1)
             {
                 data.Buttons.Set((int)LobbyButton.Jump, true);
             }
 
-            if (!IsMovementLocked && wand.Left.Button2)
+            if (wand.HasTwoDevices && !IsMovementLocked && wand.Right.Button2)
             {
                 data.Buttons.Set((int)LobbyButton.Sprint, true);
             }

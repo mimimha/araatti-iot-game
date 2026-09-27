@@ -41,10 +41,21 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
             // 붙여 버린다. 그렇다고 이 씬의 러너에 IotPlayerController 를 하나 더 올리면
             // **같은 COM 포트를 두 번 열게 되어** 둘 중 하나가 완드를 못 받는다.
             //
-            // 서버 빌드와 완드가 없는 PC 에서는 null 이라 그대로 키보드로 내려간다.
-            if (devices == null)
+            // 서버 빌드에서는 null 이라 그대로 키보드로 내려간다. 완드가 없는 PC 에서는
+            // Persistent 가 스스로 키보드로 채운다(키보드 폴백).
+            //
+            // ⚠ **씬에 놓인 KeyboardPlayerController 보다 완드가 먼저다.** ShipCoopBoot 의 러너에는
+            //   씬 생성기(ShipCoopSceneSetup)가 KeyboardPlayerController 를 올려 두어서, 위
+            //   GetComponent 가 늘 그것을 집는다. null 일 때만 완드를 보면 이 줄에 영영 닿지 않아
+            //   로비에서 완드를 들고 들어와도 배에서는 키보드만 먹었다. 진동 RPC 도 그쪽으로 가서 버려졌다.
+            if (devices == null || devices is KeyboardPlayerController)
             {
-                devices = IotPlayerController.Persistent;
+                IPlayerController wand = IotPlayerController.Persistent;
+
+                if (wand != null)
+                {
+                    devices = wand;
+                }
             }
 
             if (devices == null)

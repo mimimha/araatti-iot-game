@@ -33,6 +33,15 @@ using UnityEngine;
 /// ⚠ **채팅 잠금을 벗기지 않습니다.** 팀원이 씌워 둔 <c>ChatFocusFishingInputSource</c> 로
 ///   똑같이 감싸서 넣습니다. 안 감싸면 채팅을 치는 동안 완드로 낚시가 됩니다.
 ///
+/// **진동** — 챔질이 걸린 순간과 타이밍 릴링의 GOOD · PERFECT 에 울립니다. 판정을 여기서 다시
+/// 하지 않고, 같은 오브젝트의 <c>FishingV3AudioPresenter</c> 가 효과음을 낼 때 올리는
+/// <c>CueRequested</c> 를 받습니다. 소리와 떨림이 같은 순간에 나고, 낚시 판정이 바뀌어도 여기는 안 고칩니다.
+///
+///     챔질 성공   양손    0.8 · 0.25초   물고기가 문 무게
+///     PERFECT    오른손  0.7 · 0.12초   릴을 감는 손
+///     GOOD       오른손  0.4 · 0.08초
+///     MISS       없음    못 맞힌 것에 상을 주지 않는다
+///
 /// <c>PlayerFishingAdapter</c> 와 같은 오브젝트에 붙습니다. 프리팹에 올리지 않습니다 —
 /// <see cref="IotLobbyInstaller"/> 가 씬이 로드될 때 코드로 붙입니다. (낚시 프리팹은 낚시 담당 것)
 /// </summary>
@@ -55,6 +64,9 @@ public sealed class IotFishingBridge : MonoBehaviour
 
     private IPlayerController _controller;
     private WandFishingInputSource _inputSource;
+
+    /// <summary>챔질 · 판정 효과음을 내는 부품. 그 신호에 맞춰 진동한다. 없으면 진동만 빠진다.</summary>
+    private FishingV3AudioPresenter _cues;
 
     /// <summary>지금 낚시 중인가. 낚시 중이면 상호작용 버튼이 낚시 개시로 가면 안 된다.</summary>
     public bool IsFishing =>
@@ -94,6 +106,46 @@ public sealed class IotFishingBridge : MonoBehaviour
 
         // 채팅 잠금을 그대로 씌운다. 팀원이 건 경계를 벗기지 않는다.
         gameController.SetInputSource(new ChatFocusFishingInputSource(_inputSource));
+
+        _cues = GetComponent<FishingV3AudioPresenter>();
+        if (_cues != null)
+        {
+            _cues.CueRequested += Vibrate;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (_cues != null)
+        {
+            _cues.CueRequested -= Vibrate;
+        }
+    }
+
+    /// <summary>
+    /// 챔질 · GOOD · PERFECT 에 완드를 울린다.
+    ///
+    /// ⚠ 완드가 실제로 붙어 있을 때만. 없으면 컨트롤러가 키보드로 대신 받아 로그만 쌓인다.
+    /// </summary>
+    private void Vibrate(FishingV3AudioCue cue)
+    {
+        if (!IotPlayerController.IsWandLive(_controller))
+        {
+            return;
+        }
+
+        switch (cue)
+        {
+            case FishingV3AudioCue.HookSuccess:
+                _controller.VibrateBoth(0.8f, 0.25f);
+                break;
+            case FishingV3AudioCue.Perfect:
+                _controller.Right.Vibrate(0.7f, 0.12f);
+                break;
+            case FishingV3AudioCue.Good:
+                _controller.Right.Vibrate(0.4f, 0.08f);
+                break;
+        }
     }
 
     private void Update()

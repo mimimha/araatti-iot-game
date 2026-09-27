@@ -36,6 +36,12 @@ using Warriors.Net;
 /// <see cref="IotWarriorsInstaller"/> 가 씬이 로드될 때 코드로 붙입니다.
 /// (<c>WarriorsGameRoot.prefab</c> 은 무쌍 담당 것입니다)
 ///
+/// **진동도 여기서 받습니다.** 무쌍은 "정타 · 피격 · 동료 쓰러짐" 을
+/// <see cref="WarriorsIoTFeedbackHub.FeedbackRequested"/> 에 올리기만 하고, 그것을 실제로 울리는 것은
+/// 장치 쪽 몫으로 비워 두었습니다(허브 주석). 네트워크 판에서는 <c>WarriorsNetFeedbackBridge</c> 가
+/// 입력 권한이 있는 쪽, 곧 **내 캐릭터**에 대해서만 올립니다. 그래도 번호를 한 번 더 봅니다.
+/// 세기는 게임이 준 값을 그대로 쓰고, 길이만 종류별로 여기서 정합니다(<see cref="SecondsOf"/>).
+///
 /// 서버 빌드에서는 컨트롤러가 <c>null</c> 이라 아무것도 하지 않습니다.
 /// </summary>
 [DisallowMultipleComponent]
@@ -58,9 +64,20 @@ public sealed class IotWarriorsBridge : MonoBehaviour
     /// <summary>다음에 러너를 찾아볼 시각. 못 찾은 동안 매 프레임 씬을 뒤지지 않으려고 둔다.</summary>
     private float nextProviderSearch;
 
+    /// <summary>진동 요청이 모이는 곳. 네트워크 판에 들어선 뒤 한 번 찾아 구독한다.</summary>
+    private WarriorsIoTFeedbackHub feedbackHub;
+
     private void Awake()
     {
         device = GetComponent<WarriorsIoTInput>();
+    }
+
+    private void OnDestroy()
+    {
+        if (feedbackHub != null)
+        {
+            feedbackHub.FeedbackRequested -= Vibrate;
+        }
     }
 
     private void Update()
@@ -82,6 +99,8 @@ public sealed class IotWarriorsBridge : MonoBehaviour
             {
                 return;
             }
+
+            ListenForFeedback();
         }
 
         IPlayerController controller = IotPlayerController.Persistent;
@@ -116,6 +135,59 @@ public sealed class IotWarriorsBridge : MonoBehaviour
         // 안에 또 들어온 경우다. 완드에도 250ms 쿨다운이 있어 **이중**이 된다.
         // 두 값은 무쌍 담당이 정할 자리라 여기서 건드리지 않는다. (7-2)
         device.OnSwing(device.LocalPlayerId, direction, motion.Strength, Time.unscaledTimeAsDouble);
+    }
+
+    /// <summary>
+    /// 진동 허브를 찾아 구독한다. 네트워크 판에 들어선 순간 한 번만 부른다.
+    ///
+    /// ⚠ 검증 씬(<c>WarriorsTest</c>)에서는 부르지 않는다. 거기는 게임이 모든 플레이어의 요청을
+    ///   로컬에서 올리므로, 받으면 남이 맞은 것에도 내 검이 운다. 네트워크 판은 내 것만 올라온다.
+    /// </summary>
+    private void ListenForFeedback()
+    {
+        if (feedbackHub != null)
+        {
+            return;
+        }
+
+        feedbackHub = FindAnyObjectByType<WarriorsIoTFeedbackHub>(FindObjectsInactive.Include);
+
+        if (feedbackHub != null)
+        {
+            feedbackHub.FeedbackRequested -= Vibrate;
+            feedbackHub.FeedbackRequested += Vibrate;
+        }
+    }
+
+    private void Vibrate(WarriorsIoTFeedback feedback)
+    {
+        if (feedback.PlayerId != device.LocalPlayerId || feedback.Intensity <= 0f)
+        {
+            return;
+        }
+
+        // 서버 빌드에서는 null 이다. 완드가 없으면 키보드 폴백이 받아 로그만 남긴다.
+        IotPlayerController.Persistent?.VibrateBoth(feedback.Intensity, SecondsOf(feedback.Type));
+    }
+
+    /// <summary>
+    /// 종류별 길이(초). 짧고 잦은 것(정타)은 짧게, 드물고 알아채야 하는 것(동료 쓰러짐)은 길게 둔다.
+    /// 세기는 게임이 이미 정해서 보내므로 여기서 다시 정하지 않는다.
+    /// </summary>
+    private static float SecondsOf(WarriorsIoTFeedbackType type)
+    {
+        switch (type)
+        {
+            case WarriorsIoTFeedbackType.CorrectAttack:   return 0.08f;
+            case WarriorsIoTFeedbackType.WrongAttack:     return 0.06f;
+            case WarriorsIoTFeedbackType.PlayerDamaged:   return 0.25f;
+            case WarriorsIoTFeedbackType.ComboMilestone:  return 0.3f;
+            case WarriorsIoTFeedbackType.UltimateReady:   return 0.2f;
+            case WarriorsIoTFeedbackType.FinalSwingReady: return 0.4f;
+            case WarriorsIoTFeedbackType.MateDown:        return 0.5f;
+            case WarriorsIoTFeedbackType.CoopWindowOpen:  return 0.15f;
+            default:                                      return 0.1f;
+        }
     }
 
     private static WarriorsAttackDirection ToDirection(HandMotionType type)

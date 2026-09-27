@@ -52,7 +52,15 @@ public static class IotMineInput
     /// </summary>
     public static void Fill(ref MineInputData data)
     {
-        IPlayerController controller = IotPlayerController.Persistent;
+        IotPlayerController controller = IotPlayerController.Persistent;
+
+        // 광산 배치로 바꾼다. 로비 · 배의 Shared 는 왼손 버튼 2 를 달리기 토글로 잠그는데,
+        // 광산에서 그 자리는 힌트라 토글 상태가 "힌트를 누르고 있음" 으로 서버에 간다.
+        // 로비로 돌아가면 IotLobbyInstaller 가 Shared 로 되돌린다.
+        if (controller != null && controller.ControlProfile != IotControlProfile.Mine)
+        {
+            controller.SetControlProfile(IotControlProfile.Mine);
+        }
 
         // 완드가 안 붙어 있으면 아무것도 안 한다. 키보드 폴백 값을 더하면 두 번 들어간다.
         if (controller == null || !IotPlayerController.IsWandLive(controller))

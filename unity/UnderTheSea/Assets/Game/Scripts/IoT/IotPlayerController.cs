@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // 시리얼은 **플레이어 PC 에만** 있습니다. Dedicated Server 빌드에는 완드도 동글도 없고,
 // 서버는 클라이언트가 네트워크로 보내온 숫자를 ShipCoopNetworkedController 로 되살려 씁니다.
@@ -508,14 +509,52 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
         ApplySprintToggle();
     }
 
+    /// <summary>지금 키 배치 프로필. 같은 값을 매 틱 다시 넣지 않으려고 본다.</summary>
+    public IotControlProfile ControlProfile => controlProfile;
+
+    /// <summary>
+    /// **씬이 바뀌면 묵은 입력을 버린다.**
+    ///
+    /// <see cref="Persistent"/> 는 로비 → 미니게임 → 로비 내내 살아 있어서, 앞 씬에서 아무도
+    /// 안 가져간 "눌린 순간" 과 달리기 토글이 다음 씬으로 그대로 넘어갑니다. 실제로
+    /// 로비에서 켜 둔 달리기 토글(왼손 버튼 2)이 광산에서 **힌트를 누르고 있는 것**으로 읽혀
+    /// 들어가자마자 힌트가 터졌습니다. 배 협동에서는 시작하자마자 달리거나 대포가 나갑니다.
+    ///
+    /// 누르고 있는 상태(<c>Button1</c> · <c>Button2</c> 의 원래 레벨)는 그대로 둡니다.
+    /// 지우면 씬을 넘는 동안 쥐고 있던 버튼이 다음 줄에서 "새로 눌린 것" 이 됩니다.
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (_wands == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _wands.Length; i++)
+        {
+            _wands[i].ClearLatched();
+        }
+
+        if (_keyboard != null)
+        {
+            DrainPending(_keyboard.Left);
+            DrainPending(_keyboard.Right);
+        }
+    }
+
 #if !UNITY_SERVER
     private void OnEnable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+
         OpenPort();
     }
 
     private void OnDisable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+
         ClosePort();
     }
 
@@ -1657,6 +1696,22 @@ public class IotPlayerController : MonoBehaviour, IPlayerController
             _hasCounter = false;
             _lastCounter = 0;
             _previousMilliseconds = 0;
+        }
+
+        /// <summary>
+        /// 쌓아 둔 것만 버린다 — 눌린 순간 · 달리기 토글 · 동작. 씬이 바뀔 때 부른다.
+        ///
+        /// <see cref="Clear"/> 와 달리 스틱 · 누르고 있는 상태 · 카운터 기준은 그대로 둔다.
+        /// 완드는 여전히 붙어 있고, 기준을 지우면 다음 줄에서 한 번 헛돈다.
+        /// </summary>
+        internal void ClearLatched()
+        {
+            _button1Pressed = false;
+            _button2Pressed = false;
+            _sprintOn = false;
+
+            _motionHead = 0;
+            _motionCount = 0;
         }
 
         public bool ConsumeButton1Press()
