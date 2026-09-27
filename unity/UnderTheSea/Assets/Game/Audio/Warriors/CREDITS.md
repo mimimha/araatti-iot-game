@@ -1,25 +1,25 @@
 # 무쌍(Warriors) 소리 — 출처
 
-이 폴더에 넣은 클립의 출처를 **한 줄씩** 적습니다. 저작권은 CC0 또는 팀이 권리를 가진 것만 씁니다.
+이 폴더에 넣은 클립의 출처를 **한 줄씩** 적습니다. 저작권은 CC0 · Pixabay Content License(배 · 광산과 같음) 또는 팀이 권리를 가진 것만 씁니다.
 에셋 팩 단위로는 저장소 뿌리의 `ASSETS.md` 목록에도 한 줄 추가합니다. (AUDIO.md 5장)
 
 파일 이름은 **연출가(`WarriorsAudio`)의 필드 이름과 같아야** 합니다. 그래야
 메뉴 `Tools/아라아띠/Warriors 소리 놓고 클립 채우기` 가 이름으로 자동 연결합니다.
 확장자는 `.ogg` 권장, `.wav` · `.mp3` 도 됩니다.
 
-## 지금 들어 있는 것 — 효과음 18개 (전부 CC0)
+## 지금 들어 있는 것 — 효과음 18개 (CC0) · 배경음악 2곡 · 파도 루프 (Pixabay)
 
 길이는 실측값입니다. 빈 줄은 아직 안 넣은 것이고, **그 소리만 안 납니다.**
 
 | 파일 (= 필드 이름) | 언제 나는가 | 길이 | 원본 | 출처 |
 | --- | --- | --- | --- | --- |
-| `bgmWaiting` | 대기 · 시작 카운트다운 | | | |
-| `bgmRound1` | 1라운드 해변 방어 | | | |
-| `bgmRound2` | 2라운드 촉수 절단 | | | |
-| `bgmRound3` | 3라운드 리듬 전투 (긴장) | | | |
+| `bgmWaiting` | 대기 · 시작 카운트다운 | 1:03 | Pirate Jolly Roger Loop (Ebunny) | Pixabay |
+| `bgmRound1` | 1라운드 해변 방어 | — | 파일 없음 — `bgmWaiting` 과 **같은 클립**을 설치 도구가 이어 꽂는다(대기에서 끊기지 않고 이어짐) | Pixabay |
+| `bgmRound2` | 2라운드 촉수 절단 | — | 파일 없음 — `bgmWaiting` 과 **같은 클립**(대기부터 2라운드까지 한 곡이 이어짐) | Pixabay |
+| `bgmRound3` | 3라운드 리듬 전투 (긴장) | 1:42 | Pirates Battle (Ebunny) — 너무 웅장하지 않은 쪽으로 골랐다 | Pixabay |
 | `stingerClear` | 성공. 한 번 나고 음악은 멈춤 | 1.51초 | 도-미-솔-도 팡파르 — **직접 만듦** | 팀 제작 |
 | `stingerFail` | 실패. 한 번 나고 음악은 멈춤 | 1.55초 | `jingles_STEEL07` | Kenney Jingles |
-| `waveLoop` | 해변 파도 루프 (1 · 2라운드) | | | |
+| `waveLoop` | 해변 파도 루프 (대기부터 결과까지 같은 크기) | 1:01 | Gentle Ocean Shore Waves (DRAGON-STUDIO) | Pixabay |
 | `krakenLoop` | 크라켄 숨소리 루프 (3라운드) | | | |
 | `swingHorizontal` | 가로베기(J) — 내 검 | 0.13초 | `swish-5` | Swishes |
 | `swingVertical` | 세로베기(K) — 내 검 | 0.20초 | `swish-9` (가장 무겁게) | Swishes |
@@ -56,6 +56,19 @@
 | CC0 Deep Monster Roar | (OGA 게시자) | https://opengameart.org/content/cc0-deep-monster-roar | 2026-09-22 |
 
 CC0 는 **출처 표기 의무가 없고 수정도 자유**입니다. 그래도 어디서 왔는지 남겨 둡니다.
+
+### 출처 — 배경음악 · 파도 (Pixabay)
+
+모두 [Pixabay Content License](https://pixabay.com/service/license-summary/) — 무료 · 상업적 이용 가능 · 수정 가능 · 출처 표기 의무 없음. 배 · 광산과 같은 라이선스입니다.
+
+| 필드 | 곡 | 지은이 | 주소 | 받은 날 |
+| --- | --- | --- | --- | --- |
+| `bgmWaiting` · `bgmRound1` · `bgmRound2` | Pirate Jolly Roger Loop | Ebunny | https://pixabay.com/music/main-title-pirate-jolly-roger-loop-369969/ | 2026-09-27 |
+| `bgmRound3` | Pirates Battle | Ebunny | https://pixabay.com/music/main-title-pirates-battle-361336/ | 2026-09-27 |
+| `waveLoop` | Gentle Ocean Shore Waves | DRAGON-STUDIO | https://pixabay.com/sound-effects/nature-gentle-ocean-shore-waves-499665/ | 2026-09-27 |
+
+> 배경음악 2곡은 가져오기 설정을 **스트리밍**으로 두었다(광산 배경음악과 같음). 곡 전체를 메모리에 풀지 않는다.
+> Ebunny 는 배 게임 결과 곡(`Pirate Adventure Loop`)과 같은 작곡가다.
 
 ### 직접 만든 것 — 7개
 

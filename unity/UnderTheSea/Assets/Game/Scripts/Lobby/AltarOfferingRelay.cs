@@ -215,7 +215,10 @@ namespace UnderTheSea.Lobby
 
             // 바친 사람만 공중 카메라 연출을 거친다. 연출이 밝아진 뒤에 제단 연출을 튼다 — 처음부터 보이게.
             // 이 RPC 는 늘 보낸 사람의 오브젝트에서 불리므로, 내 화면이면서 입력 권한이 있으면 곧 "내가 바쳤다" 다.
-            if (HasInputAuthority)
+            //
+            // ⚠ 이 봉헌으로 제단이 다 찼으면 공중 연출을 하지 않는다. 곧바로 완성 영상(AltarCompletionVideo)이
+            //    나온다 — 봉헌 응답이 이미 AltarActivated 와 완성 시각을 캐시에 넣어 두었다.
+            if (HasInputAuthority && !AltarState.AltarActivated)
             {
                 AltarOfferCinematic.Play(PlayEffects);
             }

@@ -216,14 +216,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96c67ba5b525479479cdf9ed136b24c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsAudio
-  bgmWaiting: {fileID: 0}
-  bgmRound1: {fileID: 0}
-  bgmRound2: {fileID: 0}
-  bgmRound3: {fileID: 0}
+  bgmWaiting: {fileID: 8300000, guid: 839ed4dff18a5db4f93a1aac0f03c5b9, type: 3}
+  bgmRound1: {fileID: 8300000, guid: 839ed4dff18a5db4f93a1aac0f03c5b9, type: 3}
+  bgmRound2: {fileID: 8300000, guid: 839ed4dff18a5db4f93a1aac0f03c5b9, type: 3}
+  bgmRound3: {fileID: 8300000, guid: 014fcd3b15d402d4aad873b9abdb69fa, type: 3}
   stingerClear: {fileID: 8300000, guid: 75ec90a27f832904da4977c0e2e5d00b, type: 3}
   stingerFail: {fileID: 8300000, guid: 415c4abe79c3c9b43a052393552788f0, type: 3}
   crossfadeSeconds: 1.5
-  waveLoop: {fileID: 0}
+  musicLevel: 0.7
+  waveLoop: {fileID: 8300000, guid: fbd534922ef99914fae0ae0edcc28b8d, type: 3}
   krakenLoop: {fileID: 0}
   loopLevel: 0.45
   swingHorizontal: {fileID: 8300000, guid: 9daa913f38cddeb4c8562816df1dce1b, type: 3}
@@ -535,6 +536,7 @@ MonoBehaviour:
   clearNoticeSeconds: 1.4
   transitionGapSeconds: 0.5
   finaleFadeSeconds: 1.6
+  finaleSinkSeconds: 2
   killScore: 100
   tentacleScore: 200
   rhythmScore: 150

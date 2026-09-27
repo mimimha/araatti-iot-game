@@ -36,6 +36,14 @@ public static class SceneFlowDevMenu
         Debug.Log("[SceneFlowDevMenu] 다음 로비 입장에서 튜토리얼이 나옵니다.");
     }
 
+    [MenuItem(MenuRoot + "오프닝 영상 다시 보기")]
+    private static void ClearOpeningVideo()
+    {
+        // 튜토리얼 다시 보기와 같은 이유로 가드를 두지 않는다. 누르면 늘 세운다.
+        UnderTheSea.Lobby.OpeningVideo.ClearSeen();
+        Debug.Log("[SceneFlowDevMenu] 다음 로비 입장에서 오프닝 영상이 나옵니다. (Resources/OpeningVideo 영상이 있을 때)");
+    }
+
     [MenuItem(MenuRoot + "저장된 캐릭터 이름 보기")]
     private static void ShowCharacter()
     {

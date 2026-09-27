@@ -16871,6 +16871,8 @@ MonoBehaviour:
     maxInterval: 10
     maxConcurrent: 3
     openingBurst: 0
+    guaranteed:
+    - {fileID: 562408157}
   - phaseIndex: 3
     label: "\uD398\uC774\uC988 3"
     pool:

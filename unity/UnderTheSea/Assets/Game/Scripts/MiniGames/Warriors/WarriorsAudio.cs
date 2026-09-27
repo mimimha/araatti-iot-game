@@ -10,7 +10,7 @@ namespace Warriors
     ///
     /// <code>
     ///   🎵 배경음악   대기 → 1R → 2R → 3R(긴장) → 결과 스팅어(성공 · 실패) · 결과 화면은 음악을 멈춘다
-    ///   🌊 루프       해변 파도(1~2R) · 크라켄 숨소리(3R)
+    ///   🌊 루프       해변 파도(판 내내 같은 크기) · 크라켄 숨소리(3R)
     ///   💥 효과음     베기 3종 · 몬스터 정타/처치 · 내 피격 · 쓰러짐 · 촉수 타격/절단 · 마무리 창 ·
     ///                협동 세트 · 콤보 · 노트 정타/미스 · 크라켄 피격/포효 · 라운드 전환 · 카운트다운
     /// </code>
@@ -74,12 +74,28 @@ namespace Warriors
         [Tooltip("곡을 바꿀 때 겹치는 시간(초). 배 협동과 같은 1.5초.")]
         [SerializeField, Range(0.1f, 5f)] private float crossfadeSeconds = 1.5f;
 
+        /// <summary>
+        /// 배경음악 재생 크기(0~1). **1(최대)과 로비 · 배 협동 값(0.45)의 중간인 0.7** 이다.
+        ///
+        /// 예전에는 1(최대)로 틀어 다른 게임보다 6~11dB 컸다. 실측 체감 음량(파일 RMS + 재생 크기):
+        /// <code>
+        ///   로비       -23.2dB    배 협동(항해)  -18.0dB    광산(대기)  -21.9dB
+        ///   검 1.0     -12.4dB (컸다)    0.45  -19.3dB (작았다)    → 0.7  약 -15.5dB
+        /// </code>
+        /// 실측: 1 은 다른 게임보다 확연히 컸고, 로비와 같은 0.45 로 맞추니 이번엔 너무 작았다. 그 사이로 둔다.
+        ///
+        /// ⚠ <b>이 값은 씬(WarriorsNet.unity)에 적혀 있다.</b> 필드를 처음 넣을 때의 기본값이 씬 가져오기에
+        ///    구워져서, 코드 기본값만 바꾸면 빌드에 반영되지 않았다. 바꿀 때는 씬 값을 고친다.
+        /// </summary>
+        [Tooltip("배경음악 재생 크기. 1 은 다른 게임보다 컸고 0.45 는 작았다. 그 사이 0.7.")]
+        [SerializeField, Range(0f, 1f)] private float musicLevel = 0.7f;
+
         // ------------------------------------------------------------
         // 🌊 루프
         // ------------------------------------------------------------
 
         [Header("🌊 루프")]
-        [Tooltip("해변 파도. 1 · 2라운드 동안 얕게 깔린다.")]
+        [Tooltip("해변 파도. 대기부터 결과까지 판 내내 같은 크기로 잔잔하게 깔린다.")]
         [SerializeField] private AudioClip waveLoop;
 
         [Tooltip("크라켄의 숨소리 · 낮은 울림. 3라운드 동안만.")]
@@ -675,19 +691,19 @@ namespace Warriors
             {
                 case WarriorsMatchPhase.Waiting:
                 case WarriorsMatchPhase.Countdown:
-                    _hub.PlayMusic(bgmWaiting, crossfadeSeconds);
+                    _hub.PlayMusic(bgmWaiting, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase1:
-                    _hub.PlayMusic(bgmRound1, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound1, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase2:
-                    _hub.PlayMusic(bgmRound2, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound2, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase3:
-                    _hub.PlayMusic(bgmRound3, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound3, crossfadeSeconds, musicLevel);
                     break;
 
                 default:
@@ -699,9 +715,9 @@ namespace Warriors
         /// <summary>루프는 목표만 정한다. 켜고 · 키우고 · 끄는 것은 허브가 한다.</summary>
         private void DriveLoops(WarriorsMatchPhase phase)
         {
-            bool beach = phase == WarriorsMatchPhase.Phase1 || phase == WarriorsMatchPhase.Phase2;
-
-            if (_wave != null) _wave.Target = (beach ? 1f : 0.35f) * loopLevel;
+            // 파도는 대기부터 결과까지 **같은 크기로 잔잔하게** 깐다. 예전에는 1 · 2라운드만 키우고
+            // 나머지는 35% 로 줄였는데, 라운드가 바뀔 때마다 배경이 커졌다 작아져 어수선했다.
+            if (_wave != null) _wave.Target = loopLevel;
             if (_kraken != null) _kraken.Target = (phase == WarriorsMatchPhase.Phase3 ? 1f : 0f) * loopLevel;
         }
 

@@ -18,6 +18,11 @@ namespace AraAtti.Api.Contracts;
 /// <param name="RecoveryPercent">min(total / target, 1) * 100. 100 을 넘지 않는다.</param>
 /// <param name="MyOfferedTotal">내가 지금까지 봉헌한 합계. 전체 TotalOffered 와 다르다.</param>
 /// <param name="UpdatedAt">altar_state.updated_at. UTC.</param>
+/// <param name="ActivatedAt">
+/// altar_state.activated_at. 봉헌량이 목표에 <b>처음 닿은 순간</b>(UTC). 목표 아래면 null.
+/// 클라이언트는 이것을 "이번 완성" 의 번호로 써서 완성 영상을 한 번씩만 튼다. 목표 아래로 내려갔다가
+/// 다시 차면 새 시각이 들어가 새 완성이 된다.
+/// </param>
 public sealed record AltarStateResponse(
     ulong TotalOffered,
     uint TargetOffering,
@@ -27,7 +32,8 @@ public sealed record AltarStateResponse(
     bool AltarActivated,
     float RecoveryPercent,
     ulong MyOfferedTotal,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    DateTime? ActivatedAt);
 
 /// <summary>
 /// 봉헌 요청.
@@ -70,7 +76,8 @@ public sealed record AltarOfferResponse(
     ulong MaxOfferAmount,
     bool AltarActivated,
     float RecoveryPercent,
-    bool Duplicate);
+    bool Duplicate,
+    DateTime? ActivatedAt = null);
 
 /// <summary>
 /// 봉헌 실패 응답. 아무것도 바뀌지 않았다는 뜻이다.
