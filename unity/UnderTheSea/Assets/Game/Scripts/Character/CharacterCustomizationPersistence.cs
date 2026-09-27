@@ -158,6 +158,9 @@ namespace UnderTheSea.Character
             if (created != null)
             {
                 LobbyTutorial.MarkPending(created.id);
+
+                // 오프닝 영상도 같은 까닭으로 여기서만 세운다. 로비에 처음 들어가면 튜토리얼보다 먼저 나온다.
+                UnderTheSea.Lobby.OpeningVideo.MarkPending(created.id);
             }
 
             FinishCreation(savedNickname);
