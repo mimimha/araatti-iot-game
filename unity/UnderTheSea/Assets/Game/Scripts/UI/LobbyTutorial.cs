@@ -60,6 +60,11 @@ using UnityEngine.UI;
 ///
 /// <b>한 번만 나온다.</b> 끝까지 본 사람에게는 다시 나오지 않는다.
 /// 다시 보려면 에디터 메뉴 <c>Tools/아라아띠/튜토리얼 다시 보기</c>.
+///
+/// <b>완드를 들고 있으면 완드용 안내가 뜬다.</b> 완드 2대가 붙어 있으면 각 단계의 <c>Art</c> 그림과
+/// 문구를 완드 것으로 바꾼다. 그림은 프리팹 루트의 <see cref="LobbyTutorialIotArt"/> 가 들고 있다.
+/// 도중에 완드를 꽂거나 빼면 그 자리에서 바뀐다. 1대면 오른손 스틱 · 버튼이 없어 둘러보기 · 점프를
+/// 완드로 할 수 없으므로 키보드 안내를 그대로 둔다. 어느 안내가 떠 있든 키보드와 완드 입력은 둘 다 받는다.
 /// </summary>
 public class LobbyTutorial : MonoBehaviour
 {
@@ -129,6 +134,18 @@ public class LobbyTutorial : MonoBehaviour
     /// ⚠ 쉼표 뒤에서 **직접 줄을 나눈다.** 맡겨 두면 "바다의 심 / 장 조각을" 처럼
     ///    낱말 한가운데가 잘린다. 한글은 띄어쓰기가 드물어 자동 줄바꿈이 잘 안 맞는다.
     private const string CloseText = "다양한 사람들을 만나,\n바다의 심장 조각을 함께 모아보세요.";
+
+    // 완드 안내 문구. 작가 문서(art/ui-assets/iot-tutorial-generation.md)가 제안한 그대로다.
+    // 완드는 그림만으로 어느 손의 무엇인지 안 읽혀서 세 단계 모두 "어떻게" 까지 적는다.
+    private const string WandMoveText = "이동\n<size=70%>왼손 스틱 움직이기</size>";
+    private const string WandLookText = "둘러보기\n<size=70%>오른손 스틱 움직이기</size>";
+    private const string WandJumpText = "점프\n<size=70%>오른손 A 버튼 누르기</size>";
+
+    /// <summary>각 그룹 안에서 그림을 담은 Image 의 이름. 완드일 때 이 그림을 바꿔 끼운다.</summary>
+    private const string ArtName = "Art";
+
+    /// <summary>이보다 덜 기울인 완드 스틱은 움직인 것으로 치지 않는다. 손을 떼도 조금 남는다.</summary>
+    private const float WandMoveDeadZone = 0.3f;
 
     /// <summary>안내를 넘기기 전에 실제로 움직여야 하는 시간(초).</summary>
     private const float MoveHoldSeconds = 1.2f;
@@ -221,6 +238,31 @@ public class LobbyTutorial : MonoBehaviour
     /// </summary>
     private readonly List<KeyCap> jumpCaps = new List<KeyCap>();
     private readonly List<RectTransform> mouseArrows = new List<RectTransform>();
+
+    /// <summary>안내 단계. 문구와 그림을 완드 · 키보드 중 무엇으로 띄울지 고를 때 쓴다.</summary>
+    private enum Step
+    {
+        Move,
+        Look,
+        Jump,
+        Close,
+    }
+
+    private Step step;
+
+    /// <summary>지금 완드 안내를 띄우고 있는가.</summary>
+    private bool usingWand;
+
+    /// <summary>완드 그림. 교체 프리팹에만 있다. 없으면 문구만 바뀐다.</summary>
+    private LobbyTutorialIotArt iotArt;
+
+    // 각 단계의 그림 칸과, 원래 들어 있던 키보드 그림. 완드를 빼면 이것으로 되돌린다.
+    private Image moveArt;
+    private Image lookArt;
+    private Image jumpArt;
+    private Sprite moveKeyboardSprite;
+    private Sprite lookKeyboardSprite;
+    private Sprite jumpKeyboardSprite;
 
     /// <summary>키 하나의 그림과 "지금 눌려 있는가" 를 묶어 둔다.</summary>
     private sealed class KeyCap
@@ -482,6 +524,15 @@ public class LobbyTutorial : MonoBehaviour
         jumpGroup = FindChild(JumpGroupName);
         progress = FindByName<Image>(ProgressName);
 
+        // 완드 그림과, 그것을 끼울 칸. 코드로 만든 화면에는 둘 다 없어서 문구만 바뀐다.
+        iotArt = view.GetComponent<LobbyTutorialIotArt>();
+        moveArt = ArtOf(keyGroup);
+        lookArt = ArtOf(mouseGroup);
+        jumpArt = ArtOf(jumpGroup);
+        moveKeyboardSprite = moveArt != null ? moveArt.sprite : null;
+        lookKeyboardSprite = lookArt != null ? lookArt.sprite : null;
+        jumpKeyboardSprite = jumpArt != null ? jumpArt.sprite : null;
+
         // 진행선은 바탕과 채움이 한 쌍이다. 껐다 켤 때는 통째로 다룬다.
         // 채움만 끄면 빈 바탕이 덩그러니 남고, 교체 프리팹이 바탕을 안 만들었으면 채움만 끈다.
         progressTrack = FindChild(ProgressTrackName)
@@ -542,6 +593,83 @@ public class LobbyTutorial : MonoBehaviour
         return keyboard != null && Application.isFocused && pick(keyboard).isPressed;
     }
 
+    /// <summary>
+    /// 지금 값을 내놓고 있는 완드. 안 붙어 있거나 창에 포커스가 없으면 null.
+    ///
+    /// ⚠ <see cref="IotPlayerController.IsWandLive"/> 로 거른다. 완드가 없을 때 컨트롤러는 키보드로
+    ///   대신 채우는데(키보드 폴백), 그것까지 완드로 치면 키보드 안내가 완드 안내로 뒤집힌다.
+    /// </summary>
+    private static IPlayerController LiveWand
+    {
+        get
+        {
+            IotPlayerController wand = IotPlayerController.Persistent;
+            return Application.isFocused && IotPlayerController.IsWandLive(wand) ? wand : null;
+        }
+    }
+
+    /// <summary>
+    /// 완드 안내를 띄울지. **2대일 때만**이다 — 1대면 오른손 스틱 · 버튼이 없어 둘러보기 · 점프를
+    /// 완드로 할 수 없다. 그 안내를 띄우면 따라 할 수 없는 그림을 보고 멈춘다.
+    /// </summary>
+    private static bool WantsWandGuide
+    {
+        get
+        {
+            IPlayerController wand = LiveWand;
+            return wand != null && wand.HasTwoDevices;
+        }
+    }
+
+    private Image ArtOf(GameObject group)
+    {
+        Transform found = group != null ? FindIn(group.transform, ArtName) : null;
+        return found != null ? found.GetComponent<Image>() : null;
+    }
+
+    /// <summary>완드를 꽂거나 뺐으면 그 자리에서 안내를 바꾼다. 기다리는 동안 매 프레임 부른다.</summary>
+    private void RefreshGuide()
+    {
+        bool wanted = WantsWandGuide;
+
+        if (wanted != usingWand)
+        {
+            usingWand = wanted;
+            ApplyGuide();
+        }
+    }
+
+    /// <summary>지금 단계의 문구와 그림을 완드 · 키보드 중 맞는 것으로 채운다.</summary>
+    private void ApplyGuide()
+    {
+        if (label != null)
+        {
+            label.text = step switch
+            {
+                Step.Move => usingWand ? WandMoveText : MoveText,
+                Step.Look => usingWand ? WandLookText : LookText,
+                Step.Jump => usingWand ? WandJumpText : JumpText,
+                _ => CloseText,
+            };
+        }
+
+        bool wandArt = usingWand && iotArt != null;
+        SetArt(moveArt, wandArt ? iotArt.Move : null, moveKeyboardSprite);
+        SetArt(lookArt, wandArt ? iotArt.Look : null, lookKeyboardSprite);
+        SetArt(jumpArt, wandArt ? iotArt.Jump : null, jumpKeyboardSprite);
+    }
+
+    /// <summary>완드 그림이 있으면 그것을, 없으면 원래 키보드 그림을 끼운다.</summary>
+    private static void SetArt(Image art, Sprite wand, Sprite keyboard)
+    {
+        Sprite wanted = wand != null ? wand : keyboard;
+
+        if (art != null && wanted != null && art.sprite != wanted)
+        {
+            art.sprite = wanted;
+        }
+    }
+
     /// <summary>건너뛰기를 이미 눌렀는가. 두 번 눌려도 한 번만 먹는다.</summary>
     private bool skipping;
 
@@ -568,6 +696,38 @@ public class LobbyTutorial : MonoBehaviour
         StartCoroutine(FinishNow());
     }
 
+    /// <summary>
+    /// 완드로 [건너뛰기]. 로비에서 왼손 버튼 2 를 받는 <c>IotLobbyInteract</c> 가 부른다.
+    ///
+    /// 버튼은 마우스로만 눌려서 완드만 든 사람은 끝까지 따라 해야 했다. 왼손 버튼 2 는 선택지
+    /// 창에서도 "닫기 · 취소" 라 같은 뜻으로 맞췄다.
+    ///
+    /// ⚠ <b>[건너뛰기] 가 화면에 보일 때만</b> 건너뛴다. 아니면 false 를 돌려주고, 그 누름은 춤 휠로 간다.
+    ///   튜토리얼은 캐릭터가 생긴 순간 만들어져 로딩 암전 동안 투명하게 기다리고(<see cref="WaitForScreenToClear"/>),
+    ///   마지막 한마디에서는 버튼을 감춘다(<see cref="Show"/>). 그때 건너뛰면 보이지 않는 것이 눌리거나
+    ///   춤 휠이 까닭 없이 안 열린다.
+    /// </summary>
+    public static bool TrySkipFromDevice()
+    {
+        if (instance == null || instance.skipping)
+        {
+            return false;
+        }
+
+        bool visible = instance.skipButton != null
+                       && instance.skipButton.activeInHierarchy
+                       && instance.group != null
+                       && instance.group.alpha > 0f;
+
+        if (!visible)
+        {
+            return false;
+        }
+
+        instance.Skip();
+        return true;
+    }
+
     private IEnumerator FinishNow()
     {
         yield return FadeTo(0f);
@@ -589,16 +749,16 @@ public class LobbyTutorial : MonoBehaviour
             yield break;
         }
 
-        yield return Show(MoveText, keys: true, mouse: false);
+        yield return Show(Step.Move, keys: true, mouse: false);
         yield return WaitForMove();
 
-        yield return Show(LookText, keys: false, mouse: true);
+        yield return Show(Step.Look, keys: false, mouse: true);
         yield return WaitForLook();
 
-        yield return Show(JumpText, keys: false, mouse: false, jump: true);
+        yield return Show(Step.Jump, keys: false, mouse: false, jump: true);
         yield return WaitForJump();
 
-        yield return Show(CloseText, keys: false, mouse: false);
+        yield return Show(Step.Close, keys: false, mouse: false);
         yield return new WaitForSeconds(CloseSeconds);
 
         yield return FadeTo(0f);
@@ -646,6 +806,8 @@ public class LobbyTutorial : MonoBehaviour
                 yield break;
             }
 
+            RefreshGuide();
+
             bool moving = false;
 
             // 눌린 키에 불을 켠다. 어느 키가 먹히는지 눈으로 바로 알 수 있다.
@@ -655,6 +817,10 @@ public class LobbyTutorial : MonoBehaviour
                 moving |= down;
                 Highlight(cap, down);
             }
+
+            // 완드 왼손 스틱. 어느 안내가 떠 있든 받는다.
+            IPlayerController wand = LiveWand;
+            moving |= wand != null && wand.Move.sqrMagnitude > WandMoveDeadZone * WandMoveDeadZone;
 
             held = moving
                 ? held + Time.deltaTime
@@ -694,6 +860,8 @@ public class LobbyTutorial : MonoBehaviour
                 yield break;
             }
 
+            RefreshGuide();
+
             bool down = false;
 
             // 눌린 동안 키에 불을 켠다. 이동 단계와 같은 감각으로 보이게 한다.
@@ -702,6 +870,11 @@ public class LobbyTutorial : MonoBehaviour
                 down |= cap.IsPressed();
                 Highlight(cap, down);
             }
+
+            // 완드 오른손 버튼 1. 로비 점프와 같은 조건(2대일 때만)이다. (PlayerInputProvider)
+            // ⚠ ConsumeButton1Press 로 읽지 않는다. 눌림을 가져가면 다른 곳이 못 받는다.
+            IPlayerController wand = LiveWand;
+            down |= wand != null && wand.HasTwoDevices && wand.Right.Button1;
 
             // 누르고 있는 것이 아니라 **새로 누른 순간**만 센다.
             // 안 그러면 꾹 누르고 있기만 해도 게이지가 차서, 뛰지 않고 넘어간다.
@@ -745,6 +918,9 @@ public class LobbyTutorial : MonoBehaviour
             {
                 yield break;
             }
+
+            // 카메라 각도로 재므로 완드 오른손 스틱으로 돌려도 그대로 찬다. 안내만 바꾼다.
+            RefreshGuide();
 
             float now = eye.transform.eulerAngles.y;
             // 0도와 360도 사이를 넘어가도 한 프레임의 변화량은 작다. 그 값을 쌓는다.
@@ -887,17 +1063,17 @@ public class LobbyTutorial : MonoBehaviour
     }
 
     /// <summary>문구를 갈아 끼우고, 이번 단계에 쓰는 그림만 켠다.</summary>
-    private IEnumerator Show(string text, bool keys, bool mouse, bool jump = false)
+    private IEnumerator Show(Step next, bool keys, bool mouse, bool jump = false)
     {
         if (group.alpha > 0f)
         {
             yield return FadeTo(0f);
         }
 
-        if (label != null)
-        {
-            label.text = text;
-        }
+        // 문구와 그림은 완드 · 키보드 중 지금 쓰는 쪽으로 고른다.
+        step = next;
+        usingWand = WantsWandGuide;
+        ApplyGuide();
 
         if (keyGroup != null)
         {
