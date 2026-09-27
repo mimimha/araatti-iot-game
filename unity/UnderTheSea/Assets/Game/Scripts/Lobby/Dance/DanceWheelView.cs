@@ -14,6 +14,7 @@ namespace UnderTheSea.Lobby.Dance
     ///   좌클릭      가리키는 칸의 춤을 고르고 닫는다
     ///   1 ~ 5      그 번호의 춤을 바로 고르고 닫는다
     ///   Esc        그냥 닫는다
+    ///   완드       왼손 버튼 2 로 열고 · 오른손 스틱으로 가리키고 · 왼손 버튼 2 로 확정 (IotLobbyInteract)
     /// </code>
     ///
     /// 칸은 위에서 시작해 시계 방향으로 1, 2, 3, 4, 5 다. 칸 모양은 <see cref="RingSegmentGraphic"/> 이 그린다.
@@ -86,6 +87,12 @@ namespace UnderTheSea.Lobby.Dance
 
         private int hovered = -1;
 
+        /// <summary>
+        /// 완드 스틱이 칸을 가리켰는가. 켜져 있는 동안은 마우스 위치로 가리킴을 덮어쓰지 않는다 —
+        /// 안 그러면 가만히 있는 커서가 매 프레임 스틱이 고른 칸을 도로 빼앗는다. 마우스를 움직이면 꺼진다.
+        /// </summary>
+        private bool devicePointing;
+
         /// <summary>열리는 연출이 얼마나 지났나(초). 음수면 연출이 끝났다.</summary>
         private float openElapsed = -1f;
 
@@ -148,13 +155,84 @@ namespace UnderTheSea.Lobby.Dance
             }
 
             Mouse mouse = Mouse.current;
-            SetHovered(mouse != null ? SlotUnder(mouse.position.ReadValue()) : -1);
+            if (mouse != null && mouse.delta.ReadValue().sqrMagnitude > 0f)
+            {
+                devicePointing = false;
+            }
+
+            if (!devicePointing)
+            {
+                SetHovered(mouse != null ? SlotUnder(mouse.position.ReadValue()) : -1);
+            }
 
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && hovered >= 0)
             {
                 Select(hovered);
             }
         }
+
+        // ------------------------------------------------------------
+        // 완드 — 키가 아니라 밖에서 부른다 (IotLobbyInteract)
+        //
+        // 완드는 IPlayerController 로만 들어오고 Input System 을 거치지 않아 키를 흉내낼 수 없다.
+        // 그래서 Q · 마우스 · 좌클릭이 하는 일을 대신 불러 주는 자리를 연다. (IOT_INPUT.md 7장)
+        // ------------------------------------------------------------
+
+        /// <summary>Q 와 같다 — 닫혀 있으면 연다. 채팅 중이면 무시한다.</summary>
+        public void OpenFromDevice()
+        {
+            if (!IsOpen && !ChatFocus.Typing)
+            {
+                SetOpen(true);
+            }
+        }
+
+        /// <summary>
+        /// 스틱 방향으로 칸을 가리킨다. 마우스를 휠 가운데서 그쪽으로 옮긴 것과 같다.
+        ///
+        /// 스틱을 놓아도(가운데로 돌아와도) <b>마지막에 가리킨 칸을 그대로 둔다.</b>
+        /// 스틱을 기울인 채로 다른 손가락으로 확정 버튼을 누르기가 어렵다.
+        /// </summary>
+        /// <param name="direction">-1 ~ 1. 위가 +y 다.</param>
+        public void PointFromDevice(Vector2 direction)
+        {
+            if (!IsOpen || slots.Length == 0 || direction.magnitude < DeviceDeadZone)
+            {
+                return;
+            }
+
+            devicePointing = true;
+
+            // SlotUnder 와 같은 계산이다. 위(90°)에서 시계 방향, 반 칸만큼 돌려 잰다.
+            float mathAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            float slotSweep = 360f / slots.Length;
+            float clockwiseFromTop = Mathf.Repeat(90f - mathAngle + slotSweep * 0.5f, 360f);
+
+            SetHovered(Mathf.Clamp(Mathf.FloorToInt(clockwiseFromTop / slotSweep), 0, slots.Length - 1));
+        }
+
+        /// <summary>
+        /// 확정. 가리킨 칸이 있으면 그 춤을 고르고, 없으면 그냥 닫는다. 좌클릭 · Esc 를 합친 것이다.
+        /// </summary>
+        public void ConfirmFromDevice()
+        {
+            if (!IsOpen)
+            {
+                return;
+            }
+
+            if (hovered >= 0)
+            {
+                Select(hovered);
+            }
+            else
+            {
+                SetOpen(false);
+            }
+        }
+
+        /// <summary>이보다 덜 기울인 스틱은 가리킴으로 치지 않는다. 손을 떼도 스틱이 조금 남는다.</summary>
+        private const float DeviceDeadZone = 0.5f;
 
         /// <summary>
         /// 화면 좌표가 가리키는 칸. <b>방향만 본다</b> — 칸 바깥이어도 그 방향의 칸이다(PEAK 와 같다).
@@ -286,6 +364,7 @@ namespace UnderTheSea.Lobby.Dance
             }
 
             // 열 때마다 가리킴을 비운다. 마지막에 가리키던 칸이 밝은 채로 열리지 않게.
+            devicePointing = false;
             hovered = int.MinValue;
             SetHovered(-1);
         }

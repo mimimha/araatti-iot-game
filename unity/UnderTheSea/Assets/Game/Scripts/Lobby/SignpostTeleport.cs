@@ -179,6 +179,28 @@ namespace UnderTheSea.Lobby
         }
 
         /// <summary>
+        /// 키가 아니라 <b>밖에서</b> 누르라고 할 때. 완드가 이 길로 들어온다.
+        ///
+        /// 위 <c>Update</c> 의 F 와 <b>같은 조건을 그대로 본다.</b> 가까이 있어야 하고 채팅을 치는
+        /// 중이면 안 된다. <c>MiniGamePortal.TryEnterFromDevice</c> 와 같은 모양이다.
+        ///
+        /// <c>Requested</c> 는 이벤트라 밖에서 <c>Invoke</c> 할 수 없어서 대신 불러 주는 자리를 연다.
+        /// 완드는 <c>IPlayerController</c> 로만 들어오고 Input System 을 거치지 않아 키를 흉내낼 수 없다.
+        /// (IOT_INPUT.md 7장 "키 이벤트를 만들어 보내기" 금지)
+        /// </summary>
+        /// <returns>실제로 창을 열라고 알렸으면 true.</returns>
+        public bool TryInteractFromDevice()
+        {
+            if (IsServer || !PlayerIsNear || ChatFocus.Typing || Requested == null)
+            {
+                return false;
+            }
+
+            Requested.Invoke(this);
+            return true;
+        }
+
+        /// <summary>
         /// 내 캐릭터까지의 거리.
         ///
         /// ⚠ <b>미니게임 입구와 같은 등록소를 쓴다.</b> 로비의 내 캐릭터는 네트워크가

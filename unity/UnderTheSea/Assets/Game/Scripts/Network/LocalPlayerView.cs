@@ -466,8 +466,10 @@ public class LocalPlayerView : NetworkBehaviour
         //   기계에서만 빨리 돈다. 그래서 초당 각도로 바꿔서 넘긴다.
         //
         // ⚠ 상하 부호는 마우스와 같은 이유로 뒤집는다. (바로 위 주석)
+        //
+        // ⚠ 춤 휠이 열린 동안에는 오른손 스틱이 칸을 고른다(IotLobbyInteract). 화면까지 돌면 안 된다.
         IPlayerController device = ResolveWand();
-        if (IotPlayerController.IsWandLive(device) && !ChatFocus.Typing)
+        if (IotPlayerController.IsWandLive(device) && !ChatFocus.Typing && !UnderTheSea.Lobby.Dance.DanceWheelView.IsOpen)
         {
             Vector2 look = device.Look;
             delta += new Vector2(look.x, -look.y) * (wandLookSpeed * Time.deltaTime);
