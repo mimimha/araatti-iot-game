@@ -10,7 +10,7 @@ namespace Warriors
     ///
     /// <code>
     ///   🎵 배경음악   대기 → 1R → 2R → 3R(긴장) → 결과 스팅어(성공 · 실패) · 결과 화면은 음악을 멈춘다
-    ///   🌊 루프       해변 파도(1~2R) · 크라켄 숨소리(3R)
+    ///   🌊 루프       해변 파도(판 내내 같은 크기) · 크라켄 숨소리(3R)
     ///   💥 효과음     베기 3종 · 몬스터 정타/처치 · 내 피격 · 쓰러짐 · 촉수 타격/절단 · 마무리 창 ·
     ///                협동 세트 · 콤보 · 노트 정타/미스 · 크라켄 피격/포효 · 라운드 전환 · 카운트다운
     /// </code>
@@ -79,7 +79,7 @@ namespace Warriors
         // ------------------------------------------------------------
 
         [Header("🌊 루프")]
-        [Tooltip("해변 파도. 1 · 2라운드 동안 얕게 깔린다.")]
+        [Tooltip("해변 파도. 대기부터 결과까지 판 내내 같은 크기로 잔잔하게 깔린다.")]
         [SerializeField] private AudioClip waveLoop;
 
         [Tooltip("크라켄의 숨소리 · 낮은 울림. 3라운드 동안만.")]
@@ -699,9 +699,9 @@ namespace Warriors
         /// <summary>루프는 목표만 정한다. 켜고 · 키우고 · 끄는 것은 허브가 한다.</summary>
         private void DriveLoops(WarriorsMatchPhase phase)
         {
-            bool beach = phase == WarriorsMatchPhase.Phase1 || phase == WarriorsMatchPhase.Phase2;
-
-            if (_wave != null) _wave.Target = (beach ? 1f : 0.35f) * loopLevel;
+            // 파도는 대기부터 결과까지 **같은 크기로 잔잔하게** 깐다. 예전에는 1 · 2라운드만 키우고
+            // 나머지는 35% 로 줄였는데, 라운드가 바뀔 때마다 배경이 커졌다 작아져 어수선했다.
+            if (_wave != null) _wave.Target = loopLevel;
             if (_kraken != null) _kraken.Target = (phase == WarriorsMatchPhase.Phase3 ? 1f : 0f) * loopLevel;
         }
 
