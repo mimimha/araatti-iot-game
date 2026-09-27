@@ -74,6 +74,22 @@ namespace Warriors
         [Tooltip("곡을 바꿀 때 겹치는 시간(초). 배 협동과 같은 1.5초.")]
         [SerializeField, Range(0.1f, 5f)] private float crossfadeSeconds = 1.5f;
 
+        /// <summary>
+        /// 배경음악 재생 크기(0~1). **1(최대)과 로비 · 배 협동 값(0.45)의 중간인 0.7** 이다.
+        ///
+        /// 예전에는 1(최대)로 틀어 다른 게임보다 6~11dB 컸다. 실측 체감 음량(파일 RMS + 재생 크기):
+        /// <code>
+        ///   로비       -23.2dB    배 협동(항해)  -18.0dB    광산(대기)  -21.9dB
+        ///   검 1.0     -12.4dB (컸다)    0.45  -19.3dB (작았다)    → 0.7  약 -15.5dB
+        /// </code>
+        /// 실측: 1 은 다른 게임보다 확연히 컸고, 로비와 같은 0.45 로 맞추니 이번엔 너무 작았다. 그 사이로 둔다.
+        ///
+        /// ⚠ <b>이 값은 씬(WarriorsNet.unity)에 적혀 있다.</b> 필드를 처음 넣을 때의 기본값이 씬 가져오기에
+        ///    구워져서, 코드 기본값만 바꾸면 빌드에 반영되지 않았다. 바꿀 때는 씬 값을 고친다.
+        /// </summary>
+        [Tooltip("배경음악 재생 크기. 1 은 다른 게임보다 컸고 0.45 는 작았다. 그 사이 0.7.")]
+        [SerializeField, Range(0f, 1f)] private float musicLevel = 0.7f;
+
         // ------------------------------------------------------------
         // 🌊 루프
         // ------------------------------------------------------------
@@ -675,19 +691,19 @@ namespace Warriors
             {
                 case WarriorsMatchPhase.Waiting:
                 case WarriorsMatchPhase.Countdown:
-                    _hub.PlayMusic(bgmWaiting, crossfadeSeconds);
+                    _hub.PlayMusic(bgmWaiting, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase1:
-                    _hub.PlayMusic(bgmRound1, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound1, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase2:
-                    _hub.PlayMusic(bgmRound2, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound2, crossfadeSeconds, musicLevel);
                     break;
 
                 case WarriorsMatchPhase.Phase3:
-                    _hub.PlayMusic(bgmRound3, crossfadeSeconds);
+                    _hub.PlayMusic(bgmRound3, crossfadeSeconds, musicLevel);
                     break;
 
                 default:
