@@ -553,7 +553,7 @@ void detectMotion(float gx, float gy, float gz,
 // DRV2605 를 깨워 실시간 재생 모드로 둔다. setup 에서 한 번.
 //
 // RTP 값은 **부호 있는 수** 그대로 쓴다(CONTROL3 bit3 = 0). 0x00 = 멈춤, 0x7F = 최대.
-// 유니티는 0~255 를 보내므로 startVibration 에서 반으로 줄여 0~127 에 맞춘다.
+// 유니티는 0~255 를 보내므로 startVibration 에서 0~127 로 옮긴다(HAPTIC_MIN 참고).
 //
 // ⚠ 부호 없는 수(bit3 = 1)로 바꾸면 안 된다. 입력이 양방향(CONTROL2 BIDIR_INPUT, 기본 켜짐)이라
 //   0x80 이 멈춤이 되고 **0x00 이 반대 방향 최대**가 된다. 실기에서 0 으로 끄자 모터가 멈추지 않고
@@ -572,11 +572,21 @@ void initHaptic() {
   drv.setRealtimeValue(0);
 }
 
+// 0 이 아닌 세기의 바닥(RTP 0~127 중 64 = 50%).
+//
+// 이 모터는 낮은 출력에서 잘 안 돈다. 실측에서 25% 는 0.5초를 줘도 울렸는지 애매했고 50% 는
+// 또렷했다. 게임은 0.3~0.4 를 0.1초씩 자주 부르므로(대포 장전 · 짐 나르기 · 낚시 입질) 그대로 옮기면
+// 거의 안 느껴진다. 0 이 아닌 세기는 여기부터 최대까지로 편다 — 순서는 남고 0 은 여전히 멈춤이다.
+const uint8_t HAPTIC_MIN = 64;
+
 void startVibration(uint8_t strength, uint16_t durationMs) {
   vibUntil = millis() + durationMs;
 
   if (hapticReady) {
-    drv.setRealtimeValue(strength >> 1);   // 0~255 → 부호 있는 0~127
+    // 1~255 → HAPTIC_MIN~127. 0.3 → 65% · 0.4 → 70% · 0.8 → 90%
+    uint8_t rtp = (strength == 0) ? 0
+                : HAPTIC_MIN + (uint16_t)(strength - 1) * (127 - HAPTIC_MIN) / 254;
+    drv.setRealtimeValue(rtp);
   }
 
   Serial.printf("#VIB 시작 세기 %u  %u ms\n", strength, durationMs);
