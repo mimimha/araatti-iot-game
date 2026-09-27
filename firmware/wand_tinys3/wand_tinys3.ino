@@ -23,9 +23,11 @@
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
 
-// 진동 드라이버. 모터를 달면 주석을 푼다. (startVibration · stopVibration · setup 도 같이)
-// #include <Adafruit_DRV2605.h>
-// Adafruit_DRV2605 drv;
+// 진동 드라이버 (Adafruit DRV2605 보드). IMU 와 같은 I2C 버스(SDA 8 · SCL 9)에 붙는다.
+// 보드가 없으면 setup 에서 #ERR 를 한 번 찍고, 명령은 받되(#VIB) 울리지 않는다.
+#include <Adafruit_DRV2605.h>
+Adafruit_DRV2605 drv;
+bool hapticReady = false;
 
 #define IMU_ADDR  0x6B
 
@@ -545,15 +547,37 @@ void detectMotion(float gx, float gy, float gz,
 }
 
 // ── 진동 (게임 -> 완드) ────────────────────────────────────
-// ⚠ 모터가 아직 안 달려 있어 구동부는 주석이다.
-//   지금은 명령이 제때 오는지, 지속시간이 맞게 오는지를 #VIB 로만 확인한다.
-//   모터를 달면 setup 의 drv.begin() 과 아래 두 줄의 주석을 푼다.
+// DRV2605 를 실시간 재생(RTP) 모드로 두고, 세기를 써 넣었다가 시간이 되면 0 으로 내린다.
+// 명령이 제때 · 맞는 길이로 오는지는 #VIB 로 본다. 보드가 없어도 #VIB 는 찍힌다.
+
+// DRV2605 를 깨워 실시간 재생 모드로 둔다. setup 에서 한 번.
+//
+// RTP 값은 **부호 있는 수** 그대로 쓴다(CONTROL3 bit3 = 0). 0x00 = 멈춤, 0x7F = 최대.
+// 유니티는 0~255 를 보내므로 startVibration 에서 반으로 줄여 0~127 에 맞춘다.
+//
+// ⚠ 부호 없는 수(bit3 = 1)로 바꾸면 안 된다. 입력이 양방향(CONTROL2 BIDIR_INPUT, 기본 켜짐)이라
+//   0x80 이 멈춤이 되고 **0x00 이 반대 방향 최대**가 된다. 실기에서 0 으로 끄자 모터가 멈추지 않고
+//   계속 돌았다(7-13). 비트는 드라이버에 전원이 붙어 있는 한 남아서, 켜 둔 적이 있으면 여기서 꼭 끈다.
+// 모터 종류는 begin() 이 잡는 ERM(편심 모터) 개루프 그대로다. LRA 를 달면 drv.useLRA() 를 더한다.
+void initHaptic() {
+  hapticReady = drv.begin(&Wire);
+
+  if (!hapticReady) {
+    Serial.println("#ERR 진동 드라이버(DRV2605) 없음 — 명령은 받지만 울리지 않는다");
+    return;
+  }
+
+  drv.writeRegister8(DRV2605_REG_CONTROL3, drv.readRegister8(DRV2605_REG_CONTROL3) & ~0x08);
+  drv.setMode(DRV2605_MODE_REALTIME);
+  drv.setRealtimeValue(0);
+}
 
 void startVibration(uint8_t strength, uint16_t durationMs) {
   vibUntil = millis() + durationMs;
 
-  // drv.setMode(DRV2605_MODE_REALTIME);
-  // drv.setRealtimeValue(strength);
+  if (hapticReady) {
+    drv.setRealtimeValue(strength >> 1);   // 0~255 → 부호 있는 0~127
+  }
 
   Serial.printf("#VIB 시작 세기 %u  %u ms\n", strength, durationMs);
 }
@@ -561,7 +585,9 @@ void startVibration(uint8_t strength, uint16_t durationMs) {
 void stopVibration() {
   vibUntil = 0;
 
-  // drv.setRealtimeValue(0);
+  if (hapticReady) {
+    drv.setRealtimeValue(0);
+  }
 
   Serial.println("#VIB 끝");
 }
@@ -674,6 +700,12 @@ void goToSleep() {
   writeReg(CTRL2_G,  0x00);
 #endif
 
+  // 진동 드라이버도 대기(standby)로 내린다. 울리던 중이면 멈춘 채로 잠든다.
+  if (hapticReady) {
+    drv.setRealtimeValue(0);
+    drv.writeRegister8(DRV2605_REG_MODE, 0x40);
+  }
+
   // 버튼은 눌리면 LOW 다. 잠든 동안에도 풀업이 살아 있어야 뜬 핀이 LOW 로 튀어 저절로 안 깬다.
   const gpio_num_t pins[] = { (gpio_num_t)PIN_BTN1, (gpio_num_t)PIN_BTN2, (gpio_num_t)PIN_JOY_SW };
   uint64_t mask = 0;
@@ -704,17 +736,16 @@ void setup() {
   findSlot();
   initEspNow();
 
-#if HAS_IMU
+  // I2C 는 IMU 와 진동 드라이버가 함께 쓴다. IMU 없이 구운 보드(HAS_IMU 0)도 진동은 울려야 해서 밖에서 연다.
   Wire.begin(8, 9);
 
+#if HAS_IMU
   writeReg(CTRL1_XL, 0x6C);   // 가속도 416Hz, ±8G
   writeReg(CTRL2_G,  0x6C);   // 자이로 416Hz, ±2000dps
   delay(100);
-
-  // 모터를 달면 주석을 푼다. IMU 와 같은 I2C 버스(8,9)를 쓴다.
-  // drv.begin();
-  // drv.selectLibrary(1);
 #endif
+
+  initHaptic();
 
   pinMode(PIN_BTN1, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
@@ -754,6 +785,10 @@ void loop() {
 
   if (pendCmd) { handleCommand(); }
 
+  // 진동은 블로킹하지 않는다. 데드라인이 지나면 끈다.
+  // ⚠ IMU 읽기보다 먼저 본다. 읽기가 실패하면 아래에서 돌아가 버려서, 뒤에 두면 모터가 안 멈춘다.
+  if (vibUntil != 0 && (long)(millis() - vibUntil) >= 0) { stopVibration(); }
+
 #if HAS_IMU
   if (!readImu()) {
     Serial.println("#ERR 읽기 실패");
@@ -766,9 +801,6 @@ void loop() {
 #endif
 
   unsigned long now = millis();
-
-  // 진동은 블로킹하지 않는다. 데드라인이 지나면 끈다.
-  if (vibUntil != 0 && (long)(now - vibUntil) >= 0) { stopVibration(); }
 
   // IMU 가 없으면 0 으로 나간다. 유니티는 Tilt 0 · 동작 없음으로 받는다.
   int tilt = 0;
