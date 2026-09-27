@@ -223,6 +223,7 @@ MonoBehaviour:
   stingerClear: {fileID: 8300000, guid: 75ec90a27f832904da4977c0e2e5d00b, type: 3}
   stingerFail: {fileID: 8300000, guid: 415c4abe79c3c9b43a052393552788f0, type: 3}
   crossfadeSeconds: 1.5
+  musicLevel: 0.7
   waveLoop: {fileID: 8300000, guid: fbd534922ef99914fae0ae0edcc28b8d, type: 3}
   krakenLoop: {fileID: 0}
   loopLevel: 0.45

@@ -167,7 +167,7 @@
 | `Arena/WarriorsBeachArena` | 해변 무대와 스폰 지점 |
 | `UI/WarriorsHUD` | HUD 전체 |
 | `Boss/WarriorsKrakenBoss` | 크라켄과 촉수 |
-| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Monsters/*Visual` |
+| `Enemies/{Fish,Crab,Jellyfish}Enemy` | 몬스터 3종. 겉모습은 `Art/MiniGames/Warriors/Models/` 의 모델을 직접 쓴다 |
 | `Player/WarriorsStandalonePlayer` | 플레이어 |
 
 씬에는 앞의 네 개만 두면 됩니다.
@@ -181,7 +181,6 @@
 | --- | --- |
 | 몬스터 · 보스 모델 5종 | `Art/MiniGames/Warriors/Models/` (Meshy 생성) |
 | 하단 카드 아이콘 3종 | `Art/MiniGames/Warriors/UI/Icons/` (위 모델을 렌더링한 것) |
-| 바 채움 | `Art/MiniGames/Warriors/UI/BarFill.png` |
 | 하늘 | `Art/MiniGames/Warriors/Sky/WarriorsSky.mat` (Skybox/Procedural. `Warriors/하늘 밝게 맞추기` 메뉴로 다시 맞춘다) |
 | 카드 프레임 | `Art/UI/CharacterCustomization/Frames/RoundedCard.png` 재사용 |
 | 플레이어 검 | `Assets/ToonyTinyPeople/` 중 실사용 파일만 (`w_TH_sword`) |
@@ -238,6 +237,8 @@
 결과         스팅어 하나(성공 stingerClear · 실패 stingerFail)만 나고 배경음악은 멈춘다
 루프         waveLoop(해변 파도, 대기부터 결과까지 같은 크기) · krakenLoop(3R)
 ```
+
+배경음악은 **0.7 크기**로 틉니다(`WarriorsAudio.musicLevel`, 씬에 적힌 값). 1 은 다른 게임보다 컸고, 로비 · 배 협동과 같은 0.45 는 너무 작아 그 사이로 뒀습니다.
 
 교차 페이드 1.5초로 배 협동과 맞췄습니다. 접속 직후 1.5초는 효과음을 내지 않습니다 —
 서버가 쌓아 둔 값이 한꺼번에 도착해 "바뀐 순간"으로 잡히면 들어오자마자 소리가 우르르 납니다.

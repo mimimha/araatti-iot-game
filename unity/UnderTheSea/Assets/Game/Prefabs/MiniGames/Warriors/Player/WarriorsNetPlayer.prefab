@@ -446,6 +446,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bfc60ddcfb67c5f42a7af0910d7733d7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.Net.WarriorsNetPlayerMover
+  seaEdgeZ: 5.6
   _MoveAxis: {x: 0, y: 0}
   _Grounded:
     RawValue: 0
