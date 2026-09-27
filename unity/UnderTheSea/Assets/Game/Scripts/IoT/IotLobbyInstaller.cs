@@ -62,7 +62,19 @@ public static class IotLobbyInstaller
 
         bool lobby = fishing || HasInScene<MiniGamePortal>(scene) || HasInScene<AltarInteraction>(scene);
 
-        if (!lobby || HasInScene<IotLobbyInteract>(scene))
+        if (!lobby)
+        {
+            return;
+        }
+
+        // 미니게임이 바꿔 둔 배치를 로비 배치로 되돌린다. (광산은 IotMineInput 이 Mine 으로 바꾼다)
+        IotPlayerController wand = IotPlayerController.Persistent;
+        if (wand != null && wand.ControlProfile != IotControlProfile.Shared)
+        {
+            wand.SetControlProfile(IotControlProfile.Shared);
+        }
+
+        if (HasInScene<IotLobbyInteract>(scene))
         {
             return;
         }
