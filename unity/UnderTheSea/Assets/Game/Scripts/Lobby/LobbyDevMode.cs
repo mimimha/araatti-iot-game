@@ -22,6 +22,7 @@ namespace UnderTheSea.Lobby
     ///   '   섬 회복도 +10
     ///   ;   섬 회복도 -10
     ///   \   제단 봉헌 연출 미리보기 (내 화면만. 조각도 서버도 안 건드린다)
+    ///   /   제단 완성 영상 미리보기 (내 화면만. 본 것으로 적지 않는다)
     /// </code>
     ///
     /// 끝에 닿으면 끝에서 멈춘다(95 에서 ' 이면 100%).
@@ -167,6 +168,12 @@ namespace UnderTheSea.Lobby
             {
                 PreviewOfferCinematic();
             }
+            else if (keyboard[Key.Slash].wasPressedThisFrame)
+            {
+                IsOn = false; // 패널이 영상을 가리지 않게 닫는다.
+                Report("제단 완성 영상 미리보기");
+                AltarCompletionVideo.PlayPreview();
+            }
         }
 
         /// <summary>
@@ -289,6 +296,7 @@ namespace UnderTheSea.Lobby
             text.AppendLine("  '   섬 회복도 +10");
             text.AppendLine("  ;   섬 회복도 -10");
             text.AppendLine(@"  \   제단 봉헌 연출 미리보기");
+            text.AppendLine("  /   제단 완성 영상 미리보기");
 
             if (!string.IsNullOrEmpty(lastResult))
             {

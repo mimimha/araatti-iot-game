@@ -441,6 +441,21 @@ namespace FishingMiniGame.Runtime
                    fishingModeController.CurrentInteractor == _localPlayerGameObject;
         }
 
+        /// <summary>
+        /// <b>내가 낚시 중이면 그만두게 한다.</b> 밖에서 부르는 입구 — 제단 완성 영상(AltarCompletionVideo)이
+        /// 모두에게 영상을 틀기 전에 부른다. 낚시 중이 아니면 아무 일도 없다.
+        ///
+        /// 캐릭터가 오갈 때 쓰는 정리와 같은 길(세션 중단 + 이동 잠금 해제)을 탄다.
+        /// </summary>
+        /// <returns>그만두게 했으면 true.</returns>
+        public bool AbortLocalFishing()
+        {
+            bool fishing = IsOwnFishingSession();
+            AbortOwnSessionIfNecessary();
+            RestoreMovementLock();
+            return fishing;
+        }
+
         private void AbortOwnSessionIfNecessary()
         {
             if (IsOwnFishingSession())
