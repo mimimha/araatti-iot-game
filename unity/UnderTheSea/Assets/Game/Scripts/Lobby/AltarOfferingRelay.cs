@@ -202,7 +202,28 @@ namespace UnderTheSea.Lobby
                 return;
             }
 
-            vfx.PlayOnce();
+            // 제단 연출 = 돌기둥 문양 · 파티클(펄스) + 하늘로 솟는 노란 빛줄기. 모두가 본다.
+            void PlayEffects()
+            {
+                vfx.PlayOnce();
+                AltarOfferBeam beam = AltarOfferBeam.Current;
+                if (beam != null)
+                {
+                    beam.Play();
+                }
+            }
+
+            // 바친 사람만 공중 카메라 연출을 거친다. 연출이 밝아진 뒤에 제단 연출을 튼다 — 처음부터 보이게.
+            // 이 RPC 는 늘 보낸 사람의 오브젝트에서 불리므로, 내 화면이면서 입력 권한이 있으면 곧 "내가 바쳤다" 다.
+            if (HasInputAuthority)
+            {
+                AltarOfferCinematic.Play(PlayEffects);
+            }
+            else
+            {
+                PlayEffects();
+            }
+
             Debug.Log($"[AltarVfx] pulse played requestId={requestId}", this);
         }
 
