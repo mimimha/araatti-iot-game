@@ -182,6 +182,14 @@ public class LocalPlayerView : NetworkBehaviour
     /// <c>enabled</c> 를 끄면 <c>LateUpdate</c> 가 멈춰 카메라가 제자리에 선다.
     /// <c>SetInput</c> 과 <see cref="SnapCameraToMe"/> 는 꺼져 있어도 부를 수 있다.
     /// </summary>
+    /// <summary>
+    /// 내 카메라가 달린 곳. 없으면 null.
+    ///
+    /// <see cref="FreezeCamera"/> 로 얼린 동안에만 옮긴다 — 안 얼리면 다음 프레임에 캐릭터 뒤로 끌려간다.
+    /// 제단 봉헌 연출이 공중 시점을 잡을 때 쓴다. 끝나면 <see cref="SnapCameraToMe"/> 로 되돌린다.
+    /// </summary>
+    public Transform CameraTransform => boundCamera != null ? boundCamera.transform : null;
+
     public void FreezeCamera(bool frozen)
     {
         if (boundCamera != null)
