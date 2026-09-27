@@ -137,7 +137,7 @@
 | 항목 | 상태 |
 | --- | --- |
 | ROUND 3 노트 레인 | `PlayerIndex` 가 같은 레인의 노트만 판정합니다 |
-| 사운드 | 효과음 **18칸이 찼습니다** (8장, 전부 CC0 · 출처는 `Assets/Game/Audio/Warriors/CREDITS.md`). 아직 빈 칸은 **배경음악 4곡 · 결과 스팅어 2개 · 루프 2개**(`waveLoop` · `krakenLoop`)와 `comboUp`(1R 에서 너무 자주 나서 일부러 비움) — 그 소리만 안 납니다 |
+| 사운드 | 효과음 18칸 · 배경음악 2곡(대기 · 1 · 2라운드는 같은 곡, 3라운드만 다름) · 파도 루프가 찼습니다 (8장, 출처는 `Assets/Game/Audio/Warriors/CREDITS.md`). 아직 빈 칸은 `krakenLoop` 와 `comboUp`(1R 에서 너무 자주 나서 일부러 비움) — 그 소리만 안 납니다 |
 | IoT 실기 | 장치 없이 키보드로만 검증했습니다. `inputLatencyOffset` 은 아직 0 입니다 |
 | 밸런스 | 아래 목표치로 조정 중입니다. 실측은 `-telemetry` 로그로 봅니다 |
 
@@ -236,7 +236,7 @@
 2R           bgmRound2
 3R (긴장)    bgmRound3
 결과         스팅어 하나(성공 stingerClear · 실패 stingerFail)만 나고 배경음악은 멈춘다
-루프         waveLoop(해변, 1·2R) · krakenLoop(3R)
+루프         waveLoop(해변 파도, 대기부터 결과까지 같은 크기) · krakenLoop(3R)
 ```
 
 교차 페이드 1.5초로 배 협동과 맞췄습니다. 접속 직후 1.5초는 효과음을 내지 않습니다 —

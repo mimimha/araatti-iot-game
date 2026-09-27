@@ -53,6 +53,20 @@ namespace Warriors.Net.Editor
 
         private static readonly string[] Extensions = { ".ogg", ".wav", ".mp3" };
 
+        /// <summary>
+        /// 제 파일이 없으면 앞 칸의 클립을 이어 쓰는 칸. 지금은 <c>bgmRound1</c> · <c>bgmRound2</c> ← <c>bgmWaiting</c>
+        /// (대기부터 2라운드까지 한 곡이 끊기지 않고 이어지고, 3라운드만 곡이 바뀐다).
+        ///
+        /// <b>왜 파일을 복사해 두지 않는가.</b> 허브는 "같은 곡이면 끊지 않고 잇는다" 를 <b>클립 에셋이 같은가</b>로
+        /// 판단한다(<c>AudioHub.PlayMusic</c>). 같은 곡을 두 파일로 두면 서로 다른 클립이라, 대기에서 1라운드로
+        /// 넘어갈 때 같은 곡이 처음부터 다시 교차 페이드된다. 한 에셋을 여러 칸에 꽂아야 그대로 이어진다.
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, string> SharedFallback = new()
+        {
+            { "bgmRound1", "bgmWaiting" },
+            { "bgmRound2", "bgmWaiting" },
+        };
+
         /// <summary>아레나 카메라가 든 프리팹. 이 카메라가 곧 플레이어의 귀다 (<see cref="EnsureListener"/>).</summary>
         private const string ArenaPrefab = "Assets/Game/Prefabs/MiniGames/Warriors/Arena/WarriorsBeachArena.prefab";
 
@@ -143,7 +157,9 @@ namespace Warriors.Net.Editor
                     }
 
                     // 파일이 없으면 칸을 **비운다.** 파일을 지워 소리를 빼는 것도 이 도구 한 번으로 끝나게.
+                    // 단 이어 쓰는 칸(SharedFallback)은 제 파일이 없으면 앞 칸의 클립을 **같은 에셋으로** 쓴다.
                     AudioClip clip = FindClip(field);
+                    if (clip == null && SharedFallback.TryGetValue(field, out string from)) clip = FindClip(from);
                     p.objectReferenceValue = clip;
 
                     if (clip != null) filled++;

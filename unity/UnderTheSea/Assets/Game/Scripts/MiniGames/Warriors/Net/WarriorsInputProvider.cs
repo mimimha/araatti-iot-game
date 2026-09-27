@@ -71,9 +71,9 @@ namespace Warriors.Net
             // ⚠ **완드가 실제로 붙어 있을 때만 더한다.** 완드가 없으면 IotPlayerController 가
             //    키보드(W A S D)로 대신 채우는데, 그것을 더하면 위 키보드 블록과 같은 키가 두 번 실린다.
             //    지금은 서버가 길이를 1 로 잘라(WarriorsNetPlayerMover) 티가 안 나지만, 키 배치가
-            //    갈라지면 방향이 틀어진다. 판정은 IoT 쪽 IotPlayerController.IsWandLive 와 같다.
+            //    갈라지면 방향이 틀어진다. 판정은 IoT 쪽 공용 함수(IotPlayerController.IsWandLive)를 쓴다.
             IotPlayerController wand = FindWand();
-            if (wand != null && wand.AnyWandConnected && Application.isFocused && !ChatFocus.Typing)
+            if (IotPlayerController.IsWandLive(wand) && Application.isFocused && !ChatFocus.Typing)
             {
                 move += wand.Move;
             }
