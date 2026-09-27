@@ -48,8 +48,30 @@ public static class ShipCoopInput
     }
 
     /// <summary>
-    /// ⛵ 돛 장력. -1 ~ +1
-    /// 밧줄을 감듯 손목을 비트는 동작이라 회전(yaw)으로 읽습니다.
+    /// ⛵ 돛 장력. -1(풀기) ~ +1(감기)
+    ///
+    /// **버튼을 누르고 있는 동안** 감기거나 풀립니다. 밧줄을 묶고 푸는 동작입니다.
+    ///
+    /// <code>
+    ///   오른손 면버튼 2 (키보드 K)  누르고 있는 동안  감긴다  +1
+    ///   왼손  면버튼 1 (키보드 C)  누르고 있는 동안  풀린다  -1
+    ///   둘 다 / 아무것도            0
+    /// </code>
+    ///
+    /// <b>왜 IMU 가 아니라 버튼인가.</b> 처음에는 손목 비틀기(<see cref="IHandDevice.Rotation"/>, yaw)로
+    /// 잡았는데 <b>yaw 는 중력으로 잴 수 없습니다</b> — 중력 벡터가 yaw 에 불변이라 가속도계로는
+    /// 원리적으로 안 나옵니다. 펌웨어도 <c>in.rot = 0</c> 으로 고정해 두어 <b>완드로는 돛이
+    /// 아예 안 움직였습니다.</b> 자이로 적분은 몇 초면 수십 도씩 드리프트하고 지자기계는 없습니다.
+    ///
+    /// 남은 축(<see cref="IHandDevice.Tilt"/>)은 조타가 쓰는 그 축입니다 — 휠을 돌리는 것도
+    /// 손목을 비트는 것도 완드에게는 같은 숫자입니다. 자리가 배타적이라 겹쳐 써도 되지만,
+    /// <b>돛은 묶고 푸는 일이라 누르고 있는 편이 손에 더 맞습니다.</b>
+    ///
+    /// ⚠ <b>값을 지우지 않습니다.</b> 누르고 있는 상태를 그대로 읽으므로 여러 곳에서 물어봐도
+    ///   안전합니다. <see cref="ConsumeFire"/> · <see cref="ConsumeHelpCall"/> 과 다릅니다.
+    ///
+    /// ⚠ 기기가 1대면 <see cref="IPlayerController.Right"/> 가 왼손과 같은 기기입니다.
+    ///   그때는 면버튼 2 가 감기, 면버튼 1 이 풀기가 됩니다.
     /// </summary>
     public static float SailPull(IPlayerController controller)
     {
@@ -58,12 +80,16 @@ public static class ShipCoopInput
             return 0f;
         }
 
-        if (!controller.HasTwoDevices)
+        bool wind = controller.Right.Button2;
+        bool release = controller.Left.Button1;
+
+        // 둘 다 누르면 서로 상쇄한다. 어느 쪽을 이기게 할 이유가 없다.
+        if (wind == release)
         {
-            return controller.Left.Rotation;
+            return 0f;
         }
 
-        return (controller.Left.Rotation + controller.Right.Rotation) * 0.5f;
+        return wind ? 1f : -1f;
     }
 
     // ------------------------------------------------------------

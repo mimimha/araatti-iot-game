@@ -118,6 +118,18 @@ public class ShipCoopHelp : MonoBehaviour
             return;
         }
 
+        // 돛에 붙어 있는 동안에는 이 버튼이 **밧줄 풀기**다. (ShipCoopInput.SailPull)
+        //
+        // 같은 왼손 면버튼 1 을 두 곳이 본다. 돛에서 밧줄을 풀 때마다 도움 요청이
+        // 함께 나가면 HUD 가 계속 "🆘" 를 띄우고 남의 기기가 울린다.
+        //
+        // 자리마다 버튼 뜻이 다른 것은 이 게임에서 이미 그렇다 — 오른손 면버튼 1 도
+        // 대포에서는 장전, 짐 앞에서는 집기다.
+        if (_worker.Current is SailTask)
+        {
+            return;
+        }
+
         if (!ShipCoopInput.ConsumeHelpCall(_worker.Input))
         {
             return;
