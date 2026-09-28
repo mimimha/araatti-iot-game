@@ -178,3 +178,7 @@ Terrain_*.asset      -text filter=lfs diff=lfs merge=lfs
 *.7z            filter=lfs diff=lfs merge=lfs -text
 *.rar           filter=lfs diff=lfs merge=lfs -text
 *.pdf           filter=lfs diff=lfs merge=lfs -text
+
+# 드라이버 파일은 한 바이트도 바꾸면 안 된다 — silabser.cat 서명이 silabser.inf 의 바이트 해시다.
+# 줄바꿈 변환을 하면 설치가 서명 오류로 거부된다.
+tools/deploy/drivers/** -text
