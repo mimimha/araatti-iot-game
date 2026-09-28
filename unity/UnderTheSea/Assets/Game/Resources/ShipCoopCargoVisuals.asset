@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08a33097f4f5436fb0a8cffc530d26ba, type: 3}
+  m_Name: ShipCoopCargoVisuals
+  m_EditorClassIdentifier: Assembly-CSharp::ShipCoopCargoVisuals
+  bucketModel: {fileID: 919132149155446097, guid: 30797f8237bca10409b219d140fe6809, type: 3}
+  bucketMaterial: {fileID: 2100000, guid: 4743f673a1645d347911247265d76004, type: 2}
+  bucketHeight: 0.55
+  bucketScale: 1
+  waterColor: {r: 0.25, g: 0.6, b: 0.85, a: 1}
+  waterWidth: 0.88
+  waterSink: 0.08
+  plankModel: {fileID: 5426267665804594891, guid: 3f54f68ff6899d34a85247498b4b2633, type: 3}
+  plankScale: 1
+  ammoModel: {fileID: 0}

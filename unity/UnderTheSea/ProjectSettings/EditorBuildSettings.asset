@@ -5,8 +5,44 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
+  - enabled: 0
+    path: Assets/Game/Scenes/Main/CoreGames/Boot.unity
+    guid: d0390eb575fb73141a49a9119709bea0
   - enabled: 1
-    path: Assets/Game/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/Game/Scenes/Main/CoreGames/Title.unity
+    guid: 3f3ba793e3113824ebe8a3068cb41e23
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/CoreGames/Login.unity
+    guid: 381d9d46c1714ee468177e1481ed484b
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/CoreGames/CharacterCreate.unity
+    guid: 0a49d8cabbba6a14289a0f24523f3e70
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/CoreGames/ChannelSelect.unity
+    guid: 09d400b0d61215640b9f8ef21e0906e6
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/CoreGames/Lobby.unity
+    guid: f20bef10c2af5334db9573803c332a0b
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/Warriors.unity
+    guid: c5d9d2bc801680547b98675e05f1ca55
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/WarriorsBoot.unity
+    guid: 0e301d808658eea45b73adff8f4709c2
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/WarriorsNet.unity
+    guid: cf627a38332115240acb25b4e3950a6a
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity
+    guid: 9bf32db0f3cb26a47b4c7b14f5fda6be
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity
+    guid: ce15162c4adf5ea43be8d14523953b3d
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/MineBoot.unity
+    guid: 97d734dacf18e7a4f9078ca82dc16df6
+  - enabled: 1
+    path: Assets/Game/Scenes/Main/MiniGames/MineNet.unity
+    guid: 1460c6c5f166d5b4197a0c8bc85f5d53
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

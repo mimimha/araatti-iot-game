@@ -1,0 +1,682 @@
+{
+  "referenceResolution": [
+    1920,
+    1080
+  ],
+  "pixelsPerUnit": 100,
+  "texture": "Sprite Single / FullRect / alpha / no mipmap / Clamp / Bilinear / Uncompressed",
+  "assets": [
+    {
+      "name": "panel-capsule-background",
+      "file": "sprites/panel-capsule-background.png",
+      "width": 640,
+      "height": 88,
+      "borderLTRB": [
+        44,
+        44,
+        44,
+        44
+      ],
+      "imageType": "Sliced",
+      "usage": "배경. 프레임 아래, 텍스트와 분리."
+    },
+    {
+      "name": "panel-capsule-frame",
+      "file": "sprites/panel-capsule-frame.png",
+      "width": 640,
+      "height": 88,
+      "borderLTRB": [
+        44,
+        44,
+        44,
+        44
+      ],
+      "imageType": "Sliced",
+      "usage": "중앙 투명 외곽선. 같은 크기 배경 위."
+    },
+    {
+      "name": "panel-event-background",
+      "file": "sprites/panel-event-background.png",
+      "width": 640,
+      "height": 156,
+      "borderLTRB": [
+        30,
+        30,
+        30,
+        30
+      ],
+      "imageType": "Sliced",
+      "usage": "배경. 프레임 아래, 텍스트와 분리."
+    },
+    {
+      "name": "panel-event-frame",
+      "file": "sprites/panel-event-frame.png",
+      "width": 640,
+      "height": 156,
+      "borderLTRB": [
+        30,
+        30,
+        30,
+        30
+      ],
+      "imageType": "Sliced",
+      "usage": "중앙 투명 외곽선. 같은 크기 배경 위."
+    },
+    {
+      "name": "panel-team-background",
+      "file": "sprites/panel-team-background.png",
+      "width": 720,
+      "height": 196,
+      "borderLTRB": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "imageType": "Sliced",
+      "usage": "배경. 프레임 아래, 텍스트와 분리."
+    },
+    {
+      "name": "panel-team-frame",
+      "file": "sprites/panel-team-frame.png",
+      "width": 720,
+      "height": 196,
+      "borderLTRB": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "imageType": "Sliced",
+      "usage": "중앙 투명 외곽선. 같은 크기 배경 위."
+    },
+    {
+      "name": "panel-action-background",
+      "file": "sprites/panel-action-background.png",
+      "width": 460,
+      "height": 196,
+      "borderLTRB": [
+        34,
+        34,
+        34,
+        34
+      ],
+      "imageType": "Sliced",
+      "usage": "배경. 프레임 아래, 텍스트와 분리."
+    },
+    {
+      "name": "panel-action-frame",
+      "file": "sprites/panel-action-frame.png",
+      "width": 460,
+      "height": 196,
+      "borderLTRB": [
+        34,
+        34,
+        34,
+        34
+      ],
+      "imageType": "Sliced",
+      "usage": "중앙 투명 외곽선. 같은 크기 배경 위."
+    },
+    {
+      "name": "panel-flood-background",
+      "file": "sprites/panel-flood-background.png",
+      "width": 660,
+      "height": 104,
+      "borderLTRB": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "imageType": "Sliced",
+      "usage": "배경. 프레임 아래, 텍스트와 분리."
+    },
+    {
+      "name": "panel-flood-frame",
+      "file": "sprites/panel-flood-frame.png",
+      "width": 660,
+      "height": 104,
+      "borderLTRB": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "imageType": "Sliced",
+      "usage": "중앙 투명 외곽선. 같은 크기 배경 위."
+    },
+    {
+      "name": "event-frame-warning",
+      "file": "sprites/event-frame-warning.png",
+      "width": 640,
+      "height": 156,
+      "borderLTRB": [
+        30,
+        30,
+        30,
+        30
+      ],
+      "imageType": "Sliced",
+      "usage": "사건 상태별 프레임. 배경과 겹침."
+    },
+    {
+      "name": "event-accent-warning",
+      "file": "sprites/event-accent-warning.png",
+      "width": 8,
+      "height": 96,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "카드 왼쪽 상태 표시"
+    },
+    {
+      "name": "event-frame-danger",
+      "file": "sprites/event-frame-danger.png",
+      "width": 640,
+      "height": 156,
+      "borderLTRB": [
+        30,
+        30,
+        30,
+        30
+      ],
+      "imageType": "Sliced",
+      "usage": "사건 상태별 프레임. 배경과 겹침."
+    },
+    {
+      "name": "event-accent-danger",
+      "file": "sprites/event-accent-danger.png",
+      "width": 8,
+      "height": 96,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "카드 왼쪽 상태 표시"
+    },
+    {
+      "name": "bar-track",
+      "file": "sprites/bar-track.png",
+      "width": 512,
+      "height": 32,
+      "borderLTRB": [
+        18,
+        0,
+        18,
+        0
+      ],
+      "imageType": "Sliced",
+      "usage": "공통 HP/항해/침수 트랙"
+    },
+    {
+      "name": "bar-fill-white",
+      "file": "sprites/bar-fill-white.png",
+      "width": 500,
+      "height": 20,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Filled Horizontal",
+      "usage": "전체 채움. Image.color로 색 지정. Horizontal Filled."
+    },
+    {
+      "name": "bar-delay",
+      "file": "sprites/bar-delay.png",
+      "width": 32,
+      "height": 16,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "실제 배 위치부터 기준선까지 폭만 늘림"
+    },
+    {
+      "name": "voyage-reference",
+      "file": "sprites/voyage-reference.png",
+      "width": 16,
+      "height": 64,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "예정 진행도 점선. 중앙 pivot"
+    },
+    {
+      "name": "ring-background",
+      "file": "sprites/ring-background.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "원형 작업 배경"
+    },
+    {
+      "name": "ring-track",
+      "file": "sprites/ring-track.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "진행률과 무관한 빈 링"
+    },
+    {
+      "name": "ring-fill-white",
+      "file": "sprites/ring-fill-white.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Filled Radial360",
+      "usage": "Image.color=gold. Radial360, Top, Clockwise. 중심 투명."
+    },
+    {
+      "name": "ring-frame",
+      "file": "sprites/ring-frame.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "진행 링 바깥 테두리"
+    },
+    {
+      "name": "keycap",
+      "file": "sprites/keycap.png",
+      "width": 72,
+      "height": 72,
+      "borderLTRB": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "imageType": "Sliced",
+      "usage": "키 문자는 TMP로 가운데. 키마다 같은 에셋 재사용."
+    },
+    {
+      "name": "badge-player",
+      "file": "sprites/badge-player.png",
+      "width": 80,
+      "height": 80,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "Image.color를 플레이어 색으로. 숫자는 별도 TMP"
+    },
+    {
+      "name": "badge-help",
+      "file": "sprites/badge-help.png",
+      "width": 96,
+      "height": 112,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "도움 요청 배경. 느낌표/아이콘 별도"
+    },
+    {
+      "name": "portrait-frame-red",
+      "file": "sprites/portrait-frame-red.png",
+      "width": 160,
+      "height": 160,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "초상화 위 프레임. 역할이 아닌 플레이어 색"
+    },
+    {
+      "name": "portrait-frame-yellow",
+      "file": "sprites/portrait-frame-yellow.png",
+      "width": 160,
+      "height": 160,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "초상화 위 프레임. 역할이 아닌 플레이어 색"
+    },
+    {
+      "name": "portrait-frame-green",
+      "file": "sprites/portrait-frame-green.png",
+      "width": 160,
+      "height": 160,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "초상화 위 프레임. 역할이 아닌 플레이어 색"
+    },
+    {
+      "name": "portrait-frame-purple",
+      "file": "sprites/portrait-frame-purple.png",
+      "width": 160,
+      "height": 160,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "초상화 위 프레임. 역할이 아닌 플레이어 색"
+    },
+    {
+      "name": "portrait-backplate",
+      "file": "sprites/portrait-backplate.png",
+      "width": 160,
+      "height": 160,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "초상화 뒤 배경. 초상화 자체 클리핑은 Unity Mask 필요"
+    },
+    {
+      "name": "icon-ship",
+      "file": "sprites/icon-ship.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-clock",
+      "file": "sprites/icon-clock.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-repair",
+      "file": "sprites/icon-repair.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-bucket",
+      "file": "sprites/icon-bucket.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-reef",
+      "file": "sprites/icon-reef.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-cannon",
+      "file": "sprites/icon-cannon.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-enemy-ship",
+      "file": "sprites/icon-enemy-ship.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-hull-breach",
+      "file": "sprites/icon-hull-breach.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-sails",
+      "file": "sprites/icon-sails.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-water",
+      "file": "sprites/icon-water.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-cannonball",
+      "file": "sprites/icon-cannonball.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-plank",
+      "file": "sprites/icon-plank.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-warning",
+      "file": "sprites/icon-warning.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "icon-helm",
+      "file": "sprites/icon-helm.png",
+      "width": 128,
+      "height": 128,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "독립 크림색 실루엣. Preserve Aspect On. 색 변경 시 밝은 tint 권장"
+    },
+    {
+      "name": "portrait-captain",
+      "file": "sprites/portrait-captain.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "기존 01-crew 원본 재사용. 새 목업의 해적 얼굴과는 다름. Unity Mask 아래 배치."
+    },
+    {
+      "name": "portrait-diver",
+      "file": "sprites/portrait-diver.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "기존 01-crew 원본 재사용. 새 목업의 해적 얼굴과는 다름. Unity Mask 아래 배치."
+    },
+    {
+      "name": "portrait-jester",
+      "file": "sprites/portrait-jester.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "기존 01-crew 원본 재사용. 새 목업의 해적 얼굴과는 다름. Unity Mask 아래 배치."
+    },
+    {
+      "name": "portrait-wig",
+      "file": "sprites/portrait-wig.png",
+      "width": 256,
+      "height": 256,
+      "borderLTRB": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "imageType": "Simple",
+      "usage": "기존 01-crew 원본 재사용. 새 목업의 해적 얼굴과는 다름. Unity Mask 아래 배치."
+    }
+  ]
+}

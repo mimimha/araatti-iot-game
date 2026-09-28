@@ -1,0 +1,160 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &833768879061789989
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3458245564217981008}
+  - component: {fileID: 4315566910369956513}
+  m_Layer: 0
+  m_Name: FreeTuna
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3458245564217981008
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 833768879061789989}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 4113159256812292427}
+  - {fileID: 325805278042033675}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4315566910369956513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 833768879061789989}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 025b4baf275a76c4ea2945ba39cfd2a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishingMiniGame.Runtime::FishingMiniGame.Runtime.FishVisualAdapter
+  animator: {fileID: 0}
+  tail: {fileID: 0}
+  hookAnchor: {fileID: 325805278042033675}
+--- !u!1 &5511813266059551356
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 325805278042033675}
+  m_Layer: 0
+  m_Name: HookAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &325805278042033675
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5511813266059551356}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.275, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3458245564217981008}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &4512142765212397216
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 3458245564217981008}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 119.782074
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 119.782074
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 119.782074
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.4947561
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.000000027888937
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.023086881
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4743f673a1645d347911247265d76004, type: 2}
+    - target: {fileID: 919132149155446097, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+      propertyPath: m_Name
+      value: FreeTuna Model
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+--- !u!4 &4113159256812292427 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: df4f1d9df86be1844b89f757c5f94dc1, type: 3}
+  m_PrefabInstance: {fileID: 4512142765212397216}
+  m_PrefabAsset: {fileID: 0}

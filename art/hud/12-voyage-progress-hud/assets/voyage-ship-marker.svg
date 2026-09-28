@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2152 731">
+<defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c3a63"/>
+      <stop offset="1" stop-color="#0a1c33"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8b654"/>
+      <stop offset="1" stop-color="#8a5a1e"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf6e3"/>
+      <stop offset="1" stop-color="#d8c69a"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ff0ee"/>
+      <stop offset="1" stop-color="#0f9fb0"/>
+    </linearGradient>
+  </defs>
+
+  <g><circle cx="332" cy="365.5" r="96" fill="url(#brass)" stroke="#4a2f10" stroke-width="2"/>
+  <circle cx="332" cy="365.5" r="85" fill="url(#navy)"/><g fill="#fdf6e3">
+    <path d="M292,383.5 L372,383.5 L360,399.5 L304,399.5 Z"/>
+    <rect x="329" y="325.5" width="6" height="58"/>
+    <path d="M334,327.5 L334,375.5 L370,375.5 Z"/>
+    <path d="M330,335.5 L330,375.5 L302,371.5 Z"/>
+  </g></g>
+
+</svg>

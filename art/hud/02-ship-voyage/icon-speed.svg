@@ -1,0 +1,7 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='256' height='256' viewBox='0 0 256 256'>
+<polygon points='82,49 220,127 82,205 105,144 35,144 35,110 105,110' fill='#F5F7F3' stroke='#0A1117' stroke-width='12' stroke-linejoin='round'/>
+<path d='M 26 64 L 64 64' fill='none' stroke='#0A1117' stroke-width='15' stroke-linecap='round'/>
+<path d='M 26 64 L 64 64' fill='none' stroke='#F5F7F3' stroke-width='6' stroke-linecap='round'/>
+<path d='M 26 190 L 64 190' fill='none' stroke='#0A1117' stroke-width='15' stroke-linecap='round'/>
+<path d='M 26 190 L 64 190' fill='none' stroke='#F5F7F3' stroke-width='6' stroke-linecap='round'/>
+</svg>

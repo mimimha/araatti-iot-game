@@ -1,0 +1,551 @@
+using System;
+using System.Collections.Generic;
+using Fusion;
+using Fusion.Sockets;
+using MiniGames.Common;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnderTheSea.Account;
+
+/// <summary>
+/// <see cref="INetworkService"/> 의 실제 Fusion 구현.
+///
+/// ChannelSelect 에서 [입장] 을 누르면 여기가 <b>진짜 Dedicated Server 세션에 붙는다.</b>
+/// 붙는 데 성공해야만 성공 이벤트를 쏜다. 실패하면 화면은 ChannelSelect 에 그대로 남는다.
+///
+/// <b>Lobby 씬은 누가 로드하는가 — Fusion 이다.</b>
+/// <see cref="StartGameArgs.Scene"/> 에 Lobby 를 넘기므로 접속이 끝나면 Fusion 이 그 씬을
+/// 네트워크 씬으로 올린다. 그래서 <see cref="SceneFlow.LobbyLoadedByNetwork"/> 를 켜서
+/// SceneFlow 가 일반 <c>SceneManager.LoadScene("Lobby")</c> 를 또 하지 않게 한다.
+/// 두 곳이 같은 씬을 로드하면 네트워크 오브젝트가 붙지 않은 Lobby 가 덮어써진다.
+///
+/// <b>포트는 다루지 않는다.</b> 클라이언트는 세션 <b>이름</b>만 알면 Photon Cloud 가 찾아 준다.
+/// 포트는 서버 exe 의 <c>-port</c> 인자에서만 쓴다.
+///
+/// 화면 코드(ChannelSelectController · ChannelRowView)는 이 클래스를 모른다.
+/// <see cref="NetworkServiceLocator"/> 를 통해 <see cref="INetworkService"/> 로만 만난다.
+/// Fake 로 되돌리려면 <see cref="NetworkServiceBootstrap"/> 한 줄만 바꾸면 된다.
+///
+/// 문서: docs/prd/fusion-dedicated-lobby-roadmap.md (PRD 08-3)
+/// </summary>
+public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunnerCallbacks
+{
+    /// <summary>Fusion 이 네트워크 씬으로 올릴 Lobby. Build Settings 의 경로와 같아야 한다.</summary>
+    private const string LobbyScenePath = "Assets/Game/Scenes/Main/CoreGames/Lobby.unity";
+
+    private NetworkRunner runner;
+    private string connectedChannelId;
+    private bool isConnecting;
+
+    /// <summary>세션 목록 감시기에 붙어 있는가. 두 번 구독하지 않으려고 둔다.</summary>
+    private bool watchingPlayers;
+
+    /// <summary>채널 ID → 지금 인원. 매번 새로 만들지 않고 비워서 다시 쓴다.</summary>
+    private readonly Dictionary<string, int> playerCounts = new Dictionary<string, int>();
+
+    /// <summary>
+    /// 아직 목록을 못 받았을 때 쓰는 값. 인원을 <b>-1</b> 로 둬서 "0명" 과 구별한다.
+    /// </summary>
+    private static readonly Dictionary<string, int> unknownPlayerCounts =
+        new Dictionary<string, int> { ["srv-1"] = -1 };
+
+    // ------------------------------------------------------------
+    // INetworkService — 알림
+    // ------------------------------------------------------------
+
+    public event Action<ServerInfo[]> OnServerListUpdated;
+    public event Action<bool, string> OnConnectResult;
+    public event Action<int> OnLobbyPlayerCountChanged;
+    public event Action<string, int, int> OnQueueUpdated;
+    public event Action<string> OnMiniGameStarting;
+    public event Action<string> OnDisconnected;
+
+    private void Awake()
+    {
+        // Boot → ChannelSelect → Lobby 를 넘어 살아남아야 한다.
+        // 접속은 ChannelSelect 에서 시작하고 세션은 Lobby 에서도 유지되기 때문이다.
+        DontDestroyOnLoad(gameObject);
+        NetworkServiceLocator.Register(this);
+
+        Debug.Log("[FusionNetworkService] 실제 Fusion 세션을 사용합니다.", this);
+    }
+
+    private void OnDestroy()
+    {
+        NetworkServiceLocator.Unregister(this);
+    }
+
+    // ------------------------------------------------------------
+    // 채널 목록
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 채널 목록을 돌려준다. <b>인원수는 조금 늦게 채워진다.</b>
+    ///
+    /// 채널 자체는 <see cref="ChannelCatalog"/> 의 고정 목록이다. 목록에 있어도 그 세션의
+    /// 서버가 떠 있지 않으면 입장에서 실패한다.
+    ///
+    /// <b>인원은 Photon 세션 목록에서 읽는다.</b> 아직 아무 방에도 안 들어간 상태라
+    /// <see cref="DsPoolWatcher"/> 를 띄워 세션 로비에 붙는다. 목록은 붙고 나서 1~2초 뒤에
+    /// 오므로, 처음 부를 때는 <b>"-" 로 보이고</b> 목록이 도착하면 다시 한 번 쏜다.
+    /// 화면은 <see cref="OnServerListUpdated"/> 를 이벤트로 받으니 그대로 갱신된다.
+    ///
+    /// ⚠ 서버 프로세스에서는 부르지 않는다. 로비 DS 는 이미 자기 감시기를 돌리고 있다.
+    /// </summary>
+    public void RequestServerList()
+    {
+        BeginWatchingPlayers();
+        OnServerListUpdated?.Invoke(BuildServerInfos());
+    }
+
+    /// <summary>
+    /// 세션 목록 감시를 시작하고, 갱신될 때마다 화면에 다시 알린다.
+    ///
+    /// 두 번 불러도 안전하다 — <see cref="DsPoolWatcher.Begin"/> 이 이미 돌고 있으면 그냥 둔다.
+    /// </summary>
+    private void BeginWatchingPlayers()
+    {
+        if (FusionLaunchArguments.IsDedicatedServerProcess())
+        {
+            return;
+        }
+
+        DsPoolWatcher.Begin();
+
+        if (DsPoolWatcher.Current == null || watchingPlayers)
+        {
+            return;
+        }
+
+        DsPoolWatcher.Current.Updated += HandlePlayerCountsUpdated;
+        watchingPlayers = true;
+    }
+
+    /// <summary>감시를 멈춘다. 접속에 성공해 이 화면을 떠날 때 부른다.</summary>
+    private void StopWatchingPlayers()
+    {
+        if (!watchingPlayers)
+        {
+            return;
+        }
+
+        if (DsPoolWatcher.Current != null)
+        {
+            DsPoolWatcher.Current.Updated -= HandlePlayerCountsUpdated;
+        }
+
+        watchingPlayers = false;
+
+        // ⚠ **게임에 들어갈 때는 감시기를 치운다.** 세션 로비에 붙어 있는 러너가 하나 더
+        //    도는 셈이라, 놔두면 쓸데없이 통신한다. 로비에 들어가면 인원은 게임 쪽에서 안다.
+        DsPoolWatcher.End();
+    }
+
+    private void HandlePlayerCountsUpdated()
+    {
+        OnServerListUpdated?.Invoke(BuildServerInfos());
+    }
+
+    /// <summary>
+    /// 지금 아는 인원수를 채워 채널 목록을 만든다.
+    ///
+    /// 아직 목록을 못 받았으면 인원을 <b>-1</b> 로 둔다. 화면이 "0명" 과 "아직 모름" 을
+    /// 구별할 수 있어야 한다. 0 으로 두면 서버가 죽은 것처럼 보인다.
+    /// </summary>
+    private ServerInfo[] BuildServerInfos()
+    {
+        DsPoolWatcher watcher = DsPoolWatcher.Current;
+
+        if (watcher == null || !watcher.Ready)
+        {
+            return ChannelCatalog.ToServerInfos(unknownPlayerCounts);
+        }
+
+        // 채널이 하나뿐이라 "이 게임에 있는 사람 전부" 가 곧 그 채널의 인원이다.
+        // 채널을 늘리면 ChannelCatalog 의 경고대로 여기를 같이 고쳐야 한다.
+        playerCounts.Clear();
+        playerCounts["srv-1"] = watcher.TotalOccupants();
+
+        return ChannelCatalog.ToServerInfos(playerCounts);
+    }
+
+    // ------------------------------------------------------------
+    // 접속
+    // ------------------------------------------------------------
+
+    public async void Connect(string nickname, string serverId)
+    {
+        if (isConnecting)
+        {
+            Debug.Log("[FusionNetworkService] 이미 접속 중입니다.");
+            return;
+        }
+
+        // ⚠ 캐릭터가 정해지지 않았으면 접속하지 않는다. (PRD 09-2)
+        //
+        //    "로그인 성공" 과 "활성 캐릭터가 정해졌다" 는 서로 다른 판단이다.
+        //      SceneFlow.FromLogin(count) 은 **개수**로 화면을 정한다 — 2개면 ChannelSelect 로 보낸다
+        //      CharacterSessionCache.SelectFromList 는 2개 이상이면 **아무것도 고르지 않는다**
+        //    그래서 캐릭터가 둘인 계정은 ChannelSelect 에 와 있는데 CurrentCharacter 가 null 이다.
+        //    (지금은 서버가 계정당 1개로 막고 있어 생기지 않지만, CharacterSelect 를 만들며
+        //     그 상한을 올리는 순간 열린다)
+        //
+        //    이때 기본 외형으로 조용히 들여보내지 않는다. 남의 캐릭터로 보이거나
+        //    자기 캐릭터를 잃은 것처럼 보이는 편이 훨씬 나쁘다.
+        if (!HasChosenCharacter())
+        {
+            Debug.LogWarning(
+                "[FusionNetworkService] 활성 캐릭터가 정해지지 않아 접속하지 않습니다. " +
+                "CharacterSelect 화면이 필요한 상태일 수 있습니다.");
+            OnConnectResult?.Invoke(false, "캐릭터 선택이 필요합니다.");
+            return;
+        }
+
+        if (!ChannelCatalog.TryGetSessionName(serverId, out string sessionName))
+        {
+            OnConnectResult?.Invoke(false, "존재하지 않는 채널입니다.");
+            return;
+        }
+
+        // Fusion 이 Lobby 를 additive 로 올린 뒤 내려야 할 "지금 보이는 화면" 을 기억해 둔다.
+        // 접속이 끝난 뒤에 물어보면 이미 활성 씬이 바뀌어 있을 수 있어 지금 잡아 둔다.
+        Scene screenBeforeJoin = SceneManager.GetActiveScene();
+
+        isConnecting = true;
+
+        // 접속하는 동안 화면을 가린다. 실제로 플레이할 수 있게 되는 시점은
+        // 내 NetworkPlayer 가 스폰되고 카메라가 붙은 뒤다. (LocalPlayerView 가 Ready 로 바꾼다)
+        TransitionStatus.SetLoading($"{ChannelCatalog.GetDisplayName(serverId)}에 접속 중...");
+
+        runner = CreateRunner();
+
+        Debug.Log($"[FusionNetworkService] \"{sessionName}\" 세션에 접속합니다. (채널 {serverId}, 닉네임 {nickname})");
+
+        // ⚠ 이 프로젝트는 NetworkProjectConfig 의 PeerMode 가 **Multiple** 이다.
+        //    그 모드에서는 클라이언트도 Scene 을 반드시 지정해야 Fusion 이 씬을 올린다.
+        //    지정하지 않으면 이런 오류가 나고 **세션에는 붙지만 Lobby 가 로드되지 않는다.**
+        //      "PeerModes.Multiple requires a scene to be set in StartGameArgs.Scene."
+        //    실제로 그 상태였다 — 서버에는 플레이어가 스폰되고 로그는 전부 정상인데
+        //    화면은 ChannelSelect 에 그대로 남아 있었다.
+        //
+        //    공식 샘플(FusionBootstrap.StartClient)이 Scene 을 비워 두는 것은
+        //    Single peer mode 기준이라 여기에 그대로 적용할 수 없다.
+        //
+        //    여기서 이중 로드는 생기지 않는다. 이 경로를 타는 클라이언트는 ChannelSelect 에 있고
+        //    Lobby 를 아직 들고 있지 않기 때문이다.
+        //    (개발용 직접 실행은 이미 Lobby 에서 시작하므로 이 경로를 타지 않는다.
+        //     그쪽은 FusionLauncher 가 자기 씬을 지정한다)
+        SceneRef lobby = SceneRef.FromPath(LobbyScenePath);
+
+        if (!lobby.IsValid)
+        {
+            Debug.LogError($"[FusionNetworkService] Lobby 씬 경로를 해석하지 못했습니다: {LobbyScenePath}");
+            isConnecting = false;
+            TransitionStatus.SetReady();
+            OnConnectResult?.Invoke(false, "Lobby 씬을 찾지 못했습니다.");
+            return;
+        }
+
+        // 미니게임에서 돌아오는 길이면 "어디서 왔는지" 를 쪽지로 들고 간다. 서버가 그 포탈 앞에 세운다.
+        // 처음 로그인이면 비어 있어 null 이고, 서버는 지금처럼 기본 자리에 세운다.
+        string cameFrom = LobbyReturnInfo.CameFrom;
+        if (!string.IsNullOrEmpty(cameFrom))
+        {
+            Debug.Log($"[FusionNetworkService] \"{cameFrom}\" 에서 돌아왔다는 쪽지를 들고 접속합니다.");
+        }
+
+        StartGameResult result = await runner.StartGame(new StartGameArgs
+        {
+            GameMode = GameMode.Client,
+            SessionName = sessionName,
+            Scene = lobby,
+            SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+            ConnectionToken = LobbyReturnToken.Write(cameFrom),
+
+            // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
+            CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
+        });
+
+        isConnecting = false;
+
+        if (!result.Ok)
+        {
+            Debug.LogWarning(
+                $"[FusionNetworkService] 접속 실패: {result.ShutdownReason} — {result.ErrorMessage}");
+
+            // 세션에 붙지 못했으므로 러너를 정리한다. 다음 시도에 걸리적거리지 않게.
+            CleanUpRunner();
+
+            // 화면을 다시 사용자에게 돌려준다. ChannelSelect 가 실패 문구를 띄우고 씬은 그대로 남는다.
+            TransitionStatus.SetReady();
+
+            OnConnectResult?.Invoke(false, DescribeFailure(result.ShutdownReason, serverId));
+            return;
+        }
+
+        connectedChannelId = serverId;
+
+        // ⚠ 미니게임에 들어가려면 이 세션을 반드시 끊어야 하고, 끊으면 위 값이 지워진다.
+        //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
+        LobbyReturnInfo.Remember(nickname, serverId);
+
+        // 쪽지는 이번 접속에 실어 보냈다. 지워야 다음에 채널을 옮겨 들어갈 때 엉뚱한 포탈 앞에 서지 않는다.
+        // ⚠ 실패했을 때는 지우지 않는다(위에서 이미 return). 다시 시도해도 포탈 앞에 서야 한다.
+        LobbyReturnInfo.ForgetCameFrom();
+
+        // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
+        SceneFlow.LobbyLoadedByNetwork = true;
+
+        Debug.Log($"[FusionNetworkService] \"{sessionName}\" 세션 접속 성공. Lobby 는 Fusion 이 로드합니다.");
+
+        // 채널 선택 화면을 떠나므로 세션 목록 감시를 멈춘다. 놔두면 러너가 하나 더 돈다.
+        StopWatchingPlayers();
+
+        // 화면 쪽에 먼저 알린다. ChannelSelectController 가 이 안에서 SceneFlow 를 부르는데,
+        // 그 전에 씬을 내려 버리면 그 컴포넌트가 사라진 뒤에 콜백이 도는 꼴이 된다.
+        OnConnectResult?.Invoke(true, string.Empty);
+
+        // 그 다음 이전 화면을 내린다. Fusion 은 additive 로 올리므로 이걸 하지 않으면
+        // ChannelSelect 의 ScreenSpaceOverlay Canvas 가 Lobby 위를 계속 덮는다.
+        SceneFlow.UnloadScreenScene(screenBeforeJoin);
+    }
+
+    public void Disconnect()
+    {
+        if (runner == null)
+        {
+            return;
+        }
+
+        Debug.Log("[FusionNetworkService] 세션을 종료합니다.");
+
+        CleanUpRunner();
+        connectedChannelId = null;
+
+        SceneFlow.LobbyLoadedByNetwork = false;
+
+        // ⚠ **여기서 화면을 사용자에게 돌려주지 않는다.** 끊는 것과 "이제 놀아도 된다" 는 다르다.
+        //
+        //    미니게임으로 넘어가려면 반드시 Lobby Runner 를 먼저 끊어야 한다. 그때 여기서
+        //    SetReady 를 부르면 **로딩 화면이 씬을 열기도 전에 걷힌다.** 그러면 씬 로드의
+        //    프레임 멈춤과 그 뒤 틱 따라잡기가 사용자 눈앞에서 벌어진다. 로그로 실측했다.
+        //
+        //        Loading - 게임에 입장 중...
+        //        Ready                        ← 여기서 걷혔다
+        //        Runner 가 종료됐습니다.
+        //        씬 이동: → ShipCoopBoot   ← 멈춤은 이 뒤에 온다
+        //
+        //    그래서 화면을 언제 넘길지는 **부르는 쪽**이 정한다. 끊은 뒤 무엇을 할지 아는 것은
+        //    그쪽뿐이다. (MiniGameTransition 은 계속 가리고, 복구 경로는 스스로 SetReady 한다)
+
+        OnDisconnected?.Invoke("접속을 종료했습니다.");
+    }
+
+    // ------------------------------------------------------------
+    // 러너 수명
+    // ------------------------------------------------------------
+
+    /// <summary>
+    /// 접속할 때마다 새 러너를 만든다.
+    ///
+    /// 미리 만들어 두지 않는 이유: 접속하지 않는 화면(Title · Login)에서까지
+    /// 러너가 떠 있으면 Lobby 의 <see cref="FusionLauncher"/> 가
+    /// "이미 러너가 있다" 고 판단해 개발용 직접 실행이 막힌다.
+    /// </summary>
+    private NetworkRunner CreateRunner()
+    {
+        GameObject host = new GameObject("FusionRunner (Client)");
+        host.transform.SetParent(transform, worldPositionStays: false);
+
+        NetworkRunner created = host.AddComponent<NetworkRunner>();
+        host.AddComponent<NetworkSceneManagerDefault>();
+
+        // 입력 제공자는 러너와 같은 오브젝트에 있어야 Fusion 이 수집한다.
+        PlayerInputProvider input = host.AddComponent<PlayerInputProvider>();
+
+        created.ProvideInput = true;
+        created.AddCallbacks(this);
+        created.AddCallbacks(input);
+
+        return created;
+    }
+
+    private void CleanUpRunner()
+    {
+        if (runner == null)
+        {
+            return;
+        }
+
+        if (runner.IsRunning)
+        {
+            runner.Shutdown();
+        }
+
+        Destroy(runner.gameObject);
+        runner = null;
+    }
+
+    /// <summary>사용자가 읽을 수 있는 실패 사유로 바꾼다.</summary>
+    /// <summary>
+    /// 활성 캐릭터가 정해져 있는가.
+    ///
+    /// 개발용 Lobby 직접 진입에는 계정 서비스 자체가 로그인 상태가 아니므로
+    /// 이 가드를 거치지 않는다. 그쪽은 ChannelSelect 를 지나오지 않는다.
+    /// </summary>
+    private static bool HasChosenCharacter()
+    {
+        if (!AccountServiceLocator.IsReady || AccountServiceLocator.Characters == null)
+        {
+            // 계정 서비스가 없다면 정상 Login 경로가 아니다. 막지 않는다.
+            return true;
+        }
+
+        return AccountServiceLocator.Characters.CurrentCharacter != null;
+    }
+
+    private static string DescribeFailure(ShutdownReason reason, string channelId)
+    {
+        string channel = ChannelCatalog.GetDisplayName(channelId);
+
+        switch (reason)
+        {
+            case ShutdownReason.GameNotFound:
+                return $"{channel} 이(가) 열려 있지 않습니다.";
+
+            case ShutdownReason.GameIsFull:
+                return $"{channel} 이(가) 가득 찼습니다.";
+
+            case ShutdownReason.ConnectionTimeout:
+            case ShutdownReason.ConnectionRefused:
+                return $"{channel} 에 연결하지 못했습니다.";
+
+            default:
+                return $"{channel} 입장에 실패했습니다. ({reason})";
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 미니게임 — 서버 패킷 연결 지점
+    // ------------------------------------------------------------
+
+    public void JoinMiniGameQueue(string miniGameName)
+    {
+        Debug.LogWarning($"[FusionNetworkService] 미니게임 대기열은 아직 구현되지 않았습니다. ({miniGameName})");
+    }
+
+    public void LeaveMiniGameQueue()
+    {
+        Debug.LogWarning("[FusionNetworkService] 미니게임 대기열은 아직 구현되지 않았습니다.");
+    }
+
+    public void ReportMiniGameResult(bool success, int score)
+    {
+        MiniGameConfig config = PlayerRoster.CurrentGame;
+        ReportMiniGameResult(new MiniGameResult(
+            config != null ? config.GameId : MiniGameId.Sword,
+            success,
+            score,
+            0f,
+            config != null ? config.ExtraStatLabel : null,
+            string.Empty,
+            config != null ? config.FragmentId : null,
+            fragmentObtained: false,
+            playerCount: PlayerRoster.ActivePlayerCount));
+    }
+
+    /// <summary>
+    /// 미니게임 담당자는 전체 결과를 여기로 보고한다. 서버 담당자는 이 본문을 결과 패킷/RPC로 연결한다.
+    /// </summary>
+    public void ReportMiniGameResult(MiniGameResult result)
+    {
+        Debug.LogWarning(
+            $"[FusionNetworkService] 전체 미니게임 결과 패킷 연결이 필요합니다. " +
+            $"({result.GameId}, 성공={result.IsClear}, 점수={result.Score})");
+    }
+
+    /// <summary>
+    /// 서버 결과 패킷 수신 콜백의 최종 연결 지점. UI를 직접 찾지 말고 이 함수만 호출한다.
+    /// 결과 화면 씬이 아직 없어도 Gateway가 결과를 보관한다.
+    /// </summary>
+    public void ApplyMiniGameResult(MiniGameResult settledResult)
+    {
+        MiniGameResultGateway.SubmitAuthoritative(settledResult);
+    }
+
+    /// <summary>
+    /// 서버의 대기열 스냅샷 처리기가 호출하는 UI 경계.
+    /// 패킷에 담긴 플레이어들은 먼저 PlayerRoster에 반영한 뒤 이 함수를 호출한다.
+    /// </summary>
+    public void ApplyMiniGameQueueSnapshot(string miniGameName, int currentPlayers, int requiredPlayers)
+    {
+        OnQueueUpdated?.Invoke(miniGameName, currentPlayers, requiredPlayers);
+    }
+
+    /// <summary>서버의 매칭 완료/게임 시작 패킷 처리기가 호출하는 UI 경계.</summary>
+    public void ApplyMiniGameStarting(string miniGameName)
+    {
+        OnMiniGameStarting?.Invoke(miniGameName);
+    }
+
+    // ------------------------------------------------------------
+    // Fusion 콜백
+    // ------------------------------------------------------------
+
+    void INetworkRunnerCallbacks.OnPlayerJoined(NetworkRunner r, PlayerRef player)
+    {
+        OnLobbyPlayerCountChanged?.Invoke(CountPlayers(r));
+    }
+
+    void INetworkRunnerCallbacks.OnPlayerLeft(NetworkRunner r, PlayerRef player)
+    {
+        OnLobbyPlayerCountChanged?.Invoke(CountPlayers(r));
+    }
+
+    void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner r, NetDisconnectReason reason)
+    {
+        Debug.LogWarning($"[FusionNetworkService] 서버와의 연결이 끊어졌습니다: {reason}");
+
+        connectedChannelId = null;
+        SceneFlow.LobbyLoadedByNetwork = false;
+
+        OnDisconnected?.Invoke("서버와의 연결이 끊어졌습니다.");
+    }
+
+    void INetworkRunnerCallbacks.OnShutdown(NetworkRunner r, ShutdownReason shutdownReason)
+    {
+        connectedChannelId = null;
+        SceneFlow.LobbyLoadedByNetwork = false;
+    }
+
+    private static int CountPlayers(NetworkRunner r)
+    {
+        int count = 0;
+        foreach (PlayerRef _ in r.ActivePlayers)
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    #region Unused Fusion callbacks
+
+    void INetworkRunnerCallbacks.OnInput(NetworkRunner r, NetworkInput input) { }
+    void INetworkRunnerCallbacks.OnInputMissing(NetworkRunner r, PlayerRef player, NetworkInput input) { }
+    void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner r) { }
+    void INetworkRunnerCallbacks.OnConnectRequest(NetworkRunner r, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+    void INetworkRunnerCallbacks.OnConnectFailed(NetworkRunner r, NetAddress remoteAddress, NetConnectFailedReason reason) { }
+    void INetworkRunnerCallbacks.OnUserSimulationMessage(NetworkRunner r, SimulationMessagePtr message) { }
+    void INetworkRunnerCallbacks.OnSessionListUpdated(NetworkRunner r, List<SessionInfo> sessionList) { }
+    void INetworkRunnerCallbacks.OnCustomAuthenticationResponse(NetworkRunner r, Dictionary<string, object> data) { }
+    void INetworkRunnerCallbacks.OnHostMigration(NetworkRunner r, HostMigrationToken hostMigrationToken) { }
+    void INetworkRunnerCallbacks.OnReliableDataProgress(NetworkRunner r, PlayerRef player, ReliableKey key, float progress) { }
+    void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner r, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
+    void INetworkRunnerCallbacks.OnObjectExitAOI(NetworkRunner r, NetworkObject obj, PlayerRef player) { }
+    void INetworkRunnerCallbacks.OnObjectEnterAOI(NetworkRunner r, NetworkObject obj, PlayerRef player) { }
+    void INetworkRunnerCallbacks.OnSceneLoadStart(NetworkRunner r) { }
+    void INetworkRunnerCallbacks.OnSceneLoadDone(NetworkRunner r) { }
+
+    #endregion
+}

@@ -1,0 +1,83 @@
+{
+  "importSettings": {
+    "textureType": "Sprite (2D and UI)",
+    "spriteMode": "Single",
+    "alphaIsTransparency": true,
+    "mipmaps": false,
+    "wrapMode": "Clamp",
+    "filterMode": "Bilinear",
+    "compression": "None"
+  },
+  "colors": {
+    "warning": "#FFC64D",
+    "running": "#FF665F",
+    "title": "#FFF0D0",
+    "secondary": "#B8D8E8"
+  },
+  "assets": [
+    {
+      "file": "ui/event-card-background.png",
+      "width": 1024,
+      "height": 300,
+      "borderLTRB": [
+        64,
+        64,
+        64,
+        64
+      ],
+      "tintable": false,
+      "clearPixels": 2076
+    },
+    {
+      "file": "ui/event-state-badge.png",
+      "width": 256,
+      "height": 96,
+      "borderLTRB": [
+        42,
+        42,
+        42,
+        42
+      ],
+      "tintable": true,
+      "clearPixels": 1956
+    },
+    {
+      "file": "ui/event-timer-track.png",
+      "width": 512,
+      "height": 32,
+      "borderLTRB": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "tintable": false,
+      "clearPixels": 212
+    },
+    {
+      "file": "ui/event-timer-fill.png",
+      "width": 512,
+      "height": 32,
+      "borderLTRB": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "tintable": true,
+      "clearPixels": 2286
+    }
+  ],
+  "runtimeText": [
+    "event title",
+    "live hint",
+    "deck/location",
+    "countdown seconds",
+    "state badge label"
+  ],
+  "notes": [
+    "No icon medallion is used.",
+    "Hide timer track and fill when HasCountdown is false.",
+    "Use card background as Sliced with the listed border."
+  ]
+}

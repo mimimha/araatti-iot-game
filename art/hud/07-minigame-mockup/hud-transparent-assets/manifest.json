@@ -1,0 +1,210 @@
+{
+  "reference": "../minigame-hud-heart-only-v6.png",
+  "import": {
+    "textureType": "Sprite (2D and UI)",
+    "spriteMode": "Single",
+    "alphaIsTransparency": true,
+    "mipmaps": false,
+    "wrapMode": "Clamp",
+    "filterMode": "Bilinear",
+    "compression": "None",
+    "maxTextureSize": 2048
+  },
+  "notes": [
+    "Text and numeric data must be rendered separately.",
+    "Panels contain their static icons/tracks. Do not duplicate those icons.",
+    "No Unity scene or prefab has been changed."
+  ],
+  "assets": [
+    {
+      "file": "panels/phase-panel.png",
+      "label": "출항 / 단계",
+      "width": 512,
+      "height": 138,
+      "hasAlpha": true,
+      "transparentPixels": 13591,
+      "partialAlphaPixels": 56130,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/hp-panel.png",
+      "label": "선박 HP",
+      "width": 1024,
+      "height": 142,
+      "hasAlpha": true,
+      "transparentPixels": 24549,
+      "partialAlphaPixels": 119791,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/timer-panel.png",
+      "label": "남은 시간",
+      "width": 384,
+      "height": 110,
+      "hasAlpha": true,
+      "transparentPixels": 8957,
+      "partialAlphaPixels": 32558,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/voyage-panel.png",
+      "label": "항해 진행도",
+      "width": 1024,
+      "height": 140,
+      "hasAlpha": true,
+      "transparentPixels": 25295,
+      "partialAlphaPixels": 116095,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/warning-panel.png",
+      "label": "지연 경고",
+      "width": 768,
+      "height": 123,
+      "hasAlpha": true,
+      "transparentPixels": 14662,
+      "partialAlphaPixels": 78335,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/crew-panel.png",
+      "label": "4인 프로필 바탕",
+      "width": 1024,
+      "height": 310,
+      "hasAlpha": true,
+      "transparentPixels": 15173,
+      "partialAlphaPixels": 300124,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "panels/interaction-panel.png",
+      "label": "상호작용 진행도",
+      "width": 768,
+      "height": 106,
+      "hasAlpha": true,
+      "transparentPixels": 10563,
+      "partialAlphaPixels": 69499,
+      "provenance": "image_gen: reference-based recreation, text removed; icon and track remain baked into panel"
+    },
+    {
+      "file": "crew/portrait-wig.png",
+      "label": "흰 가발",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 110855,
+      "partialAlphaPixels": 150181,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/portrait-captain.png",
+      "label": "선장",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 145640,
+      "partialAlphaPixels": 115476,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/portrait-jester.png",
+      "label": "광대",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 136824,
+      "partialAlphaPixels": 123866,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/portrait-diver.png",
+      "label": "잠수부",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 107928,
+      "partialAlphaPixels": 153040,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/frame-red.png",
+      "label": "빨강 프레임",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 189858,
+      "partialAlphaPixels": 3406,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/frame-yellow.png",
+      "label": "노랑 프레임",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 189858,
+      "partialAlphaPixels": 3406,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/frame-green.png",
+      "label": "초록 프레임",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 189858,
+      "partialAlphaPixels": 3406,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/frame-purple.png",
+      "label": "보라 프레임",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 189858,
+      "partialAlphaPixels": 3406,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "crew/portrait-backplate.png",
+      "label": "프로필 배경",
+      "width": 512,
+      "height": 512,
+      "hasAlpha": true,
+      "transparentPixels": 58211,
+      "partialAlphaPixels": 1687,
+      "provenance": "Reused existing art/hud/01-crew asset; character details differ from mockup"
+    },
+    {
+      "file": "fills/hp-fill-green.png",
+      "label": "HP 채움",
+      "width": 1024,
+      "height": 48,
+      "hasAlpha": true,
+      "transparentPixels": 4619,
+      "partialAlphaPixels": 153,
+      "provenance": "Derivative of existing repo-native SVG gauge fill"
+    },
+    {
+      "file": "fills/voyage-fill-cyan.png",
+      "label": "항해 채움",
+      "width": 1024,
+      "height": 48,
+      "hasAlpha": true,
+      "transparentPixels": 4619,
+      "partialAlphaPixels": 153,
+      "provenance": "Derivative of existing repo-native SVG gauge fill"
+    },
+    {
+      "file": "fills/interaction-fill-ivory.png",
+      "label": "상호작용 채움",
+      "width": 1024,
+      "height": 48,
+      "hasAlpha": true,
+      "transparentPixels": 4619,
+      "partialAlphaPixels": 153,
+      "provenance": "Derivative of existing repo-native SVG gauge fill"
+    }
+  ]
+}

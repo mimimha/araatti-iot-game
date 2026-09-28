@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!--
+      net8.0 을 쓰는 이유
+        MySQL 프로바이더(Pomelo)의 최신 안정판이 EF Core 9 기반이고,
+        EF Core 9 는 net8.0 을 대상으로 만들어져 있습니다.
+        검증된 조합으로 맞췄습니다. net8.0 은 LTS 입니다.
+    -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AraAtti.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      ⚠ 개발용 설정은 배포본에 따라가면 안 된다.
+
+      `appsettings.Development.json` 에는 각자 PC 의 DB 비밀번호와 JWT 서명 키가 들어 있다.
+      `.gitignore` 대상이라 커밋은 안 되지만, `dotnet publish` 는 이것을 기본으로 복사한다.
+      그래서 실제로 EC2 에 한 번 올라갔다. (발견 후 서버에서 지움)
+
+      JWT 서명 키가 서버에 있는 것은 특히 위험하다. 서버가 Development 환경으로 뜨는 순간
+      팀원 PC 에서 만든 토큰이 그대로 통과한다.
+
+      `CopyToPublishDirectory` 만 막는다. 빌드 출력(bin/Debug)에는 그대로 남아야
+      각자 PC 에서 F5 로 돌릴 때 설정을 읽는다.
+    -->
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+
+    <!-- 비밀번호 해싱. 평문을 저장하지 않기 위해 반드시 필요하다. -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.1" />
+
+    <!-- JWT 발급과 검증 -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.31" />
+
+    <!-- 마이그레이션 도구 전용. 실행 파일에는 포함되지 않습니다. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.19">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

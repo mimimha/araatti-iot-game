@@ -1,4 +1,4 @@
-# UnderTheSea 게임 구조 규칙
+# 아라아띠 게임 구조 규칙
 
 본 문서는 게임의 전체 흐름과 팀원 간 작업 규격을 정의합니다.
 
@@ -21,10 +21,33 @@
    │
    ▼
 ┌──────────────┐
-│    Title     │  닉네임 입력 + 서버 선택
-└──────────────┘  [접속] 버튼
+│    Title     │  시작 메뉴. [시작] / [설정]
+└──────────────┘
    │
-   │  ← 여기서 네트워크 연결이 성립한다
+   ▼
+┌──────────────┐
+│    Login     │  이메일 / 비밀번호를 서버에 보내 검증받고 **JWT 를 발급**받는다.
+└──────────────┘
+   │
+   │  ← 로그인 직후 **서버에 저장된 캐릭터를 조회**한다
+   │     이때 발급받은 JWT 를 **Bearer 토큰**으로 실어 보낸다
+   │     캐릭터가 있으면 ChannelSelect 로, 없으면 CharacterCreate 로 간다
+   ▼
+┌──────────────┐
+│CharacterCreate│ 외형을 고르고 **캐릭터 이름**을 정한다. (캐릭터가 없을 때만)
+└──────────────┘  이 이름이 게임에서 쓰는 유일한 이름이다. (6장 참고)
+   │
+   ▼
+┌──────────────┐
+│ChannelSelect │  서버(채널) 목록에서 하나 선택 + [입장]
+└──────────────┘
+   │
+   │  ← 여기서 **Fusion Dedicated Server 세션 접속**이 일어난다
+   │     ① 채널 ID → 세션 이름 변환  (srv-1 → lobby-ch1)
+   │     ② Fusion Client 로 그 세션에 접속
+   │     ③ **Fusion 이 Lobby 네트워크 씬을 로드**한다 (클라이언트가 직접 열지 않는다)
+   │     ④ 서버가 NetworkPlayer 를 스폰하고, 내 카메라가 내 캐릭터로 Snap 된다
+   │     ⑤ 그제서야 Loading Overlay 가 걷힌다
    ▼
 ┌──────────────┐
 │    Lobby     │  모두가 같은 바다에 모인다. (목표 50~100명)
@@ -47,13 +70,135 @@
 
 | 무엇 | 우리 프로젝트에서 | 어디에 있나 |
 | --- | --- | --- |
-| 서버를 고르고 접속하는 **메뉴 화면** | 별도 씬 없음 | `Title` 씬 안에서 처리 |
+| 서버를 고르고 접속하는 **메뉴 화면** | **`ChannelSelect`** | `ChannelSelect.unity` |
 | 플레이어들이 모여 있는 **3D 허브 공간** | **`Lobby`** | `Lobby.unity` |
 
-접속 메뉴는 씬을 따로 만들지 않고 `Title` 안에서 처리합니다. 씬을 하나 줄이기 위함입니다.
+접속 메뉴는 별도 씬입니다. 초기 기획에서는 씬을 줄이려고 `Title` 안에서 처리하기로 했으나,
+로그인과 캐릭터 생성이 중간에 들어오면서 화면을 분리했습니다.
 
 **`Lobby`는 게임의 허브 공간입니다.** 플레이어들이 자유롭게 돌아다니다가
 미니게임 입구에서 대기열에 등록하는 곳입니다.
+
+### 정상 게임 접속 경로 — `Lobby` 씬은 Fusion 이 로드합니다
+
+2026-09-13 기준 ChannelSelect → Lobby 는 **더 이상 로컬 씬 전환이 아닙니다.**
+채널을 고르면 Fusion Dedicated Server 세션에 붙고, **`Lobby` 씬은 Fusion 이 네트워크 씬으로 로드**합니다.
+
+```text
+Login
+  → 서버 캐릭터 조회
+  → ChannelSelect
+  → 채널 선택
+  → Fusion Dedicated Lobby 세션 접속
+  → Fusion 이 Lobby 네트워크 씬 로드
+  → NetworkPlayer 스폰 · 카메라 Snap
+  → Loading Overlay 해제
+```
+
+**Loading Overlay 는 "접속 성공" 이 아니라 "화면을 넘겨도 되는 순간" 에 걷힙니다.**
+내 캐릭터가 스폰되고 카메라가 그 뒤에 자리를 잡은 뒤에야 `TransitionStatus.SetReady()` 가 불립니다.
+접속만 성공한 시점에 걷으면 사용자가 빈 바다나 날아오는 카메라를 보게 됩니다.
+
+**씬을 누가 여는가 — 이 한 가지만 기억하면 됩니다.**
+
+| 경로 | `Lobby` 를 여는 주체 |
+| --- | --- |
+| Fusion 경로 (정상 접속 · 개발자 직접 접속) | **Fusion** (`StartGameArgs.Scene`) |
+| 그 외 씬 전환 (Title · Login · ChannelSelect · MiniGame) | 클라이언트 (`SceneFlow`) |
+
+Fusion 경로에서는 일반 `SceneFlow.LoadScene("Lobby")` 를 **실행하지 않습니다.**
+접속에 성공하면 `SceneFlow.LobbyLoadedByNetwork` 가 서고 `FromChannelSelect()` 가 스스로 비켜섭니다.
+두 곳이 같은 씬을 열면 Lobby 가 두 벌 생깁니다.
+
+> ⚠ **`PeerMode.Multiple` 에서는 Client 도 Lobby `SceneRef` 를 지정해야 합니다.**
+> `StartGameArgs.Scene` 을 빼면 세션은 붙고 캐릭터도 스폰되는데 **Lobby 가 로드되지 않습니다.**
+> 로그에 오류가 하나도 남지 않아 찾기 어렵습니다. 실제로 여기서 한 번 막혔습니다.
+
+또한 `PeerMode.Multiple` 은 씬을 **추가로(additive) 로드하고 이전 씬을 내리지 않습니다.**
+ChannelSelect 의 Canvas 는 `Screen Space - Overlay` 라 카메라와 무관하게 계속 그려지므로,
+접속에 성공하면 `SceneFlow.UnloadScreenScene()` 으로 이전 화면 씬을 직접 내립니다.
+
+### 개발자 직접 접속 경로 — 로그인 없이 같은 로비로
+
+로그인 · REST · DB 를 건너뛰고 멀티플레이만 빠르게 확인할 때 쓰는 경로입니다.
+
+- **Unity Editor**: `Lobby.unity` 를 열고 **그냥 Play**. 켜고 끌 메뉴가 없습니다
+- **Development Build**: `-devjoin -session lobby-ch1` 인자로 실행 (Release 빌드에서는 동작하지 않습니다)
+
+**둘 다 로컬 씬만 여는 방식이 아닙니다.** 같은 Dedicated Server 의 같은 세션에 Fusion `Client` 로 붙습니다.
+
+> ⚠ **그래서 Dedicated Server 를 먼저 띄워야 합니다.**
+> 서버가 없으면 혼자 Host 가 되는 대신 접속에 실패하고
+> `"Dedicated Server 를 먼저 실행하세요."` 가 화면에 뜹니다. (아래 팀 규칙 참고)
+
+| 항목 | 정상 경로 | 개발자 직접 경로 |
+| --- | --- | --- |
+| 앞단 UI (Login · 캐릭터 조회 · ChannelSelect) | 거친다 | **건너뛴다** |
+| 세션 이름을 정하는 것 | 채널 선택 결과 (`srv-1` → `lobby-ch1`) | 실행 인자 `-session` |
+| 캐릭터 외형 | (PRD 09-2 이후) 서버에 저장된 캐릭터 외형 | **기본 `NetworkPlayer` 외형** |
+| Lobby 이후 Runner · 스폰 · 카메라 · 포털 로직 | **완전히 동일** | **완전히 동일** |
+
+로비에 들어간 뒤로는 두 경로가 갈라지지 않습니다. 같은 코드가 돕니다.
+그래서 개발자 직접 경로에서 확인한 동작은 정상 경로에서도 그대로 성립합니다.
+
+> Release 빌드에는 이 우회 경로가 **아예 컴파일되지 않습니다.**
+> `FusionDevEntry.WantsClientJoin` 이 `UNITY_EDITOR` · `DEVELOPMENT_BUILD` 밖에서는 항상 `false` 입니다.
+
+### 팀 규칙 — 플레이 모드 테스트는 Dedicated Server 에 붙습니다
+
+**`Lobby` 를 Play 해서 실제로 움직여 보는 모든 경우는 Dedicated Server 접속입니다.**
+에디터에서 혼자 Host 가 되어 도는 길은 없앴습니다.
+
+| 하려는 일 | Dedicated Server 가 필요한가 |
+| --- | --- |
+| 지형 · 조명 · 프리팹 배치 등 **씬 편집** | **필요 없습니다.** Play 하지 않아도 됩니다 |
+| Play 해서 캐릭터를 움직여 보는 것 | **필요합니다** |
+| 두 명 이상이 서로 보이는지 확인 | **필요합니다** |
+
+혼자 Host 가 되는 길을 남겨 두었더니 두 가지 문제가 있었습니다.
+에디터에서 "되는" 것이 Dedicated Server 에서도 되는지 알 수 없었고,
+서버를 안 띄운 줄 모르고 혼자 놀다가 뒤늦게 발견하는 일이 있었습니다.
+
+**서버 띄우는 법** (한 줄입니다)
+
+```powershell
+.\Builds\Server\AraAtti-Server.exe -batchmode -nographics -session lobby-ch1 -port 27015
+```
+
+서버 exe 는 Unity 메뉴 `Tools > 아라아띠 > Fusion 서버 빌드 (Dedicated Server)` 로 만듭니다.
+
+### 세션 이름과 포트 — 기본값과 바꾸는 법
+
+| 값 | 기본 | 어디서 정해지나 |
+| --- | --- | --- |
+| 세션 이름 | `lobby-ch1` | `Lobby` 씬 `NetworkManager` 의 `FusionLauncher` Inspector |
+| 포트 | `27015` | 같은 Inspector (서버에서만 씁니다) |
+
+**실행 인자가 Inspector 를 이깁니다.** 서버는 창이 없어 Inspector 로 바꿀 수 없기 때문입니다.
+
+```text
+-session <이름>   세션 이름을 덮어쓴다
+-port <번호>      서버가 열 포트를 덮어쓴다
+```
+
+에디터에서 Play 할 때는 실행 인자가 없으므로 **Inspector 값(`lobby-ch1`)** 을 씁니다.
+그래서 서버도 같은 `lobby-ch1` 로 띄워야 만납니다. 다른 채널을 보려면
+서버를 `-session lobby-ch2` 로 띄우고 Inspector 도 `lobby-ch2` 로 바꿉니다.
+(채널 ID ↔ 세션 이름 표는 아래 참고)
+
+### 채널 목록 — 지금은 고정 카탈로그입니다
+
+`Assets/Game/Scripts/Network/ChannelCatalog.cs` 가 채널 ID 와 세션 이름을 고정 표로 들고 있습니다.
+
+| 채널 ID | 화면에 보이는 이름 | Fusion 세션 이름 |
+| --- | --- | --- |
+| `srv-1` | 서버 1 | `lobby-ch1` |
+| `srv-2` | 서버 2 | `lobby-ch2` |
+
+표에 없는 채널 ID 는 접속되지 않고 `"존재하지 않는 채널입니다."` 로 거부됩니다.
+서버를 늘리면 **이 표에 한 줄을 추가**합니다. 화면 코드는 고치지 않습니다.
+
+인원수는 아직 실제 값이 아닙니다. 실제 채널 인원수 · 서버 상태 조회는 남아 있습니다. (11장 참고)
 
 ---
 
@@ -69,7 +214,7 @@
 | 항목 | 결정 |
 | --- | --- |
 | `Lobby` 동시 접속 | **설계 목표 50~100명** / **시연 실제 10명 이하** |
-| `MiniGame` 인원 | **4명 고정** |
+| `MiniGame` 인원 | **기본 4명. 게임별로 정하며 그 게임의 규격 문서에 명시** (8장) |
 | 미니게임 진입 방식 | **매칭 대기열** (아래 참고) |
 | 접속 형태 | 각자 자기 컴퓨터에서 접속 |
 | 클라이언트가 네트워크 코드를 직접 호출 | **금지** (4장의 경계를 통해서만) |
@@ -122,9 +267,12 @@
 ```text
 Assets/Game/Scenes/Main/
 ├── CoreGames/
-│   ├── Boot.unity        (민화)
-│   ├── Title.unity       (민화)
-│   └── Lobby.unity       (효진)   ← 허브 공간. 미니게임 입구
+│   ├── Boot.unity            (민화)
+│   ├── Title.unity           (민화)
+│   ├── Login.unity           (민화)
+│   ├── CharacterCreate.unity (민화)   ← 씬은 민화, 안에 올리는 프리팹은 서연
+│   ├── ChannelSelect.unity   (민화)
+│   └── Lobby.unity           (효진)   ← 허브 공간. 미니게임 입구
 └── MiniGames/
     ├── Warriors.unity    (서연)  무쌍
     ├── ShipCoop.unity    (민화)  배 협동
@@ -168,10 +316,10 @@ Assets/Game/Scenes/Main/
 대신 **미리 준비된 서버 목록에서 하나를 골라** 접속합니다.
 
 ```text
-Title    닉네임 입력 → 서버 목록에서 하나 선택 → [접속]
+ChannelSelect   서버 목록에서 하나 선택 → [입장]
 
-              서버 1   (12 / 100)
-              서버 2   ( 3 / 100)      ← 이런 목록
+                  서버 1   (12 / 100)
+                  서버 2   ( 3 / 100)      ← 이런 목록
    ↓
 Lobby    고른 서버의 로비에 들어간다
    ↓
@@ -187,8 +335,8 @@ Lobby    고른 서버의 로비에 들어간다
 
 | 요청 | 언제 | 함께 보내는 것 |
 | --- | --- | --- |
-| 서버 목록 요청 | Title 화면에 들어왔을 때 | — |
-| 로비 접속 | 서버를 고르고 [접속] 클릭 | 닉네임, **서버 ID** |
+| 서버 목록 요청 | ChannelSelect 화면에 들어왔을 때, [새로고침] 클릭 | — |
+| 로비 접속 | 서버를 고르고 [입장] 클릭 | **캐릭터 이름**, **서버 ID** |
 | 미니게임 대기열 등록 | 로비에서 미니게임 [참가] 클릭 | 미니게임 이름 |
 | 대기 취소 | [취소] 클릭 | — |
 | 미니게임 결과 보고 | 미니게임이 끝났을 때 | 성공 여부, 점수 |
@@ -243,6 +391,33 @@ public interface INetworkService
 세부 사항은 두 담당자가 상의해서 조정할 수 있습니다.
 **다만 조정한 내용은 반드시 이 문서에 반영합니다.**
 
+### 계정 · 캐릭터는 별도 경계입니다
+
+로그인과 캐릭터 저장은 `INetworkService` 에 **넣지 않습니다.** 따로 둡니다.
+
+```text
+Assets/Game/Scripts/Account/
+├── IAuthService.cs        회원가입 · 로그인 · 현재 로그인 상태
+├── ICharacterService.cs   내 캐릭터 목록 · 캐릭터 생성
+└── AccountServiceLocator  둘을 담아두는 곳 (NetworkServiceLocator 와 같은 방식)
+```
+
+나눈 이유
+
+1. `INetworkService` 는 Photon Fusion 기반 **실시간 세션**이고,
+   계정 · 캐릭터는 **단발성 요청/응답**입니다. 성격이 다릅니다.
+   그래서 `Network/` 아래가 아니라 **별도 폴더**에 둡니다.
+2. 가짜 ↔ 진짜를 **각각 따로** 갈아끼울 수 있어야 합니다.
+   (서버 인증은 붙었는데 채널은 아직 가짜인 중간 상태가 실제로 생깁니다)
+
+`INetworkService` 와 마찬가지로 **혼자 고치지 않고 함께 정합니다.**
+
+가짜에서 진짜로 바꾸는 지점은 `AccountServiceBootstrap` 파일 한 곳입니다.
+씬을 고치지 않습니다.
+
+캐릭터는 **언제나 목록(배열)으로** 주고받습니다. 지금은 계정당 1개지만,
+나중에 다중 캐릭터를 붙일 때 경계를 고치지 않기 위해서입니다.
+
 ### 씬 전환은 클라이언트가 합니다
 
 서버는 **"지금 이동할 시점이다"**라고 알려주기만 하고,
@@ -270,10 +445,44 @@ FakeNetworkService     ← 민화가 만든 가짜. 버튼 누르면 무조건 �
         ↓
         ↓ 나중에 갈아끼움
         ↓
-RealNetworkService     ← 서버 담당자가 만든 진짜
+FusionNetworkService   ← 실제 Fusion Dedicated Server 접속 (2026-09-13 적용 완료)
 ```
 
 화면 코드는 둘 중 무엇이 꽂혀 있는지 몰라도 됩니다. **그래서 고칠 필요가 없습니다.**
+
+실제로 교체했을 때 `ChannelSelectController.cs` · `ChannelRowView.cs` ·
+`INetworkService.cs` · `Login.unity` 의 **diff 는 0줄**이었습니다. 경계가 제 역할을 했습니다.
+
+### 가짜 ↔ 진짜를 갈아끼우는 지점은 `NetworkServiceBootstrap` 한 곳입니다
+
+**씬에 네트워크 서비스 컴포넌트를 올리지 않습니다.** 코드 한 곳에서 고릅니다.
+
+```csharp
+// Assets/Game/Scripts/Network/NetworkServiceBootstrap.cs
+private static readonly Implementation Active = Implementation.Fusion;   // ← 이 한 줄이 전부다
+```
+
+| 값 | 동작 |
+| --- | --- |
+| `Implementation.Fusion` | 실제 Dedicated Server 세션에 접속한다 **(현재 설정)** |
+| `Implementation.Fake` | 서버 없이 이 PC 안에서 흉내낸다. 화면 흐름만 볼 때 |
+
+`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` 로 게임 시작 시 **하나만** 만들어
+`NetworkServiceLocator` 에 등록합니다. 계정 쪽 `AccountServiceBootstrap` 과 같은 구조입니다.
+(Dedicated Server 프로세스에서는 채널을 고르지도 접속하지도 않으므로 아예 만들지 않습니다.)
+
+**`NetworkServiceLocator` 에는 언제나 구현체가 정확히 하나만 등록됩니다.**
+둘이 등록되면 어느 쪽이 쓰일지가 실행 순서에 좌우됩니다. 그런 구조는 허용하지 않습니다.
+
+그래서 `Boot` 씬의 `NetworkService` 오브젝트에서 **`FakeNetworkService` 컴포넌트를 제거했습니다.**
+오브젝트 자체는 그대로 남아 있고, 씬 변경은 그 컴포넌트 한 개를 뗀 것뿐입니다.
+
+> **`FakeNetworkService.cs` 파일은 지우지 않았습니다.**
+> 서버 없이 화면 흐름만 보거나 단독 UI 테스트를 할 때 계속 씁니다.
+> 위 `Active` 한 줄만 `Fake` 로 바꾸면 **씬을 고치지 않고** 예전 동작으로 돌아갑니다.
+
+씬을 고치지 않으므로 전환할 때 **씬 파일 병합 충돌이 나지 않고**, `Boot` 을 거치지 않고
+ChannelSelect 만 단독으로 실행해도 서비스가 준비됩니다.
 
 ---
 
@@ -322,27 +531,111 @@ Player               ← 빈 오브젝트 (여기에 스크립트가 붙습니�
 
 ---
 
-## 6. Lobby 씬 규격 — 담당: 효진
+## 6. 캐릭터 생성 화면 규격 — 담당: 서연
+
+`CharacterCreate` 씬에서 **외형을 고르고 캐릭터 이름을 정합니다.**
+
+이 화면에서 정한 이름이 **게임에서 쓰는 유일한 이름**입니다.
+사용자 닉네임은 따로 두지 않습니다. `Login` 화면의 이메일은 이름으로 쓰지 않습니다.
+
+### 위치
+
+```text
+Assets/Game/Prefabs/Characters/CharacterCustomization.prefab
+```
+
+UI 는 프리팹으로 만듭니다. `Scenes/Develop/서연/` 의 테스트 씬은 이 프리팹을 올려두고
+테스트하는 용도이며, 씬 안에 UI 를 직접 만들지 않습니다.
+프리팹이 없으면 `CharacterCreate` 씬에 배치할 수 없습니다. (`CONVENTION.md` 2장)
+
+### 이름을 넘기는 방법 — PlayerPrefs
+
+> **⚠ 2026-09-09 갱신: 원본은 서버입니다.**
+>
+> 캐릭터가 있는지 · 이름이 무엇인지 · 외형이 어떤지는 모두 **서버(MySQL)가 정합니다.**
+> 로그인 후 어느 화면으로 갈지도 `GET /api/characters` 결과로 판단합니다.
+>
+> 아래 `PlayerPrefs` 두 키는 이제 **그 응답의 캐시**입니다. 두 가지 목적으로만 남겨 둡니다.
+>   1. 기존 UI 호환 — `SceneFlow.Nickname` 과 `ChannelSelectController` 가 이 키를 읽습니다.
+>   2. 로그인 없이 `CharacterCreate` 씬만 단독 실행할 때의 외형 복원
+>
+> **서버 응답이 오면 언제나 서버 값이 이깁니다.** 캐시를 근거로 분기하지 않습니다.
+> 갱신하는 곳은 `Assets/Game/Scripts/Account/CharacterSessionCache.cs` 한 곳입니다.
+> 자세한 내용은 `docs/prd/auth-character-roadmap.md` PRD 07 을 봅니다.
+
+캐릭터 이름과 외형은 `PlayerPrefs` 에도 함께 남습니다. (위 캐시 목적)
+
+| 키 | 타입 | 내용 |
+| --- | --- | --- |
+| `PlayerNickname` | string | 캐릭터 이름. **키 이름을 바꾸지 않습니다.** |
+| `Char.*` | int / string | 외형. 파츠별 `int` 또는 JSON 문자열 하나 |
+
+`[생성 완료]` 를 누를 때 저장합니다.
+
+```csharp
+PlayerPrefs.SetString("PlayerNickname", nameInput.text.Trim());
+PlayerPrefs.Save();
+```
+
+`ChannelSelect` 가 이 키를 읽어 서버에 넘깁니다. **키 이름이 정확히 맞아야** 연결됩니다.
+
+```csharp
+// ChannelSelectController — 이미 이렇게 읽고 있습니다
+PlayerPrefs.GetString("PlayerNickname", string.Empty)
+```
+
+### 반드시 지켜야 할 것
+
+**1) 빈 이름으로 넘어가지 못하게 막습니다.**
+
+서버는 빈 이름을 접속 실패로 처리합니다. 막지 않으면 `ChannelSelect` 까지 갔다가
+입장에서 "닉네임을 입력해 주세요" 가 뜨는데, 사용자는 어디서 입력해야 하는지 알 수 없습니다.
+
+**2) 씬 전환 코드를 넣지 않습니다.**
+
+`[생성 완료]` 는 **저장만** 합니다. 다음 화면으로 넘기는 것은 클라이언트가 붙입니다.
+(3장 씬 규칙 — 씬 전환 코드는 민화가 관리)
+
+### 두 번째 실행부터
+
+`PlayerNickname` 이 이미 있으면 `CharacterCreate` 를 건너뛰고 `ChannelSelect` 로 바로 갑니다.
+이 판단은 씬 전환이므로 **클라이언트(민화)** 가 합니다.
+
+---
+
+## 7. Lobby 씬 규격 — 담당: 효진
 
 `Lobby`는 플레이어들이 모여 미니게임 대기열에 등록하는 **허브 공간**입니다.
 
+> ⚠ **2026-09-13 부터 `Lobby` 는 Fusion 네트워크 씬입니다.**
+> 이 씬을 여는 것은 **Fusion** 이고 클라이언트가 아닙니다. (1장 "정상 게임 접속 경로" 참고)
+>
+> **Unity Editor 에서 `Lobby.unity` 를 Play 하면 Dedicated Server 에 개발용 Client 로 접속합니다.**
+> 켜고 끌 메뉴는 없습니다. 언제나 `GameMode.Client` 입니다.
+> **그래서 Play 하기 전에 서버 exe 를 먼저 띄워야 합니다.**
+> 서버가 없으면 혼자 Host 가 되지 않고 `"Dedicated Server 를 먼저 실행하세요."` 가 뜹니다.
+>
+> **맵과 조명만 손볼 때는 Play 할 필요가 없습니다.** 씬 편집은 서버 없이 그대로 하시면 됩니다.
+> (1장 "플레이 모드 테스트는 Dedicated Server 에 붙습니다" 참고)
+>
+> 차단되는 것은 **일반 Player 빌드** 쪽입니다. 개발 의도 표시(`-devjoin` · `-mode`) 없이
+> `Lobby` 만 직접 열리면 세션을 열지 않고
+> `Lobby 에 바로 들어올 수 없습니다. ChannelSelect 에서 채널을 골라 주세요.` 를 표시합니다.
+> 제품 경로에서 실수로 `Lobby` 씬만 열었을 때 검은 화면에 갇히지 않게 하려는 장치입니다.
+>
+> 씬에는 `NetworkManager` 와 `SpawnPoints` 오브젝트가 있습니다. **지우거나 이름을 바꾸지 마세요.**
+> 플레이어를 따라갈 카메라(`MainCamera`)에는 **`LobbyGameplayCamera` 표식**이 붙어 있어야 합니다.
+> 이 표식이 없거나 둘 이상이면 카메라를 임의로 고르지 않고 명확한 오류를 냅니다.
+
 ### 반드시 포함해야 할 것
 
-**1) 플레이어 시작 위치**
+**1) 플레이어 시작 위치 — PRD 08-2 에서 확정됐습니다**
 
-```text
-Hierarchy
-└── SpawnPoints          ← 빈 오브젝트
-    ├── SpawnPoint_01    ← 빈 오브젝트
-    ├── SpawnPoint_02
-    ├── ...
-    └── SpawnPoint_20
-```
+씬의 `SpawnPoints` 오브젝트 아래에 자식 `Transform` 들을 두면, 접속한 사람이
+`PlayerId` 순서로 그 지점에 나눠 배치됩니다. 지점이 하나도 없으면 전부 원점에 겹쳐 생깁니다.
 
-로비에는 여러 명이 동시에 들어옵니다. **최소 20개** 만들어 주세요.
-접속한 순서대로 이 위치에 캐릭터가 생성되며, 자리가 부족하면 처음부터 다시 사용합니다.
-
-서로 겹치지 않게 2~3미터씩 떨어뜨립니다. 한곳에 몰지 말고 넓게 배치합니다.
+지점을 늘리거나 옮기는 것은 자유입니다. **`SpawnPoints` 오브젝트 자체를 지우지만 마세요.**
+지점은 아래 3) 의 **캐릭터가 서도 되는 넓고 평평한 바닥** 위에 둡니다.
 
 **2) 미니게임 입구 3개**
 
@@ -357,7 +650,10 @@ Hierarchy
 각 입구 오브젝트에는 **Collider를 붙이고 `Is Trigger`를 체크**합니다.
 
 캐릭터가 이 영역에 들어오면 **[참가] 버튼이 뜨고, 누르면 대기열에 등록**됩니다.
-들어가자마자 미니게임이 시작되는 것이 아닙니다. **4명이 모여야 시작됩니다.**
+들어가자마자 미니게임이 시작되는 것이 아닙니다. **정원이 모여야 시작됩니다.**
+
+정원은 게임별로 다릅니다 (8장). **인원이 가변인 게임은 정원이 차기 전에도 시작할 수
+있으므로, 대기 UI 에 [지금 시작] 을 함께 둡니다.**
 
 입구 근처에 **대기 인원을 표시할 자리**(예: 간판, 안내판)를 하나 두면 좋습니다.
 `2 / 4 대기 중` 같은 표시가 여기에 들어갑니다.
@@ -371,7 +667,7 @@ Hierarchy
 ### 하지 않아야 할 것
 
 - 씬에 캐릭터를 배치하지 않습니다 (접속할 때 생성됨)
-- 오브젝트 이름을 위 규격과 다르게 짓지 않습니다 (코드가 이 이름으로 찾습니다)
+- `Entrance_*` 이름을 규격과 다르게 짓지 않습니다 (코드가 이 이름으로 찾습니다)
 
 ### 자유롭게 해도 되는 것
 
@@ -379,20 +675,40 @@ Hierarchy
 
 ---
 
-## 7. 미니게임 규격
+## 8. 미니게임 규격
 
-### 현재 상태 — 추후 확정
+### 현재 상태 — 확정됨
 
-미니게임의 상세 규격은 **Lobby가 완성된 이후에 확정**합니다.
+미니게임 규격은 **전체 회의에서 확정했습니다** (12장 7단계 완료).
+**각자 미니게임 제작을 시작할 수 있습니다** (8단계).
 
-**그전까지 미니게임 제작을 시작하지 않습니다.**
-규격 없이 각자 만들면 나중에 합칠 때 전부 다시 만들어야 합니다.
+게임별 상세 규격은 각 게임의 규격 문서를 따릅니다.
 
-### 지금 확정된 것 (이것만 지키면 됩니다)
+| 게임 | 규격 문서 |
+| --- | --- |
+| 무쌍 (Warriors) | 미작성 |
+| 배 협동 (ShipCoop) | `SHIPCOOP.md` |
+| 광산 (Mine) | `MINE.md` |
 
-**1) 인원은 4명 고정입니다.**
+### 모든 미니게임이 지켜야 할 것
 
-3명이나 5명으로 동작하지 않아도 됩니다. **정확히 4명**을 전제로 설계합니다.
+**1) 인원은 게임별로 정합니다.**
+
+기본은 **4명**입니다. 다만 게임 성격상 다른 인원이 자연스러우면 다르게 둘 수 있고,
+**그 게임의 규격 문서에 반드시 명시**합니다. 문서에 없으면 4명 고정입니다.
+
+| 게임 | 인원 | 근거 |
+| --- | --- | --- |
+| 무쌍 (Warriors) | **4명 고정** | 3라운드 전투와 촉수 4개, 협동 마무리가 4명을 전제로 설계됨 (`WARRIORS.md`) |
+| 배 협동 (ShipCoop) | **4명 고정** | 배 HP 공유와 작업 5종 배분이 4명을 전제로 설계됨 (`SHIPCOOP.md`) |
+| 광산 (Mine) | **1~4명** | 인원이 곧 난이도. 적으면 쉬운 그림, 많으면 복잡한 그림 (`MINE.md`) |
+
+인원을 몇 명으로 정하든 **그 인원으로 재미있게 동작하면 됩니다.** 모든 인원수를 지원할
+필요는 없습니다.
+
+> **인원이 가변인 게임은 대기열이 다 차기 전에도 시작할 수 있어야 합니다.**
+> 대기 UI 에 **[지금 시작]** 을 두고, 누르면 현재 모인 인원으로 시작합니다.
+> 현재 4장의 경계에는 대기열 등록·해제만 있으므로 이 요청을 추가합니다. (민화 · 건희 합의 완료)
 
 **2) 끝날 때 아래 두 가지를 반드시 돌려줍니다.**
 
@@ -403,15 +719,44 @@ Hierarchy
 
 미니게임을 어떻게 만들든 이 두 가지만 나오면 Lobby에 연결할 수 있습니다.
 
+**3) 소리는 `AudioHub` 하나로 냅니다.** (`Scripts/Audio/` — 넣는 법 전체는 `AUDIO.md`)
+
+씬마다 AudioSource 를 두면 씬이 바뀔 때 음악이 끊깁니다. 로비 → 미니게임 → 로비로 오가는 게임이라
+음악이 씬을 따라 이어져야 하므로, 소리를 내는 것은 **씬을 넘어 살아남는 허브 하나**뿐입니다.
+처음 `AudioHub.Instance` 를 부르는 순간 스스로 생기고, 씬에 미리 놓을 것이 없습니다.
+
+```text
+씬 배경음악만 필요하면     SceneMusic 컴포넌트를 씬에 하나 놓고 클립을 꽂는다
+                           앞 씬과 같은 곡이면 이어지고, 다른 곡이면 교차 페이드된다
+상태에 따라 곡이 바뀌면    자기 미니게임 폴더에 "연출가" 스크립트를 두고 (예: ShipCoopAudio)
+                           게임 상태를 보며 AudioHub.PlayMusic · PlayOneShot · Loop 를 부른다
+UI 효과음                  AudioHub.Instance.PlayOneShot(clip)
+```
+
+> 허브는 **공용**이라 미니게임 타입을 몰라야 합니다. "내 게임에서 언제 무슨 소리" 는 자기 폴더의
+> 연출가에 씁니다. 허브에 게임별 규칙을 넣으면 다른 담당자가 공용 파일을 고쳐야 하고(9장 규칙),
+> 씬이 끝나도 감시자가 살아남습니다.
+
+볼륨은 타이틀 설정(`StartMenuController` · `SettingsPanelView`)과 같은 PlayerPrefs 키
+(`AraAtti.Audio.MasterVolume` · `MusicVolume` · `EffectsVolume` · `Muted`)를 씁니다. 허브가 켤 때 복원하고,
+설정이 바뀌면 그쪽 static 이벤트로 받습니다. 마스터는 `AudioListener.volume` 그대로입니다 — 믹서는 없습니다.
+
+클립 파일은 `Assets/Game/Audio/<게임 또는 Common>/` 에 둡니다 (`CONVENTION.md` 6장). 서버(Dedicated Server)에서는
+허브가 소스를 만들지 않아 모든 호출이 조용히 빠집니다. 부르는 쪽은 서버인지 신경 쓰지 않습니다.
+
 ---
 
-## 8. 스크립트 폴더 구조
+## 9. 스크립트 폴더 구조
 
 ```text
 Assets/Game/Scripts/
 ├── Core/             씬 전환, 게임 상태 관리        (민화)
+├── Audio/            AudioHub · SceneMusic — 소리는 여기 하나로 (공용, 8장) (민화)
+├── Account/          계정 인증, 캐릭터 저장 경계    (서버 — 4장)
 ├── Network/          접속, 매칭, 동기화             (서버)
-├── Character/        캐릭터 이동, 애니메이션 연결   (민화)
+├── IoT/              IoT 컨트롤러 경계              (공용 — 아래 참고)
+├── Character/        캐릭터 커스터마이징            (서연)
+│                     캐릭터 이동, 애니메이션 연결   (민화)
 ├── UI/               화면 버튼 처리                 (민화)
 └── MiniGames/
     ├── Warriors/                                    (서연)
@@ -422,13 +767,105 @@ Assets/Game/Scripts/
 본인 담당 폴더 밖의 스크립트는 수정하지 않습니다.
 수정이 필요하면 담당자에게 요청합니다.
 
-`Network/` 안의 `INetworkService`만 예외적으로 **양쪽이 함께 정합니다.** (4장 참고)
+**단, 아래 두 곳은 예외입니다. 여러 명이 함께 정합니다.**
+
+| 폴더 | 파일 | 함께 정하는 사람 |
+| --- | --- | --- |
+| `Network/` | `INetworkService` | 클라이언트 ↔ 서버 (4장) |
+| `Account/` | `IAuthService` · `ICharacterService` | 클라이언트 ↔ 서버 (4장) |
+| `IoT/` | `IPlayerController` | 미니게임 담당 3명 ↔ IoT 담당 (아래) |
+
+### `IoT/` 는 세 명이 함께 쓰는 폴더입니다
+
+> 배 협동 게임(ShipCoop) 쪽 입력 규격은 `IOT_INPUT.md` 에 따로 정리했습니다.
+> 지금 키보드가 하는 일 · 손마다 필요한 센서 · 진동 · 하지 말아야 할 것이 들어 있습니다.
+
+**미니게임 세 개가 같은 IoT 컨트롤러 하나를 씁니다.**
+같은 센서(IMU · 면버튼 · 진동 모터 · LED)를 게임 상황에 따라 다르게 쓸 뿐,
+플레이어가 손에 쥐는 장치는 하나입니다.
+
+그래서 컨트롤러 인터페이스는 특정 미니게임의 것이 아니라 **공용 경계**입니다.
+
+```text
+Assets/Game/Scripts/IoT/
+├── IPlayerController.cs         ← 공용 경계. 함께 정한다
+├── KeyboardPlayerController.cs  ← 장치 없이 키보드로 테스트하는 가짜 구현
+└── IotPlayerController.cs       ← 진짜 장치. IoT 담당자가 만든다
+```
+
+```csharp
+public enum HandMotionType
+{
+    None,
+    HorizontalSwing, // 실제 가로 휘두르기
+    VerticalSwing,   // 실제 세로 휘두르기
+    Thrust,          // 실제 찌르기
+}
+
+// 기기 1대 = 손 하나
+public interface IHandDevice
+{
+    Vector2 Stick { get; }
+    float Tilt { get; }
+    float Rotation { get; }
+    bool Button1 { get; }
+    bool Button2 { get; }
+    bool ConsumeButton1Press();                   // 누른 순간만 한 번
+    bool ConsumeButton2Press();
+    bool TryConsumeMotion(out HandMotion motion); // IMU가 판정한 동작 + 세기
+    void Vibrate(float strength, float seconds);
+}
+
+// 플레이어 1명 = 왼손 + 오른손
+public interface IPlayerController
+{
+    IHandDevice Left { get; }
+    IHandDevice Right { get; }
+    bool HasTwoDevices { get; }                   // 1대만 들면 거짓. 게임이 조작을 줄인다
+    Vector2 Move { get; }
+    Vector2 Look { get; }
+    void VibrateBoth(float strength, float seconds);
+}
+```
+
+> ⚠ **압력센서(`Grip`)는 없앴습니다.** 기기가 면버튼 4개 + 스틱 2개로 정해지면서
+> 쥐기를 살리려면 버튼 하나를 내줘야 했습니다. 하던 일은 "집기 우선" 규칙과
+> "상호작용 한 번 더" 로 나눠 처리합니다. 자세한 것은 `IOT_INPUT.md` 2장.
+
+**규칙**
+
+1. **자기 미니게임 폴더 안에 컨트롤러 인터페이스를 따로 만들지 않습니다.**
+   세 벌이 생기면 IoT 담당자가 같은 것을 세 번 구현해야 합니다.
+2. **이 파일을 고쳐야 하면 혼자 고치지 않고 먼저 팀에 알립니다.**
+   세 미니게임이 전부 이 파일을 참조하므로, 한 명이 바꾸면 나머지 둘의 코드가 깨집니다.
+3. 조정한 내용은 **반드시 이 문서에 반영합니다.**
+
+### 장치를 기다리지 않습니다
+
+`FakeNetworkService`와 같은 방식입니다. (4장 참고)
+
+```text
+KeyboardPlayerController   ← 키보드로 전부 테스트할 수 있다
+        ↓
+        ↓ 나중에 갈아끼움
+        ↓
+IotPlayerController        ← IoT 담당자가 만든 진짜 장치
+```
+
+게임 로직은 둘 중 무엇이 꽂혀 있는지 몰라도 됩니다. **그래서 고칠 필요가 없습니다.**
+
+> 센서를 게임 행동에 어떻게 연결하는지(조타 = IMU 회전, 수리 = 망치질 동작 등)는
+> 미니게임마다 다릅니다. 배 협동 게임의 매핑은 `SHIPCOOP.md` 7장을 참고하세요.
 
 ---
 
-## 9. 외부 에셋과 Git 용량 관리
+## 10. 외부 에셋과 Git 용량 관리
 
 에셋 스토어에서 에셋을 구매해서 사용할 예정입니다.
+
+> Import 방법과 폴더 규칙은 `CONVENTION.md` 7장을 따릅니다.
+> **본 프로젝트에서 바로 Import 하지 않고, 별도 테스트 프로젝트를 거칩니다.**
+> 사용한 에셋은 `ASSETS.md` 에 기록합니다.
 
 ### 에셋을 Import 하기 전에
 
@@ -459,7 +896,7 @@ git status
 
 ---
 
-## 10. 이번 프로젝트에서 하지 않는 것
+## 11. 이번 프로젝트에서 하지 않는 것
 
 초기 기획안(`README.md`)에는 아래 내용이 있으나, 남은 기간을 고려하여 **우선순위에서 제외**합니다.
 
@@ -468,8 +905,36 @@ git status
 | 50~100명 실제 부하 감당 | **개발 목표는 10~20명.** 그 이상은 여유가 있으면 검토 |
 | Docker / Kubernetes | 핵심 기능 완성 후 여유가 있으면 검토 |
 | Prometheus / Grafana 모니터링 | 핵심 기능 완성 후 여유가 있으면 검토 |
-| 로그인 / 회원가입 | **닉네임 입력만** |
+| 로그인 / 회원가입 | ~~제외~~ → **도입했고 Unity 연동까지 끝났습니다.** `server/` 의 ASP.NET Core API 가 이메일/비밀번호를 검증하고 **JWT 를 발급**합니다 (`docs/prd/auth-character-roadmap.md` PRD 06) |
+| 사용자 닉네임 | **없습니다.** 이름은 `CharacterCreate` 에서 정하는 **캐릭터 이름 하나**뿐입니다 (6장) |
+| 캐릭터를 서버에 저장 | ~~제외~~ → **도입합니다.** DB 스키마(`users` · `characters` · `character_parts`)는 준비됐고, 지금은 `PlayerPrefs` 로 그 PC 에만 저장합니다. 서버 저장 API 와 Unity 연동이 남아 있습니다 (같은 문서 PRD 05 · 07) |
 | 플레이어가 방을 만들고 고르는 기능 | **없음.** 서버(채널)를 고르면 그 서버의 로비로 들어감 |
+
+> **위 표의 로그인 / 회원가입 · 캐릭터 서버 저장 두 줄은 방향이 바뀌었습니다.**
+> 계정과 캐릭터를 실제로 저장하기로 팀에서 정했고, 단계별 계획은
+> `docs/prd/auth-character-roadmap.md` 에 있습니다.
+> 2026-09-09 기준 서버 쪽 회원가입 · 로그인 API 와 JWT 발급까지 완료됐고,
+> **2026-09-13 기준 Unity 쪽도 붙었습니다.**
+> `Login` 씬은 이메일/비밀번호를 서버에 보내 검증받고 **JWT 를 발급**받습니다.
+> 그 뒤 캐릭터 조회 같은 **보호된 API 요청은 그 JWT 를 `Authorization: Bearer` 헤더로** 보냅니다.
+> 가짜를 쓸지 진짜를 쓸지는 `AccountServiceBootstrap.Active` 가 정합니다 (현재 `Http`).
+> 단, **Dedicated Server 가 접속자의 JWT 를 검증하는 것은 아직입니다.** (PRD 10)
+
+### 아직 남아 있는 것 — Fusion Lobby 후속 (2026-09-13 기준)
+
+PRD 08 계열(Dedicated Server 검증 · Lobby 네트워크 씬 전환 · 실제 세션 연결)은 끝났습니다.
+아래는 **아직 구현되지 않았고, 다음 단계로 넘어간 것들**입니다.
+
+| 항목 | 지금 상태 | 어디로 |
+| --- | --- | --- |
+| 실제 채널 인원수 · 서버 상태 조회 | 채널 목록은 `ChannelCatalog` 고정 표. 인원수는 실제 값이 아니다 | 후속 |
+| 자동 서버 증설 · 서버 디렉터리 · 매치메이커 | 없음. 서버 exe 를 사람이 직접 띄우고 채널을 표에 적는다 | 후속 |
+| 서버 캐릭터 외형 Fusion 동기화 | 모두 **기본 `NetworkPlayer` 외형**으로 보인다 | PRD 09-1 · 09-2 |
+| Dedicated Server 의 JWT · characterId 검증 | 서버가 접속자의 신원을 검증하지 않는다 | PRD 10 |
+| Lobby 에서 나가기 / 로그아웃 UX | 창을 닫는 것 말고 정식 이탈 흐름이 없다 | 후속 |
+| 미니게임 멀티플레이 전환 | 미니게임은 아직 네트워크에 붙지 않았다 | 8장 · 후속 |
+
+단계별 계획은 `docs/prd/fusion-dedicated-lobby-roadmap.md` 에 있습니다.
 
 ### 범위에 포함되는 것
 
@@ -482,7 +947,7 @@ git status
 
 ---
 
-## 11. 진행 순서
+## 12. 진행 순서
 
 ### 지금은 두 갈래가 동시에 진행됩니다
 
@@ -492,7 +957,7 @@ git status
 1. 큐브 하나가 두 창에서                1. Boot → Title 씬과
    서로 보이고 움직인다                    씬 전환을 만든다
         ↓                                      ↓
-2. 여러 명 동시 접속 확인               2. 닉네임 입력 화면과
+2. 여러 명 동시 접속 확인               2. 채널 선택 화면과
                                            미니게임 대기 UI를 만든다
         ↓                                      ↓
 3. INetworkService 구현                 3. FakeNetworkService(가짜)로
@@ -511,6 +976,9 @@ git status
                        ↓
               9. IoT 장치 연결             (전체)
 ```
+
+**현재 7단계까지 완료되었습니다.** 미니게임 규격 확정 회의를 마쳤고, 8단계(각자 미니게임 제작)를
+진행할 수 있습니다.
 
 ### 중요
 
@@ -532,9 +1000,15 @@ git status
 3. 네트워크 구현 방식은 **서버 담당자가 결정**합니다. 경계만 지키면 됩니다.
 4. 캐릭터는 씬에 미리 배치하지 않습니다. 접속할 때 생성됩니다.
 5. 캐릭터 프리팹의 맨 위는 빈 오브젝트로 만들고, 애니메이터 파라미터는 `Speed`, `IsGrounded`로 맞춥니다.
-6. Lobby에는 `SpawnPoint_01~20`과 `Entrance_*`를 규격대로 배치합니다.
-7. 미니게임은 **4명 고정**이며 **매칭 대기열**로 입장합니다. 끝날 때 성공/실패와 점수를 돌려줍니다.
-8. 미니게임 제작은 규격이 확정되기 전까지 시작하지 않습니다.
+6. Lobby에는 `Entrance_*` 3개를 규격대로 배치합니다. 스폰 방식은 추후 확정입니다.
+7. 미니게임 인원은 **게임별로 정하고 규격 문서에 명시**합니다(기본 4명). **매칭 대기열**로
+   입장하며, 끝날 때 성공/실패와 점수를 돌려줍니다.
+8. 미니게임 규격은 확정됐습니다. 게임별 상세는 각 규격 문서(`SHIPCOOP.md`, `MINE.md`)를 따릅니다.
 9. 씬 전환은 민화가 관리합니다. 각자 씬에서 직접 호출하지 않습니다.
+   **단 `Lobby` 는 예외로 Fusion 이 엽니다.** Fusion 경로에서 `SceneFlow.LoadScene("Lobby")` 를 부르지 않습니다. (1장)
 10. 에셋을 Import 하기 전에 팀에 먼저 공유합니다.
 11. **서로를 기다리지 않습니다.** 가짜 구현과 임시 오브젝트로 각자 끝까지 만든 뒤 갈아끼웁니다.
+12. 가짜 ↔ 진짜 네트워크 전환은 **`NetworkServiceBootstrap` 한 줄**로만 합니다.
+    `NetworkServiceLocator` 에는 **구현체가 정확히 하나만** 등록됩니다. (4장)
+13. **`Lobby` 를 Play 하는 모든 경우는 Dedicated Server 접속입니다.** 혼자 Host 가 되는 길은 없습니다.
+    씬 편집은 Play 없이 하시면 되고, **플레이 모드 네트워크 QA 에는 서버 exe 가 필요합니다.** (1장)

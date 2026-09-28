@@ -1,0 +1,11 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='256' height='256' viewBox='0 0 256 256'>
+<polygon points='50,153 165,113 183,154 83,188 59,183' fill='#ECEFEC' stroke='#0A1117' stroke-width='12' stroke-linejoin='round'/>
+<polygon points='56,151 51,125 174,80 190,119 78,163' fill='#F4F6F2' stroke='#0A1117' stroke-width='12' stroke-linejoin='round'/>
+<polygon points='164,76 182,69 204,116 187,126' fill='#C4D0CF' stroke='#0A1117' stroke-width='12' stroke-linejoin='round'/>
+<polygon points='62,184 157,154 174,177 76,211' fill='#B9C7C6' stroke='#0A1117' stroke-width='12' stroke-linejoin='round'/>
+<ellipse cx='74.5' cy='200.5' rx='24.5' ry='24.5' fill='#F4F6F2' stroke='#0A1117' stroke-width='10'/>
+<ellipse cx='167' cy='183' rx='22' ry='22' fill='#F4F6F2' stroke='#0A1117' stroke-width='10'/>
+<ellipse cx='74.5' cy='200.5' rx='8.5' ry='8.5' fill='#263941' stroke='none' stroke-width='0'/>
+<ellipse cx='167' cy='183' rx='8' ry='8' fill='#263941' stroke='none' stroke-width='0'/>
+<polygon points='194,33 186,54 207,57 200,78 230,51 213,48 225,29' fill='#FFBC35' stroke='#111B20' stroke-width='7' stroke-linejoin='round'/>
+</svg>
