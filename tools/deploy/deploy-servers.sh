@@ -105,7 +105,10 @@ if [ -f "$STAGE/api.tar.gz" ]; then
     API_PID=$(pgrep -f '[A]raAtti\.Api' || true)
     [ -n "$API_PID" ] && { say "멈춤 pid $API_PID"; kill $API_PID; sleep 2; }
 
-    mv "$ROOT/api" "$BACKUP/api"
+    # 새 EC2 에서 처음 돌리면 옛 api 폴더가 없다. 없는데 mv 하면 set -e 로 여기서 멈춘다.
+    if [ -d "$ROOT/api" ]; then
+        mv "$ROOT/api" "$BACKUP/api"
+    fi
     mkdir -p "$ROOT/api"
     tar -xzf "$STAGE/api.tar.gz" -C "$ROOT/api"
     chmod +x "$ROOT/api/AraAtti.Api"
