@@ -223,10 +223,10 @@ MonoBehaviour:
   stingerClear: {fileID: 8300000, guid: 75ec90a27f832904da4977c0e2e5d00b, type: 3}
   stingerFail: {fileID: 8300000, guid: 415c4abe79c3c9b43a052393552788f0, type: 3}
   crossfadeSeconds: 1.5
-  musicLevel: 0.7
+  musicLevel: 0.35
   waveLoop: {fileID: 8300000, guid: fbd534922ef99914fae0ae0edcc28b8d, type: 3}
   krakenLoop: {fileID: 0}
-  loopLevel: 0.45
+  loopLevel: 0.12
   swingHorizontal: {fileID: 8300000, guid: 9daa913f38cddeb4c8562816df1dce1b, type: 3}
   swingVertical: {fileID: 8300000, guid: a6df0f929fe5ad94b81473e4784b93d8, type: 3}
   swingThrust: {fileID: 8300000, guid: 91e3bf45d360e6b4eb2f6f8ede9ff9c4, type: 3}
@@ -248,7 +248,7 @@ MonoBehaviour:
   roundChange: {fileID: 8300000, guid: 136613a678165de42a9529c2350a53af, type: 3}
   countdownTick: {fileID: 8300000, guid: 4105c1ad9d017f44a9db7ac2f584eb27, type: 3}
   countdownGo: {fileID: 8300000, guid: 10cd4e5374c31234ab86eefa52d3c3c0, type: 3}
-  sfxLevel: 0.85
+  sfxLevel: 0.6
   swingLevel: 1
   monsterLevel: 0.8
   killLevel: 0.4
