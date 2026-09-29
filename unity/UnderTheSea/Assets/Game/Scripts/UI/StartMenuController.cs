@@ -281,6 +281,11 @@ public class StartMenuController : MonoBehaviour
     private bool WasSubmitPressed()
     {
         Keyboard keyboard = Keyboard.current;
+
+        // Alt+Enter 는 창 ↔ 전체화면 전환(DisplayModeSwitch)이다. 여기서도 Enter 로 받으면 같은 순간
+        // 선택된 메뉴가 실행돼, [게임 종료] 위에 마우스가 있으면 게임이 꺼졌다.
+        if (keyboard != null && (keyboard.leftAltKey.isPressed || keyboard.rightAltKey.isPressed)) return false;
+
         if (keyboard != null &&
             (keyboard.enterKey.wasPressedThisFrame ||
              keyboard.numpadEnterKey.wasPressedThisFrame ||
