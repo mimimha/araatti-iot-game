@@ -38,8 +38,15 @@ public class CarryTask : MonoBehaviour
     [SerializeField, Min(1)] private int carryAmount = 1;
 
     [Header("싣을 수 있는 거리 (m)")]
-    [Tooltip("대포에 이만큼 가까워야 포탄을 넘길 수 있다.")]
+    [Tooltip("파손 지점에 이만큼 가까워야 자재를 넘길 수 있다. 대포는 아래 값을 따로 쓴다.")]
     [SerializeField, Min(0.5f)] private float loadRange = 2f;
+
+    // ⚠ **대포는 자재보다 멀리서 받는다.** 거리는 대포 중심과 발 사이의 3차원 거리인데, 대포 중심이
+    //    갑판보다 0.7m 높아 2m 로는 수평 1.87m 까지만 닿는다. 대포 뒤는 충돌 상자에 막혀 수평 2.24m 보다
+    //    못 다가가서, 뒤로 가져가면 **절대 안 들어가고** 옆구리로 비집고 들어가야만 들어갔다.
+    //    2.8m 면 수평 2.71m — 대포 뒤에서도 반걸음 여유가 있고, 대포 자리 범위(3m)보다는 짧다.
+    [Tooltip("대포에 이만큼 가까워야 포탄을 넘길 수 있다. 대포 중심은 갑판보다 0.7m 높다 — 뒤에서도 닿게 2.24m 보다 넉넉히.")]
+    [SerializeField, Min(0.5f)] private float cannonLoadRange = 2.8f;
 
     /// <summary>포탄을 대포에 넘기는 시점</summary>
     public enum LoadTrigger
@@ -430,8 +437,11 @@ public class CarryTask : MonoBehaviour
         return best;
     }
 
-    /// <summary>싣을 수 있는 거리 (m)</summary>
+    /// <summary>자재를 넘길 수 있는 거리 (m)</summary>
     public float LoadRange => loadRange;
+
+    /// <summary>포탄을 대포에 실을 수 있는 거리 (m)</summary>
+    public float CannonLoadRange => cannonLoadRange;
 
     /// <summary>
     /// 가장 가까운 대포와 그 거리. 대포가 없으면 (null, -1).
@@ -465,7 +475,7 @@ public class CarryTask : MonoBehaviour
     public CannonTask FindLoadableCannon()
     {
         CannonTask best = null;
-        float bestSqr = loadRange * loadRange;
+        float bestSqr = cannonLoadRange * cannonLoadRange;
         Vector3 position = transform.position;
 
         for (int i = 0; i < TaskBase.All.Count; i++)

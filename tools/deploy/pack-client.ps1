@@ -44,6 +44,13 @@ Get-ChildItem $Dst -Recurse -Directory |
     Where-Object { $_.Name -like '*BurstDebugInformation_DoNotShip*' } |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
+# 완드 동글 드라이버(Silicon Labs CP210x). 게임시작.bat 이 동글이 꽂혀 있고 드라이버가 없을 때만 설치한다.
+# ⚠ Silicon Labs 라이선스상 제품과 함께만 배포할 수 있다(단독 배포 금지) — 라이선스 문서가 CP210x 폴더에 같이 있다.
+$WandDriver = Join-Path $Dst 'WandDriver'
+New-Item -ItemType Directory -Force $WandDriver | Out-Null
+Copy-Item (Join-Path $PSScriptRoot 'drivers\CP210x') (Join-Path $WandDriver 'CP210x') -Recurse
+Copy-Item (Join-Path $PSScriptRoot 'wand-driver-check.ps1') $WandDriver
+
 Write-Output "[3/4] 실행 배치와 안내문 작성"
 $cp949 = [System.Text.Encoding]::GetEncoding(949)
 
@@ -55,7 +62,8 @@ rem ===========================================================
 rem  아라아띠 - EC2 접속용
 rem
 rem  로그인 서버와 게임 서버가 모두 EC2 에 있습니다.
-rem  이 PC 에는 아무것도 설치할 것이 없습니다.
+rem  키보드로 하면 이 PC 에 설치할 것이 없습니다.
+rem  완드 동글을 꽂으면 처음 한 번 드라이버 설치를 묻습니다 (아래 WandDriver).
 rem
 rem  EC2 주소가 바뀌면 아래 HOST 만 고치면 됩니다.
 rem ===========================================================
@@ -76,6 +84,13 @@ echo.
 echo   처음이면 [회원가입] 을 먼저 누르세요.
 echo.
 
+rem  완드 동글 드라이버(CP210x). 이 PC 에 동글이 꽂힌 적이 있을 때만 확인한다 -
+rem  키보드만 쓰는 PC 는 reg query 가 바로 실패해서 PowerShell 을 켜지 않는다(게임이 늦게 뜨지 않게).
+rem  드라이버가 없으면 관리자 확인 창이 한 번 뜬다. [아니요] 를 눌러도 게임은 켜진다.
+set WANDSEEN=0
+for %%P in (EA60 EA70 EA71) do reg query "HKLM\SYSTEM\CurrentControlSet\Enum\USB\VID_10C4&PID_%%P" >nul 2>&1 && set WANDSEEN=1
+if "%WANDSEEN%"=="1" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0WandDriver\wand-driver-check.ps1"
+
 start "" "AraAtti-Flow.exe" -api http://%HOST%:5080 -appver %APPVER% -region %REGION% %DEVMODE% -screen-fullscreen 1
 "@
 
@@ -88,6 +103,13 @@ $readme = @"
 
 [화면]
   전체화면으로 시작합니다. Alt+Enter 를 누르면 창 모드(1600x900)로, 한 번 더 누르면 전체화면으로 돌아옵니다.
+
+[완드(IoT 기기)로 하려면]
+  1. 완드 수신 동글을 USB 에 꽂고
+  2. 게임시작.bat 을 실행하세요.
+  처음 한 번은 "완드 드라이버를 설치합니다" 와 함께 관리자 확인 창이 뜹니다. [예] 를 누르세요.
+  [아니요] 를 누르거나 관리자 권한이 없으면 키보드로 시작합니다. 다음 실행 때 다시 묻습니다.
+  드라이버: Silicon Labs CP210x (WandDriver\CP210x, 라이선스 문서 포함)
 
 [처음 실행하면]
   1. 시작   2. 회원가입   3. 캐릭터 생성   4. 채널 선택   5. 로비
