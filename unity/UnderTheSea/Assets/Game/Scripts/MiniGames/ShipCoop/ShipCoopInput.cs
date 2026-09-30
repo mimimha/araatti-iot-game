@@ -50,13 +50,17 @@ public static class ShipCoopInput
     /// <summary>
     /// ⛵ 돛 장력. -1(풀기) ~ +1(감기)
     ///
-    /// **버튼을 누르고 있는 동안** 감기거나 풀립니다. 밧줄을 묶고 푸는 동작입니다.
+    /// 완드는 **버튼을 누르고 있는 동안** 감기거나 풀립니다. 밧줄을 묶고 푸는 동작입니다.
     ///
     /// <code>
     ///   오른손 면버튼 2 (키보드 K)  누르고 있는 동안  감긴다  +1
     ///   왼손  면버튼 1 (키보드 C)  누르고 있는 동안  풀린다  -1
-    ///   둘 다 / 아무것도            0
+    ///   둘 다 / 아무것도            양손 비틀기 평균 (키보드 L 감기 · J 풀기)
     /// </code>
+    ///
+    /// <b>키보드는 J · L 이다.</b> 화면 안내가 J · L 이고 조타와 같은 손 자리라 그대로 둔다.
+    /// 버튼이 아무것도 안 눌렸을 때만 비틀기를 읽으므로 완드에는 영향이 없다 —
+    /// 완드의 비틀기는 아래 이유로 늘 0 이다. 키보드에서 K · C 도 같이 먹는 것은 무해하다.
     ///
     /// <b>왜 IMU 가 아니라 버튼인가.</b> 처음에는 손목 비틀기(<see cref="IHandDevice.Rotation"/>, yaw)로
     /// 잡았는데 <b>yaw 는 중력으로 잴 수 없습니다</b> — 중력 벡터가 yaw 에 불변이라 가속도계로는
@@ -83,13 +87,24 @@ public static class ShipCoopInput
         bool wind = controller.Right.Button2;
         bool release = controller.Left.Button1;
 
+        if (wind != release)
+        {
+            return wind ? 1f : -1f;
+        }
+
         // 둘 다 누르면 서로 상쇄한다. 어느 쪽을 이기게 할 이유가 없다.
-        if (wind == release)
+        if (wind)
         {
             return 0f;
         }
 
-        return wind ? 1f : -1f;
+        // 버튼이 없으면 비틀기. 키보드 J · L 이 여기로 들어온다. (KeyboardPlayerController)
+        if (!controller.HasTwoDevices)
+        {
+            return controller.Left.Rotation;
+        }
+
+        return (controller.Left.Rotation + controller.Right.Rotation) * 0.5f;
     }
 
     // ------------------------------------------------------------
