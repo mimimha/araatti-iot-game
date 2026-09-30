@@ -103,9 +103,9 @@ namespace UnderTheSea.Lobby
 
         /// <summary>
         /// 로비인가. ⚠ <see cref="SeaHeartCounterInstaller"/> 의 것과 같은 내용이다(그쪽이 private).
-        /// 한쪽을 고치면 같이 고친다.
+        /// 한쪽을 고치면 같이 고친다. <see cref="LobbyMuteHotkey"/> 도 이것을 쓴다.
         /// </summary>
-        private static bool InLobby()
+        internal static bool InLobby()
         {
             Scene lobby = SceneManager.GetSceneByName(SceneFlow.Lobby);
             if (lobby.IsValid() && lobby.isLoaded)

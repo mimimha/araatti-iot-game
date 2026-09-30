@@ -259,6 +259,36 @@ namespace UnderTheSea.Audio
             }
         }
 
+        /// <summary>지금 음소거인가. 타이틀 설정(StartMenuController.IsMuted)과 같은 기준이다.</summary>
+        public bool IsMuted => AudioListener.volume <= 0.001f;
+
+        /// <summary>
+        /// 음소거 ↔ 설정 슬라이더 크기를 오간다. 로비 F1 (LobbyMuteHotkey)
+        ///
+        /// ⚠ <see cref="MasterVolume"/> 에 0 을 넣지 않는다. 그러면 슬라이더 값(MasterVolumePrefKey)까지
+        ///    0 으로 덮여 풀 때 돌아갈 크기가 사라진다. 음소거 깃발만 바꾸고 슬라이더 값은 그대로 둔다.
+        ///    타이틀의 소리 아이콘(StartMenuController.ToggleSound)과 같은 키라 타이틀로 돌아가도 상태가 이어진다.
+        /// </summary>
+        public void ToggleMute()
+        {
+            bool mute = !IsMuted;
+
+            if (mute)
+            {
+                AudioListener.volume = 0f;
+            }
+            else
+            {
+                // 슬라이더를 0 으로 내린 경우는 타이틀이 크기를 저장하지 않고 음소거 깃발만 켠다.
+                // 그래도 0 이 남아 있으면 풀어도 조용하니 끝까지 올린다.
+                float saved = Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumePrefKey, 1f));
+                AudioListener.volume = saved > 0.001f ? saved : 1f;
+            }
+
+            PlayerPrefs.SetInt(MutePrefKey, mute ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
         private void Awake()
         {
             if (_instance != null && _instance != this)
