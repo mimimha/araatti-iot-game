@@ -21,7 +21,7 @@ namespace MiniGames.Common
     ///
     ///     검   1~2인, 혼자서도 시작
     ///     광산 1~4인, 혼자서도 시작
-    ///     배   4인 고정, 다 모여야 시작
+    ///     배   1~4인, 선택한 사람 수가 모이면 나머지는 AI가 채움
     /// </summary>
     [CreateAssetMenu(menuName = "아라아띠/미니게임 설정", fileName = "MiniGameConfig")]
     public sealed class MiniGameConfig : ScriptableObject
@@ -43,7 +43,7 @@ namespace MiniGames.Common
         [SerializeField, Min(1)] private int minPlayers = 1;
         [SerializeField, Min(1)] private int maxPlayers = 4;
 
-        /// <summary>정원이 다 차야만 시작할 수 있는가. 배 협동이 여기에 해당한다.</summary>
+        /// <summary>설정의 최대 정원이 다 차야만 시작할 수 있는가.</summary>
         [SerializeField] private bool requireFullParty;
 
         /// <summary>

@@ -118,7 +118,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 runner.AddCallbacks(admission);
 
                 // 사람 입·퇴장에 맞춰 빈 승무원 슬롯을 AI로 채운다.
-                // 매칭 화면의 시작 조건은 건드리지 않는다. 그 연결은 AI 플레이 검증이 끝난 뒤 한다.
+                // 로비에서 고른 사람 수와 관계없이 실제 승무원은 설정의 최대 정원까지 유지한다.
                 ShipCoopPlayerSpawner playerSpawner = GetComponent<ShipCoopPlayerSpawner>();
                 ShipCoopBotManager botManager = GetComponent<ShipCoopBotManager>();
 

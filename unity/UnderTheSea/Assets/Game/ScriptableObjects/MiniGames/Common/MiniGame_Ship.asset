@@ -15,7 +15,7 @@ MonoBehaviour:
   gameId: 2
   displayName: "\uBC30 \uD611\uB3D9 \uBBF8\uB2C8\uAC8C\uC784"
   sceneName: ShipCoopBoot
-  minPlayers: 4
+  minPlayers: 1
   maxPlayers: 4
   requireFullParty: 1
   autoStartSeconds: 30
