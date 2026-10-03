@@ -36,6 +36,12 @@ namespace Warriors
         private readonly HashSet<WarriorsTarget> reactingTentacles = new();
         private WarriorsKrakenTentacleDeformer tentacleDeformer;
 
+        /// <summary>최종 형태(3라운드)의 다리 뼈를 돌리는 부품. 겉모습에 뼈가 없으면 null 이다.</summary>
+        private WarriorsKrakenLegs legs;
+
+        /// <summary>촉수 단계(2라운드) 머리의 다리 뼈.</summary>
+        private WarriorsKrakenLegs headLegs;
+
         /// <summary>
         /// 지금 돌고 있는 리듬 타격 연출. 새 타격이 오면 이것을 끊는다.
         ///
@@ -101,6 +107,11 @@ namespace Warriors
             tentacleDeformer = GetComponent<WarriorsKrakenTentacleDeformer>();
             if (tentacleDeformer == null) tentacleDeformer = gameObject.AddComponent<WarriorsKrakenTentacleDeformer>();
             tentacleDeformer.Configure(tentaclePhaseHead != null ? tentaclePhaseHead.GetComponentInChildren<MeshFilter>(true) : null, tentacles);
+
+            // 다리 뼈. 라운드마다 겉모습이 다르므로 **각각** 잡는다.
+            // ⚠ 통째로 GetComponentInChildren 하면 둘 중 먼저 찾힌 하나만 잡혀 한쪽이 안 움직인다.
+            legs = finalFormRoot != null ? finalFormRoot.GetComponentInChildren<WarriorsKrakenLegs>(true) : null;
+            headLegs = tentaclePhaseHead != null ? tentaclePhaseHead.GetComponentInChildren<WarriorsKrakenLegs>(true) : null;
 
             // Tentacles are ordinary targets until a pattern claims them, so leaving them
             // switched on through ROUND 1 let a stray beach swing kill one before the
@@ -175,6 +186,15 @@ namespace Warriors
         public void ShowTentacleHit(WarriorsTarget tentacle, WarriorsAttackDirection direction)
         {
             if (tentacle == null || !isActiveAndEnabled) return;
+
+            // ⚠ **뼈는 아래 중복 방지보다 먼저 휘게 한다.** 그 줄은 팔 전체를 기울이는 코루틴이
+            //    겹쳐 도는 것을 막는 장치라, 연타를 먹은 촉수는 그 뒤로 아무 반응도 못 낸다.
+            //    뼈 쪽은 겹쳐도 세기만 다시 1로 올릴 뿐이라 안전하다.
+            tentacle.GetComponentInChildren<WarriorsTentacleArmLink>(true)?.PlayHit(direction);
+
+            // ⚠ 2라운드 머리는 맞아도 **움직이지 않는다.** 팔 넷이 한꺼번에 흔들려 무엇을 맞혔는지
+            //    읽히지 않았다. 맞은 표시는 표식이 터지는 것으로 충분하다.
+
             if (!reactingTentacles.Add(tentacle)) return;
 
             tentacleDeformer?.PlayHit(tentacle);
@@ -217,6 +237,10 @@ namespace Warriors
             //    화면에서 지나치게 요란해 "잘랐다" 가 아니라 "뭔가 크게 움직였다" 로 보였다.
             //    잘린 표시는 <b>방향 표식이 터지는 것</b>으로 충분하다.
             StartCoroutine(TentacleIndicatorBurst(tentacle.transform));
+
+            // 뼈가 든 촉수는 힘이 빠지듯 늘어진다. 팔 자체를 젖히는 것이 아니라 길이가 휘는 것이라
+            // 위에서 뺀 "요란함" 과는 다르다.
+            tentacle.GetComponentInChildren<WarriorsTentacleArmLink>(true)?.PlayCut();
         }
 
         /// <summary>
@@ -229,27 +253,10 @@ namespace Warriors
         {
             if (arm == null) yield break;
 
-            // 표식은 촉수 밑에 붙은 스프라이트다. 있으면 키우고, 없으면 조용히 끝낸다.
-            SpriteRenderer mark = arm.GetComponentInChildren<SpriteRenderer>(true);
-            if (mark == null) yield break;
-
-            Transform markRoot = mark.transform;
-            Vector3 rest = markRoot.localScale;
-            Color tone = mark.color;
-
-            const float Duration = .18f;
-
-            for (float elapsed = 0f; elapsed < Duration && markRoot != null; elapsed += Time.deltaTime)
-            {
-                float k = elapsed / Duration;
-
-                markRoot.localScale = rest * Mathf.Lerp(1f, 1.6f, k);
-                mark.color = new Color(tone.r, tone.g, tone.b, tone.a * (1f - k));
-                yield return null;
-            }
-
-            if (markRoot != null) markRoot.localScale = rest;
-            if (mark != null) mark.color = tone;
+            // ⚠ 크기를 여기서 직접 키우지 않는다. 표식(WarriorsTentacleIndicator)이 매 프레임
+            //    자기 크기를 다시 정하므로 여기서 키워 봐야 한 프레임도 안 보인다 — 실제로 그랬다.
+            arm.GetComponentInChildren<WarriorsTentacleIndicator>(true)?.PlayBurst();
+            yield break;
         }
 
         /// <summary>촉수가 맞은 자리에서 튀는 물보라. 프리팹 없이 코드로 만든다.</summary>
@@ -446,6 +453,9 @@ namespace Warriors
 
         public void ShowFinalForm()
         {
+            // 지난 판에서 바다로 가라앉혔으면 제자리로 되돌린다. 안 그러면 다음 판에 물속에서 시작한다.
+            RestoreAfterSink();
+
             if (tentaclePhaseHead != null) tentaclePhaseHead.SetActive(false);
             foreach (WarriorsTarget tentacle in tentacles)
                 if (tentacle != null) tentacle.gameObject.SetActive(false);
@@ -455,6 +465,9 @@ namespace Warriors
             if (finalFormRoot != null) finalFormRoot.SetActive(true);
             else if (body != null) body.gameObject.SetActive(true);
             if (weakPoint != null) weakPoint.SetActive(true);
+
+            // 일어서는 순간 한 번 벌린다. 최종 형태는 이때 처음 화면에 나온다.
+            legs?.PlayRoar(true);
         }
 
         public bool TryDamageFinalForm(WarriorsAttackDirection direction, float strength = 1f)
@@ -574,6 +587,11 @@ namespace Warriors
 
         public void PlayRhythmHit(bool strong)
         {
+            // ⚠ **다리 뼈는 아래 검사보다 먼저 부른다.** 프리팹의 <c>body</c> 칸은 비어 있어서
+            //    (실측 — WarriorsKrakenBoss.prefab 의 body 는 fileID: 0) 아래 줄에서 늘 되돌아간다.
+            //    그 뒤에 두면 다리가 영영 움직이지 않는다. 몸통을 밀어 내는 코루틴만 body 가 필요하다.
+            legs?.PlayHit(strong);
+
             if (body == null || !isActiveAndEnabled || !body.gameObject.activeInHierarchy) return;
 
             // ⚠ 겹쳐 돌면 안 된다. 앞 코루틴이 몸을 옮겨 놓은 상태에서 다음 코루틴이 시작하면
@@ -590,6 +608,8 @@ namespace Warriors
         /// </summary>
         public void PlayRhythmFinish(bool team)
         {
+            legs?.PlayRoar(team);   // 위와 같은 이유로 body 검사보다 먼저 (PlayRhythmHit 주석 참고)
+
             if (body == null || !isActiveAndEnabled || !body.gameObject.activeInHierarchy) return;
 
             if (impactRoutine != null) StopCoroutine(impactRoutine);
@@ -759,6 +779,139 @@ namespace Warriors
             ParticleSystem.ShapeModule shape = particles.shape;
             shape.shapeType = ParticleSystemShapeType.Sphere;
             shape.radius = .22f;
+            particles.Play();
+        }
+
+        // ------------------------------------------------------------
+        // 3라운드 승리 — 바다 밑으로 가라앉는다
+        // ------------------------------------------------------------
+
+        private Coroutine sinkRoutine;
+        private bool sinkRestSaved;
+        private Vector3 sinkRestPosition;
+        private Quaternion sinkRestRotation;
+
+        private Transform SinkRoot => finalFormRoot != null ? finalFormRoot.transform : transform;
+
+        /// <summary>
+        /// **쓰러진 크라켄이 바다 밑으로 가라앉는다.** 3라운드를 깬 순간 각 화면이 부른다.
+        ///
+        /// 예전에는 이긴 뒤에도 크라켄이 그대로 서 있다가 화면이 어두워지며 결과 판이 떠서
+        /// "갑자기 사라진" 것처럼 보였다. 이제 <b>천천히 물속으로 잠겨 사라진다.</b>
+        /// <code>
+        ///   시작   수면에 잔잔한 물결 한 번
+        ///   내내   같은 빠르기로 부드럽게(처음과 끝만 살짝 느리게) 내려간다
+        ///   끝     머리 끝까지 잠기면 끈다 (다음 판은 ShowFinalForm 이 되돌린다)
+        /// </code>
+        /// ⚠ 떨림 · 포효 · 큰 물보라를 넣지 않는다. 처음에 넣었더니 가라앉는 게 아니라
+        ///    "눈앞에서 터지는" 것처럼 보였다.
+        /// ⚠ 서버에서 부르지 않는다. 서버 화면은 아무도 보지 않는다 (PlayRhythmHit 과 같은 이유).
+        /// </summary>
+        public void PlayDefeatSink(float seconds)
+        {
+            Transform root = SinkRoot;
+            if (!isActiveAndEnabled || root == null || !root.gameObject.activeInHierarchy) return;
+
+            if (!sinkRestSaved)
+            {
+                sinkRestPosition = root.localPosition;
+                sinkRestRotation = root.localRotation;
+                sinkRestSaved = true;
+            }
+
+            SpawnDefeatSplash(root.position);
+
+            if (sinkRoutine != null) StopCoroutine(sinkRoutine);
+            sinkRoutine = StartCoroutine(DefeatSinkRoutine(root, Mathf.Max(1f, seconds)));
+        }
+
+        private IEnumerator DefeatSinkRoutine(Transform root, float seconds)
+        {
+            Vector3 start = root.position;
+
+            // 모델 키보다 조금 더 내려가야 머리 끝까지 수면 아래로 잠긴다.
+            // ⚠ 키는 메시로만 잰다. 파티클까지 넣어 쟀더니 수십 m 로 나와 한순간에 화면 밖으로 떨어졌다.
+            float depth = Mathf.Clamp(MeasureMeshHeight(root) * 1.1f, 3f, 20f);
+            Debug.Log($"[WarriorsKraken] 바다 밑으로 가라앉습니다 — 깊이 {depth:F1}m, {seconds:F1}초 ({root.name})", this);
+
+            for (float t = 0f; t < seconds; t += Time.deltaTime)
+            {
+                float u = t / seconds;
+                root.position = start + Vector3.down * depth * Mathf.SmoothStep(0f, 1f, u);
+                yield return null;
+            }
+
+            root.position = start + Vector3.down * depth;
+            root.gameObject.SetActive(false);
+            sinkRoutine = null;
+        }
+
+        /// <summary>가라앉힌 것을 되돌린다. 새 판을 세울 때 부른다.</summary>
+        private void RestoreAfterSink()
+        {
+            if (!sinkRestSaved) return;
+
+            if (sinkRoutine != null)
+            {
+                StopCoroutine(sinkRoutine);
+                sinkRoutine = null;
+            }
+
+            Transform root = SinkRoot;
+            if (root != null)
+            {
+                root.localPosition = sinkRestPosition;
+                root.localRotation = sinkRestRotation;
+            }
+        }
+
+        /// <summary>메시(겉모습)만으로 잰 키. 파티클 · 잔상은 범위가 커서 넣지 않는다.</summary>
+        private static float MeasureMeshHeight(Transform root)
+        {
+            bool found = false;
+            Bounds bounds = default;
+
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>())
+            {
+                if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)) continue;
+
+                if (!found) { bounds = renderer.bounds; found = true; }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+
+            return found ? bounds.size.y : 0f;
+        }
+
+        /// <summary>잔잔한 물결. 잠기기 시작할 때 수면에 한 번만 인다. 크게 튀지 않는다.</summary>
+        private static void SpawnDefeatSplash(Vector3 at)
+        {
+            GameObject burst = new("KrakenDefeatSplash");
+            burst.transform.position = at + Vector3.up * .2f;
+            ParticleSystem particles = burst.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = .4f;
+            main.loop = false;
+            main.startLifetime = .7f;
+            main.startSpeed = 1.8f;
+            main.startSize = .18f;
+            main.gravityModifier = .8f;
+            main.startColor = new Color(.85f, .96f, 1f, .55f);
+            main.maxParticles = 24;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)16) });
+
+            // 낮게 퍼지는 원뿔. 솟구치지 않고 수면 가까이서 번진다.
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 60f;
+            shape.radius = 1.4f;
+            shape.rotation = new Vector3(-90f, 0f, 0f);
+
             particles.Play();
         }
 

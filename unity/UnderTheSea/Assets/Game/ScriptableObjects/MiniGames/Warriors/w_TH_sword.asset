@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: w_TH_sword
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsWeaponDefinition
   weaponPrefab: {fileID: 100000, guid: 17bfb6b0b5f721143a5a6a80cd50a153, type: 3}
-  gripLocalPosition: {x: 0, y: 0.26, z: 0}
+  gripLocalPosition: {x: 0, y: 0.09, z: 0.03}
   gripLocalRotation: {x: 70, y: 0, z: 270}
   localScale: {x: 0.25, y: 0.25, z: 0.25}
   hitboxCenter: {x: -0.45, y: 0, z: 0}

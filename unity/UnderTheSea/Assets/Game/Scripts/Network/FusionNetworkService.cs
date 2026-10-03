@@ -37,6 +37,18 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
     private string connectedChannelId;
     private bool isConnecting;
 
+    /// <summary>세션 목록 감시기에 붙어 있는가. 두 번 구독하지 않으려고 둔다.</summary>
+    private bool watchingPlayers;
+
+    /// <summary>채널 ID → 지금 인원. 매번 새로 만들지 않고 비워서 다시 쓴다.</summary>
+    private readonly Dictionary<string, int> playerCounts = new Dictionary<string, int>();
+
+    /// <summary>
+    /// 아직 목록을 못 받았을 때 쓰는 값. 인원을 <b>-1</b> 로 둬서 "0명" 과 구별한다.
+    /// </summary>
+    private static readonly Dictionary<string, int> unknownPlayerCounts =
+        new Dictionary<string, int> { ["srv-1"] = -1 };
+
     // ------------------------------------------------------------
     // INetworkService — 알림
     // ------------------------------------------------------------
@@ -68,15 +80,93 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
     // ------------------------------------------------------------
 
     /// <summary>
-    /// 채널 목록을 돌려준다.
+    /// 채널 목록을 돌려준다. <b>인원수는 조금 늦게 채워진다.</b>
     ///
-    /// 이번 단계에서는 <see cref="ChannelCatalog"/> 의 고정 목록이다.
-    /// Photon 의 공개 세션 목록을 읽어 오는 것은 별도 PRD 범위다.
-    /// 목록에 있어도 그 세션의 서버가 떠 있지 않으면 입장에서 실패한다.
+    /// 채널 자체는 <see cref="ChannelCatalog"/> 의 고정 목록이다. 목록에 있어도 그 세션의
+    /// 서버가 떠 있지 않으면 입장에서 실패한다.
+    ///
+    /// <b>인원은 Photon 세션 목록에서 읽는다.</b> 아직 아무 방에도 안 들어간 상태라
+    /// <see cref="DsPoolWatcher"/> 를 띄워 세션 로비에 붙는다. 목록은 붙고 나서 1~2초 뒤에
+    /// 오므로, 처음 부를 때는 <b>"-" 로 보이고</b> 목록이 도착하면 다시 한 번 쏜다.
+    /// 화면은 <see cref="OnServerListUpdated"/> 를 이벤트로 받으니 그대로 갱신된다.
+    ///
+    /// ⚠ 서버 프로세스에서는 부르지 않는다. 로비 DS 는 이미 자기 감시기를 돌리고 있다.
     /// </summary>
     public void RequestServerList()
     {
-        OnServerListUpdated?.Invoke(ChannelCatalog.ToServerInfos());
+        BeginWatchingPlayers();
+        OnServerListUpdated?.Invoke(BuildServerInfos());
+    }
+
+    /// <summary>
+    /// 세션 목록 감시를 시작하고, 갱신될 때마다 화면에 다시 알린다.
+    ///
+    /// 두 번 불러도 안전하다 — <see cref="DsPoolWatcher.Begin"/> 이 이미 돌고 있으면 그냥 둔다.
+    /// </summary>
+    private void BeginWatchingPlayers()
+    {
+        if (FusionLaunchArguments.IsDedicatedServerProcess())
+        {
+            return;
+        }
+
+        DsPoolWatcher.Begin();
+
+        if (DsPoolWatcher.Current == null || watchingPlayers)
+        {
+            return;
+        }
+
+        DsPoolWatcher.Current.Updated += HandlePlayerCountsUpdated;
+        watchingPlayers = true;
+    }
+
+    /// <summary>감시를 멈춘다. 접속에 성공해 이 화면을 떠날 때 부른다.</summary>
+    private void StopWatchingPlayers()
+    {
+        if (!watchingPlayers)
+        {
+            return;
+        }
+
+        if (DsPoolWatcher.Current != null)
+        {
+            DsPoolWatcher.Current.Updated -= HandlePlayerCountsUpdated;
+        }
+
+        watchingPlayers = false;
+
+        // ⚠ **게임에 들어갈 때는 감시기를 치운다.** 세션 로비에 붙어 있는 러너가 하나 더
+        //    도는 셈이라, 놔두면 쓸데없이 통신한다. 로비에 들어가면 인원은 게임 쪽에서 안다.
+        DsPoolWatcher.End();
+    }
+
+    private void HandlePlayerCountsUpdated()
+    {
+        OnServerListUpdated?.Invoke(BuildServerInfos());
+    }
+
+    /// <summary>
+    /// 지금 아는 인원수를 채워 채널 목록을 만든다.
+    ///
+    /// 아직 목록을 못 받았으면 인원을 <b>-1</b> 로 둔다. 화면이 "0명" 과 "아직 모름" 을
+    /// 구별할 수 있어야 한다. 0 으로 두면 서버가 죽은 것처럼 보인다.
+    /// </summary>
+    private ServerInfo[] BuildServerInfos()
+    {
+        DsPoolWatcher watcher = DsPoolWatcher.Current;
+
+        if (watcher == null || !watcher.Ready)
+        {
+            return ChannelCatalog.ToServerInfos(unknownPlayerCounts);
+        }
+
+        // 채널이 하나뿐이라 "이 게임에 있는 사람 전부" 가 곧 그 채널의 인원이다.
+        // 채널을 늘리면 ChannelCatalog 의 경고대로 여기를 같이 고쳐야 한다.
+        playerCounts.Clear();
+        playerCounts["srv-1"] = watcher.TotalOccupants();
+
+        return ChannelCatalog.ToServerInfos(playerCounts);
     }
 
     // ------------------------------------------------------------
@@ -156,12 +246,21 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
             return;
         }
 
+        // 미니게임에서 돌아오는 길이면 "어디서 왔는지" 를 쪽지로 들고 간다. 서버가 그 포탈 앞에 세운다.
+        // 처음 로그인이면 비어 있어 null 이고, 서버는 지금처럼 기본 자리에 세운다.
+        string cameFrom = LobbyReturnInfo.CameFrom;
+        if (!string.IsNullOrEmpty(cameFrom))
+        {
+            Debug.Log($"[FusionNetworkService] \"{cameFrom}\" 에서 돌아왔다는 쪽지를 들고 접속합니다.");
+        }
+
         StartGameResult result = await runner.StartGame(new StartGameArgs
         {
             GameMode = GameMode.Client,
             SessionName = sessionName,
             Scene = lobby,
             SceneManager = runner.GetComponent<NetworkSceneManagerDefault>(),
+            ConnectionToken = LobbyReturnToken.Write(cameFrom),
 
             // 인자가 없으면 null 이고, Fusion 은 null 을 공용 설정으로 읽는다.
             CustomPhotonAppSettings = FusionSessionIsolation.PhotonSettings
@@ -190,10 +289,17 @@ public class FusionNetworkService : MonoBehaviour, INetworkService, INetworkRunn
         //    돌아올 곳은 끊기와 무관한 자리에 따로 적어 둔다.
         LobbyReturnInfo.Remember(nickname, serverId);
 
+        // 쪽지는 이번 접속에 실어 보냈다. 지워야 다음에 채널을 옮겨 들어갈 때 엉뚱한 포탈 앞에 서지 않는다.
+        // ⚠ 실패했을 때는 지우지 않는다(위에서 이미 return). 다시 시도해도 포탈 앞에 서야 한다.
+        LobbyReturnInfo.ForgetCameFrom();
+
         // ⚠ 여기서부터 Lobby 는 Fusion 이 로드했다. SceneFlow 가 또 로드하면 안 된다.
         SceneFlow.LobbyLoadedByNetwork = true;
 
         Debug.Log($"[FusionNetworkService] \"{sessionName}\" 세션 접속 성공. Lobby 는 Fusion 이 로드합니다.");
+
+        // 채널 선택 화면을 떠나므로 세션 목록 감시를 멈춘다. 놔두면 러너가 하나 더 돈다.
+        StopWatchingPlayers();
 
         // 화면 쪽에 먼저 알린다. ChannelSelectController 가 이 안에서 SceneFlow 를 부르는데,
         // 그 전에 씬을 내려 버리면 그 컴포넌트가 사라진 뒤에 콜백이 도는 꼴이 된다.

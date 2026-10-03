@@ -19,7 +19,7 @@ public enum KeyboardControlProfile
 ///
 ///   [프로필]
 ///     Shared      광산 · 배 협동. IOT_INPUT.md 의 통일 키 표를 따른다
-///     Warriors    이동 WASD · 카메라 방향키 · 공격 1 / 2 / 3
+///     Warriors    이동 WASD · 카메라 우클릭 드래그 · 공격 J / K / L · 회피 Shift
 ///
 ///   [왼손 기기]
 ///     W A S D       조이스틱     이동
@@ -53,7 +53,7 @@ public enum KeyboardControlProfile
 public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 {
     [Header("키 배치 프로필")]
-    [Tooltip("Shared는 광산·배, Warriors는 무쌍의 기존 WASD·방향키·1/2/3 배치를 유지한다.")]
+    [Tooltip("Shared 는 광산·배, Warriors 는 무쌍. 둘 다 IOT_INPUT.md 1장의 통일 키 표를 따른다.")]
     [SerializeField] private KeyboardControlProfile controlProfile = KeyboardControlProfile.Shared;
 
     [Header("축 입력이 0 에서 1 까지 가는 속도")]
@@ -161,11 +161,12 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             axisSpeed,
             logDeviceOutput,
             "오른손",
-            // 배의 오른손 스틱은 키가 없다. 마우스 우클릭 드래그가 Update 에서 채운다.
-            stickUp: warriors ? Key.UpArrow : Key.None,
-            stickDown: warriors ? Key.DownArrow : Key.None,
-            stickLeft: warriors ? Key.LeftArrow : Key.None,
-            stickRight: warriors ? Key.RightArrow : Key.None,
+            // 오른손 스틱은 두 게임 다 키가 없다. 마우스 우클릭 드래그가 Update 에서 채운다.
+            // (IOT_INPUT.md 1장 "카메라는 드래그입니다" — 무쌍도 방향키에서 옮겨 왔다)
+            stickUp: Key.None,
+            stickDown: Key.None,
+            stickLeft: Key.None,
+            stickRight: Key.None,
             button1: Key.Space,
 
             // 광산은 오른손 면버튼 2 가 **달리기**다. (IOT_INPUT.md 3장 표)
@@ -180,19 +181,23 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
             // 동작(IMU) 흉내는 무쌍과 광산이 쓴다. 배의 망치질은 면버튼 2(K)가 겸하므로
             // 따로 키를 두지 않는다. ShipCoopInput.ConsumeSwing 이 둘 다 받는다.
             //
+            // ⚠ 무쌍의 공격은 J K L 하나씩이다. 예전의 1 2 3 · 키패드 · F · X 는 모두 뺐다.
+            //    같은 동작에 키가 여럿이면 어느 것이 규격인지 알 수 없고, F 는 로비에서
+            //    포탈 입장이라 뜻이 겹친다. (IOT_INPUT.md 1장 "J K L 은 게임마다 다릅니다")
+            //
             // 광산의 **땅 파기**가 내리치기(VerticalSwing)다. MineDigger.ConsumeDigSwing
             // 이 그 동작을 읽는다. IOT_INPUT.md 1장 표대로 Space 다.
             //
             // ⚠ 오른손 면버튼 1 도 Space 인데 광산은 그것을 **읽지 않는다.**
             //   MineDigger 가 버튼1·2 를 왼손만 읽는다(복구 C · 힌트 J). 겹쳐도 무해하다.
-            horizontalMotion: warriors ? Key.Digit1 : Key.None,
-            alternateHorizontalMotion: warriors ? Key.Numpad1 : Key.None,
-            verticalMotion: warriors ? Key.Digit2 : mine ? Key.Space : Key.None,
-            alternateVerticalMotion: warriors ? Key.Numpad2 : Key.None,
-            secondAlternateVerticalMotion: warriors ? Key.F : Key.None,
-            thrustMotion: warriors ? Key.Digit3 : Key.None,
-            alternateThrustMotion: warriors ? Key.Numpad3 : Key.None,
-            secondAlternateThrustMotion: warriors ? Key.X : Key.None);
+            horizontalMotion: warriors ? Key.J : Key.None,
+            alternateHorizontalMotion: Key.None,
+            verticalMotion: warriors ? Key.K : mine ? Key.Space : Key.None,
+            alternateVerticalMotion: Key.None,
+            secondAlternateVerticalMotion: Key.None,
+            thrustMotion: warriors ? Key.L : Key.None,
+            alternateThrustMotion: Key.None,
+            secondAlternateThrustMotion: Key.None);
 
         // 1대만 들었을 때. 스틱은 왼손 것, 면버튼은 오른손 것을 단다.
         _single = new KeyboardHand(
@@ -216,13 +221,13 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
 
         Keyboard keyboard = Keyboard.current;
 
-        // ⚠ 무쌍은 develop 이 하던 그대로 둔다. 배만 새 배치를 쓴다.
-        //    무쌍을 드래그 카메라로 옮기는 것은 7장에서 서연 담당으로 잡혀 있다.
+        // 두 프로필 모두 카메라는 우클릭 드래그다. (IOT_INPUT.md 7장 — 무쌍 이관 완료)
         bool warriors = controlProfile == KeyboardControlProfile.Warriors;
 
         // ⚠ 광산은 왼손 면버튼 2 가 **힌트**다. 배처럼 달리기 토글로 밀어 넣으면
-        //   Shift 를 누를 때마다 힌트가 나간다. 광산의 달리기는 이 부품을 안 거치고
-        //   MineMoveInput.runKey 가 따로 읽는다.
+        //   Shift 를 누를 때마다 힌트가 나간다. 광산의 달리기는 **오른손 면버튼 2**
+        //   이고, MineMoveInput 이 Right.Button2 로 이 부품을 거쳐 읽는다.
+        //   (IOT_INPUT.md 3장 — 배와 달리 토글이 아니라 누르고 있기)
         bool mine = controlProfile == KeyboardControlProfile.Mine;
 
         // 키보드로는 두 손을 따로 기울일 수 없다. 한 쌍을 양손이 함께 쓴다.
@@ -256,7 +261,13 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
                 forceButton2: !warriors && !mine && _sprintOn,
                 stickOverride: null);
 
-            // 무쌍의 오른손 스틱은 방향키다. 배만 마우스 드래그로 채운다.
+            // 배의 오른손 스틱은 마우스 드래그가 채운다.
+            //
+            // ⚠ **무쌍은 여기서 채우지 않는다.** 무쌍 카메라는 CameraDragLook 으로 마우스를
+            //    직접 읽는다. 스틱은 −1 ~ 1 로 잘리는 값이라 빠른 드래그가 위에서 잘려 나가고,
+            //    카메라가 거기에 deltaTime 을 또 곱해 프레임마다 도는 양이 달라졌다.
+            //    로비와 같은 감각을 내려면 자르지도 곱하지도 않아야 한다.
+            //    여기서도 채우면 같은 드래그가 두 번 적용된다.
             _right.Tick(keyboard, target, Time.deltaTime,
                 forceButton2: false,
                 stickOverride: warriors ? (Vector2?)null : ReadDrag());
@@ -277,6 +288,10 @@ public class KeyboardPlayerController : MonoBehaviour, IPlayerController
     /// ⚠ 마우스는 **위치가 아니라 이동량**을 준다. 스틱은 −1 ~ 1 로 유지되는 값이라
     ///    감도를 곱해 잘라 넣고, 손을 떼면 0 으로 떨어뜨려야 한다.
     ///    안 그러면 드래그를 멈춰도 카메라가 계속 돈다.
+    ///
+    /// ⚠ 이것은 <b>배 전용</b>이다. 스틱을 흉내내는 값이라 −1 ~ 1 로 잘린다. 화면을 직접 도는
+    ///    각도가 필요하면 <see cref="CameraDragLook.ReadDegrees"/> 를 쓴다 — 자르지 않고
+    ///    프레임 시간도 곱하지 않아 로비와 같은 감각이 난다. 무쌍 카메라가 그 길로 갔다.
     /// </summary>
     private Vector2? ReadDrag()
     {

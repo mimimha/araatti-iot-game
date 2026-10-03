@@ -62,6 +62,10 @@ public class HullDamageVisual : MonoBehaviour
     private const float PlankDropHeight = 0.3f;
     private const float PlankDropSeconds = 0.15f;
 
+    /// <summary>자재를 받고 망치질을 기다리는 판자가 떠서 오르내리는 폭(m)과 빠르기(rad/초).</summary>
+    private const float PlankWaitBob = 0.05f;
+    private const float PlankWaitBobSpeed = 4f;
+
     [Header("연결 — 배치 도구가 채운다")]
     [Tooltip("비워두면 같은 오브젝트에서 찾는다.")]
     [SerializeField] private RepairTask repair;
@@ -214,6 +218,10 @@ public class HullDamageVisual : MonoBehaviour
             return;
         }
 
+        // 자재를 받았으면 **다음에 덮을 판자를 구멍 위에 띄워 둔다.** 망치질하면 그 자리에서 내려앉는다.
+        // 건넨 자재가 손에서 사라지고 구멍에는 아무것도 안 생겨서, 건넨 건지 떨어뜨린 건지 몰랐다.
+        bool waiting = repair != null && repair.HasPlank && !repair.IsRepaired;
+
         for (int i = 0; i < planks.Length; i++)
         {
             if (planks[i] == null)
@@ -221,7 +229,8 @@ public class HullDamageVisual : MonoBehaviour
                 continue;
             }
 
-            bool on = i < count;
+            bool next = waiting && i == count;
+            bool on = i < count || next;
 
             if (planks[i].activeSelf != on)
             {
@@ -236,7 +245,12 @@ public class HullDamageVisual : MonoBehaviour
             // +0.3m 에서 0.15초에 내려앉는다. -2 는 "이미 놓여 있던 것" — 연출 없이 제자리.
             float lift = 0f;
 
-            if (_plankShownAt[i] >= 0f)
+            if (next)
+            {
+                // 내려앉기 시작하는 높이(+0.3m)에 떠서 살짝 오르내린다. 치면 여기서 그대로 떨어진다.
+                lift = PlankDropHeight + PlankWaitBob * Mathf.Sin(Time.time * PlankWaitBobSpeed);
+            }
+            else if (_plankShownAt[i] >= 0f)
             {
                 float t = Mathf.Clamp01((Time.time - _plankShownAt[i]) / PlankDropSeconds);
                 lift = PlankDropHeight * (1f - EaseOut(t));

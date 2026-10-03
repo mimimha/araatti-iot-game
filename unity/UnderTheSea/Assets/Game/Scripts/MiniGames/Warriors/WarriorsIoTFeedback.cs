@@ -34,13 +34,4 @@ namespace Warriors
         }
     }
 
-    public sealed class WarriorsIoTFeedbackHub : MonoBehaviour
-    {
-        public event Action<WarriorsIoTFeedback> FeedbackRequested;
-
-        public void Request(int playerId, WarriorsIoTFeedbackType type, float intensity = 1f)
-        {
-            FeedbackRequested?.Invoke(new WarriorsIoTFeedback(playerId, type, intensity));
-        }
-    }
 }

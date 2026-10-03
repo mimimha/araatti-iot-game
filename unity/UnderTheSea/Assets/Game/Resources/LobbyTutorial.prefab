@@ -200,6 +200,7 @@ GameObject:
   - component: {fileID: 6694343926270257770}
   - component: {fileID: 5173309643303733569}
   - component: {fileID: 6761640824589547203}
+  - component: {fileID: 4718203956183377021}
   m_Layer: 0
   m_Name: LobbyTutorial
   m_TagString: Untagged
@@ -303,6 +304,21 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &4718203956183377021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3664581863554751982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 272c172833a34aa689afac87432599ed, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  move: {fileID: 21300000, guid: 46f9123ca0f4420f9b26558bbd1aefe0, type: 3}
+  look: {fileID: 21300000, guid: 776a3796fa9347b899f588646c360963, type: 3}
+  jump: {fileID: 21300000, guid: 1b63953cf8a54bd49ee981caa491f12e, type: 3}
 --- !u!1 &4226986653067517696
 GameObject:
   m_ObjectHideFlags: 0

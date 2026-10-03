@@ -41,7 +41,7 @@ namespace Mine.Net
         [SerializeField, Min(0)] private int maxAlign = 0;
 
         [Header("도안")]
-        [Tooltip("서버가 여기서 하나를 골라 모두에게 알린다. 생성 도구가 채운다.")]
+        [Tooltip("서버가 인원에 맞는 것을 하나 골라 모두에게 알린다. 생성 도구가 채운다.")]
         [SerializeField] private MineDrawingTarget[] drawings = new MineDrawingTarget[0];
 
         /// <summary>칸마다 남은 타격 수를 2비트씩 담은 것.</summary>
@@ -62,6 +62,12 @@ namespace Mine.Net
         private MineGrid _grid;
         private MineGridView _view;
         private int _shownStamp;
+
+        /// <summary>클라이언트가 지금 걸어 둔 도안 번호. 복제된 번호와 다르면 갈아 건다.</summary>
+        private int _shownDrawing = -1;
+
+        /// <summary>판을 깐 시드. 인원이 굳은 뒤 도안을 다시 고를 때도 같은 시드를 쓴다.</summary>
+        private int _seed;
 
         public override void Spawned()
         {
@@ -90,16 +96,20 @@ namespace Mine.Net
         // ------------------------------------------------------------
 
         /// <summary>
-        /// **판을 깐다.** 매치가 시작될 때 서버가 한 번 부른다.
+        /// **판을 깐다.** 대기 중에 서버가 한 번 부른다.
         ///
-        /// 돌 배치는 시드로 만들고, 도안은 목록에서 시드로 고른다. 둘 다 복제되므로
-        /// 클라이언트는 같은 판을 스스로 만들어 낼 수 있다.
+        /// 돌 배치는 시드로 만들고, 도안은 <paramref name="crew"/> 명용 중에서 시드로 고른다.
+        /// 둘 다 복제되므로 클라이언트는 같은 판을 스스로 만들어 낼 수 있다.
+        ///
+        /// 이때의 인원은 **예정 인원**이다. 실제 인원은 시작할 때 굳으므로
+        /// 그때 <see cref="ServerPickDrawing"/> 로 다시 고른다.
         /// </summary>
-        public void ServerOpenBoard(int seed)
+        public void ServerOpenBoard(int seed, int crew)
         {
             if (!HasStateAuthority || _grid == null) return;
 
-            DrawingIndex = drawings.Length > 0 ? Mathf.Abs(seed) % drawings.Length : -1;
+            _seed = seed;
+            DrawingIndex = MineDrawingTarget.PickIndex(drawings, crew, seed);
 
             if (DrawingIndex >= 0) _grid.SetTarget(drawings[DrawingIndex]);
 
@@ -108,9 +118,36 @@ namespace Mine.Net
             PublishAll();
             BoardStamp++;
 
-            Debug.Log($"[MineGridSync] 판을 깔았습니다 — 시드 {seed}, 도안 " +
-                      $"{(DrawingIndex >= 0 ? drawings[DrawingIndex].displayName : "없음")}");
+            Debug.Log($"[MineGridSync] 판을 깔았습니다 — 시드 {seed}, {crew}명 예정, 도안 {DrawingName}");
         }
+
+        /// <summary>
+        /// **실제 인원에 맞는 도안으로 다시 고른다.** 참가자가 굳을 때 서버가 부른다.
+        ///
+        /// 판은 인원이 정해지기 전에 깔린다(<c>MineMatchState.EnsureBoardOpen</c>). 들어오기로 한
+        /// 사람이 안 오면 예정 인원과 실제 인원이 달라서, 그때의 도안이 판 크기에 안 맞는다.
+        ///
+        /// ⚠ <b>돌은 다시 깔지 않는다.</b> 돌 배치는 시드만 보고 도안과는 상관없어서
+        ///   도안만 바꿔도 모두의 판이 그대로 같다. 도안은 공개(Reveal) 전까지
+        ///   화면에 안 나오므로 바꿔도 아무도 모른다.
+        /// </summary>
+        public void ServerPickDrawing(int crew)
+        {
+            if (!HasStateAuthority || _grid == null) return;
+
+            int next = MineDrawingTarget.PickIndex(drawings, crew, _seed);
+            if (next == DrawingIndex) return;
+
+            DrawingIndex = next;
+            if (DrawingIndex >= 0) _grid.SetTarget(drawings[DrawingIndex]);
+
+            Debug.Log($"[MineGridSync] 인원이 {crew}명으로 굳어 도안을 바꿨습니다 — {DrawingName}");
+        }
+
+        private string DrawingName =>
+            DrawingIndex >= 0 && DrawingIndex < drawings.Length && drawings[DrawingIndex] != null
+                ? $"{drawings[DrawingIndex].displayName} ({drawings[DrawingIndex].crew}명용)"
+                : "없음";
 
         /// <summary>
         /// **발밑을 한 번 친다.** 서버만 부른다.
@@ -219,16 +256,22 @@ namespace Mine.Net
         {
             if (HasStateAuthority || _grid == null || BoardStamp == 0) return;
 
-            // 판이 새로 깔렸다. 같은 시드로 돌을 깔고 같은 도안을 건다.
-            // 여기까지는 계산이 아니라 **재현**이다 — 서버와 같은 입력으로 같은 결과를 만든다.
-            if (_shownStamp != BoardStamp)
+            // 도안 번호가 바뀌었다. 같은 도안을 건다. 판을 깔 때와 인원이 굳을 때 두 번 바뀔 수 있다.
+            if (_shownDrawing != DrawingIndex)
             {
-                _shownStamp = BoardStamp;
+                _shownDrawing = DrawingIndex;
 
                 if (DrawingIndex >= 0 && DrawingIndex < drawings.Length)
                 {
                     _grid.SetTarget(drawings[DrawingIndex]);
                 }
+            }
+
+            // 판이 새로 깔렸다. 같은 시드로 돌을 깐다.
+            // 여기까지는 계산이 아니라 **재현**이다 — 서버와 같은 입력으로 같은 결과를 만든다.
+            if (_shownStamp != BoardStamp)
+            {
+                _shownStamp = BoardStamp;
 
                 MineMatchState match = MineMatchState.Current;
                 if (match != null) _grid.ResetAll(match.BoardSeed);

@@ -56,8 +56,46 @@ namespace Warriors.Net
     public sealed class WarriorsMatchState : NetworkBehaviour, global::MiniGames.Common.IMiniGameAdmissionSource
     {
         [Header("시작 대기")]
-        [Tooltip("이 인원이 모여야 카운트다운을 시작한다.")]
+        [Tooltip("이 인원이 모여야 카운트다운을 시작한다. 매칭이 정해 준 인원이 있으면 그쪽이 이긴다.")]
         [SerializeField, Min(1)] private int crewToStart = 2;
+
+        /// <summary>
+        /// **이번 판에 모여야 하는 인원.** 매칭이 정해 준 값이 인스펙터 값을 이긴다.
+        ///
+        /// <b>왜 인스펙터 값만으로는 안 되는가.</b> 검은 1인·2인 중에 고를 수 있다.
+        /// 1인으로 매칭된 사람이 들어왔는데 이 값이 2면 영영 시작하지 않는다.
+        /// 실제로 <c>동료를 기다리는 중 (1 / 2)</c> 에서 멈췄다.
+        ///
+        /// ⚠ <b>서버와 클라이언트가 같은 값을 봐야 한다.</b> 이 값은 대기 문구에도 쓰이는데,
+        ///    한쪽만 알면 서버는 시작하는데 화면은 계속 기다린다고 나온다.
+        ///    <see cref="MatchCrew"/> 가 양쪽에서 같은 수를 주도록 되어 있다.
+        ///
+        /// 매칭 없이 띄운 단독 실행에서는 <see cref="MatchCrew.Assigned"/> 가 0 이라
+        /// 예전처럼 인스펙터 값을 쓴다.
+        /// </summary>
+        private int RequiredCrew
+        {
+            get
+            {
+                // **개발용 -crew.** 로비 없이 띄우는 빠른 빌드에는 매칭이 없어 MatchCrew.Assigned 가
+                // 0 이고, 그러면 씬 값(2)을 봐서 혼자서는 영영 시작하지 않는다. 화면 하나 확인하려고
+                // 창을 둘 띄우는 비용이 커서 -startphase 와 같은 결로 붙였다.
+                //
+                // ⚠ **서버와 클라이언트 양쪽에 같이 준다.** 한쪽만 주면 서버는 시작하는데
+                //    화면에는 "동료를 기다리는 중" 이 남는다(위 주석과 같은 이유).
+                //    제품 실행 경로는 이 인자를 넘기지 않으므로 정상 흐름은 그대로다.
+                int dev = FusionLaunchArguments.GetInt(CrewKey, 0, 0, WarriorsPlayers.Max);
+                if (dev > 0) return dev;
+
+                return MatchCrew.Assigned > 0 ? MatchCrew.Assigned : crewToStart;
+            }
+        }
+
+        /// <summary>개발용 인원 인자. <c>-crew 1</c> 로 혼자 시작한다.</summary>
+        private const string CrewKey = "-crew";
+
+        /// <summary>개발용. <c>-startphase 3 -r3left 1</c> 이면 3라운드를 마지막 한 방만 남기고 시작한다.</summary>
+        private const string Phase3LeftKey = "-r3left";
 
         [Tooltip("인원이 모인 뒤 시작까지 세는 시간(초).")]
         [SerializeField, Min(1f)] private float countdownSeconds = 10f;
@@ -137,7 +175,14 @@ namespace Warriors.Net
         [Tooltip("크라켄을 쓰러뜨린 뒤 결과 화면까지 천천히 어두워지는 시간(초). 라운드 사이보다 길다.")]
         [SerializeField, Min(0f)] private float finaleFadeSeconds = 1.6f;
 
-        [Header("점수 — 밸런스 미확정 (WARRIORS.md 4장)")]
+        [Tooltip("크라켄이 바다 밑으로 가라앉는 것을 보여 주는 시간(초). 판 마지막에만 더한다.\n" +
+                 "가라앉는 연출(WarriorsKrakenBoss.PlayDefeatSink)이 이 시간 + 종료 문구 시간 동안 돈다.")]
+        [SerializeField, Min(0f)] private float finaleSinkSeconds = 2f;
+
+        /// <summary>크라켄이 다 가라앉을 때까지의 시간. 종료 문구가 떠 있는 동안 이미 가라앉기 시작한다.</summary>
+        public float FinaleSinkDuration => clearNoticeSeconds + finaleSinkSeconds;
+
+        [Header("점수 — 밸런스 미확정 (WARRIORS.md 3장)")]
         [Tooltip("1페이즈 몬스터 한 마리.")]
         [SerializeField, Min(0)] private int killScore = 100;
 
@@ -359,6 +404,19 @@ namespace Warriors.Net
             // 화면이 있는 쪽(클라이언트)에만 일시정지 버튼을 만든다. 서버에는 화면이 없다.
             if (!Runner.IsServer) WarriorsPauseControl.Ensure(this);
 
+            // **공용 결과 판의 [다시 하기] 에 우리 새 판 시작을 붙인다.**
+            //
+            // 공용 판은 세 게임이 같이 쓰므로 무쌍을 알지 못한다. 그래서 "나는 새 판을
+            // 시작할 수 있다" 를 이쪽에서 등록한다. 포탈로 들어온 판에서는 공용 판이
+            // 등록돼 있어도 쓰지 않는다 — 그 판단은 공용 판이 한다.
+            //
+            // ⚠ 씬을 벗어날 때 Despawned 에서 반드시 떼어 낸다. 정적이라 남으면
+            //    다음 씬의 결과 판이 이미 사라진 이 판에 새 판을 요청한다.
+            if (!Runner.IsServer)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = RequestRestartFromResultPanel;
+            }
+
             if (!HasStateAuthority) return;
 
             Phase = WarriorsMatchPhase.Waiting;
@@ -375,13 +433,37 @@ namespace Warriors.Net
             Phase3Target = phase3TargetRhythmHits;
 
             Debug.Log(
-                $"[WarriorsMatch] 매치 준비 — {crewToStart}명 대기, 목표 " +
+                $"[WarriorsMatch] 매치 준비 — {RequiredCrew}명 대기, 목표 " +
                 $"{Phase1Target}/{Phase2Target}/{Phase3Target}");
+        }
+
+        /// <summary>
+        /// 공용 결과 판의 [다시 하기] 가 부른다. <b>서버에 새 판을 부탁한다.</b>
+        ///
+        /// 씬을 다시 열지 않는다 — 판의 상태는 전부 <c>[Networked]</c> 값이라
+        /// <see cref="Rpc_RequestRestart"/> 가 그것만 처음 값으로 돌리면 된다.
+        /// </summary>
+        private void RequestRestartFromResultPanel()
+        {
+            if (Object == null || !Object.IsValid)
+            {
+                Debug.LogWarning("[WarriorsMatch] 이미 사라진 판에 다시 하기가 들어왔습니다. 무시합니다.");
+                return;
+            }
+
+            Rpc_RequestRestart();
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             if (Current == this) Current = null;
+
+            // ⚠ 정적이라 씬이 바뀌어도 남는다. 떼어 내지 않으면 다음 씬의 결과 판이
+            //    이미 사라진 이 판에 새 판을 요청한다.
+            if (MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler == RequestRestartFromResultPanel)
+            {
+                MiniGames.Common.UI.MiniGameResultOverlay.RestartHandler = null;
+            }
 
             // 멈춘 채로 세션이 끝나면 시간을 되돌려 놓는다. 남겨 두면 다음 판이 멈춘 채 시작한다.
             if (holdingTime)
@@ -611,12 +693,21 @@ namespace Warriors.Net
             Phase3Hits++;
             Score += rhythmScore;
 
-            if (Phase3Hits < Phase3Target) return;
+            if (Phase3Hits < Phase3Target || AwaitingLastNotes) return;
 
             // ⚠ **합동 결정타는 없다.** 한때 목표를 채운 뒤 "둘이 함께 치는 한 방" 을 더 요구했는데,
             //    크라켄 체력이 이미 0 인데도 판이 끝나지 않고 결정타를 기다리며 멈춰 있었다.
-            //    목표를 채우면 그대로 클리어다.
-            ClearMatch();
+            //
+            // 지금 기다리는 것은 **이미 떨어지고 있던 노트뿐**이다. 목표를 채우는 순간 판을 닫으면
+            // 화면에 남은 화살표가 그대로 사라져 "치다 말았는데 끝났다" 가 된다.
+            // 위 사고를 되풀이하지 않도록 <see cref="lastNotesGraceSeconds"/> 로 **반드시 시간을 끊는다** —
+            // 노트가 어떤 이유로든 정리되지 않아도 그 시간이 지나면 클리어한다.
+            AwaitingLastNotes = true;
+            lastNotesGrace = TickTimer.CreateFromSeconds(Runner, lastNotesGraceSeconds);
+
+            Debug.Log(
+                $"[WarriorsMatch] 3페이즈 목표 달성. 떨어지던 노트가 정리되면 클리어합니다 " +
+                $"(최대 {lastNotesGraceSeconds:F1}초).");
         }
 
         /// <summary>
@@ -630,6 +721,39 @@ namespace Warriors.Net
         /// 어두워지는 시간은 라운드 사이보다 길다(<see cref="finaleFadeSeconds"/>) — 판이 끝나는
         /// 자리라 다음 라운드로 넘어갈 때처럼 서둘 이유가 없다.
         /// </summary>
+        /// <summary>
+        /// 3페이즈 목표를 채웠고, <b>이미 떨어지고 있던 노트</b>가 정리되기를 기다리는 중이다.
+        ///
+        /// 이 동안 무대는 그대로 열려 있어 남은 화살표를 끝까지 칠 수 있다.
+        /// <c>WarriorsPhase3Director</c> 는 이 값을 보고 <b>새 묶음을 더 내지 않고, 놓쳐도 피해를 주지 않는다</b> —
+        /// 이미 이긴 판에서 마지막 노트를 놓쳐 쓰러지면 이겼다가 지는 일이 생긴다.
+        /// </summary>
+        public bool AwaitingLastNotes { get; private set; }
+
+        private TickTimer lastNotesGrace;
+
+        /// <summary>남은 노트를 기다리는 **최대** 시간. 지나면 노트가 남아 있어도 클리어한다.</summary>
+        [Tooltip("3페이즈 목표를 채운 뒤 떨어지던 노트를 기다리는 최대 시간(초). 판이 멈추지 않게 반드시 끊는다.")]
+        [SerializeField, Range(0f, 10f)] private float lastNotesGraceSeconds = 4f;
+
+        /// <summary>떨어지던 노트가 다 정리됐거나 유예가 끝났으면 그때 판을 닫는다.</summary>
+        private void ClearWhenLastNotesSettled()
+        {
+            WarriorsPhase3Director rhythm = WarriorsPhase3Director.Current;
+            bool stillFalling = rhythm != null && rhythm.HasFallingNotes;
+
+            if (stillFalling && !lastNotesGrace.Expired(Runner)) return;
+
+            if (stillFalling)
+            {
+                Debug.LogWarning(
+                    $"[WarriorsMatch] 노트가 {lastNotesGraceSeconds:F1}초 안에 정리되지 않아 그대로 클리어합니다.");
+            }
+
+            AwaitingLastNotes = false;
+            ClearMatch();
+        }
+
         private void ClearMatch()
         {
             if (Phase == WarriorsMatchPhase.Cleared || PendingPhase != 0) return;
@@ -638,7 +762,8 @@ namespace Warriors.Net
 
             PendingPhase = (int)WarriorsMatchPhase.Cleared;
             ClearedRound = 3;
-            ClearHoldSeconds = clearNoticeSeconds + finaleFadeSeconds;
+            // 종료 문구 → 크라켄이 가라앉는 시간 → 어두워지는 시간. 가라앉는 동안 화면이 천천히 어두워진다.
+            ClearHoldSeconds = clearNoticeSeconds + finaleSinkSeconds + finaleFadeSeconds;
             ClearHoldTimer = TickTimer.CreateFromSeconds(Runner, ClearHoldSeconds);
 
             Debug.Log(
@@ -874,6 +999,9 @@ namespace Warriors.Net
 
             /// <summary>무적을 켜고 끈다.</summary>
             ToggleInvincible = 3,
+
+            /// <summary>판을 지금 끝내고 성공 결과 화면을 띄운다. 배 게임의 G(바로 도착)와 같은 자리다.</summary>
+            ForceClear = 4,
         }
 
         /// <summary>
@@ -887,6 +1015,17 @@ namespace Warriors.Net
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         public void Rpc_DevCommand(DevCommand command, int amount, RpcInfo info = default)
         {
+            // ⚠ 서버가 -devmode 없이 떴으면 듣지 않는다. 클라이언트만 막으면 누구든 실행 인자
+            //    한 줄로 열 수 있다. 이 RPC 자체는 #if 로 감싸지 않는다 — Fusion 은 RPC 에 컴파일 때
+            //    번호를 매겨서, 한쪽 빌드에만 있으면 클라이언트와 서버의 번호가 어긋난다.
+            if (!UnderTheSea.Core.DevMode.Enabled)
+            {
+                Debug.LogWarning(
+                    $"[Warriors 개발자] {info.Source} 의 '{command}' 가 왔지만 이 서버는 " +
+                    $"{UnderTheSea.Core.DevMode.Key} 없이 떴습니다. 실행하지 않습니다.");
+                return;
+            }
+
             if (IsOver || !HasStarted)
             {
                 Debug.Log($"[Warriors 개발자] {info.Source} 의 '{command}' 를 무시합니다. (지금 {Phase})");
@@ -911,7 +1050,35 @@ namespace Warriors.Net
                     Invincible = !Invincible;
                     Debug.Log($"[Warriors 개발자] 무적 {(Invincible ? "켜짐" : "꺼짐")}");
                     break;
+
+                case DevCommand.ForceClear:
+                    ForceClear();
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 지금 판을 성공으로 끝낸다. **어느 라운드에서든 곧바로 결과 화면이 뜬다.**
+        ///
+        /// 결과 화면을 직접 띄우지 않고 판을 <c>Cleared</c> 로 닫는다. 그러면 결과 확정 · 결과 화면 ·
+        /// 보상 청구가 실제로 이긴 판과 같은 길로 돈다(<see cref="WriteResultWhenFinished"/>).
+        /// 점수는 그때까지 번 그대로 둔다.
+        ///
+        /// ⚠ 크라켄이 가라앉는 승리 연출(<see cref="ClearMatch"/>)은 거치지 않는다. 1 · 2라운드에서는
+        ///    최종 크라켄 무대가 없고, "바로 성공" 이 목적이라 5초 연출을 기다리지 않는다.
+        ///    연출까지 보려면 3라운드에서 <c>-</c> 로 목표를 채운다.
+        /// </summary>
+        private void ForceClear()
+        {
+            Debug.Log($"[Warriors 개발자] {RoundOf(Phase)}페이즈에서 바로 성공으로 끝냅니다.");
+
+            AwaitingLastNotes = false;
+            TimeLeft = 0f;
+
+            // 결과 화면의 "도달 라운드" 가 성공인데 1 · 2 로 찍히지 않게 끝까지 간 것으로 적는다.
+            ReachedRound = 3;
+
+            OpenPhase(WarriorsMatchPhase.Cleared);
         }
 
         /// <summary>페이즈를 한 칸 옮긴다. 1~3 밖으로는 나가지 않는다.</summary>
@@ -1000,10 +1167,14 @@ namespace Warriors.Net
             // 멈춘 동안에는 판이 흐르지 않는다. 쓰러짐 판정도 시작 판정도 쉰다.
             if (IsPaused) return;
 
+            // 목표는 채웠고 떨어지던 노트만 마저 치는 중이다.
+            if (AwaitingLastNotes) ClearWhenLastNotesSettled();
+
             // 두 명 모두 쓰러지면 거기서 끝이다. 시작 전이면 아직 아무도 없으므로 지나간다.
             // ⚠ **이미 이긴 판은 뒤집히지 않는다.** 크라켄을 쓰러뜨린 뒤 승리 연출이 도는 동안
             //    남은 촉수 공격에 둘 다 쓰러지면 이겼다가 지는 일이 생긴다.
-            if (HasStarted && PendingPhase != (int)WarriorsMatchPhase.Cleared && EveryoneDown())
+            //    목표를 채우고 마지막 노트를 기다리는 동안(AwaitingLastNotes)도 마찬가지다.
+            if (HasStarted && PendingPhase != (int)WarriorsMatchPhase.Cleared && !AwaitingLastNotes && EveryoneDown())
             {
                 Fail(1);
                 Debug.Log($"[WarriorsMatch] 두 명 모두 쓰러졌습니다. 매치 실패. (경과 {Elapsed:F1}초)");
@@ -1070,7 +1241,7 @@ namespace Warriors.Net
         /// </summary>
         private void UpdateStartGate()
         {
-            if (Crew < crewToStart)
+            if (Crew < RequiredCrew)
             {
                 if (Phase == WarriorsMatchPhase.Countdown)
                 {
@@ -1124,6 +1295,21 @@ namespace Warriors.Net
             // "촉수 0 / 22" 를 보여 주면서 3라운드를 돌리게 되고, 결과 화면의 기록도 어긋난다.
             if (opening >= WarriorsMatchPhase.Phase2) Phase1Kills = Phase1Target;
             if (opening >= WarriorsMatchPhase.Phase3) Phase2Hits = Phase2Target;
+
+            // **개발용 -r3left N.** 3라운드를 "N번만 더 맞히면 끝" 인 상태로 시작한다.
+            // 크라켄을 쓰러뜨리는 마지막 장면(가라앉기 · 결과 화면)을 확인하려고 매번 3라운드를
+            // 끝까지 치는 비용이 커서 -startphase 3 과 함께 쓰도록 붙였다. 인자가 없으면 아무 일도 없다.
+            if (opening == WarriorsMatchPhase.Phase3)
+            {
+                int left = FusionLaunchArguments.GetInt(Phase3LeftKey, 0, 0, Phase3Target);
+                if (left > 0)
+                {
+                    Phase3Hits = Phase3Target - left;
+                    Debug.LogWarning(
+                        $"[WarriorsMatch] 개발용 {Phase3LeftKey} {left} — 3라운드를 {left}번만 더 맞히면 끝나는 상태로 시작합니다. " +
+                        "제품 실행에서는 이 인자를 주지 마세요.");
+                }
+            }
 
             Debug.Log(
                 $"[WarriorsMatch] 카운트다운이 끝났습니다. {RoundOf(opening)}페이즈 시작. " +
@@ -1197,6 +1383,16 @@ namespace Warriors.Net
             {
                 if (one == null || !one.IsLive || !one.IsDown) continue;
 
+                // ⚠ **쓰러진 사람의 화면에만 띄운다.**
+                //
+                //    예전에는 누가 쓰러지든 두 화면 모두에 떴다. 멀쩡히 싸우고 있는 사람에게
+                //    "플레이어가 쓰러졌습니다" 가 뜨면 **자기가 쓰러진 줄 안다.** 그렇다고
+                //    "1P 가" 처럼 번호를 붙이는 것도 안 된다 — 확정 문구에 P1/P2 표기는 없다.
+                //
+                //    남은 사람이 할 수 있는 일도 없다. 구조·부활은 규칙에서 빠졌다.
+                //    그러니 알릴 이유가 있는 것은 당사자뿐이다.
+                if (one.Object == null || !one.Object.HasInputAuthority) continue;
+
                 return "플레이어가 쓰러졌습니다.";
             }
 
@@ -1248,6 +1444,29 @@ namespace Warriors.Net
             }
 
             return -1f;
+        }
+
+        /// <summary>
+        /// **이 화면 주인의 콤보.** 서버가 센 값을 그대로 읽는다.
+        ///
+        /// 콤보는 판이 아니라 사람마다 다른 값이라 <see cref="WarriorsNetPlayerCombat"/> 에
+        /// 복제해 두었다. 여기서는 <b>내 캐릭터</b>의 것만 골라 HUD 에 넘긴다 —
+        /// 남의 콤보를 내 화면에 띄우면 안 된다.
+        ///
+        /// ⚠ 서버에서는 <c>HasInputAuthority</c> 인 캐릭터가 없어 0 이다. 서버에는 HUD 도 없다.
+        /// </summary>
+        private int LocalCombo()
+        {
+            foreach (WarriorsNetPlayerCombat one in FindObjectsByType<WarriorsNetPlayerCombat>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (one == null || one.Object == null || !one.Object.IsValid) continue;
+                if (!one.Object.HasInputAuthority) continue;
+
+                return one.Combo;
+            }
+
+            return 0;
         }
 
         /// <summary>쓰러진 레인을 비트로 모은다. 0번 자리가 1P.</summary>
@@ -1312,6 +1531,7 @@ namespace Warriors.Net
             hud.NetworkObjective = ObjectiveFor(Phase);
             hud.NetworkObjectiveProgress = ProgressFor(Phase);
             hud.NetworkScore = Score;
+            hud.NetworkCombo = LocalCombo();
             hud.NetworkKills = Phase1Kills;
             hud.NetworkElapsedSeconds = Elapsed;
             hud.NetworkFinal = Phase == WarriorsMatchPhase.Cleared ? 1 : Phase == WarriorsMatchPhase.Failed ? 2 : 0;
@@ -1335,6 +1555,10 @@ namespace Warriors.Net
                 : clearNoticeSeconds + transitionGapSeconds;
             hud.NetworkClearedRound = InClearHold ? ClearedRound : 0;
 
+            // 크라켄을 쓰러뜨린 뒤에는 가라앉는 장면을 밝게 보여 주고, 그 다음에 어두워진다.
+            bool finale = ClearedRound == 3 && PendingPhase == (int)WarriorsMatchPhase.Cleared;
+            hud.NetworkFadeStartSeconds = finale ? FinaleSinkDuration : -1f;
+
         }
 
         /// <summary>상단 가운데 막대의 글. 1페이즈 처치 수 · 2페이즈 촉수 수. 3페이즈는 리듬 화면이 따로 그린다.</summary>
@@ -1342,8 +1566,13 @@ namespace Warriors.Net
         {
             switch (phase)
             {
+                // 목표는 카운트다운이 끝나는 순간 인원수로 정해진다(Phase1GoalFor). 그 전의
+                // Phase1Target 은 혼자 기준 초기값(30)이라 "0 / 30" 이 보였다가 "0 / 50" 으로
+                // 바뀌었다. 정해지기 전에는 숫자를 내지 않는다.
                 case WarriorsMatchPhase.Waiting:
                 case WarriorsMatchPhase.Countdown:
+                    return "처치 수   -- / --";
+
                 case WarriorsMatchPhase.Phase1:
                     return $"처치 수   {Phase1Kills} / {Phase1Target}";
 
@@ -1386,7 +1615,7 @@ namespace Warriors.Net
             switch (phase)
             {
                 case WarriorsMatchPhase.Waiting:
-                    return $"동료를 기다리는 중  ({Crew} / {crewToStart})";
+                    return $"동료를 기다리는 중  ({Crew} / {RequiredCrew})";
 
                 case WarriorsMatchPhase.Countdown:
                     return $"{Mathf.CeilToInt(Countdown)}초 뒤 시작";

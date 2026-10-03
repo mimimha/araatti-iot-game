@@ -20039,6 +20039,7 @@ GameObject:
   - component: {fileID: 6178456451956954230}
   - component: {fileID: 2986264179902930902}
   - component: {fileID: 523727786250075615}
+  - component: {fileID: 1732732722807281933}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -20132,6 +20133,14 @@ MonoBehaviour:
   yaw: 0
   pitch: 15
   playerControllerSource: {fileID: 0}
+--- !u!81 &1732732722807281933
+AudioListener:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3714544799910830952}
+  m_Enabled: 1
 --- !u!1 &3726278156114146338
 GameObject:
   m_ObjectHideFlags: 0

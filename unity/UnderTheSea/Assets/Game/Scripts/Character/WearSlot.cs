@@ -16,6 +16,8 @@ namespace UnderTheSea.Character
     ///   · <c>WearSlot</c>        — 몸의 자리. 13가지. 파츠끼리 서로를 가리는지 판단할 때 쓴다
     ///   · 스냅샷의 <c>slot</c>   — 커마 화면의 카테고리 이름. 6가지 (Face/Hair/Top/Bottom/Shoes/Accessory)
     ///   한 카테고리가 여러 WearSlot 을 담는다. (예: Accessory 에 Hat · Glasses 가 함께 들어간다)
+    ///   ⚠ 단, Accessory 의 Hat · Glasses · FaceAccessory 는 함께 입을 수 있어서 저장할 때
+    ///      slot 에 카테고리 대신 이 자리 이름을 쓴다. (<see cref="CharacterPartCatalog.SnapshotSlotOf"/>)
     ///
     /// 문서: docs/prd/fusion-dedicated-lobby-roadmap.md (PRD 09-1)
     /// </summary>

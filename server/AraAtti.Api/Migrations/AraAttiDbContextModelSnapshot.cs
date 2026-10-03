@@ -22,6 +22,90 @@ namespace AraAtti.Api.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("AraAtti.Api.Entities.AltarContribution", b =>
+                {
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ulong>("Id"));
+
+                    b.Property<uint>("Amount")
+                        .HasColumnType("int unsigned")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("request_id");
+
+                    b.Property<ulong>("UserId")
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_contributions_user");
+
+                    b.HasIndex("UserId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("uk_contributions_user_request");
+
+                    b.ToTable("altar_contributions", (string)null);
+                });
+
+            modelBuilder.Entity("AraAtti.Api.Entities.AltarState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ActivatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("activated_at");
+
+                    b.Property<uint>("TargetOffering")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int unsigned")
+                        .HasDefaultValue(1000u)
+                        .HasColumnName("target_offering");
+
+                    b.Property<ulong>("TotalOffered")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint unsigned")
+                        .HasDefaultValue(0ul)
+                        .HasColumnName("total_offered");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("altar_state", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_altar_target_positive", "`target_offering` > 0");
+
+                            t.HasCheckConstraint("ck_altar_total_le_target", "`total_offered` <= `target_offering`");
+
+                            t.HasCheckConstraint("ck_altar_total_nonneg", "`total_offered` >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            TargetOffering = 1000u,
+                            TotalOffered = 0ul,
+                            UpdatedAt = new DateTime(2026, 9, 20, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("AraAtti.Api.Entities.Character", b =>
                 {
                     b.Property<ulong>("Id")
@@ -110,6 +194,85 @@ namespace AraAtti.Api.Migrations
                     b.ToTable("character_parts", (string)null);
                 });
 
+            modelBuilder.Entity("AraAtti.Api.Entities.PlayerInventoryItem", b =>
+                {
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ulong>("Id"));
+
+                    b.Property<string>("ItemId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("item_id");
+
+                    b.Property<uint>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int unsigned")
+                        .HasDefaultValue(0u)
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<ulong>("UserId")
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ItemId")
+                        .IsUnique()
+                        .HasDatabaseName("uk_inventory_user_item");
+
+                    b.ToTable("player_inventories", (string)null);
+                });
+
+            modelBuilder.Entity("AraAtti.Api.Entities.RewardClaim", b =>
+                {
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ulong>("Id"));
+
+                    b.Property<DateTime>("ClaimedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("claimed_at");
+
+                    b.Property<string>("GameId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)")
+                        .HasColumnName("game_id");
+
+                    b.Property<string>("MatchKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)")
+                        .HasColumnName("match_key");
+
+                    b.Property<ulong>("UserId")
+                        .HasColumnType("bigint unsigned")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ClaimedAt")
+                        .HasDatabaseName("idx_claims_user_time");
+
+                    b.HasIndex("UserId", "MatchKey")
+                        .IsUnique()
+                        .HasDatabaseName("uk_claims_user_match");
+
+                    b.ToTable("reward_claims", (string)null);
+                });
+
             modelBuilder.Entity("AraAtti.Api.Entities.User", b =>
                 {
                     b.Property<ulong>("Id")
@@ -148,6 +311,18 @@ namespace AraAtti.Api.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("AraAtti.Api.Entities.AltarContribution", b =>
+                {
+                    b.HasOne("AraAtti.Api.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_contributions_user");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("AraAtti.Api.Entities.Character", b =>
                 {
                     b.HasOne("AraAtti.Api.Entities.User", "User")
@@ -170,6 +345,30 @@ namespace AraAtti.Api.Migrations
                         .HasConstraintName("fk_parts_character");
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("AraAtti.Api.Entities.PlayerInventoryItem", b =>
+                {
+                    b.HasOne("AraAtti.Api.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_user");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AraAtti.Api.Entities.RewardClaim", b =>
+                {
+                    b.HasOne("AraAtti.Api.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_claims_user");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AraAtti.Api.Entities.Character", b =>

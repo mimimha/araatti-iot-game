@@ -90,14 +90,12 @@ namespace UnderTheSea.Character
             bool skin = activeCategory == Category.BodyColor;
             Color selectedFill = new Color(1f, .89f, .72f, 1f);
             Color normalFill = new Color(1f, 246f / 255f, 224f / 255f, 1f);
-            selectedOptions.TryGetValue(activeCategory, out int selected);
-            bool hasSelection = selectedOptions.ContainsKey(activeCategory);
             for (int i = 0; i < optionButtons.Length; i++)
             {
                 if (!optionButtons[i].gameObject.activeSelf) continue;
+                // 입고 있는 것은 전부 표시한다. 모자와 안경을 함께 쓰면 두 칸 다 선택으로 보인다.
                 bool chosen = skin ? skinColors[i] == currentSkinColor
-                    : hasSelection && i < visiblePartIndices.Count && selected == visiblePartIndices[i]
-                        && IsCatalogPartEquipped(GetActiveCollection().partPrefabs[visiblePartIndices[i]]);
+                    : i < visiblePartIndices.Count && IsOptionWorn(activeCategory, visiblePartIndices[i]);
                 optionButtons[i].image.color = skin ? skinColors[i] : chosen ? selectedFill : normalFill;
                 if (!skin && i < optionImages.Length && optionImages[i] != null)
                     optionImages[i].color = chosen ? new Color(1f, .94f, .86f, 1f) : Color.white;

@@ -44,8 +44,28 @@ public class LocalPlayerView : NetworkBehaviour
     [SerializeField] private string mouseY = "Mouse Y";
     [SerializeField] private string mouseScroll = "Mouse ScrollWheel";
 
+    [Header("IoT")]
+    [Tooltip("IPlayerController 를 구현한 컴포넌트. 비워두면 게임 내내 하나인 완드(IotPlayerController.Persistent)를 쓴다.")]
+    [SerializeField] private MonoBehaviour playerControllerSource;
+
+    /// <remarks>
+    /// ⚠ **도(°)가 아니다.** 카메라(<c>PlayerCamera.SetInput</c>)가 여기에 감도 × 360 을 한 번 더 곱한다.
+    /// 로비 카메라 감도가 0.01 이라 실제 초당 각도는 <c>값 × 3.6</c> 이다.
+    ///
+    ///     120 → 초당 432도   너무 빨랐다
+    ///      25 → 초당  90도   배 협동 카메라(ShipCoopCamera.rotateSpeed 90)와 같은 체감
+    ///
+    /// 로비 씬에서 카메라 감도(m_SensitivityX · Y)를 바꾸면 이 값의 체감도 같이 바뀐다.
+    /// </remarks>
+    [Tooltip("완드 오른손 스틱을 끝까지 밀었을 때의 회전 입력. 카메라 감도 × 360 이 곱해져 실제 초당 각도가 된다 — " +
+             "로비(감도 0.01)에서 25 가 초당 90도로 배 협동과 같다. 마우스 감도와 따로 맞춘다.")]
+    [SerializeField, Min(1f)] private float wandLookSpeed = 25f;
+
     /// <summary>내가 조작하는 카메라. 남의 캐릭터·서버에서는 null 로 남는다.</summary>
     private PlayerCamera boundCamera;
+
+    /// <summary>완드. 서버 빌드에서는 null 이고, 그때는 예전처럼 마우스만 읽는다.</summary>
+    private IPlayerController wand;
 
     /// <summary>
     /// 이 인스턴스가 <b>내 캐릭터</b>로 확정됐는가.
@@ -107,6 +127,9 @@ public class LocalPlayerView : NetworkBehaviour
         //    (ThirdPersonCamera 는 대상이 없는 동안 움직이지 않도록 고쳐 두었다)
         if (boundCamera is ThirdPersonCamera thirdPerson)
         {
+            // 캐릭터가 보는 방향 뒤에 선다. 미니게임에서 돌아와 포탈을 등지고 섰을 때
+            // 포탈에서 걸어 나온 모습이 된다. 처음 로그인 자리는 모두 북쪽을 보므로 예전과 같다.
+            thirdPerson.FaceYaw(transform.eulerAngles.y);
             thirdPerson.SnapToPlayer();
         }
 
@@ -155,6 +178,46 @@ public class LocalPlayerView : NetworkBehaviour
             // 사라진 캐릭터를 계속 따라가지 않게 풀어 준다.
             boundCamera.BindPlayer(null);
             boundCamera = null;
+        }
+    }
+
+    /// <summary>
+    /// **카메라를 그 자리에 얼리거나 다시 풀어 준다.** 순간이동 연출이 쓴다.
+    ///
+    /// <b>왜 필요한가.</b> 이정표로 옮길 때 캐릭터는 한 틱 만에 도착하지만 카메라는
+    /// 초당 90 유닛으로 뒤따라간다(<c>ThirdPersonCamera.m_CameraSpeed</c>). 화면을
+    /// 가려도 <b>어두워지는 동안</b> 카메라가 이미 날아가기 시작하므로 그 움직임이
+    /// 보인다. 어두워지기 시작할 때 얼려 두면 없어진다.
+    ///
+    /// <c>enabled</c> 를 끄면 <c>LateUpdate</c> 가 멈춰 카메라가 제자리에 선다.
+    /// <c>SetInput</c> 과 <see cref="SnapCameraToMe"/> 는 꺼져 있어도 부를 수 있다.
+    /// </summary>
+    /// <summary>
+    /// 내 카메라가 달린 곳. 없으면 null.
+    ///
+    /// <see cref="FreezeCamera"/> 로 얼린 동안에만 옮긴다 — 안 얼리면 다음 프레임에 캐릭터 뒤로 끌려간다.
+    /// 제단 봉헌 연출이 공중 시점을 잡을 때 쓴다. 끝나면 <see cref="SnapCameraToMe"/> 로 되돌린다.
+    /// </summary>
+    public Transform CameraTransform => boundCamera != null ? boundCamera.transform : null;
+
+    public void FreezeCamera(bool frozen)
+    {
+        if (boundCamera != null)
+        {
+            boundCamera.enabled = !frozen;
+        }
+    }
+
+    /// <summary>
+    /// **카메라를 내 캐릭터 뒤 제자리로 즉시 옮긴다.** 보간하지 않는다.
+    ///
+    /// 화면이 까만 동안 불러야 뜻이 있다. 밝은 동안 부르면 화면이 툭 끊긴다.
+    /// </summary>
+    public void SnapCameraToMe()
+    {
+        if (boundCamera is ThirdPersonCamera thirdPerson)
+        {
+            thirdPerson.SnapToPlayer();
         }
     }
 
@@ -392,12 +455,44 @@ public class LocalPlayerView : NetworkBehaviour
         //    좌클릭은 그 화면 요소들이 써야 하므로 우클릭으로 잡는다.
         bool dragging = Input.GetMouseButton(1);
 
+        // 상하는 부호를 뒤집어 넘긴다.
+        //
+        // ThirdPersonCamera 는 delta.y 를 그대로 pitch 에 더하는데, pitch 가 커지면
+        // 카메라가 주시점 **위로** 올라가 아래를 내려다본다. 그래서 그대로 넘기면
+        // 마우스를 위로 끌 때 화면이 아래를 향한다(비행 시뮬 방식).
+        // 끈 쪽을 보게 하려면 여기서 뒤집는 수밖에 없다.
         Vector2 delta = dragging
-            ? new Vector2(Input.GetAxis(mouseX), Input.GetAxis(mouseY))
+            ? new Vector2(Input.GetAxis(mouseX), -Input.GetAxis(mouseY))
             : Vector2.zero;
 
-        // 확대·축소는 버튼과 무관하다. 휠은 언제나 그대로 넘긴다.
-        boundCamera.SetInput(in delta, Input.GetAxis(mouseScroll));
+        // 완드의 오른손 스틱도 같은 자리로 더한다. 완드가 안 붙어 있으면 건너뛰어 예전과 같다.
+        //
+        // ⚠ **완드가 실제로 붙어 있을 때만 더한다.** (IsWandLive) 완드가 없으면
+        //   IotPlayerController 가 오른손 스틱을 우클릭 드래그로 대신 채워서, 위 마우스 경로와
+        //   같은 드래그가 두 번 들어가 화면이 두 배로 돈다.
+        //
+        // ⚠ **마우스와 단위가 다르다.** 마우스는 이번 프레임에 움직인 양이 그대로 오지만
+        //   스틱은 기울인 채로 −1 ~ 1 에 머물러 있는 값이다. 그대로 넘기면 프레임이 빠른
+        //   기계에서만 빨리 돈다. 그래서 초당 각도로 바꿔서 넘긴다.
+        //
+        // ⚠ 상하 부호는 마우스와 같은 이유로 뒤집는다. (바로 위 주석)
+        //
+        // ⚠ 춤 휠이 열린 동안에는 오른손 스틱이 칸을 고른다(IotLobbyInteract). 화면까지 돌면 안 된다.
+        IPlayerController device = ResolveWand();
+        if (IotPlayerController.IsWandLive(device) && !ChatFocus.Typing && !UnderTheSea.Lobby.Dance.DanceWheelView.IsOpen)
+        {
+            Vector2 look = device.Look;
+            delta += new Vector2(look.x, -look.y) * (wandLookSpeed * Time.deltaTime);
+        }
+
+        // 확대·축소는 버튼과 무관하다. 휠은 누르지 않고도 늘 먹는다.
+        //
+        // ⚠ 다만 **화면이 휠을 쓰고 있으면 비켜 준다.** 채팅 기록 위에서 지난 대화를
+        //    올려 읽는 동안 화면까지 줌되면 둘 다 제대로 안 된다.
+        //    채팅이 있는지는 여기서 몰라도 된다. ChatFocus 한 곳만 본다.
+        float zoom = ChatFocus.WheelHeld ? 0f : Input.GetAxis(mouseScroll);
+
+        boundCamera.SetInput(in delta, zoom);
 
         if (LogCamera && Time.time >= nextCameraLogTime)
         {
@@ -411,5 +506,23 @@ public class LocalPlayerView : NetworkBehaviour
                 $"추적대상 {(tracked == null ? "null" : tracked.name + tracked.position.ToString("F2"))} / " +
                 $"거리 {Vector3.Distance(cam.position, transform.position):F2}");
         }
+    }
+
+    /// <summary>
+    /// 완드를 쥐어 둔다. 서버 빌드에서는 null 이고 카메라는 예전처럼 마우스로만 돈다.
+    ///
+    /// ⚠ <b>KeyboardPlayerController 를 여기 꽂지 않는다.</b> 그것은 오른손 스틱을
+    ///   <b>마우스 우클릭 드래그로</b> 채운다. 같은 드래그가 위의 마우스 경로와
+    ///   여기로 두 번 들어가 화면이 두 배로 돈다. 완드 경로를 장치 없이 확인해야 할 때만
+    ///   인스펙터에 직접 지정한다.
+    /// </summary>
+    private IPlayerController ResolveWand()
+    {
+        if (wand == null)
+        {
+            wand = playerControllerSource as IPlayerController ?? IotPlayerController.Persistent;
+        }
+
+        return wand;
     }
 }

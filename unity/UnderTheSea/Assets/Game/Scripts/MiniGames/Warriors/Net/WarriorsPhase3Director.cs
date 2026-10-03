@@ -229,6 +229,36 @@ namespace Warriors.Net
         /// <summary>이 화면이 크라켄을 켜 두었는가. 새 판으로 돌아갈 때 끄는 데 쓴다.</summary>
         private bool shownKraken;
 
+        /// <summary>이번 판의 승리 연출(크라켄이 가라앉기)을 이미 틀었는가. 한 판에 한 번만.</summary>
+        private bool shownDefeatSink;
+
+        /// <summary>
+        /// **3라운드를 깬 순간 크라켄을 바다 밑으로 가라앉힌다.** 각 화면이 복제된 판 상태를 보고 튼다.
+        ///
+        /// 서버가 크라켄을 쓰러뜨리면 <c>PendingPhase = Cleared</c> · <c>ClearedRound = 3</c> 으로 결과까지
+        /// 붙잡아 두는 구간이 열린다. 그 구간이 보이기 시작한 첫 프레임에 한 번 튼다.
+        /// 새 판으로 돌아가면(판이 끝난 상태가 아니면) 다시 틀 수 있게 풀어 둔다.
+        /// </summary>
+        private void DriveDefeatSink()
+        {
+            if (HasStateAuthority || match == null || kraken == null) return;
+            if (match.Object == null || !match.Object.IsValid) return;
+
+            bool finale = match.ClearedRound == 3
+                && (match.Phase == WarriorsMatchPhase.Cleared || match.PendingPhase == (int)WarriorsMatchPhase.Cleared);
+
+            if (finale && !shownDefeatSink)
+            {
+                shownDefeatSink = true;
+                // 카메라는 흔들지 않는다. 조용히 잠기는 장면이라 흔들면 "터진" 것처럼 보였다.
+                kraken.PlayDefeatSink(match.FinaleSinkDuration);
+            }
+            else if (!finale && !match.IsOver)
+            {
+                shownDefeatSink = false;
+            }
+        }
+
         /// <summary>이 화면의 카메라. 흔들 때만 쓴다. 서버에는 없다.</summary>
         private WarriorsThirdPersonCamera arenaCamera;
 
@@ -428,6 +458,9 @@ namespace Warriors.Net
         {
             if (!patternOpen)
             {
+                // 목표를 이미 채웠다 — 떨어지던 노트만 마저 치는 중이므로 새 묶음을 내지 않는다.
+                if (match.AwaitingLastNotes) return;
+
                 if (Runner.Tick < nextPatternTick) return;
 
                 SpawnPattern();
@@ -451,6 +484,12 @@ namespace Warriors.Net
 
             SettlePattern();
         }
+
+        /// <summary>
+        /// 아직 떨어지고 있는(판정되지 않은) 노트가 있는가.
+        /// <c>WarriorsMatchState</c> 가 목표를 채운 뒤 **이것이 false 가 될 때까지** 판을 닫지 않는다.
+        /// </summary>
+        public bool HasFallingNotes => !AllNotesResolved();
 
         /// <summary>떠 있는 노트 중 아직 판정되지 않은 것이 없는가.</summary>
         private bool AllNotesResolved()
@@ -660,6 +699,10 @@ namespace Warriors.Net
         /// <summary>노트를 놓친 사람에게만 피해를 준다.</summary>
         private void Punish(int lane)
         {
+            // 이미 목표를 채우고 남은 노트를 마저 치는 중이면 벌하지 않는다 —
+            // 이긴 판에서 마지막 화살표를 놓쳐 쓰러지면 이겼다가 지는 꼴이 된다.
+            if (match != null && match.AwaitingLastNotes) return;
+
             WarriorsPlayerLife life = FindLife(lane);
             if (life == null || !life.IsLive || life.IsDown) return;
 
@@ -678,8 +721,19 @@ namespace Warriors.Net
                 Transform stand = StandFor(life.PlayerIndex);
                 if (stand == null) continue;
 
+                Vector3 where = stand.position;
+
+                // **혼자면 가운데에 선다.** 두 사람 자리는 좌우로 갈라 놓은 것이라, 혼자 그 자리에 서면
+                // 화면이 한쪽으로 치우쳐 크라켄이 가운데에서 벗어나 보인다. 실제로 1인 실행에서
+                // 시야가 왼쪽으로 쏠렸다. 3라운드는 노트 줄이 화면(HUD) 것이라 자리를 옮겨도 판정은 그대로다.
+                //
+                // ⚠ 2페이즈는 이렇게 하지 않는다. 그쪽은 담당 촉수가 자기 쪽에만 올라오므로
+                //    가운데로 옮기면 오히려 자기 팔이 옆으로 밀려 보인다.
+                Transform other = StandFor(life.PlayerIndex == 0 ? 1 : 0);
+                if (match != null && match.Crew <= 1 && other != null) where = (stand.position + other.position) * 0.5f;
+
                 WarriorsNetPlayerMover mover = life.GetComponent<WarriorsNetPlayerMover>();
-                if (mover != null) mover.PlaceAt(stand.position, stand.rotation);
+                if (mover != null) mover.PlaceAt(where, stand.rotation);
             }
         }
 
@@ -732,6 +786,8 @@ namespace Warriors.Net
         {
             if (hud == null) return;
 
+            DriveDefeatSink();
+
             if (!Running)
             {
                 shownStage = false;
@@ -756,7 +812,11 @@ namespace Warriors.Net
                 // 단, **결과 화면에서는 내리지 않는다.** 쓰러진 크라켄은 결과 직전까지
                 // 보여야 하는 그림이다. 판이 끝난 상태(IsOver)가 아니라 대기/1라운드로
                 // 돌아갔을 때만 치운다.
-                bool backToNewMatch = match != null && !match.IsOver;
+                // ⚠ 크라켄을 쓰러뜨린 직후의 붙잡는 구간은 아직 Phase3 라 IsOver 가 거짓이다
+                //    (PendingPhase 만 Cleared). IsOver 만 보면 판이 끝난 그 순간 크라켄을 꺼 버려
+                //    "갑자기 사라진다" · "끝났을 때 이미 물 밑에 있다" 가 됐다. 결과를 기다리는 중도 빼야 한다.
+                bool backToNewMatch = match != null && !match.IsOver
+                    && match.PendingPhase != (int)WarriorsMatchPhase.Cleared;
 
                 if (backToNewMatch && shownKraken && !HasStateAuthority && kraken != null)
                 {
@@ -885,7 +945,8 @@ namespace Warriors.Net
                 // 막대가 주인공이고 숫자는 곁들이다. 큰 글씨로 "크라켄 HP 83%" 를 적으면
                 // 그 카드가 크라켄 얼굴보다 먼저 눈에 들어온다.
                 hud.NetworkRhythmProgress = 1f - damageDone;
-                hud.NetworkRhythmDetail = $"크라켄  <size=65%>{Mathf.CeilToInt((1f - damageDone) * 100f)}%</size>";
+                // 65% 로 줄인 숫자는 실측에서 읽기 어려웠다. 이름과 같은 크기로.
+                hud.NetworkRhythmDetail = $"크라켄  {Mathf.CeilToInt((1f - damageDone) * 100f)}%";
                 hud.NetworkRhythmLives = match.LivesLine();
             }
         }

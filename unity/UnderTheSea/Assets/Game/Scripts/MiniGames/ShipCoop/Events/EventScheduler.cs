@@ -42,6 +42,12 @@ public class EventScheduler : MonoBehaviour
                  "FINAL STORM 은 '한꺼번에 온다' 가 규격이므로(3장) 여기를 채운다.\n" +
                  "간격을 좁히는 것만으로는 하나씩 오는 느낌이 남는다.")]
         [Min(0)] public int openingBurst = 0;
+
+        [Tooltip("이 구간에 들어서는 순간 **반드시** 한 번 띄울 사건. 추첨을 거치지 않는다.\n\n" +
+                 "적선이 추첨에만 맡겨져 있어 한 판 내내 안 나오는 일이 있었다. 대포 · 포탄 운반을\n" +
+                 "한 번도 안 써 보고 끝나므로, 페이즈 2 에 들어서면 적선을 한 번은 띄운다.\n" +
+                 "이미 벌어지고 있는 사건이면 건너뛴다. 그 뒤로는 평소처럼 추첨에도 나온다.")]
+        public List<VoyageEvent> guaranteed = new List<VoyageEvent>();
     }
 
     [Header("연결")]
@@ -188,6 +194,7 @@ public class EventScheduler : MonoBehaviour
             // 구간이 순식간에 바뀌는데, 그때마다 3개가 터지면 볼 수가 없다.
             if (!Paused)
             {
+                BeginGuaranteed(CurrentPlan);
                 OpeningBurst(CurrentPlan);
             }
         }
@@ -260,6 +267,43 @@ public class EventScheduler : MonoBehaviour
         ScheduleNext(plan);
     }
 
+    /// <summary>
+    /// 구간에 들어서는 순간 반드시 띄울 사건을 띄운다. (<see cref="PhasePlan.guaranteed"/>)
+    ///
+    /// 추첨도 동시최대도 보지 않는다 — "반드시" 이기 때문이다. 이미 벌어지고 있는 것만 건너뛴다.
+    /// 되풀이 막기에는 뽑힌 것으로 적어 둔다. 곧바로 추첨이 같은 것을 또 고르지 않게.
+    /// </summary>
+    private void BeginGuaranteed(PhasePlan plan)
+    {
+        if (plan == null || plan.guaranteed == null || plan.guaranteed.Count == 0)
+        {
+            return;
+        }
+
+        int fired = 0;
+
+        for (int i = 0; i < plan.guaranteed.Count; i++)
+        {
+            VoyageEvent forced = plan.guaranteed[i];
+
+            if (forced == null || forced.IsActive)
+            {
+                continue;
+            }
+
+            Remember(forced);
+            forced.Begin();
+            fired++;
+            Debug.Log($"[스케줄러] {plan.label} 진입 — '{forced.name}' 을(를) 반드시 띄웠다", this);
+        }
+
+        // 곧바로 추첨 사건이 얹히지 않게 간격을 새로 잡는다.
+        if (fired > 0)
+        {
+            ScheduleNext(plan);
+        }
+    }
+
     /// <summary>지금 자리를 차지하고 있는 사건 수. 침수처럼 시한 없는 것은 안 센다.</summary>
     private static int BusyCount()
     {
@@ -289,8 +333,8 @@ public class EventScheduler : MonoBehaviour
     /// **잇달아 <see cref="mostInARow"/> 번 나온 사건은 후보에서 뺍니다.** (위 주석)
     ///
     /// ⚠ **뺄 수가 없을 때가 있습니다.** 후보가 그것 하나뿐인 경우입니다.
-    ///    페이즈 1 은 후보가 둘인데 동시최대가 2 라, 다른 하나가 이미
-    ///    벌어지고 있으면 남는 것이 되풀이될 그 사건뿐입니다.
+    ///    출항 구간은 후보가 둘인데 동시최대가 1 이라, 하나가 벌어지고 있으면
+    ///    남는 것이 되풀이될 그 사건뿐입니다.
     ///
     ///    그때는 <b>뽑지 않고 null 을 돌려줍니다.</b> 이미 다른 사건이 굴러가고
     ///    있으니 갑판이 조용해지지 않고, 조금 뒤에 다시 보면 그쪽이 끝나 있어

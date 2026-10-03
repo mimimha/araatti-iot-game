@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 702634968699740617}
   - component: {fileID: 3990947211424444935}
   - component: {fileID: 1440392380164225392}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Grass_Tall_Clump_02_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49,7 +49,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 489156870653117920}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 6518613635700456283}
   - component: {fileID: 3019142535538392265}
   - component: {fileID: 1554415314504216117}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Grass_Tall_Clump_02_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -132,7 +132,7 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3182536030784939847}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -176,7 +176,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8758139308148190268}
   - component: {fileID: 4598517051835833165}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: SM_Env_Grass_Tall_Clump_02
   m_TagString: Untagged
   m_Icon: {fileID: 0}

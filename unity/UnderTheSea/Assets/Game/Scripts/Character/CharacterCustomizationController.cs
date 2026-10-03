@@ -163,11 +163,12 @@ namespace UnderTheSea.Character
                 return;
 
             GameObject selectedPrefab = collection.partPrefabs[partIndex];
-            if (selectedOptions.TryGetValue(activeCategory, out int equippedIndex)
-                && equippedIndex == partIndex
-                && TryUnequipPart(collection, selectedPrefab))
+            // 입고 있으면 벗긴다. "마지막에 고른 것" 이 아니라 "지금 입고 있는가" 로 판단한다.
+            // 한 카테고리에 여럿을 함께 입을 수 있어서다. (Accessory 의 모자 · 안경 · 얼굴장식)
+            if (IsOptionWorn(activeCategory, partIndex) && TryUnequipPart(collection, selectedPrefab))
             {
-                selectedOptions.Remove(activeCategory);
+                if (selectedOptions.TryGetValue(activeCategory, out int lastIndex) && lastIndex == partIndex)
+                    selectedOptions.Remove(activeCategory);
                 RefreshOptionColors(-1);
                 return;
             }
@@ -175,6 +176,26 @@ namespace UnderTheSea.Character
             ApplyPart(collection, selectedPrefab);
             selectedOptions[activeCategory] = partIndex;
             RefreshOptionColors(partIndex);
+        }
+
+        /// <summary>
+        /// 이 파츠를 지금 입고 있는가.
+        ///
+        /// 카탈로그 파츠는 Applier 가 기준이다. 카탈로그에 없는 파츠(targetRenderer 경로)는
+        /// 카테고리에 하나뿐이라 마지막에 고른 번호(selectedOptions)로 판단한다.
+        /// </summary>
+        private bool IsOptionWorn(Category category, int partIndex)
+        {
+            PartCollection collection = GetCollection(category);
+            if (collection?.partPrefabs == null || partIndex < 0 || partIndex >= collection.partPrefabs.Length)
+                return false;
+
+            if (IsCatalogPartEquipped(collection.partPrefabs[partIndex]))
+                return true;
+
+            return collection.activePart != null
+                && selectedOptions.TryGetValue(category, out int lastIndex)
+                && lastIndex == partIndex;
         }
 
         private bool TryUnequipPart(PartCollection collection, GameObject partPrefab)
@@ -232,8 +253,8 @@ namespace UnderTheSea.Character
             runtimeRenderer.localBounds = source.localBounds;
             runtimeRenderer.updateWhenOffscreen = collection.targetRenderer.updateWhenOffscreen;
 
-            if (ReferenceEquals(collection, face) && appearance != null)
-                appearance.ApplySkinMaterialTo(runtimeRenderer);
+            // 표정에는 피부 재질을 입히지 않는다. 입술 · 볼터치 같은 빨강 계열이 피부색으로 지워진다.
+            // (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
 
             collection.targetRenderer.enabled = false;
 
@@ -288,15 +309,10 @@ namespace UnderTheSea.Character
         {
             currentSkinColor = skinColors[colorIndex];
 
+            // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
+            // 표정은 칠하지 않는다. (CharacterAppearanceApplier.NeedsSkinMaterial 참고)
             if (appearance != null)
-            {
-                // 피부 렌더러와 이미 입은 파츠까지 Applier 가 한 번에 다시 칠한다.
                 appearance.ApplySkinColor(currentSkinColor);
-
-                // 카탈로그에 없는 파츠는 컨트롤러가 targetRenderer 경로로 붙였다. 그것만 여기서 칠한다.
-                if (face.activePart != null)
-                    appearance.ApplySkinMaterialTo(face.activePart.GetComponent<SkinnedMeshRenderer>());
-            }
 
             RefreshSkinColorOptions();
         }
@@ -353,8 +369,10 @@ namespace UnderTheSea.Character
                 nicknameInput.placeholder.gameObject.SetActive(visible);
         }
 
-        private void ConfigureCategoryTabs()
+        private bool ConfigureCategoryTabs()
         {
+            bool changed = false;
+
             if (categoryButtons.Length > 0 && categoryButtons[0] != null)
             {
                 RectTransform tabsRect = categoryButtons[0].transform.parent as RectTransform;
@@ -372,10 +390,20 @@ namespace UnderTheSea.Character
                 Button button = categoryButtons[i];
                 if (button == null) continue;
                 foreach (Image image in button.GetComponentsInChildren<Image>(true))
-                    if (image != button.image) image.gameObject.SetActive(false);
+                {
+                    if (image == button.image || !image.gameObject.activeSelf) continue;
+                    image.gameObject.SetActive(false);
+                    changed = true;
+                }
+
                 foreach (TMP_Text label in button.GetComponentsInChildren<TMP_Text>(true))
                 {
-                    label.gameObject.SetActive(true);
+                    if (!label.gameObject.activeSelf)
+                    {
+                        label.gameObject.SetActive(true);
+                        changed = true;
+                    }
+
                     label.fontSize = 29f;
                     label.fontStyle = FontStyles.Bold;
                     label.alignment = TextAlignmentOptions.Center;
@@ -393,13 +421,16 @@ namespace UnderTheSea.Character
                 buttonRect.offsetMin = Vector2.zero;
                 buttonRect.offsetMax = Vector2.zero;
 
-                CopyOptionCardDepth(button);
+                if (CopyOptionCardDepth(button)) changed = true;
             }
+
+            return changed;
         }
 
-        private void CopyOptionCardDepth(Button target)
+        private bool CopyOptionCardDepth(Button target)
         {
-            if (optionButtons.Length == 0 || optionButtons[0] == null) return;
+            bool changed = false;
+            if (optionButtons.Length == 0 || optionButtons[0] == null) return changed;
             Button source = optionButtons[0];
 
             Shadow sourceShadow = null;
@@ -410,7 +441,12 @@ namespace UnderTheSea.Character
                 if (effect.GetType() == typeof(Shadow)) { targetShadow = effect; break; }
             if (sourceShadow != null)
             {
-                if (targetShadow == null) targetShadow = target.gameObject.AddComponent<Shadow>();
+                if (targetShadow == null)
+                {
+                    targetShadow = target.gameObject.AddComponent<Shadow>();
+                    changed = true;
+                }
+
                 targetShadow.effectColor = sourceShadow.effectColor;
                 targetShadow.effectDistance = sourceShadow.effectDistance;
                 targetShadow.useGraphicAlpha = sourceShadow.useGraphicAlpha;
@@ -425,26 +461,47 @@ namespace UnderTheSea.Character
                 targetOutline.useGraphicAlpha = sourceOutline.useGraphicAlpha;
             }
             if (target.GetComponent<CustomizationButtonFeedback>() == null)
+            {
                 target.gameObject.AddComponent<CustomizationButtonFeedback>();
+                changed = true;
+            }
+
+            return changed;
         }
 
-        private void ConfigureOptionPreviews()
+        private bool ConfigureOptionPreviews()
         {
+            bool changed = false;
+
             for (int i = 0; i < optionButtons.Length && i < optionImages.Length; i++)
-                ConfigureOptionPreview(optionButtons[i], optionImages[i]);
+            {
+                if (ConfigureOptionPreview(optionButtons[i], optionImages[i])) changed = true;
+            }
+
+            return changed;
         }
 
-        private static void ConfigureOptionPreview(Button button, Image preview)
+        private static bool ConfigureOptionPreview(Button button, Image preview)
         {
-            if (button == null || preview == null) return;
+            bool changed = false;
+            if (button == null || preview == null) return changed;
+
             if (button.GetComponent<RectMask2D>() == null)
+            {
                 button.gameObject.AddComponent<RectMask2D>();
+                changed = true;
+            }
+
             // RectMask2D only clips to a rectangle, leaving the thumbnail's square
             // corners visible. Mask uses the card Image's rounded sprite alpha so the
             // preview can never render outside the rounded card.
             Mask roundedMask = button.GetComponent<Mask>();
             if (roundedMask == null)
+            {
                 roundedMask = button.gameObject.AddComponent<Mask>();
+                changed = true;
+            }
+
             roundedMask.showMaskGraphic = true;
             RectTransform rect = preview.rectTransform;
             // Slightly fill the rounded card while the alpha Mask keeps every preview
@@ -454,14 +511,37 @@ namespace UnderTheSea.Character
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
             preview.preserveAspect = true;
-            EnsureSelectionRim(button);
+
+            EnsureSelectionRim(button, out bool rimChanged);
+            return changed || rimChanged;
         }
 
+        /// <summary>
+        /// 선택 테두리를 보장한다. <b>바뀐 것이 있었는지는 알려 주지 않는다.</b>
+        ///
+        /// 화면을 새로 그릴 때(<c>RefreshOptions</c> 등) 쓰는 길이다. 거기서는 프리팹을
+        /// 저장하지 않으므로 변경 여부가 필요 없다.
+        /// </summary>
         private static RoundedSelectionRing EnsureSelectionRim(Button button)
+            => EnsureSelectionRim(button, out _);
+
+        /// <summary>
+        /// 선택 테두리를 보장하고, <paramref name="changed"/> 로 <b>구조가 달라졌는지</b> 알린다.
+        ///
+        /// 에디터 도구가 프리팹을 저장할지 정할 때 쓴다. 자세한 이유는
+        /// <see cref="EnsureReusableUiLayout"/> 주석 참고.
+        /// </summary>
+        private static RoundedSelectionRing EnsureSelectionRim(Button button, out bool changed)
         {
+            changed = false;
+
             Transform obsolete = button.transform.Find("Selection Rim");
-            if (obsolete != null)
+            if (obsolete != null && obsolete.gameObject.activeSelf)
+            {
                 obsolete.gameObject.SetActive(false);
+                changed = true;
+            }
+
 
             Transform existing = button.transform.Find("Selection Border");
             RoundedSelectionRing ring;
@@ -475,6 +555,7 @@ namespace UnderTheSea.Character
                 rimRect.offsetMin = Vector2.zero;
                 rimRect.offsetMax = Vector2.zero;
                 ring = rimObject.GetComponent<RoundedSelectionRing>();
+                changed = true;
             }
             else
             {
@@ -486,31 +567,64 @@ namespace UnderTheSea.Character
             return ring;
         }
 
-        public void EnsureReusableUiLayout()
+        /// <summary>
+        /// 이 화면이 갖춰야 할 UI 를 보장한다. **실제로 무언가 만들거나 껐으면 참**을 준다.
+        ///
+        /// <b>왜 반환값이 필요한가.</b> 에디터 도구가 이 함수를 부른 뒤 프리팹을 저장하는데,
+        /// 바뀐 것이 없어도 저장하면 파일이 매번 다시 쓰인다. 그 쓰기가 Multiplayer Play Mode
+        /// 의 가상 플레이어에게 에셋 갱신을 일으키고, 거기 AssetDatabase 는 읽기 전용이라
+        /// <c>"Asset Database is set to Read Only, but it has found out-of-date assets"</c> 가
+        /// 쏟아진다. 심하면 클론이 Fusion 설정을 못 읽어 접속까지 실패한다.
+        ///
+        /// ⚠ <b>세는 것은 "구조가 바뀌었나" 뿐이다.</b> 오브젝트를 새로 만들었거나, 켜고 끈
+        ///    상태가 달라졌을 때만 참이다. 좌표·글자 크기 같은 속성 대입은 매번 <b>같은 값</b>을
+        ///    넣으므로 직렬화 결과가 달라지지 않아 세지 않는다.
+        ///
+        /// ⚠ 나중에 <b>실행할 때마다 달라지는 값</b>을 여기서 쓰게 되면 그 전제가 깨진다.
+        ///    그때는 그 자리에서도 changed 를 올려 줘야 한다.
+        /// </summary>
+        public bool EnsureReusableUiLayout()
         {
-            EnsureNicknameInput();
-            ConfigureCategoryTabs();
-            ConfigureOptionPreviews();
-            RemoveMainHeadingDepth();
+            // ⚠ 네 개를 모두 부른 뒤에 합친다. || 로 이으면 앞이 참일 때 뒤가 실행되지 않는다.
+            bool nickname = EnsureNicknameInput();
+            bool tabs = ConfigureCategoryTabs();
+            bool previews = ConfigureOptionPreviews();
+            bool heading = RemoveMainHeadingDepth();
+
+            return nickname || tabs || previews || heading;
         }
 
-        private void RemoveMainHeadingDepth()
+        private bool RemoveMainHeadingDepth()
         {
+            bool changed = false;
+
             foreach (TMP_Text text in GetComponentsInChildren<TMP_Text>(true))
             {
                 if (text == null || !text.text.Contains("나만의 캐릭터를 꾸며보세요"))
                     continue;
 
                 foreach (Shadow shadow in text.GetComponents<Shadow>())
+                {
+                    if (!shadow.enabled) continue;
                     shadow.enabled = false;
+                    changed = true;
+                }
+
                 Outline outline = text.GetComponent<Outline>();
-                if (outline != null)
+                if (outline != null && outline.enabled)
+                {
                     outline.enabled = false;
+                    changed = true;
+                }
             }
+
+            return changed;
         }
 
-        public void EnsureNicknameInput()
+        public bool EnsureNicknameInput()
         {
+            bool changed = false;
+
             if (nicknameInput == null)
             {
                 Transform existing = transform.Find("Nickname Input");
@@ -558,6 +672,7 @@ namespace UnderTheSea.Character
                 nicknameInput.lineType = TMP_InputField.LineType.SingleLine;
                 nicknameInput.contentType = TMP_InputField.ContentType.Standard;
                 nicknameInput.text = PlayerPrefs.GetString("PlayerNickname", string.Empty);
+                changed = true;
             }
 
             if (nicknameInput.placeholder is TMP_Text inputPlaceholder)
@@ -597,6 +712,7 @@ namespace UnderTheSea.Character
                 nicknameGuideText.fontSize = 19f;
                 nicknameGuideText.alignment = TextAlignmentOptions.Center;
                 nicknameGuideText.enableWordWrapping = false;
+                changed = true;
             }
             RectTransform nicknameGuideRect = nicknameGuideText.rectTransform;
             nicknameGuideText.fontSize = 19f;
@@ -605,6 +721,8 @@ namespace UnderTheSea.Character
             nicknameGuideRect.offsetMin = Vector2.zero;
             nicknameGuideRect.offsetMax = Vector2.zero;
             ShowNicknameGuide(false);
+
+            return changed;
         }
 
         private static TMP_Text CreateInputText(string objectName, RectTransform parent, TMP_Text reference, Color color)

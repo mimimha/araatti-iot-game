@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Fish_01
   m_EditorClassIdentifier: Assembly-CSharp::MineDrawingTarget
   displayName: "\uBB3C\uACE0\uAE30"
+  crew: 2
   size: 20
   rows: '....................
 

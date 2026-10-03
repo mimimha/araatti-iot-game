@@ -42426,8 +42426,10 @@ MonoBehaviour:
   shapeTolerance: 2
   maxAlign: 0
   drawings:
-  - {fileID: 11400000, guid: 17f040fd4b8ea174eb47b10b5de3ec0b, type: 2}
+  - {fileID: 11400000, guid: 6ac61d306d444c24d9a0f2382e4e7103, type: 2}
   - {fileID: 11400000, guid: 0f0f09ced8f8d4f449716ccb3210df4c, type: 2}
+  - {fileID: 11400000, guid: 4aaeb000e0c18e646aef2580c48001d9, type: 2}
+  - {fileID: 11400000, guid: 0e1bc2248b1ead845b860daf4964680b, type: 2}
   _Cells: 
   _DrawingIndex: 0
   _BoardStamp: 0
@@ -42445,6 +42447,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineMatchState
   crewToStart: 2
   countdownSeconds: 3
+  readyTimeoutSeconds: 10
   spawnEdgeMargin: 2
   turnSeconds: 30
   restoreBlocks: 5
@@ -42459,6 +42462,7 @@ MonoBehaviour:
   _TurnTimeLeft: 0
   _Crew: 0
   _RosterSize: 0
+  _CrewToStart: 0
   _CurrentSlot: 0
   _RestoresLeft: 0
   _TotalRestores: 0
@@ -42474,6 +42478,10 @@ MonoBehaviour:
   _ResultDugCount: 0
   _ResultAlignX: 0
   _ResultAlignY: 0
+  _ResultComment:
+    _length: 0
+    _data:
+      Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
   _Elapsed: 0
 --- !u!114 &1006078940
 MonoBehaviour:
@@ -68842,6 +68850,71 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1621597839}
   m_Mesh: {fileID: 4300000, guid: 5247e7a39eff10041a34797ba958d1cf, type: 2}
+--- !u!1 &1622559387
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1622559389}
+  - component: {fileID: 1622559388}
+  m_Layer: 0
+  m_Name: Audio
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1622559388
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1622559387}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6028b5108557c834197db5045b8ddf58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mine.Net.MineAudio
+  bgmWaiting: {fileID: 8300000, guid: 2cf163d7c4eff534eb651ab0e66e900d, type: 3}
+  bgmPlaying: {fileID: 8300000, guid: 5435ed431bd04bf45977e64a2ad98b91, type: 3}
+  stingerClear: {fileID: 8300000, guid: 0e62e22bbb7f3194dbc842a4c87f3aaf, type: 3}
+  stingerFail: {fileID: 8300000, guid: 08842d378e0ec20488233ee5f63fe201, type: 3}
+  crossfadeSeconds: 1.5
+  caveLoop: {fileID: 0}
+  loopLevel: 0.45
+  countTick: {fileID: 8300000, guid: d0384c2b399cc1543a6b0f9f168cf8dc, type: 3}
+  countGo: {fileID: 8300000, guid: b7324400804f1e24b8a4cbd84271c662, type: 3}
+  turnStart: {fileID: 8300000, guid: 57b9b414a22645a4b84711c4d98faab2, type: 3}
+  timeWarn: {fileID: 8300000, guid: 707dce1c45c62464ebbca201e735fbfc, type: 3}
+  warnFromSeconds: 5
+  stoneCrack: {fileID: 8300000, guid: 3a7262a03494a4741966756321e3cba9, type: 3}
+  stoneBreak: {fileID: 8300000, guid: ee5f6a671cd13b748916f44d00cc1ccd, type: 3}
+  restorePlace: {fileID: 8300000, guid: 9d16c0d067b6d2748b626432f93ddd80, type: 3}
+  hintOpen: {fileID: 8300000, guid: 648de108b017c1b409751d143597fa2e, type: 3}
+  swingMiss: {fileID: 8300000, guid: dd29ff597ca7fca4ba1aeb8d55902616, type: 3}
+  sfxLevel: 0.85
+  stoneLevel: 0.5
+  swingMissLevel: 0.5
+  quietSecondsOnJoin: 1.5
+--- !u!4 &1622559389
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1622559387}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1623088077
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -73690,6 +73763,53 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1727609380}
   m_Mesh: {fileID: 4300000, guid: 5247e7a39eff10041a34797ba958d1cf, type: 2}
+--- !u!1 &1728850503
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1728850505}
+  - component: {fileID: 1728850504}
+  m_Layer: 0
+  m_Name: MineDevMode
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1728850504
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728850503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 04b591ff70e0ac04e94b426e255878b7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MineDevMode
+  fontSize: 14
+  marginRight: 10
+  marginTop: 10
+--- !u!4 &1728850505
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728850503}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1728966789
 GameObject:
   m_ObjectHideFlags: 0
@@ -78150,6 +78270,7 @@ MonoBehaviour:
   diggers:
   - {fileID: 1398097736}
   playerCount: 4
+  drawings: []
   countdownSeconds: 3
   revealSeconds: 7
   turnSeconds: 30
@@ -105685,6 +105806,10 @@ PrefabInstance:
       propertyPath: m_sharedMaterial
       value: 
       objectReference: {fileID: 977201312}
+    - target: {fileID: 6851222299454048407, guid: 6f53cf820ac62a24c9995df6b7e73ed5, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -105708,3 +105833,5 @@ SceneRoots:
   - {fileID: 1508627164}
   - {fileID: 491895431}
   - {fileID: 912388342}
+  - {fileID: 1622559389}
+  - {fileID: 1728850505}

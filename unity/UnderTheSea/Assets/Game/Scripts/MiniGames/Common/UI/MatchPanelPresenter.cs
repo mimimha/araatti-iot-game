@@ -97,6 +97,23 @@ namespace MiniGames.Common.UI
         private float dotBaseY;
         private bool dotBaseYCaptured;
         private bool dotBaseValid;
+        private float cancelBaseX;
+        private bool cancelBaseXCaptured;
+
+        // ── 다른 창이 이 판의 모양을 빌려 쓸 때 (CrewPickerScreen) ──────────────
+        // 금테 남색 판 · 금색 버튼 · 제목 글꼴을 한 곳에서만 정하려고 여기서 꺼내 준다.
+        // 이 판의 그림을 바꾸면 인원 선택 창도 같이 바뀐다.
+
+        /// <summary>판 배경(금테 + 남색 속). 판 자신의 Image 다.</summary>
+        public Image PanelImage => GetComponent<Image>();
+        /// <summary>작은 게임 이름 (금색).</summary>
+        public TMP_Text GameTitleTemplate => gameTitleText;
+        /// <summary>큰 제목 (흰색).</summary>
+        public TMP_Text TitleTemplate => titleText;
+        /// <summary>강조 버튼 [게임 시작] (금색 글자).</summary>
+        public Button PrimaryButtonTemplate => startButton;
+        /// <summary>보조 버튼 [매칭 취소] (흰 글자).</summary>
+        public Button SecondaryButtonTemplate => cancelButton;
 
         private void OnEnable()
         {
@@ -235,10 +252,33 @@ namespace MiniGames.Common.UI
         /// 4명이 안 찼을 때) 그 이유를 같은 자리에 적는다. 카운트다운이 시작되면 이 자리에 큰 숫자가
         /// 들어오면서 사라진다. 매 프레임 줄어드는 값이라 여기서 쓴다.
         /// </summary>
+        /// <summary>
+        /// 서버가 알려 준 사정. 서버가 정하는 판에서만 쓴다.
+        ///
+        /// 이 화면은 매칭이 어떻게 돌아가는지 모른다 — 알려 준 문장을 그대로 적을 뿐이다.
+        /// 그래야 매칭 규칙이 바뀌어도 화면을 고칠 일이 없다.
+        /// </summary>
+        private string serverStatus = string.Empty;
+
+        /// <summary>로비 서버가 알려 준 사정을 제목 아래 한 줄에 적는다.</summary>
+        public void SetServerStatus(string text)
+        {
+            serverStatus = text ?? string.Empty;
+            WriteAutoStart();
+        }
+
         private void WriteAutoStart()
         {
             if (autoStartText == null || flow == null) return;
             if (flow.State != MatchState.Matching) return;
+
+            // 서버가 정하는 판에서는 시계가 돌지 않는다. 대신 서버가 알려 준 사정을 적는다.
+            // ("빈 서버를 기다리는 중", "3명 중 2명" 처럼)
+            if (flow.ServerDriven)
+            {
+                if (autoStartText.text != serverStatus) autoStartText.text = serverStatus;
+                return;
+            }
 
             float remaining = flow.AutoStartRemaining;
             string next = remaining > 0f
@@ -284,6 +324,12 @@ namespace MiniGames.Common.UI
             WriteAutoStart();
 
             // 슬롯은 이 게임의 정원만큼만 쓴다. 남는 칸은 아예 감춘다.
+            //
+            // 이번 판의 인원(roomSize)은 정원보다 작을 수 있다 — 광산은 정원 4명이지만
+            // 3인 판을 고를 수 있다. 그때 네 번째 칸은 감추지 않고 ✕ 로 막는다.
+            // 감추면 고른 인원에 따라 판 너비가 달라져 아예 다른 화면처럼 보인다.
+            int inPlay = flow.ServerDriven ? flow.EffectiveRoomSize : config.MaxPlayers;
+
             for (int i = 0; i < slots.Length; i++)
             {
                 MatchSlotView slot = slots[i];
@@ -292,6 +338,12 @@ namespace MiniGames.Common.UI
                 bool used = i < config.MaxPlayers;
                 slot.gameObject.SetActive(used);
                 if (!used) continue;
+
+                if (i >= inPlay)
+                {
+                    slot.ShowBlocked();
+                    continue;
+                }
 
                 PlayerEntry member = PlayerRoster.AtSlot(i);
                 if (member != null) slot.ShowMember(member, i + 1);
@@ -302,10 +354,28 @@ namespace MiniGames.Common.UI
 
             int count = PlayerRoster.ActivePlayerCount;
 
+            bool showStart = !flow.ServerDriven && config.ShowsStartButton;
+
             if (startButton != null)
             {
-                startButton.gameObject.SetActive(config.ShowsStartButton);
+                // ⚠ 서버가 정하는 판에는 시작 버튼이 없다. 인원이 차면 알아서 출발하므로
+                //    누를 일이 없고, 잠긴 채로 놔두면 "왜 안 눌리지" 를 만든다.
+                //    화면에 남는 버튼은 [매칭 취소] 하나다.
+                startButton.gameObject.SetActive(showStart);
                 startButton.interactable = flow.CanStartMatch();
+            }
+
+            // [매칭 취소] 가 혼자 남으면 가운데로 옮긴다. 둘이면 원래(오른쪽) 자리.
+            if (cancelButton != null)
+            {
+                var cancelRect = (RectTransform)cancelButton.transform;
+                if (!cancelBaseXCaptured)
+                {
+                    cancelBaseX = cancelRect.anchoredPosition.x;
+                    cancelBaseXCaptured = true;
+                }
+
+                cancelRect.anchoredPosition = new Vector2(showStart ? cancelBaseX : 0f, cancelRect.anchoredPosition.y);
             }
 
             if (startButtonLabel != null)

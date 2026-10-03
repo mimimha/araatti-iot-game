@@ -44,6 +44,27 @@ namespace UnderTheSea.Account
         public const string LogInPath = "/api/auth/login";
         public const string CharactersPath = "/api/characters";
 
+        /// <summary>내 인벤토리. 가진 것이 없으면 200 + 빈 배열이다 (404 아님).</summary>
+        public const string InventoryPath = "/api/inventory";
+
+        /// <summary>미니게임을 이긴 보상. 조각 1개. (server InventoryEndpoints.ClearRewardAsync)</summary>
+        public const string ClearRewardPath = "/api/inventory/clear-reward";
+
+        /// <summary>제단 상태. 파생값(남은 칸 · 최대 봉헌량 · 회복률)까지 서버가 계산해서 준다.</summary>
+        public const string AltarStatePath = "/api/altar/state";
+
+        /// <summary>봉헌. 409 실패에도 최신 상태가 함께 온다.</summary>
+        public const string AltarOfferPath = "/api/altar/offer";
+
+        /// <summary>
+        /// 🛠 섬 회복도 ±1 · ±10 (<c>{ "delta": 10 }</c>). API 가 개발자 모드일 때만 있다(아니면 404).
+        /// 응답은 제단 상태와 같다.
+        /// </summary>
+        public const string AltarDevRecoveryPath = "/api/altar/dev/recovery";
+
+        /// <summary>광산 결과 한 줄 평. 서버가 LLM 을 부른다. (MINE.md 7장 — 아직 서버에 없다)</summary>
+        public const string MineReviewPath = "/api/mine/review";
+
         /// <summary>
         /// <b>지금 실제로 쓸 서버 주소.</b> 정하는 순서는 하나뿐이다.
         ///

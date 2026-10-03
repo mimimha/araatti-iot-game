@@ -38,6 +38,26 @@ namespace Warriors.Net
         /// <summary>그 공격의 종류. <see cref="WarriorsAttackDirection"/> 의 숫자값.</summary>
         [Networked] public int AttackKind { get; private set; }
 
+        /// <summary>
+        /// **이 사람의 연속 처치 수.** 서버가 세고 모든 화면이 읽는다.
+        ///
+        /// <b>왜 복제해야 하는가.</b> 예전에는 <c>WarriorsComboSystem</c> 이
+        /// <c>WarriorsPlayerCombat.AttackResolved</c> 로 세었는데, 그 이벤트는
+        /// <b>서버에서만</b> 걸려 있다(아래 <c>Spawned</c>). 서버에는 HUD 가 없으니
+        /// 아무도 못 보고, 클라이언트의 "COMBO" 는 <b>영원히 0</b> 이었다.
+        ///
+        /// ⚠ 그 부품은 <c>FindFirstObjectByType</c> 로 <b>아무 플레이어나</b> 잡기도 했다.
+        ///    2인전에서는 남의 전투를 내 콤보로 세게 된다. 콤보는 사람마다 다른 값이라
+        ///    판마다 하나가 아니라 <b>플레이어마다 하나</b>여야 한다.
+        /// </summary>
+        [Networked] public int Combo { get; private set; }
+
+        /// <summary>마지막으로 콤보가 오른 서버 시각. 이만큼 지나면 끊긴다.</summary>
+        [Networked] private float ComboFedAt { get; set; }
+
+        /// <summary>콤보가 끊기기까지 기다리는 시간(초).</summary>
+        [SerializeField, Min(.5f)] private float comboResetSeconds = 3f;
+
         private WarriorsPlayerCombat combat;
         private WarriorsPlayerLife life;
         private int shownSeq;
@@ -73,6 +93,18 @@ namespace Warriors.Net
 
             WarriorsTelemetry.Swing(life.PlayerIndex, accepted > 0 ? 0 : 2, false);
 
+            // **맞혔으면 잇고, 헛치면 끊는다.** 규칙은 예전 WarriorsComboSystem 과 같게 둔다 —
+            // 맞힌 수만큼 오르고, 한 번 빗나가면 0 이다.
+            if (accepted > 0)
+            {
+                Combo += accepted;
+                ComboFedAt = Runner.SimulationTime;
+            }
+            else
+            {
+                Combo = 0;
+            }
+
             // ⚠ 예전에는 여기서 "쓰러진 동료 곁에서 휘두르면 구조" 를 처리했다.
             //    구조·부활은 규칙에서 빠졌다. 쓰러진 사람은 그 판에서 끝이다.
 
@@ -80,6 +112,9 @@ namespace Warriors.Net
 
         public override void FixedUpdateNetwork()
         {
+            // 콤보는 입력이 없어도 흘러간다. 손을 놓고 있으면 끊겨야 하므로 맨 위에서 센다.
+            TickCombo();
+
             // 서버와 내 캐릭터만 입력을 받는다. 남의 캐릭터 복사본은 여기서 걸러진다.
             if (combat == null || !GetInput(out WarriorsInputData input)) return;
 
@@ -155,6 +190,41 @@ namespace Warriors.Net
             shownSeq = AttackSeq;
             combat.RequestAttack((WarriorsAttackDirection)AttackKind);
         }
+
+        /// <summary>
+        /// **콤보가 끊길 때를 본다.** 서버만 센다.
+        ///
+        /// 끊기는 경우는 셋이다 — 한동안 못 맞혔을 때, 맞았을 때, 쓰러졌을 때.
+        /// 맞았을 때 끊는 것은 예전 <c>WarriorsComboSystem</c> 의 규칙을 그대로 옮긴 것이다.
+        ///
+        /// ⚠ <c>Time.time</c> 이 아니라 <c>Runner.SimulationTime</c> 을 쓴다. 되감아 다시
+        ///    계산하는 틱에서도 같은 값이어야 두 화면이 같은 순간에 끊긴다.
+        /// </summary>
+        private void TickCombo()
+        {
+            if (!HasStateAuthority || Combo <= 0) return;
+
+            if (life != null && life.IsDown)
+            {
+                Combo = 0;
+                return;
+            }
+
+            // 맞으면 끊는다. HP 가 줄어든 것을 보고 판단한다 — 피해 이벤트는 틱 밖에서 터진다.
+            if (life != null && life.Hp < shownHpForCombo)
+            {
+                Combo = 0;
+                shownHpForCombo = life != null ? life.Hp : 0;
+                return;
+            }
+
+            if (life != null) shownHpForCombo = life.Hp;
+
+            if (Runner.SimulationTime - ComboFedAt >= comboResetSeconds) Combo = 0;
+        }
+
+        /// <summary>콤보를 끊을지 보기 위해 들고 있는 직전 HP. 서버만 쓴다.</summary>
+        private int shownHpForCombo;
 
         /// <summary>눌린 버튼 하나를 공격 방향으로 옮긴다. 한 틱에 하나만 나간다.</summary>
         private static bool TryReadSwing(NetworkButtons pressed, out WarriorsAttackDirection direction)

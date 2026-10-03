@@ -17,7 +17,7 @@
 
 | 에셋 이름 | 출처 | 라이선스 | 폴더 | 용도 | 추가한 사람 | 날짜 |
 | --- | --- | --- | --- | --- | --- | --- |
-| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 · 목적지 섬 | 효진 | 2026-09-07 |
+| POLYGON Nature Biomes | Unity Asset Store | 유료 (구매) | `Assets/Synty/` | Lobby 정글 맵 · 배 협동 게임 하늘돔과 구름 · 배 협동 게임 포탄 상자 · 뱃전 상자 · 수리 자재 상자 · 수리 지점 데칼 · 목적지 섬 · 로비 물속 물방울(`FX_Bubbles_01`) · 아래에서 본 수면 물결 무늬(`caustics_color_split`) | 효진 | 2026-09-07 |
 | Cute Characters | Unity Asset Store | 유료 (구매) | `Assets/ithappy/` | 캐릭터 | 효진 | 2026-09-07 |
 | ARPG Effects | Unity Asset Store | 유료 (구매) | `Assets/ARPG Effects/` | 포탈 이펙트 | 효진 | 2026-09-07 |
 | Stylized Pirate Ship | Unity Asset Store | 유료 (구매) | `Assets/Stylized_Pirate_Ship/` | Lobby 해적선 · 배 협동 게임 적선 | 효진 | 2026-09-08 |
@@ -29,18 +29,37 @@
 | Modular Dungeon Catacombs | Unity Asset Store (Toby Fredson) | 유료 (구매) | ⚠ **팩 본체는 저장소에 없음.** 쓰는 텍스처는 `Art/Textures/Mine/`, 메시는 `Art/Models/Mine/`, 셰이더는 `Art/Shaders/` | 광산 바닥 돌 텍스처 · 동굴 배경 메시 · 판 테두리 화로(`Mine_BridgeProp`) | 효진 | 2026-09-18 |
 | Yughues Free Rock Materials | Unity Asset Store (Nobiax / Yughues) | 무료 | `Assets/YughuesFreeRockMaterials/` | 광산 바닥 돌 재질 (`M_YFRM_16`) | 효진 | 2026-09-17 |
 | 광산 HUD 그림 12종 | ChatGPT 로 프로젝트 담당자가 직접 생성 | 생성 계정의 이용 조건 확인 필요 | `Assets/Game/Art/UI/MineHud/` | 광산 HUD — 타이머 · 차례 · 참가자 행 · 복구 · 힌트 · 조작키 · 채굴 종료 제목 · 도안 안내 · 카운트다운 숫자 3장 · 채굴 결과 판(성공·실패) | 효진 | 2026-09-20 |
+| Fredoka | fonts.google.com/specimen/Fredoka | 무료 (SIL Open Font License 1.1) | `Assets/Game/Fonts/Fredoka-Bold.ttf` (Bold 굵기 한 벌만. 라이선스 전문은 같은 폴더 `Fredoka-OFL.txt`) | 배 협동 — 상호작용 링 안 키캡 글자(Space · K · J · L) 전용. 본문 글꼴은 NotoSansKR 그대로 | 민화 | 2026-09-22 |
 | Battle at Sea | opengameart.org/content/battle-at-sea | CC0 | `Assets/Game/Audio/ShipCoop/` (쓰는 클립만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 효과음 — 대포 발사 · 적선 피격 | 민화 | 2026-09-20 |
-| 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만) | 배 협동 — 물 뜨기 · 물 버림 | 민화 | 2026-09-20 |
+| 40 CC0 water splash & slime SFX | opengameart.org/content/40-cc0-water-splash-slime-sfx | CC0 | `Assets/Game/Audio/ShipCoop/` (bubble_03 만), `Assets/Game/Audio/Fishing/Fishing_FishEscaped.ogg`, `Assets/Game/Audio/Lobby/` (5개. 출처 표는 그 폴더의 `CREDITS.md`) | 배 협동 — 물 뜨기 · 물 버림, 낚시 — FishEscaped, 로비 — 헤엄 · 잠수 (2026-09-25 추가) | 민화 | 2026-09-20 |
+| Fisheefects | https://opengameart.org/content/fisheefects | CC0 | `Assets/Game/Audio/Fishing/Fishing_Bite.wav` | 낚시 — Bite | 용주 | 2026-09-22 |
+| Kenney Interface Sounds | https://kenney.nl/assets/interface-sounds | CC0 | `Assets/Game/Audio/Fishing/` (HookSuccess, Perfect, Good, Miss, Caught, LineBroken) | 낚시 효과음 — Hook 성공 · Timing 결과 · Caught · LineBroken | 용주 | 2026-09-22 |
 | Wind Whoosh Loop | opengameart.org/content/wind-whoosh-loop | CC0 | `Assets/Game/Audio/ShipCoop/windLoop.ogg` | 배 협동 — 바람 배경 루프 (돌풍이면 커짐) | 민화 | 2026-09-20 |
 | Kenney RPG Audio | kenney.nl/assets/rpg-audio | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만. 팩 본체는 저장소에 없음) | 배 협동 — 망치 · 수리 완료 · 상자 뚜껑 | 민화 | 2026-09-20 |
 | Sea and River Wave Sounds | opengameart.org/content/sea-and-river-wave-sounds | CC0 | `Assets/Game/Audio/ShipCoop/seaLoop.mp3` | 배 협동 — 바다 배경 루프 (아주 얕게) | 민화 | 2026-09-20 |
+| Mixamo Swimming 모션 | mixamo.com (Adobe) | 무료 (Adobe 계정 · 로열티 없음, 모션 파일 단독 재배포는 금지) | `Assets/Game/Art/Animations/Lobby/Swimming.fbx` (스킨 없음. 캐릭터 비율에 맞춘 클립은 같은 폴더 `Swim.anim`) | 로비 바다 헤엄 | 민화 | 2026-09-25 |
 | Solo Seagull Sound Effects | opengameart.org/content/solo-seagull-sound-effects | CC0 | `Assets/Game/Audio/ShipCoop/` (3개만) | 배 협동 — 갈매기, 항해 중 20~30초마다 돌아가며 | 민화 | 2026-09-20 |
 | Short Alarm | opengameart.org/content/short-alarm | CC0 | `Assets/Game/Audio/ShipCoop/warnChime.ogg` | 배 협동 — 사건 예고 종 | 민화 | 2026-09-20 |
 | Rope & Leather tension 2 (OxidVideos) | pixabay.com/sound-effects/rope-amp-leather-tension-2-449631/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/ropeLoop.mp3` | 배 협동 — 돛 당기고 풀 때 밧줄 끼익 | 민화 | 2026-09-21 |
 | Set Sail (Forgotten-Hero-Records) | pixabay.com/music/main-title-set-sail-350596/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmReady.mp3` | 배 협동 배경음악 — 대기 | 민화 | 2026-09-21 |
 | Pirate Tavern (Full Version!) (Magiksolo) | pixabay.com/music/main-title-pirate-tavern-full-version-167990/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmSailing.mp3` | 배 협동 배경음악 — 항해 | 민화 | 2026-09-21 |
 | Pirate Adventure Loop (Ebunny) | pixabay.com/music/orchestral-pirate-adventure-loop-557984/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/ShipCoop/bgmResult.mp3` | 배 협동 배경음악 — 결과 | 민화 | 2026-09-21 |
-| ~~Exploration Fantasy Free Pack~~ | Unity Asset Store (Eugene Des) | 무료 (Standard Unity Asset Store EULA) | ⛔ 2026-09-21 에 위 Pixabay 곡으로 교체. 저장소에서 제거 | (이전) 배 협동 배경음악 | 민화 | 2026-09-20 |
+| Swishes Sound Pack | opengameart.org/content/swishes-sound-pack (artisticdude) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (3개만 이름 바꿔 옮김. 출처 표는 그 폴더의 `CREDITS.md`) | 무쌍 — 베기 3종(가로 · 세로 · 찌르기) | 서연 | 2026-09-22 |
+| Squish Sounds Effects | opengameart.org/content/squish-sounds-effects (EZduzziteh) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (1개만) | 무쌍 — 몬스터 처치 | 서연 | 2026-09-22 |
+| 80 CC0 creature SFX | opengameart.org/content/80-cc0-creature-sfx (rubberduck) | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (1개만) | 무쌍 — 쓰러짐 | 서연 | 2026-09-22 |
+| Kenney Impact Sounds | kenney.nl/assets/impact-sounds | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (4개만. 팩 본체는 저장소에 없음) | 무쌍 타격음 전체 — 몬스터 정타 · 크라켄 피격 · 내 피격 · 촉수 타격 · 촉수 절단 (squish · 신음 계열이 "푸웩" 소리라 1 · 2 · 3라운드를 이 계열로 통일) | 서연 | 2026-09-22 |
+| Kenney Music Jingles | kenney.nl/assets/music-jingles | 무료 (CC0) | `Assets/Game/Audio/Warriors/stingerFail.ogg` (1개만. 팩 본체는 저장소에 없음) | 무쌍 — 실패 스팅어 | 서연 | 2026-09-22 |
+| 무쌍 카운트다운 톤 2개 | 직접 생성 (`art/tools/warriors_countdown_tones.py`) | 팀이 권리를 가짐 | `Assets/Game/Audio/Warriors/countdownTick.wav` · `countdownGo.wav` | 무쌍 — 레이싱 게임식 출발 카운트다운 (880Hz ×3 → 1760Hz 길게) | 서연 | 2026-09-22 |
+| 무쌍 합성 효과음 5개 | 직접 생성 (`art/tools/warriors_sfx_synth.py`) | 팀이 권리를 가짐 | `Assets/Game/Audio/Warriors/tentacleCut.wav` · `stingerClear.wav` · `noteHitHorizontal/Vertical/Thrust.wav` | 무쌍 — 촉수 베는 소리 · 클리어 팡파르 · 3라운드 노트 도레미(방향별 음정). **CC0 팩에 없어서 만들었다** | 서연 | 2026-09-22 |
+| Kenney Interface Sounds | kenney.nl/assets/interface-sounds | 무료 (CC0) | `Assets/Game/Audio/Warriors/` (7개만. 팩 본체는 저장소에 없음) | 무쌍 — 노트 정타 · 미스 · 카운트다운 2종 · 마무리 창 · 협동 세트 · 라운드 전환 | 서연 | 2026-09-22 |
+| CC0 Deep Monster Roar | opengameart.org/content/cc0-deep-monster-roar | 무료 (CC0) | `Assets/Game/Audio/Warriors/krakenRoar.wav` | 무쌍 — 크라켄 포효. **원본 7.22초를 2.8초로 자르고 끝을 페이드 아웃** (CC0 는 수정 허용) | 서연 | 2026-09-22 |
+| Pirate Jolly Roger Loop (Ebunny) | pixabay.com/music/main-title-pirate-jolly-roger-loop-369969/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/Warriors/bgmWaiting.mp3` | 무쌍 배경음악 — 대기 · 1 · 2라운드 (한 클립을 세 칸에) | 서연 | 2026-09-27 |
+| Pirates Battle (Ebunny) | pixabay.com/music/main-title-pirates-battle-361336/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/Warriors/bgmRound3.mp3` | 무쌍 배경음악 — 3라운드 | 서연 | 2026-09-27 |
+| Gentle Ocean Shore Waves (DRAGON-STUDIO) | pixabay.com/sound-effects/nature-gentle-ocean-shore-waves-499665/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/Warriors/waveLoop.mp3` | 무쌍 — 판 내내 잔잔하게 깔리는 파도 루프 | 서연 | 2026-09-27 |
+| Mystery Secret (leberch) | pixabay.com/music/mystery-mystery-secret-255437/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/Mine/bgmWaiting.mp3` (출처 표는 그 폴더의 `CREDITS.md`, 증명서는 `Licenses/`) | 광산 배경음악 — 대기 | 효진 | 2026-09-23 |
+| Old Mine Ambience (JoelFazhari) | pixabay.com/sound-effects/film-special-effects-old-mine-ambience-200677/ | 무료 (Pixabay Content License) | `Assets/Game/Audio/Mine/bgmPlaying.mp3` | 광산 배경음악 — 본편 (곡 대신 동굴 울림 녹음) | 효진 | 2026-09-23 |
+| 광산 스팅어 · 효과음 11종 (freesound_gamestudio · transcendedlifting · Coghezzi · Universfield · u_xjrmmgxfru · juniorsoundays · OxidVideos) | pixabay.com/sound-effects/ (곡별 링크는 `Assets/Game/Audio/Mine/CREDITS.md`) | 무료 (Pixabay Content License) | `Assets/Game/Audio/Mine/` | 광산 — 성공·실패 스팅어 · 카운트다운 · 도안 공개 · 턴 시작 · 시간 경고 · 돌 금/깨짐 · 복구 · 힌트 · 헛스윙 | 효진 | 2026-09-23 |
+| Exploration Fantasy Free Pack (Eugene Des) | Unity Asset Store | 무료 (Standard Unity Asset Store EULA) | `Assets/Audio/Music/Exploration Fantasy Free Pack/` (10곡 중 쓰는 2곡만 담음 — 나머지는 에셋 스토어에서 다시 받는다) | 로비 배경음악 — `6. The Tavern Keeper` · 게임 시작 ~ 채널 선택 배경음악 — `8. The Apothecary`. 배 협동은 2026-09-21 에 위 Pixabay 곡으로 갈아탔다 | 민화 | 2026-09-22 |
 
 > ⚠ Catacombs 는 `.gitignore` 에 `/Assets/Toby Fredson/` 으로 등록되어 **저장소에 올라가지 않습니다.**
 > 쓰는 파일만 `Game/Art/` 로 복사해서 씁니다. 복사할 때 **텍스처는 1024 로 줄입니다** —
@@ -80,6 +99,20 @@
 >
 > IK Pass 만으로는 화면이 안 바뀝니다. 쓰는 스크립트가 있어야 바뀌므로
 > 로비 캐릭터에는 영향이 없습니다. 에셋을 업데이트하면 다시 켜야 합니다.
+
+> ⛔ `ithappy/Cute_Characters` 의 `PlayerCamera.cs` · `ThirdPersonCamera.cs` 를
+> **고쳤습니다.** 로비에서 하늘을 올려다보려면 두 가지가 필요했습니다.
+>
+> - `PlayerCamera` 의 `m_MinAngle` 을 `Range(0, 90)` → `Range(-90, 90)` 으로.
+>   이 카메라는 항상 주시점을 `LookAt` 하므로 위를 보려면 pitch 가 음수여야 하는데,
+>   원본 Range 로는 인스펙터에서 0 미만을 넣을 방법이 아예 없습니다.
+> - `ThirdPersonCamera.SetInput` 끝에서, 계산된 카메라가 발밑 0.3m 아래로
+>   내려가려 하면 카메라와 주시점을 **같은 높이만큼 함께** 올립니다. 둘의 차가
+>   보존되어 시선 각도는 그대로 두고 지면·수면만 안 뚫습니다.
+>
+> 수정부에는 `⚠ 아라아띠` 주석을 달아 두었습니다.
+> **에셋을 업데이트하면 둘 다 다시 넣어야 합니다.** 안 넣으면 Lobby 의 MainCamera
+> 에 설정한 `Min Angle: -12` 가 잘려 하늘이 다시 안 보입니다.
 
 ### 작성 예시
 

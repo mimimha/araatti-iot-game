@@ -39,8 +39,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         /// </summary>
         public const string BootScenePath = "Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity";
 
-        /// <summary>기본 세션 이름. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
-        public const string DefaultSession = "shipcoop-1";
+        /// <summary>
+        /// 이 게임의 방 이름 앞부분. 방 번호를 붙여 <c>shipcoop-1</c> · <c>shipcoop-2</c> 가 된다.
+        ///
+        /// <b>왜 상수로 쪼개 두는가.</b> 매칭은 DS Pool 에서 빈 방을 찾을 때 세션 목록을
+        /// 이 앞부분으로 걸러 낸다. 그때 쓰려고 <c>"shipcoop"</c> 를 다른 곳에 또 적으면 이름이
+        /// 두 벌이 되고, 한쪽만 바꾸는 날 조용히 빈 방을 못 찾게 된다.
+        /// </summary>
+        public const string SessionPrefix = "shipcoop";
+
+        /// <summary>기본 방. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
+        public const string DefaultSession = SessionPrefix + "-1";
 
         /// <summary>이 프로세스가 쓸 세션 이름.</summary>
         /// <summary>

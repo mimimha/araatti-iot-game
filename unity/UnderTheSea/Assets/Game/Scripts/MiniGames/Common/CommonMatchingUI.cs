@@ -54,6 +54,10 @@ namespace MiniGames.Common
 
             Current = this;
 
+            // 매칭 화면(대기 로딩 포함)이 떠 있는 동안 로비 채팅창 · 섬 회복도 바를 감춘다.
+            if (canvasRoot != null && canvasRoot.GetComponent<HideLobbyHudWhileShown>() == null)
+                canvasRoot.AddComponent<HideLobbyHudWhileShown>();
+
             if (!showOnStart && canvasRoot != null) canvasRoot.SetActive(false);
         }
 
@@ -80,6 +84,40 @@ namespace MiniGames.Common
             if (matchPanel != null) matchPanel.SetActive(true);
             if (flow != null) flow.Configure(config);
         }
+
+        /// <summary>
+        /// **로비 서버가 정해 준 판으로 매칭 화면을 연다.**
+        ///
+        /// <paramref name="roomSize"/> 는 이번 판의 인원이다. 정원보다 작을 수 있고,
+        /// 넘는 칸은 판에서 ✕ 로 막힌다. 자동 시작과 [게임 시작] 버튼은 꺼진다 —
+        /// 출발을 정하는 것은 서버다.
+        /// </summary>
+        public void ShowServerMatch(MiniGameConfig config, int roomSize)
+        {
+            if (config == null)
+            {
+                Debug.LogError("[CommonMatchingUI] ShowServerMatch 에 넘긴 MiniGameConfig 가 비어 있습니다.", this);
+                return;
+            }
+
+            if (canvasRoot != null) canvasRoot.SetActive(true);
+            if (queueLoading != null) queueLoading.Hide();
+            if (resultPanel != null) resultPanel.Hide();
+            if (matchPanel != null) matchPanel.SetActive(true);
+            if (flow != null) flow.Configure(config, roomSize);
+        }
+
+        /// <summary>
+        /// 제목 아래 한 줄에 로비 서버가 알려 준 사정을 적는다.
+        /// ("빈 서버를 기다리는 중", "3명 중 2명" 처럼)
+        /// </summary>
+        public void SetServerStatus(string text)
+        {
+            if (panel == null) panel = GetComponentInChildren<MatchPanelPresenter>(includeInactive: true);
+            if (panel != null) panel.SetServerStatus(text);
+        }
+
+        private MatchPanelPresenter panel;
 
         /// <summary>포탈이 서버 대기열에 들어갈 때 호출하는 실제 게임용 진입점.</summary>
         public void BeginQueue(MiniGameConfig config)

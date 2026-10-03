@@ -39,6 +39,23 @@ namespace Warriors.Net
         [Networked]
         public NetworkBool Grounded { get; private set; }
 
+        /// <summary>
+        /// **사람이 갈 수 있는 바다 쪽 끝(월드 z).** 이보다 앞(+z, 바다)으로는 못 간다.
+        ///
+        /// 해변(<c>WarriorsBeachArena</c>, 원점)에서 모래는 z 4 에서 끝나고 수면은 z 3.6 에서 시작한다.
+        /// 수면에도 충돌체가 있어 그대로 두면 사람이 바다 위를 걸어 들어갔다. 모래 끝 앞에는 흰 물거품이
+        /// z 6.3 쯤까지 깔린다(오프스크린 캡처로 거리 기둥을 세워 확인). 5.6 이면 캡슐(반지름 0.35) 앞끝이 5.95 로
+        /// 물거품 끝 바로 앞에서 멈춘다. (3.2 는 모래에서 멈춰 흰 해변을 못 밟았다)
+        ///
+        /// ⚠ <b>이 값은 프리팹(WarriorsNetPlayer)에 적혀 있다.</b> 코드 기본값만 바꾸면 빌드에 반영되지 않았다
+        ///    (필드를 처음 넣을 때의 기본값이 프리팹 가져오기에 구워진다). 바꿀 때는 프리팹 값을 고친다.
+        ///
+        /// ⚠ <b>보이지 않는 벽을 세우지 않는다.</b> 몬스터는 바다(z 6~13)에서 나와 해변으로 올라와야 하는데,
+        ///    벽을 세우면 몬스터까지 막힌다. 사람의 이동을 정하는 여기서만 자른다.
+        /// </summary>
+        [Tooltip("사람이 갈 수 있는 바다 쪽 끝(월드 z). 흰 물거품은 z 6.3 쯤까지다. 몬스터는 막지 않는다.")]
+        [SerializeField] private float seaEdgeZ = 5.6f;
+
         private WarriorsLocalPlayerController body;
         private CharacterController capsule;
         private Animator animator;
@@ -90,8 +107,14 @@ namespace Warriors.Net
             WarriorsMatchState match = WarriorsMatchState.Current;
             bool held = match != null && match.MovementLocked;
 
+            // 해변을 걷는 동안에만 바다를 막는다. 2 · 3페이즈 자리(크라켄 앞)는 서버가 세워 둔 곳이라,
+            // 판이 끝난 뒤 걸음을 떼는 순간 해변으로 끌려오면 안 된다.
+            bool walkingBeach = false;
+
             if (!down && !held && GetInput(out WarriorsInputData input))
             {
+                walkingBeach = match == null || !match.IsOver;
+
                 Vector2 raw = Vector2.ClampMagnitude(input.Move, 1f);
 
                 // 카메라 각도만큼 돌려 둔다. 서버는 월드 축으로 걷지만
@@ -102,10 +125,36 @@ namespace Warriors.Net
 
             body.ApplyMovement(axis, Runner.DeltaTime);
 
+            if (walkingBeach) KeepOutOfSea();
+
             // 실제로 움직인 결과를 보낸다. 벽에 막혔으면 입력이 있어도 값이 작다.
             MoveAxis = body.LastMoveInput;
             Grounded = capsule != null && capsule.isGrounded;
         }
+
+        /// <summary>
+        /// 바다 쪽 끝(<see cref="seaEdgeZ"/>)을 넘었으면 그만큼 되민다. 옆으로는 그대로 걸을 수 있다.
+        ///
+        /// ⚠ <c>transform.position</c> 에 대입하지 않는다. <c>CharacterController</c> 가 켜져 있으면 자기가
+        ///    아는 자리로 되돌린다(<see cref="PlaceAt"/> 설명). 같은 부품의 <c>Move</c> 로 되밀어야 먹는다.
+        /// </summary>
+        private void KeepOutOfSea()
+        {
+            float over = transform.position.z - seaEdgeZ;
+            if (over <= 0f || capsule == null || !capsule.enabled) return;
+
+            capsule.Move(new Vector3(0f, 0f, -over));
+
+            // QA 에서 "막혔는가" 를 서버 로그로 본다. 물가에 붙어 걷는 동안 매 틱 찍히지 않게 5초에 한 번만.
+            if (Time.unscaledTime >= nextSeaLogTime)
+            {
+                nextSeaLogTime = Time.unscaledTime + 5f;
+                Debug.Log($"[WarriorsNetPlayerMover] {Object.InputAuthority} 가 바다 앞(z {seaEdgeZ:F1})에서 멈췄습니다. " +
+                          $"지금 z {transform.position.z:F2}");
+            }
+        }
+
+        private float nextSeaLogTime;
 
         /// <summary>
         /// **서버가 이 사람을 정해진 자리로 옮긴다.**
@@ -176,15 +225,17 @@ namespace Warriors.Net
         private const float DownTilt = 78f;
 
         /// <summary>
-        /// **쓰러지면 실제로 쓰러져 보이게 한다.**
+        /// **쓰러진 자세를 손으로 눕히던 것을 되돌린다.**
         ///
-        /// HP 가 0 이 되어 <c>IsDown</c> 인데도 캐릭터가 멀쩡히 서 있어, 조작하지 않는 쪽이
-        /// 죽었는지 살았는지 화면으로 알 수 없었다. 쓰러짐 애니메이션 클립이 없으므로
-        /// 모델을 옆으로 눕힌다. 새 애셋을 만들지 않고 보이는 결과를 낸다.
+        /// 예전에는 쓰러짐 클립이 없어 모델을 통째로 기울여 눕혔다. 지금은 진짜 클립이
+        /// 있으므로(<c>WarriorsDown</c> 상태, <c>WarriorsPlayerLife</c> 가 <c>IsDown</c> 을
+        /// 애니메이터에 넣는다) 그 기울이기가 <b>클립 위에 한 번 더 얹혀</b> 몸이 바닥에서
+        /// 뜬 것처럼 보였다.
         ///
-        /// ⚠ <b>몸통(자식)만 돌린다.</b> 루트를 돌리면 서버가 보내 주는 회전과 싸운다.
+        /// 그래서 이제는 눕히지 않고, 예전에 기울여 둔 것이 남아 있으면 <b>똑바로 되돌리기만</b>
+        /// 한다. 판이 다시 시작될 때 기울어진 채로 서 있는 것을 막기 위해 남겨 둔다.
         /// </summary>
-        private void ShowDownPose()
+        private void ClearManualDownTilt()
         {
             if (animator == null) return;
 
@@ -194,20 +245,16 @@ namespace Warriors.Net
             // 매 틱 덮어써서 싸우게 된다. 그 경우에는 자세를 바꾸지 않고 넘어간다.
             if (body == transform) return;
 
-            bool down = life != null && life.IsDown;
-
-            Quaternion target = down
-                ? Quaternion.Euler(DownTilt, 0f, 0f)
-                : Quaternion.identity;
+            if (body.localRotation == Quaternion.identity) return;
 
             body.localRotation = Quaternion.RotateTowards(
-                body.localRotation, target, 240f * Time.deltaTime);
+                body.localRotation, Quaternion.identity, 240f * Time.deltaTime);
         }
 
         public override void Render()
         {
             ClearTrailsAfterTeleport();
-            ShowDownPose();
+            ClearManualDownTilt();
 
             if (animator == null || HasStateAuthority)
             {

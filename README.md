@@ -39,6 +39,7 @@ IoT 체감형 해양 게임 · SSAFY 15기 · 팀 C101
 | [unity/UnderTheSea/CONVENTION.md](unity/UnderTheSea/CONVENTION.md) | Unity 파일과 폴더를 어디에 두는가 |
 | [unity/UnderTheSea/GAME_STRUCTURE.md](unity/UnderTheSea/GAME_STRUCTURE.md) | 게임 흐름, 네트워크 방식, 담당별 규격 |
 | [unity/UnderTheSea/ASSETS.md](unity/UnderTheSea/ASSETS.md) | 사용한 외부 에셋 기록 |
+| [web/README.md](web/README.md) | 홈페이지(araatti.site) 수정과 배포 |
 
 ## 음악 크레딧
 

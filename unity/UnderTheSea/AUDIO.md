@@ -62,6 +62,9 @@ hub.CanHear                                // 서버(그래픽 장치 없음)면
   (`StartMenuController` · `SettingsPanelView`). 허브가 켤 때 복원하고, 설정이 바뀌면 `StartMenuController` 의
   static 이벤트로 받습니다. 마스터는 `AudioListener.volume` 그대로 — **믹서(AudioMixer)는 없습니다.** 새로 들이려면
   `SetMasterVolume` 의 AudioListener 방식과 이중 관리가 되니 팀에서 먼저 정합니다.
+- **로비에서 F1 은 음소거 토글입니다.** (`LobbyMuteHotkey` → `AudioHub.ToggleMute`) 음소거 ↔ 설정 슬라이더에 맞춰 둔
+  마스터 크기를 오갑니다. 슬라이더 값은 건드리지 않고 `Muted` 깃발만 바꿉니다. 광산 · 배 협동은 F1 이 디버그 화면이라
+  로비에서만 받습니다.
 
 ---
 

@@ -87,11 +87,19 @@ public class ShipCoopTutorialView : MonoBehaviour
     /// <summary>지금 글자로 찍혀 있는 초. 같은 숫자를 매 프레임 다시 만들지 않으려고 둔다.</summary>
     private int _shownSecond = -1;
 
+    // 그림에 포함된 Enter/닫기 영역. 투명 여백을 포함한 이미지 전체의 정규화 좌표.
+    private static readonly Rect CloseArea = Rect.MinMaxRect(0.745f, 0.065f, 0.89f, 0.14f);
+    private RectTransform _boxRect;
+    private Canvas _canvas;
+
     /// <summary>설명이 지금 떠 있는지</summary>
     public bool IsShowing => panel != null && panel.activeSelf;
 
     private void Awake()
     {
+        _boxRect = panel != null ? panel.transform.Find("Box") as RectTransform : null;
+        _canvas = GetComponentInParent<Canvas>();
+
         if (game == null)
         {
             game = FindAnyObjectByType<ShipCoopGame>(FindObjectsInactive.Include);
@@ -142,6 +150,13 @@ public class ShipCoopTutorialView : MonoBehaviour
             DrawRemaining(Mathf.CeilToInt(remaining));
         }
 
+        // 키보드가 없는 환경에서도 그림의 닫기 영역을 클릭할 수 있다.
+        if (WasCloseAreaClicked())
+        {
+            Hide();
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null)
@@ -163,6 +178,13 @@ public class ShipCoopTutorialView : MonoBehaviour
         if (panel != null)
         {
             panel.SetActive(true);
+        }
+
+        // 이미지의 자식인 카운트다운을 마지막에 그려 컨테이너 위에 표시한다.
+        if (footerLabel != null)
+        {
+            footerLabel.gameObject.SetActive(true);
+            footerLabel.transform.SetAsLastSibling();
         }
 
         _shownAt = Time.unscaledTime;
@@ -187,6 +209,35 @@ public class ShipCoopTutorialView : MonoBehaviour
         {
             panel.SetActive(false);
         }
+    }
+
+    private bool WasCloseAreaClicked()
+    {
+        Mouse mouse = Mouse.current;
+        if (mouse == null || !mouse.leftButton.wasPressedThisFrame || _boxRect == null)
+        {
+            return false;
+        }
+
+        Camera eventCamera = _canvas != null && _canvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? _canvas.worldCamera
+            : null;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _boxRect, mouse.position.ReadValue(), eventCamera, out Vector2 localPoint))
+        {
+            return false;
+        }
+
+        Rect rect = _boxRect.rect;
+        if (rect.width <= 0f || rect.height <= 0f)
+        {
+            return false;
+        }
+
+        Vector2 normalized = new Vector2(
+            (localPoint.x - rect.xMin) / rect.width,
+            (localPoint.y - rect.yMin) / rect.height);
+        return CloseArea.Contains(normalized);
     }
 
     /// <summary>남은 초가 바뀐 프레임에만 글자를 다시 만든다.</summary>

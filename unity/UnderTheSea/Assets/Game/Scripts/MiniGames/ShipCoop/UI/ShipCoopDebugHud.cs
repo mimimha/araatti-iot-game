@@ -267,7 +267,7 @@ public class ShipCoopDebugHud : MonoBehaviour
             return $"⚫ 운반 중 — 대포가 꽉 찼다 ({cannon.Ammo}/{cannon.MaxAmmo})";
         }
 
-        return $"⚫ 운반 중 — 대포까지 {distance:F1}m  (안으로 {carry.LoadRange:F1}m 들어가야 함)";
+        return $"⚫ 운반 중 — 대포까지 {distance:F1}m  (안으로 {carry.CannonLoadRange:F1}m 들어가야 함)";
     }
 
     /// <summary>붙을 수 있는 것이 없을 때, 가장 가까운 것과 거리를 알려준다.</summary>

@@ -119,6 +119,38 @@ namespace MiniGames.Common.UI
             if (readyPlate != null) readyPlate.color = new Color(.043f, .086f, .149f, .85f);
         }
 
+        /// <summary>
+        /// **이번 판에서는 쓰지 않는 자리.** ✕ 로 막아 둔다.
+        ///
+        /// 광산은 2 · 3 · 4명 중에 고른다. 3명을 골랐으면 네 번째 칸은 "아직 안 온 사람"
+        /// 이 아니라 <b>영영 안 올 자리</b>다. 빈 자리와 같은 모양으로 두면 한 명을 더
+        /// 기다리는 줄 알고 안 떠나는 사람이 생긴다.
+        ///
+        /// ⚠ 칸을 <b>감추지 않고</b> 막는다. 감추면 고른 인원에 따라 판 너비가 들쭉날쭉해져서,
+        ///    2명을 고른 광산과 4명을 고른 광산이 아예 다른 화면처럼 보인다.
+        /// </summary>
+        public void ShowBlocked()
+        {
+            const float k = .55f;
+            Paint(emptyCard * k, emptyBack * k, new Color(0f, 0f, 0f, 0f),
+                new Color(0f, 0f, 0f, 0f), emptyAccent * k);
+
+            if (nameText != null)
+            {
+                nameText.text = "✕";            // ✕
+                nameText.color = nameOff * k;
+            }
+
+            if (stateText != null)
+            {
+                stateText.text = string.Empty;
+                stateText.color = nameOff * k;
+            }
+
+            if (readyDot != null) readyDot.color = new Color(0f, 0f, 0f, 0f);
+            if (readyPlate != null) readyPlate.color = new Color(.043f, .086f, .149f, .45f);
+        }
+
         private void Paint(Color cardColour, Color backColour, Color portraitColour,
             Color frameColour, Color plateColour)
         {

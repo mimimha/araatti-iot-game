@@ -170,6 +170,14 @@ public class Reef : VoyageEvent
     private const int VerdictHit = 1;
     private const int VerdictDodged = 2;
 
+    /// <summary>
+    /// 꺾어서 피하는 사건이다. 바위가 떠 있는 동안 항로 이탈 경고를 끈다.
+    ///
+    /// 피하라고 해 놓고 꺾은 사람을 혼낼 수는 없다. 자세한 이유는 밑줄 친 쪽에 적어 뒀다.
+    /// (<see cref="VoyageEvent.DodgedByLeavingCourse"/>)
+    /// </summary>
+    public override bool DodgedByLeavingCourse => true;
+
     /// <summary>복제할 값 — 이번 바위를 부딪혔는지 피했는지.</summary>
     public override int SyncExtra => _verdict;
 

@@ -101,8 +101,8 @@ MonoBehaviour:
   horizontalAngularThreshold: 3.2
   verticalAngularThreshold: 3.2
   thrustAccelerationThreshold: 5.5
-  minimumStrength: 0.35
-  swingCooldownSeconds: 0.45
+  minimumStrength: 0
+  swingCooldownSeconds: 0.05
 --- !u!114 &4891104960845813073
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -149,6 +149,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1952531920262544083}
   - component: {fileID: 612887023668713779}
+  - component: {fileID: 1813360083096866894}
+  - component: {fileID: 4814648322906569380}
   m_Layer: 0
   m_Name: WarriorsGameRoot
   m_TagString: Untagged
@@ -191,6 +193,34 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsSceneBootstrap
   standalonePlayerPrefab: {fileID: 1372944045376030072, guid: c70efb052b44c544882d461082bf2e2c, type: 3}
   createStandalonePlayer: 1
+--- !u!114 &1813360083096866894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5906183513381321043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af99570f5a7e7f54e9fd5d70ea1a715b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsIoTFeedbackHub
+--- !u!114 &4814648322906569380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5906183513381321043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8edf36a1d703a724a9bb5bb5be07575f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Warriors.WarriorsFakeImuInput
+  playerId: 0
+  followLocalOwner: 1
+  overshoot: 1.6
+  modifier: 53
 --- !u!1 &5948766777338765292
 GameObject:
   m_ObjectHideFlags: 0
@@ -402,6 +432,7 @@ MonoBehaviour:
   partialDamage: 9
   counterSeconds: 1.5
   counterDamage: 10
+  counterTelegraphSeconds: 1.1
   lastChancePercent: 25
   noteTravelSeconds: 2.2
   perfectWindow: 0.12

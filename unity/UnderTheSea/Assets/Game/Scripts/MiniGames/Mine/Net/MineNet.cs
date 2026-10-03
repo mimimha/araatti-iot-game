@@ -30,8 +30,17 @@ namespace Mine.Net
         /// </summary>
         public const string BootScenePath = "Assets/Game/Scenes/Main/MiniGames/MineBoot.unity";
 
-        /// <summary>기본 세션 이름. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
-        public const string DefaultSession = "mine-1";
+        /// <summary>
+        /// 이 게임의 방 이름 앞부분. 방 번호를 붙여 <c>mine-1</c> · <c>mine-2</c> 가 된다.
+        ///
+        /// <b>왜 상수로 쪼개 두는가.</b> 매칭은 DS Pool 에서 빈 방을 찾을 때 세션 목록을
+        /// 이 앞부분으로 걸러 낸다. 그때 쓰려고 <c>"mine"</c> 를 다른 곳에 또 적으면 이름이
+        /// 두 벌이 되고, 한쪽만 바꾸는 날 조용히 빈 방을 못 찾게 된다.
+        /// </summary>
+        public const string SessionPrefix = "mine";
+
+        /// <summary>기본 방. 실행 인자 <c>-session</c> 이 있으면 그쪽이 이긴다.</summary>
+        public const string DefaultSession = SessionPrefix + "-1";
 
         /// <summary>
         /// 기본 포트. Lobby(27015) · Warriors(27031) 와 겹치지 않게 잡았다.
@@ -66,9 +75,27 @@ namespace Mine.Net
         /// </summary>
         public const string CrewKey = "-crew";
 
-        /// <summary>이 프로세스가 쓸 세션 이름.</summary>
+        /// <summary>
+        /// 이 프로세스가 쓸 세션 이름.
+        ///
+        /// <code>
+        ///   MiniGameSessionRequest.Pending 이 있으면  그것   (Lobby 매칭이 정해 준 방)
+        ///   없으면 실행 인자 -session                        (서버 · 단독 실행)
+        ///   그것도 없으면 기본값
+        /// </code>
+        ///
+        /// <b>왜 실행 인자만으로는 안 되는가.</b> <c>-session</c> 은 프로세스가 뜰 때
+        /// 고정된다. 매칭이 "너희는 mine-2 로" 라고 정해 줘도 클라이언트가 받을 자리가 없다.
+        /// 전용 서버는 Pending 이 늘 비어 있으므로 예전 그대로 실행 인자를 따른다.
+        ///
+        /// 배(<c>ShipCoopNet</c>)가 먼저 쓰던 방식을 그대로 가져왔다. 저장하는 자리는
+        /// 게임을 가리지 않는 <see cref="MiniGameSessionRequest"/> 하나다.
+        /// </summary>
         public static string ResolveSession()
         {
+            string assigned = MiniGameSessionRequest.Pending;
+            if (!string.IsNullOrWhiteSpace(assigned)) return assigned;
+
             return FusionLaunchArguments.GetString(FusionLaunchArguments.SessionKey, DefaultSession);
         }
 
@@ -80,6 +107,11 @@ namespace Mine.Net
         /// </summary>
         public static int ResolveCrewToStart(int fromInspector)
         {
+            // ⚠ **매칭이 정해 준 인원이 가장 세다.** 3인 판으로 묶여 온 사람들을
+            //    인스펙터의 2명이나 실행 인자로 둘만 모여도 출발시키면, 아직 오는 중인
+            //    세 번째 사람이 들어갈 자리가 사라진다.
+            if (MatchCrew.Assigned > 0) return Mathf.Clamp(MatchCrew.Assigned, 1, MaxCrew);
+
             string raw = FusionLaunchArguments.GetString(CrewKey, null);
 
             if (!string.IsNullOrEmpty(raw) && int.TryParse(raw, out int wanted))

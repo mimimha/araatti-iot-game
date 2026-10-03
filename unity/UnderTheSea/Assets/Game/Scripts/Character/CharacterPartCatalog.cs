@@ -42,6 +42,53 @@ namespace UnderTheSea.Character
             "Face", "Hair", "Shoes", "Top", "Bottom", "Accessory"
         };
 
+        /// <summary>
+        /// Accessory 카테고리를 저장할 때 쓰는 <b>자리별</b> slot 이름.
+        ///
+        /// ⚠ <b>왜 카테고리 이름 하나로 저장하지 않나.</b> 서버와 DB 는 (캐릭터, slot) 을
+        ///    UNIQUE 로 막는다. Accessory 하나로 저장하면 모자 + 안경을 함께 쓴 캐릭터가
+        ///    <c>같은 slot 이 두 번 들어 있습니다: "Accessory"</c> 로 생성에 실패한다.
+        ///    화면(Applier)은 WearSlot 단위로 함께 입히는데 저장은 카테고리 단위로 막고 있었다.
+        ///    그래서 Accessory 안의 자리는 WearSlot 이름으로 나눠 저장한다.
+        ///
+        /// 예전에 "Accessory" 로 저장된 값도 그대로 읽힌다. (<see cref="CategoryOfSnapshotSlot"/>)
+        /// 여기 없는 자리(장갑 등)는 예전처럼 "Accessory" 로 저장한다.
+        /// </summary>
+        public static readonly WearSlot[] AccessorySnapshotSlots =
+        {
+            WearSlot.Hat, WearSlot.Glasses, WearSlot.FaceAccessory
+        };
+
+        /// <summary>이 파츠를 스냅샷에 저장할 때 쓸 slot 이름.</summary>
+        public static string SnapshotSlotOf(Entry entry)
+        {
+            if (entry == null)
+            {
+                return string.Empty;
+            }
+
+            if (entry.category == "Accessory" && Array.IndexOf(AccessorySnapshotSlots, entry.slot) >= 0)
+            {
+                return entry.slot.ToString();
+            }
+
+            return entry.category;
+        }
+
+        /// <summary>스냅샷의 slot 이름이 어느 카테고리에 속하는가. 입히는 순서를 정할 때 쓴다.</summary>
+        public static string CategoryOfSnapshotSlot(string slot)
+        {
+            foreach (WearSlot accessorySlot in AccessorySnapshotSlots)
+            {
+                if (string.Equals(slot, accessorySlot.ToString(), StringComparison.Ordinal))
+                {
+                    return "Accessory";
+                }
+            }
+
+            return slot;
+        }
+
         /// <summary>파츠 하나.</summary>
         [Serializable]
         public sealed class Entry
