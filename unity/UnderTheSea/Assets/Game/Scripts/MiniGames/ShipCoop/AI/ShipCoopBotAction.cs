@@ -76,7 +76,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
                 input.SetButton(ShipCoopButton.RightButton1, false);
             }
 
-            if (!navigator.HasArrived || brain.CurrentTarget == null)
+            if (brain.CurrentTarget == null)
             {
                 ClearWorkAxes();
                 return;
@@ -84,7 +84,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
 
             TaskBase task = brain.CurrentTarget as TaskBase;
 
-            if (task == null)
+            // Navigator의 도착 판정과 별개로 게임 규칙상 실제 상호작용 범위에 들어왔다면
+            // 즉시 작업을 시작한다. 큰 대포 콜라이더에 막혀 중심점까지 못 가는 경우를 포함한다.
+            if (task == null || !task.IsInRange(transform.position))
             {
                 ClearWorkAxes();
                 return;
@@ -262,7 +264,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
         {
             ClearWorkAxes();
 
-            if (cannon == null || !cannon.CanFire || Time.time < nextActionAt)
+            // 작업 재선택에는 사람다운 반응 지연이 있다. 그 사이 적선이 이미 격파됐다면
+            // 기존 Cannon 작업이 잠깐 남아 있어도 남은 포탄을 허공에 쏘지 않는다.
+            bool enemyActive = VoyageEvent.Active
+                .Any(step => step is EnemyShip && step.IsActive);
+
+            if (!enemyActive || cannon == null || !cannon.CanFire || Time.time < nextActionAt)
             {
                 return;
             }

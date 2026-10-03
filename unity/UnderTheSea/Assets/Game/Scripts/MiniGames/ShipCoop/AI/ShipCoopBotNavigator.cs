@@ -207,7 +207,9 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
             Vector3 delta = target - transform.position;
             delta.y = 0f;
 
-            float reach = routeIndex == route.Count - 1 ? destinationReach : waypointReach;
+            float reach = routeIndex == route.Count - 1
+                ? DestinationReach()
+                : waypointReach;
 
             if (delta.sqrMagnitude <= reach * reach)
             {
@@ -243,6 +245,27 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
                 avoidanceSign *= -1;
                 stuckFor = 0f;
             }
+        }
+
+        /// <summary>
+        /// 작업 지점은 오브젝트 중심이 아니라 그 작업의 상호작용 범위에 들어가면 도착한 것이다.
+        /// 특히 대포는 큰 콜라이더 때문에 캐릭터가 중심 1.25m까지 접근할 수 없으므로,
+        /// 고정 거리만 쓰면 사거리 안에서 영원히 전진하며 작업을 시작하지 못한다.
+        /// </summary>
+        private float DestinationReach()
+        {
+            if (routedTarget != null && routedTarget.TryGetComponent(out TaskBase task))
+            {
+                // 이동은 수평 거리로 계산하지만 TaskBase는 3차원 거리를 사용한다.
+                // 현재 높이 차이를 제외한 실제 수평 사거리를 구하고, 경계에서 붙었다 떨어지지
+                // 않도록 그보다 10% 안쪽까지 이동한다.
+                float vertical = Mathf.Abs(routedTarget.position.y - transform.position.y);
+                float horizontalRange = Mathf.Sqrt(Mathf.Max(0f,
+                    task.InteractRange * task.InteractRange - vertical * vertical));
+                return Mathf.Max(destinationReach, horizontalRange * 0.9f);
+            }
+
+            return destinationReach;
         }
 
         private Vector3 AvoidObstacles(Vector3 direction)
