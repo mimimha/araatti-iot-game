@@ -51,6 +51,14 @@ namespace UnderTheSea.Lobby
         [Tooltip("여기로 이동해 왔을 때 설 자리. 비워 두면 이정표 자신의 위치를 쓴다.")]
         [SerializeField] private Transform arrivalPoint;
 
+        [Tooltip("켜면 여기 도착했을 때 캐릭터가 아래 각도를 바라보고, 카메라는 그 등 뒤에 선다. " +
+                 "끄면 예전처럼 원래 보던 방향 그대로 도착한다.")]
+        [SerializeField] private bool faceOnArrival;
+
+        [Tooltip("도착했을 때 바라볼 좌우 각도(도). 0 = 북쪽(+Z), 90 = 동쪽(+X). " +
+                 "씬에서 이정표를 고르면 노란 화살표로 보인다.")]
+        [SerializeField, Range(0f, 360f)] private float arrivalYaw;
+
         [Header("상호작용")]
         [Tooltip("이 거리 안에 들어와야 누를 수 있다(m).")]
         [SerializeField, Min(0.5f)] private float interactDistance = 4f;
@@ -74,6 +82,18 @@ namespace UnderTheSea.Lobby
         public Vector3 ArrivalPoint =>
             arrivalPoint != null ? arrivalPoint.position : transform.position;
 
+        /// <summary>
+        /// 도착했을 때 바라볼 각도. 정해 두지 않은 이정표면 false — 그때는 방향을 건드리지 않는다.
+        ///
+        /// 서버는 캐릭터를 이 각도로 돌리고(<c>NetworkPlayerMover.RpcRequestTeleport</c>),
+        /// 클라이언트는 카메라를 그 등 뒤에 세운다(<see cref="SignpostTeleportUI"/>). 둘 다 같은 씬 값을 읽는다.
+        /// </summary>
+        public bool TryGetArrivalYaw(out float yaw)
+        {
+            yaw = arrivalYaw;
+            return faceOnArrival;
+        }
+
         /// <summary>지금 누를 수 있는가.</summary>
         public bool PlayerIsNear { get; private set; }
 
@@ -87,7 +107,7 @@ namespace UnderTheSea.Lobby
         /// <paramref name="slack"/> 만큼은 봐준다. 부동소수 오차와, 도착 지점을 살짝
         /// 옮겨 놓았을 수 있는 여지다.
         /// </summary>
-        public static bool IsKnownArrival(Vector3 point, float slack, out string who)
+        public static bool IsKnownArrival(Vector3 point, float slack, out SignpostTeleport which)
         {
             foreach (SignpostTeleport post in All)
             {
@@ -95,12 +115,12 @@ namespace UnderTheSea.Lobby
 
                 if ((post.ArrivalPoint - point).sqrMagnitude <= slack * slack)
                 {
-                    who = post.DisplayName;
+                    which = post;
                     return true;
                 }
             }
 
-            who = null;
+            which = null;
             return false;
         }
 
@@ -246,6 +266,52 @@ namespace UnderTheSea.Lobby
                 Gizmos.DrawWireSphere(arrivalPoint.position, 0.4f);
                 Gizmos.DrawLine(transform.position, arrivalPoint.position);
             }
+
+            // 도착해서 바라볼 쪽. 캐릭터는 이 화살표 쪽을 보고, 카메라는 화살표 꼬리 뒤에 선다.
+            if (faceOnArrival)
+            {
+                Vector3 from = ArrivalPoint + Vector3.up * 1.5f;
+                Vector3 dir = Quaternion.Euler(0f, arrivalYaw, 0f) * Vector3.forward;
+                Vector3 tip = from + dir * 4f;
+                Vector3 side = Vector3.Cross(Vector3.up, dir) * 0.6f;
+
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(from, tip);
+                Gizmos.DrawLine(tip, tip - dir * 1f + side);
+                Gizmos.DrawLine(tip, tip - dir * 1f - side);
+            }
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// 씬 뷰가 지금 보고 있는 좌우 방향을 도착 방향으로 넣는다. 카메라 고르기와 같은 요령이다 —
+        /// 씬 뷰를 도착했을 때 보이고 싶은 쪽으로 돌려 놓고 이 메뉴를 누른다.
+        /// </summary>
+        [ContextMenu("도착 방향을 지금 씬 뷰가 보는 쪽으로")]
+        private void FaceSceneView()
+        {
+            UnityEditor.SceneView view = UnityEditor.SceneView.lastActiveSceneView;
+            if (view == null || view.camera == null)
+            {
+                Debug.LogWarning("[이정표] 열려 있는 씬 뷰가 없습니다.", this);
+                return;
+            }
+
+            Vector3 forward = view.camera.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+            {
+                Debug.LogWarning("[이정표] 씬 뷰가 바로 위나 아래를 보고 있어 좌우 방향을 알 수 없습니다. 비스듬히 돌려 주세요.", this);
+                return;
+            }
+
+            UnityEditor.Undo.RecordObject(this, "이정표 도착 방향");
+            faceOnArrival = true;
+            arrivalYaw = Mathf.Repeat(Quaternion.LookRotation(forward).eulerAngles.y, 360f);
+            UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+            UnityEditor.EditorUtility.SetDirty(this);
+            Debug.Log($"[이정표] '{DisplayName}' 도착 방향 {arrivalYaw:0}° 로 정했습니다. 씬을 저장해 주세요.", this);
+        }
+#endif
     }
 }
