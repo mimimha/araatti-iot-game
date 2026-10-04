@@ -452,7 +452,7 @@ public class NetworkPlayerMover : NetworkBehaviour
     {
         // 받은 좌표가 정말 이정표 앞인가. 1.5m 는 부동소수 오차와 도착 지점을 살짝
         // 옮겨 놓았을 여지를 봐주는 값이다.
-        if (!UnderTheSea.Lobby.SignpostTeleport.IsKnownArrival(target, 1.5f, out string who))
+        if (!UnderTheSea.Lobby.SignpostTeleport.IsKnownArrival(target, 1.5f, out var post))
         {
             Debug.LogWarning(
                 $"[이정표] {Object.InputAuthority} 가 {target.ToString("F2")} 로 보내 달라 했지만 " +
@@ -461,7 +461,18 @@ public class NetworkPlayerMover : NetworkBehaviour
         }
 
         Teleport(target);
-        Debug.Log($"[이정표] {Object.InputAuthority} 를 \"{who}\" ({target.ToString("F2")}) 로 보냈습니다.");
+
+        // 도착 방향이 정해진 이정표면 그쪽을 보게 돌린다. 방향은 서버가 정해야 남의 화면에도
+        // 같게 보인다. 카메라는 클라이언트가 같은 값을 읽어 등 뒤에 세운다(SignpostTeleportUI).
+        // 정해 두지 않은 이정표는 예전처럼 원래 보던 방향 그대로다.
+        string facing = "";
+        if (post.TryGetArrivalYaw(out float yaw))
+        {
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            facing = $" · {yaw:0}° 를 보게 돌림";
+        }
+
+        Debug.Log($"[이정표] {Object.InputAuthority} 를 \"{post.DisplayName}\" ({target.ToString("F2")}) 로 보냈습니다{facing}.");
     }
 
     /// <summary>
