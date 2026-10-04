@@ -93,6 +93,17 @@ namespace UnderTheSea.Network.Editor
             "Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity",
         };
 
+        /// <summary>
+        /// 로비에서 배 게임 입장까지 확인하는 개발 클라이언트 씬 목록.
+        /// 첫 씬은 직접 접속용 Lobby 여야 하고, 매칭 후 전환할 두 배 씬도 함께 들어 있어야 한다.
+        /// </summary>
+        private static readonly string[] LobbyShipCoopScenes =
+        {
+            TestScenePath,
+            "Assets/Game/Scenes/Main/MiniGames/ShipCoopBoot.unity",
+            "Assets/Game/Scenes/Main/MiniGames/ShipCoop.unity",
+        };
+
         private const string ShipCoopServerOutput = "Builds/ShipCoopServer/AraAtti-ShipCoopServer.exe";
         private const string ShipCoopClientOutput = "Builds/ShipCoopClient/AraAtti-ShipCoopClient.exe";
 
@@ -191,7 +202,7 @@ namespace UnderTheSea.Network.Editor
         [MenuItem(MenuRoot + "Fusion 클라이언트 테스트 빌드")]
         public static void BuildClient()
         {
-            Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions);
+            Build(ClientOutput, StandaloneBuildSubtarget.Player, LobbyShipCoopScenes, ClientOptions);
         }
 
         /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
@@ -203,7 +214,7 @@ namespace UnderTheSea.Network.Editor
         /// <summary>커맨드라인용. 실패하면 종료 코드 1 로 빠진다.</summary>
         public static void BuildClientFromCommandLine()
         {
-            ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, new[] { TestScenePath }, ClientOptions));
+            ExitWith(Build(ClientOutput, StandaloneBuildSubtarget.Player, LobbyShipCoopScenes, ClientOptions));
         }
 
         [MenuItem(MenuRoot + "Warriors 서버 빌드 (Dedicated Server)")]
