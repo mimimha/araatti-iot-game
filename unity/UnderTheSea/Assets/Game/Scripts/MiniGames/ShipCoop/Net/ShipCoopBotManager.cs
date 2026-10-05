@@ -3,6 +3,7 @@ using System.Linq;
 using Fusion;
 using UnityEngine;
 using UnderTheSea.MiniGames.ShipCoop.AI;
+using UnderTheSea.Network;
 
 namespace UnderTheSea.MiniGames.ShipCoop.Net
 {
@@ -107,6 +108,14 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                     bot.gameObject.AddComponent<ShipCoopBotNavigator>();
                     bot.gameObject.AddComponent<ShipCoopBotAction>();
                 }
+            }
+
+            // 사람 슬롯 번호와 무관하게 현재 봇들에게 npc1부터 연속된 이름을 붙인다.
+            int npcNumber = 1;
+            foreach (var entry in botsBySlot.OrderBy(entry => entry.Key))
+            {
+                entry.Value.GetComponent<NetworkPlayerIdentity>()?
+                    .SetNpcNickname($"npc{npcNumber++}");
             }
 
             RefreshCount();

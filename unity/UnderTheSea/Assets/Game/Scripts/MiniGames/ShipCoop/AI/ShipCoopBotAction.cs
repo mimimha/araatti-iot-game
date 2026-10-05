@@ -39,6 +39,10 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
             input = GetComponent<ShipCoopBotController>();
             worker = GetComponent<TaskWorker>();
             carry = GetComponent<CarryTask>();
+            if (carry != null)
+            {
+                carry.PickupFilter = WantsPickup;
+            }
         }
 
         private void Start()
@@ -48,6 +52,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
 
         private void OnDestroy()
         {
+            if (carry != null)
+            {
+                carry.PickupFilter = null;
+            }
+
             if (brain != null)
             {
                 brain.JobChanged -= OnJobChanged;
@@ -132,6 +141,17 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
 
             Cargo expected = ExpectedCargo(brain.CurrentJob);
 
+            // 물건을 집기 전에도 목표를 검사한다. 손을 놓은 다음 프레임에
+            // 무효가 된 작업으로 같은 물건을 다시 집는 것을 막는다.
+            if (!CargoIsStillNeeded())
+            {
+                navigator.SetOverrideTarget(null);
+                ClearWorkAxes();
+                input.SetButton(ShipCoopButton.RightButton1, false);
+                brain.ReconsiderNow();
+                return;
+            }
+
             if (!carry.IsCarrying)
             {
                 navigator.SetOverrideTarget(null);
@@ -149,8 +169,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
                 // 상자 중심까지의 내비게이션 거리보다 실제 집기 사거리가 더 넓다.
                 // 캐릭터 캡슐이 상자 콜라이더에 닿으면 중심 1.25m까지 갈 수 없으므로,
                 // 기존 CarryTask가 쓰는 판정으로 집을 수 있는 순간 바로 버튼을 누른다.
-                AmmoBox reachable = carry.FindReachableBox();
-                bool canPickUp = reachable != null && reachable.Kind == expected;
+                bool canPickUp = carry.HasPickupInReach();
 
                 if (!canPickUp)
                 {
@@ -184,6 +203,28 @@ namespace UnderTheSea.MiniGames.ShipCoop.AI
 
             // 목적지에서 손을 떼면 기존 CarryTask가 전달·장전·배수를 판정한다.
             input.SetButton(ShipCoopButton.RightButton1, false);
+        }
+
+        private bool WantsPickup(Cargo cargo) =>
+            isActiveAndEnabled && IsCargoJob(brain.CurrentJob) &&
+            cargo == ExpectedCargo(brain.CurrentJob) && CargoIsStillNeeded();
+
+        private bool CargoIsStillNeeded()
+        {
+            if (brain.CurrentTarget == null || brain.Destination == null ||
+                !brain.Destination.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+
+            return brain.CurrentJob switch
+            {
+                ShipCoopBotJob.DeliverPlank =>
+                    brain.CurrentTarget is RepairTask repair && repair.WantsPlank,
+                ShipCoopBotJob.BailWater =>
+                    brain.CurrentTarget is ShipFlooding flooding && flooding.BailingHelps,
+                _ => brain.CurrentTarget != null,
+            };
         }
 
         private bool CanDeliver(Cargo cargo)
