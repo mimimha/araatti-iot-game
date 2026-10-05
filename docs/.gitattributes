@@ -1,0 +1,3 @@
+# Keep presentation and README demos as regular Git files for GitHub previews.
+/presentation.pdf -filter -diff -merge -text
+/demo/*.gif -filter -diff -merge -text
