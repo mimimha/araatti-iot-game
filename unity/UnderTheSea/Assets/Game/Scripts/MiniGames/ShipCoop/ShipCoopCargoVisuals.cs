@@ -49,7 +49,7 @@ public class ShipCoopCargoVisuals : ScriptableObject
     [Range(0.3f, 1f)] public float waterWidth = 0.88f;
 
     [Tooltip("물 높이. 테두리에서 이만큼 아래로 내린다 (양동이 높이 대비 비율). 0 이면 테두리와 같은 높이.")]
-    [Range(0f, 0.5f)] public float waterSink = 0.08f;
+    [Range(0f, 0.5f)] public float waterSink = 0.4f;
 
     [Header("🪵 자재 — 판자 묶음")]
     [Tooltip("판자 2장이 붙은 메시 하나. SM_Gen_Prop_Plank_02 (1.77 × 0.11 × 0.28m). 긴 축이 x 라 그대로 들면 어깨 방향으로 눕는다.")]
