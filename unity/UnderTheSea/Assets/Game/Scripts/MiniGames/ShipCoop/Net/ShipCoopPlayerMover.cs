@@ -190,9 +190,12 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 }
             }
 
-            if (GetInput(out ShipCoopInputData input))
+            bool hasNetworkInput = GetInput(out ShipCoopInputData input);
+            bool hasBotInput = !hasNetworkInput && controller != null && controller.IsBot;
+
+            if (hasNetworkInput || hasBotInput)
             {
-                Vector2 axis = input.Move;
+                Vector2 axis = hasNetworkInput ? input.Move : controller.Move;
 
                 if (axis.sqrMagnitude > 1f)
                 {
@@ -209,7 +212,8 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 }
 
                 // 클라이언트가 보내 준 카메라 각도로 돌린다. 서버에는 카메라가 없다.
-                Quaternion lookRotation = Quaternion.Euler(0f, input.LookYaw, 0f);
+                float lookYaw = hasNetworkInput ? input.LookYaw : controller.LookYaw;
+                Quaternion lookRotation = Quaternion.Euler(0f, lookYaw, 0f);
                 direction = lookRotation * new Vector3(axis.x, 0f, axis.y);
 
                 if (direction.sqrMagnitude > 1f)

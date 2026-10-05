@@ -261,6 +261,9 @@ namespace UnderTheSea.Lobby
             var view = me.GetComponent<LocalPlayerView>();
             Vector3 arrival = target.ArrivalPoint;
 
+            // 도착 방향이 정해진 이정표면 카메라를 그 등 뒤에 세운다. 캐릭터는 서버가 같은 값으로 돌린다.
+            float? faceYaw = target.TryGetArrivalYaw(out float yaw) ? yaw : (float?)null;
+
             // 어두워지기 시작할 때 얼린다. 이 한 줄이 빠지면 페이드 중에 카메라가
             // 날아가기 시작하는 것이 보인다.
             view?.FreezeCamera(true);
@@ -268,7 +271,7 @@ namespace UnderTheSea.Lobby
             // ⚠ **얼렸으면 반드시 풀어야 한다.** 가리기가 시작되지 않으면 Ride 도 돌지
             //    않으므로 얼음을 풀어 줄 사람이 없다. 그대로 두면 카메라가 캐릭터에서
             //    떨어진 채 영영 굳는다. 실제로 그렇게 됐다.
-            if (!ScreenFade.Cover(() => Ride(mover, view, me.transform, arrival), FadeSeconds))
+            if (!ScreenFade.Cover(() => Ride(mover, view, me.transform, arrival, faceYaw), FadeSeconds))
             {
                 view?.FreezeCamera(false);
                 Debug.LogWarning("[이정표] 이미 이동 연출이 도는 중이라 이번 선택은 무시합니다.");
@@ -292,7 +295,7 @@ namespace UnderTheSea.Lobby
         ///    <see cref="ArrivalTimeout"/> 이 지나면 포기하고 화면을 되돌린다.
         /// </summary>
         private IEnumerator Ride(
-            NetworkPlayerMover mover, LocalPlayerView view, Transform me, Vector3 arrival)
+            NetworkPlayerMover mover, LocalPlayerView view, Transform me, Vector3 arrival, float? faceYaw)
         {
             // ⚠ **어떻게 끝나든 얼음은 풀어야 한다.** 중간에 캐릭터가 사라져 빠져나가도,
             //    서버가 거절해 시간이 다 지나가도 마찬가지다. 한 번이라도 안 풀리면
@@ -327,6 +330,13 @@ namespace UnderTheSea.Lobby
                     Debug.LogWarning(
                         $"[이정표] {ArrivalTimeout:0.0}초를 기다렸는데 {arrival.ToString("F2")} 에 " +
                         "도착하지 않았습니다. 서버가 거절했거나 응답이 늦습니다. 화면만 되돌립니다.");
+                }
+
+                // 도착 방향이 정해진 이정표면 카메라 좌우 각도를 그쪽으로. 도착했을 때만 —
+                // 서버가 거절했으면 캐릭터는 그대로인데 화면만 돌아가 버린다.
+                if (arrived && faceYaw.HasValue)
+                {
+                    view?.FaceCameraYaw(faceYaw.Value);
                 }
 
                 // 카메라를 제자리에 놓는다. 푸는 것보다 먼저다 — 풀고 나서 옮기면

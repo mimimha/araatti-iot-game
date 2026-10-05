@@ -632,6 +632,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net.Editor
             // ⚠ 스포너는 반드시 러너와 **같은 오브젝트**에 있어야 한다.
             //    Fusion 이 자동으로 등록하는 SimulationBehaviour 는 그것뿐이다.
             ShipCoopPlayerSpawner spawner = manager.AddComponent<ShipCoopPlayerSpawner>();
+            manager.AddComponent<ShipCoopBotManager>();
             SerializedObject data = new SerializedObject(spawner);
             data.FindProperty("playerPrefab").objectReferenceValue =
                 playerPrefab.GetComponent<NetworkObject>();

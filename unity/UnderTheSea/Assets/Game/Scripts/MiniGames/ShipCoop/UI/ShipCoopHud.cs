@@ -1173,7 +1173,8 @@ public class ShipCoopHud : MonoBehaviour
     //      키보드   완드
     //      Space    A      붙기 · 집기 · 놓기 · 장전   오른손 버튼 1
     //      K        B      발사 · 망치질              오른손 버튼 2 (내리치기도 됨)
-    //      J · L    L · R  조타 · 돛                  양손 기울기 · 비틀기
+    //      J · L    L · R  조타                       양손 기울기
+    //      J · L    A · B  돛                         왼손 버튼 1 풀기 · 오른손 버튼 2 감기
     //
     //    ⚠ **글자 크기는 키보드와 같다.** 같은 칸 · 같은 자동 크기 범위를 그대로 쓴다.
     //       "A" · "B" 는 "K" 와 같은 한 글자라 같은 크기로 서고, "L · R" 은 "J · L" 과
@@ -1186,6 +1187,9 @@ public class ShipCoopHud : MonoBehaviour
     private const string WandInteract = "A";
     private const string WandFire = "B";
     private const string WandTilt = "L · R";
+
+    // 돛은 완드에서 기울기가 아니라 버튼이다. 오른손 B 로 감고 왼손 A 로 푼다. (ShipCoopInput.SailPull)
+    private const string WandSail = "A · B";
 
     /// <summary>
     /// 이 컴퓨터에서 지금 완드로 하고 있는가.
@@ -1228,7 +1232,7 @@ public class ShipCoopHud : MonoBehaviour
             case CannonTask _: return wand ? WandFire : "K";
             case RepairTask _: return wand ? WandFire : "K";
             case HelmTask _: return wand ? WandTilt : "J · L";
-            case SailTask _: return wand ? WandTilt : "J · L";
+            case SailTask _: return wand ? WandSail : "J · L";
             default: return wand ? WandInteract : KeyInteract;
         }
     }
@@ -1455,7 +1459,7 @@ public class ShipCoopHud : MonoBehaviour
             // 조타와 돛은 두 키가 서로 반대 방향이라 어느 쪽이 무엇인지 적어준다.
             // 완드는 키가 아니라 손 동작이라 어떻게 움직이는지를 적는다. (ShipCoopInput.Steer · SailPull)
             case HelmTask _: return UsingWand() ? "양손 기울여 좌 · 우" : "J 좌 · L 우";
-            case SailTask _: return UsingWand() ? "양손 비틀어 당기기 · 풀기" : "L 당기기 · J 풀기";
+            case SailTask _: return UsingWand() ? "오른손 B 감기 · 왼손 A 풀기" : "L 당기기 · J 풀기";
             default: return null;
         }
     }

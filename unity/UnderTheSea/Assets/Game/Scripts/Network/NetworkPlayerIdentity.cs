@@ -47,6 +47,23 @@ namespace UnderTheSea.Network
 
         private bool submitted;
 
+        /// <summary>입력 주인이 없는 NPC의 이름을 서버에서 정하고 모든 클라이언트에 복제한다.</summary>
+        public void SetNpcNickname(string nickname)
+        {
+            if (!HasStateAuthority || Object.InputAuthority != PlayerRef.None)
+            {
+                return;
+            }
+
+            string trimmed = (nickname ?? string.Empty).Trim();
+            if (trimmed.Length > 0)
+            {
+                Nickname = trimmed.Length > MaxNicknameLength
+                    ? trimmed.Substring(0, MaxNicknameLength)
+                    : trimmed;
+            }
+        }
+
         public override void Spawned()
         {
             if (HasInputAuthority)

@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
+using UnderTheSea.Network;
 
 namespace UnderTheSea.MiniGames.ShipCoop.Net
 {
@@ -39,6 +41,11 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         /// 유니티는 씬을 넘는 참조를 저장하지 못한다. (<see cref="ShipCoopSpawnPoint"/>)
         /// </summary>
         private Transform[] spawnPoints;
+
+        /// <summary>서버가 만든 봇. 자동 충원과 제거는 다음 단계의 BotManager가 관리한다.</summary>
+        private readonly List<NetworkObject> bots = new List<NetworkObject>();
+
+        public IReadOnlyList<NetworkObject> Bots => bots;
 
         public void PlayerJoined(PlayerRef player)
         {
@@ -85,6 +92,45 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         }
 
         /// <summary>
+        /// 지정한 0 기반 슬롯에 서버 권위 봇 한 명을 만든다.
+        /// 사람 수에 맞춰 자동 호출하는 일은 아직 하지 않는다.
+        /// </summary>
+        public NetworkObject SpawnBot(int slotIndex)
+        {
+            if (!Runner.IsServer || playerPrefab == null)
+            {
+                return null;
+            }
+
+            ResolveSpawn(slotIndex, out Vector3 position, out Quaternion rotation);
+            NetworkObject spawned = Runner.Spawn(playerPrefab, position, rotation, inputAuthority: PlayerRef.None);
+
+            // 네트워크 상태는 기존 플레이어 부품들이 복제하므로, 판단용 입력 공급자는 서버에만 있으면 된다.
+            spawned.gameObject.AddComponent<ShipCoopBotController>();
+
+            // 봇은 InputAuthority가 없어 사람처럼 외형 RPC를 제출하지 않는다.
+            // 사람용 20초 타임아웃을 기다리면 그동안 렌더러가 숨겨져 투명하게 보이므로,
+            // 스폰한 서버가 즉시 프리팹 기본 외형을 확정한다.
+            spawned.GetComponent<NetworkPlayerAppearance>()?
+                .ConfirmDefaultAppearance("AI 봇 — 외형 제출 없음");
+
+            bots.Add(spawned);
+
+            Debug.Log($"[ShipCoopSpawner] AI 봇 슬롯 {slotIndex + 1} 생성 — {position}, Id {spawned.Id}");
+            return spawned;
+        }
+
+        public void DespawnBot(NetworkObject bot)
+        {
+            if (!Runner.IsServer || bot == null || !bots.Remove(bot))
+            {
+                return;
+            }
+
+            Runner.Despawn(bot);
+        }
+
+        /// <summary>
         /// 이 사람이 설 자리.
         ///
         /// 자리를 <c>PlayerId</c> 로 나눈다. 들어온 순서가 아니라 번호를 쓰므로
@@ -92,11 +138,16 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
         /// </summary>
         private void ResolveSpawn(PlayerRef player, out Vector3 position, out Quaternion rotation)
         {
+            ResolveSpawn(player.PlayerId, out position, out rotation);
+        }
+
+        private void ResolveSpawn(int slotIndex, out Vector3 position, out Quaternion rotation)
+        {
             Transform[] points = ResolveSpawnPoints();
 
             if (points.Length > 0)
             {
-                int index = Mathf.Abs(player.PlayerId) % points.Length;
+                int index = Mathf.Abs(slotIndex) % points.Length;
                 Transform point = points[index];
 
                 if (point != null)
@@ -111,7 +162,7 @@ namespace UnderTheSea.MiniGames.ShipCoop.Net
                 "[ShipCoopSpawner] 갑판 위 스폰 자리를 찾지 못했습니다. " +
                 "게임 씬의 SpawnPoints 에 ShipCoopSpawnPoint 가 붙어 있는지 확인해 주세요.", this);
 
-            position = transform.position + Vector3.right * (player.PlayerId * fallbackSpacing);
+            position = transform.position + Vector3.right * (slotIndex * fallbackSpacing);
             rotation = transform.rotation;
         }
 

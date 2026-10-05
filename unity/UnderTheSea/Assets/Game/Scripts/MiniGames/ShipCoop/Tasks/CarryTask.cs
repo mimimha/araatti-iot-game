@@ -396,7 +396,7 @@ public class CarryTask : MonoBehaviour
         {
             DroppedCargo lying = DroppedCargo.All[i];
 
-            if (lying == null || !lying.IsInReach(here))
+            if (lying == null || !lying.IsInReach(here) || !AllowsPickup(lying.Kind))
             {
                 continue;
             }
@@ -421,7 +421,7 @@ public class CarryTask : MonoBehaviour
 
         foreach (AmmoBox box in FindObjectsByType<AmmoBox>(FindObjectsInactive.Exclude))
         {
-            if (!box.HasStock || !box.IsInReach(position))
+            if (!box.HasStock || !box.IsInReach(position) || !AllowsPickup(box.Kind))
             {
                 continue;
             }
@@ -436,6 +436,11 @@ public class CarryTask : MonoBehaviour
 
         return best;
     }
+
+    /// <summary>봇의 작업 의도에 맞는 집기만 허용한다. 사람은 필터 없이 기존 규칙을 쓴다.</summary>
+    public Predicate<Cargo> PickupFilter { get; set; }
+
+    private bool AllowsPickup(Cargo cargo) => PickupFilter == null || PickupFilter(cargo);
 
     /// <summary>자재를 넘길 수 있는 거리 (m)</summary>
     public float LoadRange => loadRange;

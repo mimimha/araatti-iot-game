@@ -222,6 +222,18 @@ public class LocalPlayerView : NetworkBehaviour
     }
 
     /// <summary>
+    /// 카메라의 좌우 각도를 정한다. 위아래 각도 · 거리는 그대로 둔다. 곧이어 <see cref="SnapCameraToMe"/> 를 불러야 자리를 잡는다.
+    /// 이정표 도착 방향이 쓴다 — 캐릭터가 보는 쪽 등 뒤에 서게 한다.
+    /// </summary>
+    public void FaceCameraYaw(float yawDegrees)
+    {
+        if (boundCamera is ThirdPersonCamera thirdPerson)
+        {
+            thirdPerson.FaceYaw(yawDegrees);
+        }
+    }
+
+    /// <summary>
     /// 서버가 복제한 외형을 입혔다고 <see cref="NetworkPlayerAppearance"/> 가 알려 준다.
     ///
     /// 빈 외형(개발용 직접 진입)이어도 불린다. 그래야 Overlay 가 닫힌다.
