@@ -8,7 +8,7 @@
 
 IoT 완드와 Unity로 만드는 해양 체감형 멀티플레이 게임
 
-[홈페이지 · 게임 다운로드](https://araatti.site) · [최종 발표자료 PDF](docs/presentation.pdf) · [실행 및 배포 가이드](exec/README.md) · [시연 시나리오](exec/04_시연시나리오.md)
+ [최종 발표자료 PDF](docs/presentation.pdf) · [실행 및 배포 가이드](exec/README.md)
 
 SSAFY 15기 · 팀 C101 · 6인 프로젝트
 
